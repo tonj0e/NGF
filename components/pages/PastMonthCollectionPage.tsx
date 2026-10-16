@@ -1,0 +1,70 @@
+'use client'
+import { useEffect, useState } from 'react'
+import { Session } from '@/types'
+
+function currency(n: number) {
+  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n)
+}
+
+export default function PastMonthCollectionPage({ session }: { session: Session }) {
+  const [rows, setRows] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch('/api/repayments?mode=history', { headers: { Authorization: `Bearer ${session.token}` } })
+      .then(r => r.json()).then(j => { if (j.success) setRows(j.data.rows || []) }).finally(() => setLoading(false))
+  }, [])
+
+  const lastMonth = new Date(); lastMonth.setMonth(lastMonth.getMonth() - 1)
+  const lastMonthStr = lastMonth.toISOString().slice(0, 7)
+  const paid = rows.filter(r => r['Status'] === 'Paid' && (r['Paid Date'] || '').startsWith(lastMonthStr))
+
+  const total = paid.reduce((s, r) => s + Number(r['Amount'] || 0), 0)
+  const avg = paid.length ? total / paid.length : 0
+
+  if (loading) return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" /></div>
+
+  return (
+    <div className="space-y-5">
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div className="rounded-[1.5rem] border border-white/70 bg-white p-5 shadow-panel">
+          <p className="text-xs text-[#697586]">Total Collected</p>
+          <p className="mt-2 text-3xl font-semibold">{currency(total)}</p>
+          <p className="mt-1 text-xs text-[#697586]">{lastMonthStr}</p>
+        </div>
+        <div className="rounded-[1.5rem] border border-white/70 bg-white p-5 shadow-panel">
+          <p className="text-xs text-[#697586]">Avg Ticket</p>
+          <p className="mt-2 text-3xl font-semibold">{currency(avg)}</p>
+        </div>
+        <div className="rounded-[1.5rem] border border-white/70 bg-white p-5 shadow-panel">
+          <p className="text-xs text-[#697586]">Collection Count</p>
+          <p className="mt-2 text-3xl font-semibold">{paid.length}</p>
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-[1.75rem] border border-white/70 bg-white shadow-panel">
+        <div className="border-b border-black/5 px-5 py-4">
+          <p className="text-sm font-semibold">Past Month Transactions — {lastMonthStr}</p>
+        </div>
+        <table className="w-full text-left text-sm">
+          <thead className="border-b border-black/5 bg-[#fafafa] text-[#697586]">
+            <tr>{['Customer', 'Loan ID', 'Week', 'Paid Date', 'Amount', 'Mode'].map(h => <th key={h} className="px-5 py-3 font-medium text-xs">{h}</th>)}</tr>
+          </thead>
+          <tbody className="divide-y divide-black/5">
+            {paid.map(r => (
+              <tr key={r['Repayment ID']} className="hover:bg-[#fafafa]">
+                <td className="px-5 py-3 font-medium">{r.customerName}</td>
+                <td className="px-5 py-3 font-mono text-xs text-[#697586]">{r['Loan ID']}</td>
+                <td className="px-5 py-3 text-[#697586]">{r['Week No']}</td>
+                <td className="px-5 py-3 text-[#697586]">{r['Paid Date']}</td>
+                <td className="px-5 py-3 font-semibold">{currency(Number(r['Amount']))}</td>
+                <td className="px-5 py-3 text-[#697586]">{r['Payment Mode'] || '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {paid.length === 0 && <p className="p-8 text-center text-sm text-[#697586]">No collections for last month.</p>}
+      </div>
+    </div>
+  )
+}

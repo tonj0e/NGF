@@ -1,0 +1,785 @@
+'use client'
+import { useEffect, useState, useMemo } from 'react'
+import { Session, Lead } from '@/types'
+import StatusPill from '@/components/ui/StatusPill'
+import DriveImage from '@/components/ui/DriveImage'
+import SubmitLeadPage from './SubmitLeadPage'
+import RenewalModal from './RenewalModal'
+import { buildLeadNoteData, buildPromissoryHtml, PROMISSORY_TEMPLATE_KEY, DEFAULT_PROMISSORY_BODY } from '@/lib/promissoryNote'
+
+type LeadTab = 'new' | 'history' | 'renewal' | 'disbursements'
+
+function currencyInr(n: number) {
+  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n)
+}
+
+// Local YYYY-MM-DD (avoids the UTC shift that toISOString() introduces)
+function ymdLocal(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+function addDaysIso(iso: string, days: number): string {
+  const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() + days); return ymdLocal(d)
+}
+
+// Monday (local) of the week containing the given YYYY-MM-DD date
+function weekStartIso(dateStr: string): string {
+  const d = new Date(dateStr.slice(0, 10) + 'T00:00:00')
+  if (isNaN(d.getTime())) return ''
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7))
+  return ymdLocal(d)
+}
+
+// Monday–Saturday range label for a week (keyed by its Monday)
+function weekRangeLabel(weekIso: string): string {
+  const start = new Date(weekIso + 'T00:00:00')
+  const end = new Date(start); end.setDate(end.getDate() + 5)
+  const fmt = (d: Date) => `${String(d.getDate()).padStart(2, '0')} ${d.toLocaleString('en-IN', { month: 'short' })}`
+  return `${fmt(start)} – ${fmt(end)} ${end.getFullYear()}`
+}
+
+export default function LeadsPage({ session }: { session: Session }) {
+  // Staff accounts manage leads/disbursements like an admin
+  const isManager = session.role === 'Admin' || session.role === 'Staff'
+  const isCollectionAgent = session.role === 'NGF AGENT'
+  const [leads, setLeads] = useState<Lead[]>([])
+  const [loading, setLoading] = useState(true)
+  const [tab, setTab] = useState<LeadTab>(isCollectionAgent ? 'history' : 'new')
+  const [showSubmit, setShowSubmit] = useState(false)
+  const [showRenewal, setShowRenewal] = useState(false)
+  const [detail, setDetail] = useState<Lead | null>(null)
+  const [agents, setAgents] = useState<any[]>([])
+  const [toast, setToast] = useState('')
+  const [editing, setEditing] = useState(false)
+  const [deleteMode, setDeleteMode] = useState(false)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [busy, setBusy] = useState<string | null>(null)
+  const [products, setProducts] = useState<any[]>([])
+  const [approveProduct, setApproveProduct] = useState('')
+
+  function showToast(m: string) { setToast(m); setTimeout(() => setToast(''), 3000) }
+
+  function printNote(lead: Lead) {
+    const tmpl = (typeof window !== 'undefined' && localStorage.getItem(PROMISSORY_TEMPLATE_KEY)) || DEFAULT_PROMISSORY_BODY
+    const html = buildPromissoryHtml(tmpl, buildLeadNoteData(lead))
+    const w = window.open('', '_blank')
+    if (!w) { showToast('Allow pop-ups to print the note.'); return }
+    w.document.write(html); w.document.close()
+  }
+
+  function toggleSelect(id: string) {
+    setSelected(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s })
+  }
+
+  async function deleteSelected() {
+    if (!selected.size) return
+    if (!confirm(`Delete ${selected.size} lead(s)? This cannot be undone.`)) return
+    let successCount = 0
+    for (const leadId of selected) {
+      const res = await fetch(`/api/leads/${leadId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${session.token}` } })
+      const json = await res.json()
+      if (json.success) successCount++
+      else console.error('Failed to delete lead:', leadId, json.error)
+    }
+    if (successCount > 0) showToast(`${successCount} lead(s) deleted.`)
+    else showToast('Failed to delete leads.')
+    setSelected(new Set())
+    setDeleteMode(false)
+    load()
+  }
+
+  async function load(showLoading = true) {
+    if (showLoading) setLoading(true)
+    const res = await fetch('/api/leads', { headers: { Authorization: `Bearer ${session.token}` } })
+    const json = await res.json()
+    if (json.success) setLeads(json.data.rows)
+    if (isManager) {
+      const s = await fetch('/api/staff', { headers: { Authorization: `Bearer ${session.token}` } })
+      const sj = await s.json()
+      if (sj.success) setAgents(sj.data.agents)
+      const p = await fetch('/api/loan-products', { headers: { Authorization: `Bearer ${session.token}` } })
+      const pj = await p.json()
+      if (pj.success) setProducts(pj.data.products || [])
+    }
+    if (showLoading) setLoading(false)
+  }
+
+  useEffect(() => { load(true) }, [])
+
+  // Memoize idle state to avoid dependency array churn
+  const isIdle = useMemo(() => !(
+    showSubmit || showRenewal || detail || editing || deleteMode || busy || selected.size > 0
+  ), [showSubmit, showRenewal, detail, editing, deleteMode, busy, selected.size])
+
+  // Auto-refresh leads every 15 seconds (only when UI is idle)
+  useEffect(() => {
+    if (!isIdle) return
+    const interval = setInterval(() => {
+      load(false)
+    }, 15000)
+    return () => clearInterval(interval)
+  }, [isIdle])
+
+  // Default the approval product to the lead's product (or the first product)
+  useEffect(() => {
+    if (detail) setApproveProduct(detail.loanProduct && detail.loanProduct !== 'RENEWAL' ? detail.loanProduct : (products[0]?.key || ''))
+  }, [detail, products])
+
+  async function assign(leadId: string, agentId: string) {
+    await fetch(`/api/leads/${leadId}`, {
+      method: 'PATCH', headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'assignAgent', agentId }),
+    })
+    showToast('Agent assigned.'); load()
+  }
+
+  async function assignFromTable(leadId: string, agentId: string) {
+    if (!agentId) return
+    await fetch(`/api/leads/${leadId}`, {
+      method: 'PATCH', headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'assignAgent', agentId }),
+    })
+    showToast('Agent assigned.')
+    load()
+  }
+
+  async function review(leadId: string, decision: string, extra: Record<string, any> = {}) {
+    const notes = decision === 'Reject Lead' ? prompt('Rejection reason (optional):') || '' : ''
+    setBusy(leadId + decision)
+    try {
+      // Fetch CSRF token
+      const csrfRes = await fetch('/api/csrf', { headers: { Authorization: `Bearer ${session.token}` } })
+      const csrfJson = await csrfRes.json()
+      const csrfToken = csrfJson.data?.csrfToken
+      
+      const res = await fetch(`/api/leads/${leadId}`, {
+        method: 'PATCH', 
+        headers: { 
+          Authorization: `Bearer ${session.token}`, 
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': csrfToken || ''
+        },
+        body: JSON.stringify({ action: 'adminReview', decision, notes, ...extra }),
+      })
+      const json = await res.json()
+      if (!json.success) throw new Error(json.error || 'Server error')
+      showToast('Done.'); setDetail(null); load()
+    } catch (e: any) {
+      showToast(e.message || 'Failed')
+    } finally { setBusy(null) }
+  }
+
+  async function deleteLead(leadId: string) {
+    if (!confirm('Delete this lead?')) return
+    const res = await fetch(`/api/leads/${leadId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${session.token}` } })
+    const json = await res.json()
+    if (json.success) { showToast('Deleted.'); setDetail(null); load() }
+    else showToast(json.error || 'Failed to delete')
+  }
+
+  async function scan(leadId: string, btn: HTMLButtonElement) {
+    btn.disabled = true; btn.textContent = 'Scanning...'
+    try {
+      const res = await fetch(`/api/leads/${leadId}`, {
+        method: 'PATCH', headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'scanFolder' }),
+      })
+      const j = await res.json()
+      showToast(j.data?.found ? `${j.data.found} photo(s) linked.` : 'No new photos found.')
+      if (j.data?.found) load()
+    } finally { btn.disabled = false; btn.textContent = 'Scan Drive Folder' }
+  }
+
+  async function saveEdit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const f = e.currentTarget
+    const fields = ['customerName','phone','aadhaarNo','address','houseName','place','landmark','nomineeName','nomineePhone','occupation','panNo','chequeNumber','riskLevel']
+    const payload: any = { action: 'update' }
+    fields.forEach(k => { const el = f.elements.namedItem(k) as HTMLInputElement; if (el) payload[k] = el.value })
+    await fetch(`/api/leads/${detail!.leadId}`, {
+      method: 'PATCH', headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    showToast('Saved.'); setEditing(false); load()
+  }
+
+  if (loading) return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" /></div>
+
+  if (detail) return (
+    <div className="space-y-5">
+      {toast && <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-2xl bg-[#1a1a2e] px-5 py-3 text-sm font-medium text-white shadow-lg">{toast}</div>}
+      <div className="flex flex-wrap items-center gap-3">
+        <button onClick={() => { setDetail(null); setEditing(false) }} className="rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-semibold">Back</button>
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <p className="text-lg font-semibold">{detail.customerName}</p>
+            {detail.aadhaarStatus === 'exists'
+              ? <span className="rounded-lg bg-red-100 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-red-600">Existing Customer — High Risk of Fraud</span>
+              : detail.aadhaarNo
+                ? <span className="rounded-lg bg-green-100 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-green-700">New Customer</span>
+                : null
+            }
+          </div>
+          <p className="text-sm text-[#697586]">{detail.leadId} &bull; {detail.submittedDate}</p>
+        </div>
+        <StatusPill status={detail.status} />
+      </div>
+
+      {!editing ? (
+        <div className="space-y-4">
+          {/* Top action bar */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {isManager && <button onClick={() => setEditing(true)} className="rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-semibold hover:bg-[#f4f5f7] transition">Edit Details</button>}
+            <button onClick={() => printNote(detail)} className="inline-flex items-center gap-2 rounded-2xl bg-[#1a1a2e] px-4 py-2 text-sm font-semibold text-white hover:bg-[#2d2d4e] transition">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
+              Print Promissory Note
+            </button>
+          </div>
+
+          {/* Customer & Loan */}
+          <DetailCard title="Customer & Loan" accent="blue">
+            <InfoRow>
+              <InfoItem label="Full Name" value={detail.customerName} large />
+              <InfoItem label="Phone" value={detail.phone} />
+              <InfoItem label="Aadhaar No" value={detail.aadhaarNo} />
+            </InfoRow>
+            <InfoRow>
+              <InfoItem label="Loan Product" value={detail.loanProduct} badge="indigo" />
+              <InfoItem label="Guarantor" value={detail.guarantorName} />
+              <InfoItem label="Agent" value={detail.assignedAgentName} />
+            </InfoRow>
+          </DetailCard>
+
+          {/* Address */}
+          <DetailCard title="Address" accent="green">
+            <InfoRow>
+              <InfoItem label="Address" value={detail.address} span={2} />
+              <InfoItem label="House Name" value={detail.houseName} />
+            </InfoRow>
+            <InfoRow>
+              <InfoItem label="Place" value={detail.place} />
+              <InfoItem label="Landmark" value={detail.landmark} span={2} />
+            </InfoRow>
+          </DetailCard>
+
+          {/* Nominee */}
+          <DetailCard title="Nominee" accent="purple">
+            <InfoRow>
+              <InfoItem label="Nominee Name" value={detail.nomineeName} />
+              <InfoItem label="Nominee Phone" value={detail.nomineePhone} />
+            </InfoRow>
+          </DetailCard>
+
+          {/* Financial Details */}
+          <DetailCard title="Financial Details" accent="amber">
+            <InfoRow>
+              <InfoItem label="Occupation" value={detail.occupation} />
+              <InfoItem label="Account Number" value={(detail as any).accountNumber} />
+              <InfoItem label="IFSC Code" value={(detail as any).ifscCode} />
+            </InfoRow>
+            <InfoRow>
+              <InfoItem label="PAN No" value={detail.panNo} />
+              <InfoItem label="Cheque Number" value={detail.chequeNumber} />
+            </InfoRow>
+          </DetailCard>
+
+          {/* Verification */}
+          <DetailCard title="Verification" accent="rose">
+            <InfoRow>
+              <InfoItem label="Risk Level" value={detail.riskLevel}
+                badge={detail.riskLevel === 'Low' ? 'green' : detail.riskLevel === 'Medium' ? 'amber' : detail.riskLevel === 'High' ? 'red' : undefined} />
+              <InfoItem label="Recommendation" value={detail.recommendationStatus}
+                badge={detail.recommendationStatus === 'Verified' ? 'green' : detail.recommendationStatus?.includes('Reject') ? 'red' : 'amber'} />
+              <InfoItem label="Verification Status" value={detail.verificationStatus} />
+            </InfoRow>
+            <InfoRow>
+              <InfoItem label="Verification Date" value={detail.verificationSubmittedDate} />
+              {(() => {
+                try {
+                  const n = JSON.parse(detail.verificationNotes || '{}')
+                  return <span>
+                    {n.mapsLink && (
+                      <div className="col-span-2">
+                        <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-[#697586] mb-1">Maps Link</p>
+                        <a href={n.mapsLink} target="_blank" rel="noreferrer" className="text-sm text-blue-600 underline break-all hover:text-blue-800">{n.mapsLink}</a>
+                      </div>
+                    )}
+                    {n.riskNotes && (
+                      <div className="col-span-3">
+                        <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-[#697586] mb-1">Field Notes</p>
+                        <p className="text-sm text-[#1a1a2e] bg-[#f9fafb] rounded-xl px-4 py-3">{n.riskNotes}</p>
+                      </div>
+                    )}
+                  </span>
+                } catch { return detail.verificationNotes ? (
+                  <div className="col-span-3">
+                    <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-[#697586] mb-1">Field Notes</p>
+                    <p className="text-sm bg-[#f9fafb] rounded-xl px-4 py-3">{detail.verificationNotes}</p>
+                  </div>
+                ) : null }
+              })()}
+            </InfoRow>
+            {detail.adminFinalDecision && (
+              <InfoRow>
+                <div className="col-span-3 rounded-xl border border-[#e5e7eb] bg-[#f9fafb] px-4 py-3">
+                  <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-[#697586] mb-1">Admin Decision</p>
+                  <p className="text-sm font-semibold">{detail.adminFinalDecision}</p>
+                </div>
+              </InfoRow>
+            )}
+          </DetailCard>
+
+          {/* Documents */}
+          <DetailCard title="Documents" accent="gray"
+            action={isManager && detail.documentFolderId
+              ? <button onClick={e => scan(detail.leadId, e.currentTarget)} className="rounded-xl bg-[#f4f5f7] px-3 py-2 text-xs font-semibold hover:bg-[#e5e7eb] transition">Scan Drive Folder</button>
+              : undefined}>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <DriveImage url={detail.customerPhotoUrl} label="Customer Photo" token={session.token} />
+              <DriveImage url={detail.aadhaarFrontUrl} label="Aadhaar Front" token={session.token} />
+              <DriveImage url={detail.aadhaarBackUrl} label="Aadhaar Back" token={session.token} />
+              <DriveImage url={detail.landmarkPhotoUrl} label="Landmark Photo" token={session.token} />
+              <DriveImage url={detail.housePhotoUrl} label="House Photo" token={session.token} />
+              <DriveImage url={detail.chequePhotoUrl} label="Cheque Photo" token={session.token} />
+            </div>
+          </DetailCard>
+
+          {isManager && (
+            <div className="flex flex-wrap items-center gap-2 rounded-[1.75rem] border border-white/70 bg-white px-6 py-4 shadow-panel">
+              {detail.status === 'Verification Submitted' && <span>
+                <label className="flex items-center gap-2 text-sm">
+                  <span className="font-semibold text-[#697586]">Loan Product</span>
+                  <select value={approveProduct} onChange={e => setApproveProduct(e.target.value)}
+                    className="rounded-2xl border border-[#e5e7eb] bg-white px-3 py-2 text-sm outline-none focus:border-[#1a1a2e]">
+                    {products.map(p => (
+                      <option key={p.key} value={p.key}>
+                        {p.label} — ₹{Number(p.principal).toLocaleString('en-IN')} / {p.durationWeeks}w
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button onClick={() => review(detail.leadId, 'Approve Loan', { loanProduct: approveProduct })} disabled={busy !== null}
+                  className="flex items-center justify-center gap-1.5 rounded-2xl bg-[#1a1a2e] px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-60">
+                  {busy === detail.leadId + 'Approve Loan' ? <span><span className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />Approving...</span> : 'Approve Loan'}
+                </button>
+                <button onClick={() => review(detail.leadId, 'Reject Lead')} disabled={busy !== null}
+                  className="flex items-center justify-center gap-1.5 rounded-2xl border border-red-200 bg-red-50 px-5 py-2.5 text-sm font-semibold text-red-600 disabled:opacity-60">
+                  {busy === detail.leadId + 'Reject Lead' ? <span><span className="h-3 w-3 animate-spin rounded-full border-2 border-red-400 border-t-transparent" />Rejecting...</span> : 'Reject Lead'}
+                </button>
+                <button onClick={() => review(detail.leadId, 'Request Reverification')} disabled={busy !== null}
+                  className="flex items-center justify-center gap-1.5 rounded-2xl border border-[#e5e7eb] bg-white px-5 py-2.5 text-sm font-semibold disabled:opacity-60">
+                  {busy === detail.leadId + 'Request Reverification' ? <span><span className="h-3 w-3 animate-spin rounded-full border-2 border-[#697586] border-t-transparent" />...</span> : 'Reverify'}
+                </button>
+              </span>}
+              {detail.status === 'Pending' && detail.loanProduct === 'RENEWAL' && <span>
+                <button onClick={() => review(detail.leadId, 'Approve Loan')} disabled={busy !== null}
+                  className="flex items-center justify-center gap-1.5 rounded-2xl bg-green-600 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-60">
+                  {busy === detail.leadId + 'Approve Loan' ? <span><span className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />Approving…</span> : 'Approve & Disburse'}
+                </button>
+                <button onClick={() => review(detail.leadId, 'Reject Lead')} disabled={busy !== null}
+                  className="flex items-center justify-center gap-1.5 rounded-2xl border border-red-200 bg-red-50 px-5 py-2.5 text-sm font-semibold text-red-600 disabled:opacity-60">
+                  {busy === detail.leadId + 'Reject Lead' ? <span><span className="h-3 w-3 animate-spin rounded-full border-2 border-red-400 border-t-transparent" />Rejecting...</span> : 'Reject'}
+                </button>
+              </span>}
+              {detail.status === 'Pending' && detail.loanProduct !== 'RENEWAL' && (
+                <select onChange={e => { if (e.target.value) assign(detail.leadId, e.target.value) }} className="rounded-2xl border border-[#e5e7eb] px-4 py-2.5 text-sm">
+                  <option value="">Assign agent...</option>
+                  {agents.map(a => <option key={a.agentId} value={a.agentId}>{a.name}</option>)}
+                </select>
+              )}
+              <button onClick={() => deleteLead(detail.leadId)} className="ml-auto rounded-2xl border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50 transition">Delete Lead</button>
+            </div>
+          )}
+        </div>
+      ) : (
+        <form onSubmit={saveEdit} className="rounded-[1.75rem] border border-white/70 bg-white shadow-panel">
+          <div className="border-b border-black/5 px-6 py-4"><p className="text-sm font-semibold">Edit Lead</p></div>
+          <div className="grid gap-4 p-6 sm:grid-cols-2 lg:grid-cols-3">
+            {[['customerName','Full Name'],['phone','Phone'],['aadhaarNo','Aadhaar No'],['occupation','Occupation'],['panNo','PAN No'],['chequeNumber','Cheque Number'],['address','Address'],['houseName','House Name'],['place','Place'],['landmark','Landmark'],['nomineeName','Nominee Name'],['nomineePhone','Nominee Phone'],['riskLevel','Risk Level']].map(([k,l]) => (
+              <label key={k} className="block">
+                <span className="mb-1 block text-[0.7rem] font-semibold uppercase tracking-wider text-[#697586]">{l}</span>
+                <input name={k} defaultValue={(detail as any)[k] || ''} className="w-full rounded-2xl border border-[#e5e7eb] px-4 py-3 text-sm outline-none focus:border-[#1a1a2e]" />
+              </label>
+            ))}
+          </div>
+          <div className="flex gap-3 border-t border-black/5 px-6 py-4">
+            <button type="submit" className="rounded-2xl bg-[#1a1a2e] px-6 py-3 text-sm font-semibold text-white">Save Changes</button>
+            <button type="button" onClick={() => setEditing(false)} className="rounded-2xl border border-[#e5e7eb] px-6 py-3 text-sm font-semibold">Cancel</button>
+          </div>
+        </form>
+      )}
+    </div>
+  )
+
+  const historyStatuses = ['Converted', 'Rejected']
+  const newLeads = [...leads].filter(l => !historyStatuses.includes(l.status) && l.loanProduct !== 'RENEWAL').reverse()
+  const historyLeads = [...leads].filter(l => historyStatuses.includes(l.status) && l.loanProduct !== 'RENEWAL').reverse()
+  const renewalLeads = [...leads].filter(l => l.loanProduct === 'RENEWAL').reverse()
+  const visibleLeads = tab === 'renewal' ? renewalLeads : tab === 'history' ? historyLeads : newLeads
+
+  if (showSubmit) return (
+    <SubmitLeadPage session={session} onDone={() => { setShowSubmit(false); load() }} />
+  )
+
+  return (
+    <div className="space-y-4">
+      {showRenewal && (
+        <RenewalModal session={session} onClose={() => setShowRenewal(false)} onDone={() => { setShowRenewal(false); load() }} />
+      )}
+      {toast && <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-2xl bg-[#1a1a2e] px-5 py-3 text-sm font-medium text-white shadow-lg">{toast}</div>}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex gap-2 flex-wrap">
+          {(isManager || session.role === 'Guarantor') && (
+            <button onClick={() => { setTab('new'); setDeleteMode(false); setSelected(new Set()) }}
+              className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${tab === 'new' ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
+              {isManager ? 'New Leads' : 'In Progress'} {newLeads.length > 0 && <span className={`ml-1.5 rounded-full px-2 py-0.5 text-xs font-bold ${tab === 'new' ? 'bg-white/20' : 'bg-[#f4f5f7]'}`}>{newLeads.length}</span>}
+            </button>
+          )}
+          <button onClick={() => { setTab('history'); setDeleteMode(false); setSelected(new Set()) }}
+            className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${tab === 'history' ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
+            History {historyLeads.length > 0 && <span className={`ml-1.5 rounded-full px-2 py-0.5 text-xs font-bold ${tab === 'history' ? 'bg-white/20' : 'bg-[#f4f5f7]'}`}>{historyLeads.length}</span>}
+          </button>
+          {isManager && (
+            <button onClick={() => { setTab('renewal'); setDeleteMode(false); setSelected(new Set()) }}
+              className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${tab === 'renewal' ? 'bg-green-600 text-white' : 'border border-green-200 bg-white text-green-700 hover:bg-green-50'}`}>
+              Renewal Requests {renewalLeads.length > 0 && <span className={`ml-1.5 rounded-full px-2 py-0.5 text-xs font-bold ${tab === 'renewal' ? 'bg-white/20' : 'bg-green-100'}`}>{renewalLeads.length}</span>}
+            </button>
+          )}
+          {isManager && (
+            <button onClick={() => { setTab('disbursements'); setDeleteMode(false); setSelected(new Set()) }}
+              className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${tab === 'disbursements' ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
+              Disbursements
+            </button>
+          )}
+        </div>
+        {session.role === 'Guarantor' && (
+          <div className="flex gap-2">
+            <button onClick={() => setShowSubmit(true)}
+              className="rounded-2xl bg-[#f0b429] px-4 py-2 text-sm font-semibold text-[#1a1400] hover:opacity-90 transition">
+              + New Lead
+            </button>
+            <button onClick={() => setShowRenewal(true)}
+              className="rounded-2xl bg-green-500 px-4 py-2 text-sm font-semibold text-white hover:bg-green-600 transition">
+              + Renewal
+            </button>
+          </div>
+        )}
+      </div>
+      {isManager && tab !== 'disbursements' && (
+        <div className="flex items-center gap-3 flex-wrap">
+          {!deleteMode && (
+            <button onClick={() => { setDeleteMode(true); setSelected(new Set()) }}
+              className="rounded-2xl border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-600">
+              Delete
+            </button>
+          )}
+          {deleteMode && (
+            <span>
+              <span className="text-sm text-[#697586]">{selected.size} selected</span>
+              <button onClick={deleteSelected} disabled={!selected.size}
+                className="rounded-2xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-40">
+                Confirm Delete
+              </button>
+              <button onClick={() => { setDeleteMode(false); setSelected(new Set()) }}
+                className="rounded-2xl border border-[#e5e7eb] px-4 py-2.5 text-sm font-semibold">
+                Cancel
+              </button>
+            </span>
+          )}
+        </div>
+      )}
+      {tab === 'disbursements' ? <DisbursementsView session={session} /> : (
+      <>
+        {visibleLeads.length === 0 && <p className="p-8 text-center text-sm text-[#697586]">{tab === 'new' ? 'No new leads.' : tab === 'history' ? 'No leads history yet.' : 'No renewal requests yet.'}</p>}
+        <div className="overflow-hidden rounded-[1.75rem] border border-white/70 bg-white shadow-panel divide-y divide-black/5">
+          <div className="overflow-x-auto">
+            {visibleLeads.map((l, i) => (
+              <div key={l.leadId || i}
+                onClick={() => deleteMode && toggleSelect(l.leadId)}
+                className={`p-4 sm:p-5 transition ${deleteMode ? 'cursor-pointer' : ''} ${selected.has(l.leadId) ? 'bg-red-50' : ''}`}>
+                <div className="flex items-start justify-between gap-3">
+              {deleteMode && (
+                <div className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${selected.has(l.leadId) ? 'border-red-500 bg-red-500' : 'border-[#e5e7eb]'}`}>
+                  {selected.has(l.leadId) && <span className="text-white text-[10px] font-bold">✓</span>}
+                </div>
+              )}
+              {/* Left: customer info */}
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-semibold text-sm">{l.customerName}</p>
+                  <StatusPill status={l.status} />
+                </div>
+                <p className="mt-0.5 text-xs text-[#697586]">{l.phone}</p>
+                <div className="mt-1 flex flex-wrap gap-2 text-xs text-[#697586]">
+                  {l.guarantorName && <span>Guarantor: <span className="font-medium text-[#1a1a2e]">{l.guarantorName}</span></span>}
+                  {session.role !== 'Guarantor' && l.assignedAgentName && <span>Agent: <span className="font-medium text-[#1a1a2e]">{l.assignedAgentName}</span></span>}
+                  {l.riskLevel && <span>Risk: <span className="font-medium text-[#1a1a2e]">{l.riskLevel}</span></span>}
+                </div>
+                {l.aadhaarStatus === 'exists'
+                  ? <span className="mt-1.5 inline-block rounded-lg bg-red-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-600">Existing Customer — High Risk of Fraud</span>
+                  : l.aadhaarNo
+                    ? <span className="mt-1.5 inline-block rounded-lg bg-green-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-green-700">New Customer</span>
+                    : null
+                }
+              </div>
+              {/* Right: actions */}
+              {!deleteMode && <div className="flex flex-wrap items-center justify-end gap-2">
+                {session.role !== 'Guarantor' && <button onClick={() => setDetail(l)} className="rounded-xl border border-[#e5e7eb] px-3 py-1.5 text-xs font-semibold">View</button>}
+                {isManager && <button onClick={() => printNote(l)} className="rounded-xl border border-[#e5e7eb] px-3 py-1.5 text-xs font-semibold">Print Note</button>}
+                {isManager && l.loanProduct === 'RENEWAL' && l.status !== 'Converted' && l.status !== 'Rejected' && (
+                  <span>
+                    <button onClick={() => review(l.leadId, 'Approve Loan')} disabled={busy !== null}
+                      className="flex items-center justify-center gap-1.5 rounded-xl bg-green-600 px-4 py-1.5 text-xs font-semibold text-white disabled:opacity-60">
+                      {busy === l.leadId + 'Approve Loan' ? <span><span className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />Approving…</span> : 'Approve'}
+                    </button>
+                    <button onClick={() => review(l.leadId, 'Reject Lead')} disabled={busy !== null}
+                      className="rounded-xl border border-[#e5e7eb] px-3 py-1.5 text-xs font-semibold text-red-600 disabled:opacity-60">Reject</button>
+                  </span>
+                )}
+                {isManager && l.loanProduct !== 'RENEWAL' && l.status === 'Pending' && (
+                  agents.length > 0 ? (
+                    <span>
+                      <select key={l.leadId+'-sel'} defaultValue=""
+                        onChange={e => { const v = e.target.value; if (v) assignFromTable(l.leadId, v) }}
+                        className="rounded-xl border border-[#e5e7eb] bg-white px-2 py-1.5 text-xs max-w-[130px]">
+                        <option value="">Assign agent</option>
+                        {agents.map((a: any) => <option key={a.agentId} value={a.agentId}>{a.name}</option>)}
+                      </select>
+                      <button onClick={() => review(l.leadId, 'Reject Lead')} className="rounded-xl border border-[#e5e7eb] px-3 py-1.5 text-xs font-semibold text-red-600">Reject</button>
+                    </span>
+                  ) : <span className="rounded-xl border border-orange-200 bg-orange-50 px-2 py-1 text-[10px] text-orange-600">No agents yet</span>
+                )}
+                {isManager && l.status === 'Agent Assigned' && agents.length > 0 && (
+                  <span>
+                    <select key={l.leadId+'-re'} defaultValue=""
+                      onChange={e => { const v = e.target.value; if (v) assignFromTable(l.leadId, v) }}
+                      className="rounded-xl border border-[#e5e7eb] bg-white px-2 py-1.5 text-xs max-w-[130px]">
+                      <option value="">Change Agent</option>
+                      {agents.map((a: any) => <option key={a.agentId} value={a.agentId}>{a.name}</option>)}
+                    </select>
+                    <button onClick={() => review(l.leadId, 'Reject Lead')} className="rounded-xl border border-[#e5e7eb] px-3 py-1.5 text-xs font-semibold text-red-600">Reject</button>
+                  </span>
+                )}
+                {isManager && l.status === 'Verification Submitted' && (
+                  <span>
+                    <button onClick={() => review(l.leadId, 'Approve Loan')} disabled={busy !== null}
+                      className="flex w-24 items-center justify-center gap-1.5 rounded-xl bg-[#1a1a2e] px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60">
+                      {busy === l.leadId + 'Approve Loan' ? <span><span className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />...</span> : 'Approve'}
+                    </button>
+                    <button onClick={() => review(l.leadId, 'Reject Lead')} disabled={busy !== null}
+                      className="flex w-24 items-center justify-center gap-1.5 rounded-xl border border-[#e5e7eb] px-3 py-1.5 text-xs font-semibold text-red-600 disabled:opacity-60">
+                      {busy === l.leadId + 'Reject Lead' ? <span><span className="h-3 w-3 animate-spin rounded-full border-2 border-red-400 border-t-transparent" />...</span> : 'Reject'}
+                    </button>
+                    <button onClick={() => review(l.leadId, 'Request Reverification')} disabled={busy !== null}
+                      className="flex w-24 items-center justify-center gap-1.5 rounded-xl border border-[#e5e7eb] px-3 py-1.5 text-xs font-semibold disabled:opacity-60">
+                      {busy === l.leadId + 'Request Reverification' ? <span><span className="h-3 w-3 animate-spin rounded-full border-2 border-[#697586] border-t-transparent" />...</span> : 'Reverify'}
+                    </button>
+                  </span>
+                )}
+              </div>}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </>
+  )}
+</div>
+  )
+}
+
+// ─── Disbursements: loans disbursed per week, split into New vs Renewals ──────
+function DisbursementsView({ session }: { session: Session }) {
+  const [loans, setLoans] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [subTab, setSubTab] = useState<'current' | 'history'>('current')
+  const [historyWeek, setHistoryWeek] = useState('')
+
+  useEffect(() => {
+    fetch('/api/loans?filter=all', { headers: { Authorization: `Bearer ${session.token}` } })
+      .then(r => r.json())
+      .then(j => { if (j.success) setLoans(j.data.loans || []) })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [session.token])
+
+  const disbursed = loans
+    .map(l => ({ ...l, _date: (l.createdAt || l.startDate || '').slice(0, 10) }))
+    .filter(l => l._date)
+
+  const currentWeek = weekStartIso(ymdLocal(new Date()))
+  const lastWeek = addDaysIso(currentWeek, -7)
+
+  // History = every past week from the earliest disbursement (or 8 weeks back,
+  // whichever is older) up to last week — including weeks with no disbursements.
+  const dates = disbursed.map(l => l._date)
+  const earliestWeek = dates.length ? weekStartIso(dates.reduce((a, b) => (a < b ? a : b))) : currentWeek
+  const minWindow = addDaysIso(lastWeek, -49)
+  const historyStart = earliestWeek < minWindow ? earliestWeek : minWindow
+  const historyWeeks: string[] = []
+  for (let w = lastWeek; w >= historyStart; w = addDaysIso(w, -7)) historyWeeks.push(w)
+  const selectedHistory = historyWeek || historyWeeks[0] || lastWeek
+
+  const weekLoans = (ws: string) => disbursed.filter(l => weekStartIso(l._date) === ws)
+
+  if (loading) return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" /></div>
+
+  const Section = ({ title, rows, accent }: { title: string; rows: any[]; accent: string }) => {
+    const total = rows.reduce((s, l) => s + Number(l.netDisbursed || 0), 0)
+    return (
+      <div className="overflow-hidden rounded-[1.75rem] border border-white/70 bg-white shadow-panel">
+        <div className="flex items-center justify-between border-b border-black/5 px-5 py-4">
+          <div className="flex items-center gap-2">
+            <span className={`h-2.5 w-2.5 rounded-full ${accent}`} />
+            <p className="text-sm font-semibold">{title}</p>
+            <span className="rounded-full bg-[#f4f5f7] px-2 py-0.5 text-xs font-semibold text-[#697586]">{rows.length}</span>
+          </div>
+          <p className="text-sm font-semibold">{currencyInr(total)} <span className="text-xs font-normal text-[#697586]">disbursed</span></p>
+        </div>
+        {rows.length === 0 ? (
+          <p className="p-6 text-center text-sm text-[#697586]">No {title.toLowerCase()} this week.</p>
+        ) : (
+          <div className="divide-y divide-black/5">
+            {rows.map(l => {
+              return (
+                <div key={l.loanId} className="flex items-start justify-between gap-3 px-5 py-3 hover:bg-[#fafafa]">
+                  <div className="min-w-0">
+                    <p className="font-medium truncate">{l.customerName}</p>
+                    <p className="font-mono text-xs text-[#697586]">{l.loanId}</p>
+                    <p className="text-xs text-[#697586] truncate">
+                      {l.guarantorName || '—'}{l.agentName ? ` · ${l.agentName}` : ''}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="font-semibold text-green-700">{currencyInr(Number(l.netDisbursed || 0))}</p>
+                    <p className="text-xs text-[#697586]">{l.startDate}</p>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  const renderWeek = (rows: any[]) => {
+    if (rows.length === 0) return (
+      <p className="rounded-2xl border border-dashed border-[#e5e7eb] bg-white p-8 text-center text-sm text-[#697586]">
+        This week had no new or renewal disbursements.
+      </p>
+    )
+    return (
+      <div className="grid gap-4 lg:grid-cols-2 items-start">
+        <Section title="New" rows={rows.filter(l => !l.isRenewal)} accent="bg-blue-500" />
+        <Section title="Renewals" rows={rows.filter(l => l.isRenewal)} accent="bg-green-500" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Sub-tabs */}
+      <div className="flex gap-2">
+        <button onClick={() => setSubTab('current')}
+          className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${subTab === 'current' ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
+          Current Week
+        </button>
+        <button onClick={() => setSubTab('history')}
+          className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${subTab === 'history' ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
+          History
+        </button>
+      </div>
+
+      {subTab === 'current' ? (
+        <div className="space-y-4">
+          <p className="text-sm text-[#697586]">Current week · <span className="font-semibold text-[#1a1a2e]">{weekRangeLabel(currentWeek)}</span> (Mon–Sat)</p>
+          {renderWeek(weekLoans(currentWeek))}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <p className="text-sm text-[#697586]">Past weeks — completed disbursement weeks.</p>
+            <select value={selectedHistory} onChange={e => setHistoryWeek(e.target.value)}
+              className="rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium outline-none focus:border-[#1a1a2e]">
+              {historyWeeks.map(w => (
+                <option key={w} value={w}>{w === lastWeek ? `Last Week · ${weekRangeLabel(w)}` : weekRangeLabel(w)}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section>
+      <p className="mb-4 text-[0.7rem] font-semibold uppercase tracking-wider text-[#697586]">{title}</p>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{children}</div>
+    </section>
+  )
+}
+
+function Field({ label, value }: { label: string; value?: string }) {
+  return (
+    <div>
+      <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-[#697586]">{label}</p>
+      <p className="mt-1 text-sm">{value || '-'}</p>
+    </div>
+  )
+}
+
+const accentMap: Record<string, string> = {
+  blue:   'border-l-blue-400 bg-blue-50/30',
+  green:  'border-l-green-400 bg-green-50/30',
+  purple: 'border-l-purple-400 bg-purple-50/30',
+  amber:  'border-l-amber-400 bg-amber-50/30',
+  rose:   'border-l-rose-400 bg-rose-50/30',
+  gray:   'border-l-gray-300 bg-white',
+}
+const accentTitle: Record<string, string> = {
+  blue: 'text-blue-700', green: 'text-green-700', purple: 'text-purple-700',
+  amber: 'text-amber-700', rose: 'text-rose-700', gray: 'text-[#697586]',
+}
+const badgeMap: Record<string, string> = {
+  green: 'bg-green-100 text-green-700', red: 'bg-red-100 text-red-700',
+  amber: 'bg-amber-100 text-amber-700', indigo: 'bg-indigo-100 text-indigo-700',
+}
+
+function DetailCard({ title, accent = 'gray', children, action }: {
+  title: string; accent?: string; children: React.ReactNode; action?: React.ReactNode
+}) {
+  return (
+    <div className={`rounded-[1.75rem] border border-white/70 border-l-4 shadow-panel p-5 space-y-4 ${accentMap[accent] ?? accentMap.gray}`}>
+      <div className="flex items-center justify-between">
+        <p className={`text-xs font-bold uppercase tracking-widest ${accentTitle[accent] ?? 'text-[#697586]'}`}>{title}</p>
+        {action}
+      </div>
+      <div className="space-y-4">{children}</div>
+    </div>
+  )
+}
+
+function InfoRow({ children }: { children: React.ReactNode }) {
+  return <div className="grid grid-cols-3 gap-4">{children}</div>
+}
+
+function InfoItem({ label, value, large, span, badge }: {
+  label: string; value?: string; large?: boolean; span?: number; badge?: string
+}) {
+  const colClass = span === 2 ? 'col-span-2' : span === 3 ? 'col-span-3' : ''
+  return (
+    <div className={colClass}>
+      <p className="text-[0.65rem] font-semibold uppercase tracking-widest text-[#9ca3af] mb-1">{label}</p>
+      {badge && value && value !== '-' ? (
+        <span className={`inline-block rounded-full px-3 py-1 text-xs font-semibold ${badgeMap[badge] ?? badgeMap.indigo}`}>{value}</span>
+      ) : (
+        <p className={`${large ? 'text-base font-semibold text-[#1a1a2e]' : 'text-sm text-[#1a1a2e]'} ${!value || value === '-' ? 'text-[#9ca3af]' : ''}`}>
+          {value || '—'}
+        </p>
+      )}
+    </div>
+  )
+}

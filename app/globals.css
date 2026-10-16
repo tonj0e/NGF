@@ -1,0 +1,64 @@
+@import "tailwindcss";
+
+:root {
+  --ink: #1a1a2e;
+  --soft: #697586;
+  --line: #e5e7eb;
+  --mist: #f4f5f7;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  color: var(--ink);
+}
+
+.shadow-panel {
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.06), 0 4px 16px -2px rgb(0 0 0 / 0.06);
+}
+
+.glass-panel {
+  background: rgba(255,255,255,0.85);
+  backdrop-filter: blur(12px);
+}
+
+input:not([type="file"]):not([type="password"]):not([type="checkbox"]):not([data-no-upper]),
+textarea:not([data-no-upper]) {
+  text-transform: uppercase;
+}
+input:not([type="file"]):not([type="password"]):not([type="checkbox"]):not([data-no-upper])::placeholder,
+textarea:not([data-no-upper])::placeholder {
+  text-transform: none;
+}
+.no-upper-form input,
+.no-upper-form textarea {
+  text-transform: none;
+}
+
+/* Dark mode (Dev toggle): invert the whole UI, then re-invert photos / QR / video
+   so real images keep their true colors. Approximate but app-wide with one switch. */
+html.ngf-dark {
+  filter: invert(1) hue-rotate(180deg);
+  background: #0f0f12;
+}
+html.ngf-dark img,
+html.ngf-dark video,
+html.ngf-dark canvas,
+html.ngf-dark [data-no-invert] {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+/* Prevent dark mode inversion from breaking Leaflet map tiles */
+html.ngf-dark .leaflet-container,
+html.ngf-dark .leaflet-tile,
+html.ngf-dark .leaflet-image-layer,
+html.ngf-dark .leaflet-marker-icon,
+html.ngf-dark .leaflet-marker-shadow,
+html.ngf-dark .leaflet-popup-content-wrapper,
+html.ngf-dark .leaflet-popup-tip {
+  filter: invert(1) hue-rotate(180deg) !important;
+}
+
+/* Leaflet default icon fix */
+.leaflet-default-icon-path {
+  display: none;
+}
