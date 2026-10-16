@@ -20,6 +20,7 @@ tags: [ngf, runbook,troubleshooting]
 | Guarantor missing from a branch | Branch link row inactive or missing | Check `guarantor_branches.is_active` ([[Branches and Staff]]) |
 | Failed login not in the audit log | Audit insert uses role `unknown`, rejected by the enum | Known issue: see [[Live vs Repo Drift]] |
 | Renewal for the same customer fails | `loans.customer_id` is unique | Known issue: [[Renewals]] |
+| Hostinger build fails: `ENOENT mkdir .../.next` | A `.next` link (to `.next.nosync`) was committed because ignore rules with a trailing slash do not match links | Ignore `/.next` and `/node_modules` without a slash and `git rm --cached` the links (fixed 2026-10-17) |
 | MCP tools missing in Claude | Servers are loaded at session start | `/exit` then `claude --resume <id>` |
 
 ## Related
