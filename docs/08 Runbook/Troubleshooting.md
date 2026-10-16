@@ -21,6 +21,8 @@ tags: [ngf, runbook,troubleshooting]
 | Failed login not in the audit log | Audit insert uses role `unknown`, rejected by the enum | Known issue: see [[Live vs Repo Drift]] |
 | Renewal for the same customer fails | `loans.customer_id` is unique | Known issue: [[Renewals]] |
 | Hostinger build fails: `ENOENT mkdir .../.next` | A `.next` link (to `.next.nosync`) was committed because ignore rules with a trailing slash do not match links | Ignore `/.next` and `/node_modules` without a slash and `git rm --cached` the links (fixed 2026-10-17) |
+| Hostinger build fails: `Turbopack ... node process exited before we could connect` (CSS step) | The host cannot start Turbopack's helper process | Production build uses webpack: `"build": "next build --webpack"` in `package.json` (2026-10-17). Dev still uses Turbopack |
+| Webpack build: `"QR_LOGIN_ROLES" is not a valid Route export field` | A route file may only export HTTP methods and route config, not constants | Keep shared constants in `lib/`, not exported from `route.ts` |
 | MCP tools missing in Claude | Servers are loaded at session start | `/exit` then `claude --resume <id>` |
 
 ## Related

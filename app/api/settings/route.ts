@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { apiHandler, requireRole, ok, err } from '@/lib/api'
 import { readTable, appendRow, updateById, findRecord, nowIso, invalidateCache } from '@/lib/supabase-db'
 
-export const QR_LOGIN_ROLES = ['Guarantor', 'NGF AGENT', 'Staff']
+const QR_LOGIN_ROLES = ['Guarantor', 'NGF AGENT', 'Staff']
 
 export const GET = apiHandler(async (req: NextRequest) => {
   await requireRole(req, ['Admin'])
