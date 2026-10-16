@@ -11,6 +11,7 @@ tags: [ngf, decisions]
 
 | Date | Decision | Why |
 |---|---|---|
+| 2026-10-17 | Repo on GitHub (`tonj0e/NGF`, private); git data kept outside iCloud; retired notes with secrets are ignored | Avoid pushing secrets; avoid iCloud corrupting `.git` |
 | 2026-10-17 | New Obsidian vault in `docs/`, written fresh; old `BRAIN.md`, `log.md` and other notes to be retired | Old notes were stale and held secrets |
 | 2026-10-17 | Security audit fixes wait until the build is complete | Avoid breaking screens mid-build; back up first |
 | 2026-10-17 | Collection form sends `UPI` and `Bank`; "Not Paid" is saved as Pending | Database only accepts Cash, UPI, Bank, Cheque, Other |

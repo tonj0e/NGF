@@ -23,6 +23,7 @@ tags: [ngf, runbook,brain]
 | [[iCloud and Dependencies]] | Why node_modules is a link; reinstall steps | Install fails, slow, or login errors |
 | [[Test Accounts]] | Which test logins exist and where they are stored | Testing a role |
 | [[Troubleshooting]] | Symptoms with causes and fixes | Something broke |
+| [[Git and GitHub]] | Where the code is on GitHub, what is ignored, daily commands | Committing or pushing |
 | [[Tools Connected to Claude]] | Playwright, Supabase, Obsidian, skills | Setting up a new machine |
 
 ## Related
