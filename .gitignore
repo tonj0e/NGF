@@ -63,3 +63,9 @@ docs/.obsidian/
 /node_modules */
 /.next */
 .DS_Store
+
+# Links to .nosync folders and stray copies (links are not matched by a trailing slash)
+/.next
+/.next *
+/node_modules
+/node_modules *
