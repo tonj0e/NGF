@@ -56,6 +56,7 @@ Details and edge cases: [[Loan Products and Math]], [[Repayments and Collections
 - Security audit finished: 24 open leads, **no code fixed yet** (waiting for the build to finish). See [[Open Security Leads]] and [[Security Fix Plan]].
 - New 2026-10-18: **Payment Matching** (UTR payments, duplicate flagging, diagram records, bank check). See [[Payment Matching]] and [[2026-10-18]].
 - New 2026-10-19: **Verification Day Routes** (branch call + visit plan, road-distance ordering of each agent's day, drag reorder, My Route, Assistant Branch Manager role, branch on every lead). See [[Verification Day Routes]] and [[2026-10-19]].
+- New 2026-10-19: **Customer History and Score** (loan account number `NGF000001`, per-loan payment history with recorded time, 0-850 repayment score; customers can now hold several loans). See [[Customer History and Score]].
 - Recent changes: guarantor edit (username, password, delete), dashboard card layout and recollection meter, collection payment-mode fix, dev server auto-start. See [[2026-10-17]].
 
 ## Related

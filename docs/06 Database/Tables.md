@@ -97,3 +97,6 @@ See [[Payment Matching]].
 
 ## Verification routes (2026-10-19)
 `leads` gained `visit_lat/lng/place/date/window/note`, `call_outcome`, `visit_status`, `route_seq`, `route_pin`, `leg_km`, `leg_min`. New `route_plans` (PK agent_id + plan_date) and `route_dist_cache` (PK pair_key). See [[Verification Day Routes]].
+
+## Loan account number (2026-10-19)
+`loans.loan_account_no` (NGF000001 style, sequence `loan_account_seq`, unique). `loans.customer_id` is no longer unique: a customer can have many loans. See [[Customer History and Score]].

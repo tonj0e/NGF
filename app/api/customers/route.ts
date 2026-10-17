@@ -54,7 +54,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
       address: c['Address'], houseName: c['House Name'], place: c['Place'],
       occupation: c['Occupation'], status: c['Status'],
       guarantorName: g?.['Name'] || '', guarantorCode: g?.['Code'] || '',
-      activeLoanId: c['Active Loan ID'] || loan?.['Loan ID'] || '', agentName: a?.['Name'] || '',
+      activeLoanId: c['Active Loan ID'] || loan?.['Loan ID'] || '', loanAccountNo: loan?.['Loan Account No'] || '', agentName: a?.['Name'] || '',
       loanStatus: loan?.['Status'] || '',
       isOverdue: loan ? overdueSet.has(loan['Loan ID']) : false,
       principal: loan?.['Principal Amount'] || '0',

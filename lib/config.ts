@@ -43,7 +43,7 @@ export const SHEETS = {
   Notifications: ['Notification ID', 'User ID', 'Role', 'Title', 'Message', 'Entity Type', 'Entity ID', 'Is Read', 'Created At'],
   Logs: ['Log ID', 'User ID', 'Username', 'Role', 'Action', 'Entity Type', 'Entity ID', 'Metadata JSON', 'Created At'],
   Customers: ['Customer ID', 'Lead ID', 'Name', 'Phone', 'Address', 'House Name', 'Place', 'Landmark', 'Occupation', 'Account Number', 'IFSC Code', 'PAN No', 'Guarantor ID', 'Active Loan ID', 'Status', 'Created At', 'Updated At'],
-  Loans: ['Loan ID', 'Customer ID', 'Lead ID', 'Guarantor ID', 'Assigned Agent ID', 'Principal Amount', 'Interest Deduction', 'Guarantor Commission', 'Net Disbursed', 'Weekly Collection Amount', 'Duration Weeks', 'Total Collection Amount', 'Status', 'Start Date', 'End Date', 'Created At', 'Updated At'],
+  Loans: ['Loan ID', 'Loan Account No', 'Customer ID', 'Lead ID', 'Guarantor ID', 'Assigned Agent ID', 'Principal Amount', 'Interest Deduction', 'Guarantor Commission', 'Net Disbursed', 'Weekly Collection Amount', 'Duration Weeks', 'Total Collection Amount', 'Status', 'Start Date', 'End Date', 'Created At', 'Updated At'],
   Repayments: ['Repayment ID', 'Loan ID', 'Customer ID', 'Due Date', 'Week No', 'Amount', 'Status', 'Paid Date', 'NGF Agent ID', 'Payment Mode', 'Proof File ID', 'Notes', 'Created At', 'Updated At'],
   Collections: ['Collection ID', 'Repayment ID', 'Loan ID', 'Customer ID', 'Agent ID', 'Amount', 'Payment Date', 'Proof File ID', 'Payment Mode', 'Notes', 'Created At'],
   Settlements: ['Settlement ID', 'Entity Type', 'Entity ID', 'Entity Name', 'Settlement Date', 'Saturday Date', 'Total Cash Due', 'Total UPI Due', 'Amount Submitted', 'Balance', 'Status', 'Notes', 'Recorded By', 'Created At'],

@@ -78,6 +78,7 @@ const COLUMN_MAP: Record<string, string> = {
   'PAN No': 'pan_no',
   'Active Loan ID': 'active_loan_id',
   'Loan ID': 'loan_id',
+  'Loan Account No': 'loan_account_no',
   'Assigned Agent ID': 'assigned_agent_id',
   'Principal Amount': 'principal_amount',
   'Interest Deduction': 'interest_deduction',

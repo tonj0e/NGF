@@ -21,6 +21,8 @@ Two folders hold SQL: `migrations/` (dated names, run by hand in the SQL editor)
 | 2026-10-15 | none in repo | Guarantor atomic update function (3 versions) | 20261015162402, ...162739, ...163957 |
 | 2026-10-18 | `migrations/2026-10-18-payment-matching.sql` | Adds payment_groups, payment_lines, payment_events, bank_transactions (RLS on, no policy) and customers.pay_code; backfills pay codes. Applied to live 2026-10-18 | not recorded in history |
 | 2026-10-19 | `migrations/2026-10-19-verification-routes.sql` | Adds visit/route columns to leads, route_plans, route_dist_cache (RLS on, no policy). Applied to live 2026-10-19 | not recorded in history |
+| 2026-10-19 | `migrations/2026-10-19-loan-account-number.sql` | Adds loans.loan_account_no (sequence default, unique, backfilled). Applied to live 2026-10-19 | not recorded in history |
+| 2026-10-19 | `migrations/2026-10-19-allow-multiple-loans-per-customer.sql` | Drops UNIQUE loans_customer_id_key so a customer can have several loans. Applied to live 2026-10-19 | not recorded in history |
 | 2026-10-16 | `migrations/2026-10-16-add-password-reset-otps.sql` and `20261016120000_...` | Creates password_reset_otps (RLS on, no policy, CHECK on email_status) | 20261016101737 |
 
 Root fix files (not migrations, run manually): `fix_all_enums.sql`, `fix_capital_enum.sql`, `fix_payout_requests_updated_at.sql`, `phase3_completion.sql`. The two-folder duplicates are identical SQL; the OTP file header still says "PROPOSED" though it is applied.

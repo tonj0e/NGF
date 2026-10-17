@@ -44,7 +44,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
     const loanRepayments = repayments.filter(r => r['Loan ID'] === l['Loan ID'])
     const paidCount = loanRepayments.filter(r => r['Status'] === 'Paid').length
     return {
-      loanId: l['Loan ID'], customerId: l['Customer ID'],
+      loanId: l['Loan ID'], loanAccountNo: l['Loan Account No'] || '', customerId: l['Customer ID'],
       customerName: c?.['Name'] || '', customerPhone: c?.['Phone'] || '',
       guarantorName: g?.['Name'] || '', guarantorCode: g?.['Code'] || '',
       agentName: a?.['Name'] || '',

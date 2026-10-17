@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState, useMemo } from 'react'
+import CustomerHistory from '@/components/customers/CustomerHistory'
 import { Session } from '@/types'
 import DriveImage from '@/components/ui/DriveImage'
 import LoansPage from './LoansPage'
@@ -463,7 +464,7 @@ export default function CustomersPage({ session }: { session: Session }) {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [toast, setToast] = useState('')
   const [photoUploads, setPhotoUploads] = useState<Record<string, string>>({})
-  const [detailTab, setDetailTab] = useState<'details' | 'transaction' | 'reviews' | 'loans'>('details')
+  const [detailTab, setDetailTab] = useState<'details' | 'transaction' | 'reviews' | 'loans' | 'history'>('details')
   const [activity, setActivity] = useState<any[]>([])
   const [activityLoading, setActivityLoading] = useState(false)
 
@@ -587,7 +588,7 @@ export default function CustomersPage({ session }: { session: Session }) {
         <CustomerPhoto url={detail.customerPhotoUrl} token={session.token} name={detail.name} />
         <div className="flex-1">
           <p className="text-lg font-semibold">{detail.name}</p>
-          {detail.activeLoanId && <p className="font-mono text-sm text-[#697586]">{detail.activeLoanId}</p>}
+          {detail.activeLoanId && <p className="font-mono text-sm text-[#697586]">{detail.activeLoanId}{detail.loanAccountNo && <span className="ml-2 text-xs">· {detail.loanAccountNo}</span>}</p>}
           <StarBadge joinedDate={detail.joinedDate} />
         </div>
         <span className={`rounded-full px-3 py-1 text-xs font-semibold ${detail.isOverdue ? 'bg-red-100 text-red-700' : detail.loanStatus === 'Active' ? 'bg-green-100 text-green-700' : 'bg-[#f4f5f7] text-[#697586]'}`}>
@@ -609,7 +610,7 @@ export default function CustomersPage({ session }: { session: Session }) {
 
       {/* Detail sub-tabs */}
       <div className="flex gap-2 flex-wrap">
-        {([['details', 'Customer Details'], ['transaction', 'Transaction'], ['reviews', 'Reviews'], ['loans', 'Loans & Payments']] as const).map(([k, label]) => (
+        {([['details', 'Customer Details'], ['transaction', 'Transaction'], ['reviews', 'Reviews'], ['loans', 'Loans & Payments'], ['history', 'History & Score']] as const).map(([k, label]) => (
           <button key={k} type="button" onClick={() => setDetailTab(k)}
             className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${detailTab === k ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
             {label}
@@ -620,6 +621,7 @@ export default function CustomersPage({ session }: { session: Session }) {
       {detailTab === 'transaction' && <TransactionTab rows={activity} loading={activityLoading} startDate={detail.startDate} loanId={detail.activeLoanId} />}
       {detailTab === 'reviews' && <ReviewsTab rows={activity} loading={activityLoading} />}
       {detailTab === 'loans' && <LoansTab rows={activity} loading={activityLoading} />}
+      {detailTab === 'history' && <CustomerHistory session={session} customerId={detail.customerId} />}
 
       {detailTab === 'details' && (
       <form onSubmit={saveEdit} className="space-y-4">

@@ -40,6 +40,7 @@ flowchart LR
 | [[Loan Products and Math]] | 10K10W, custom products, schedule maths | Changing a product or amount |
 | [[Verification and Documents]] | Agent form, photos, Drive vs Supabase, reviews | Photos missing, rating questions |
 | [[Renewals]] | RENEWAL lead, eligibility, approveRenewal | Renewal fails or is wrongly allowed |
+| [[Customer History and Score]] | Loan account number, per-loan payment history with recorded time, repayment score | Touching loan numbers, payment history or the score |
 | [[Customers and Import]] | Scoping, My Customers, import, delete cascade | Customer visibility or legacy data |
 | [[Guarantors and Cheques]] | Guarantor create/edit, branch link, cheques page | Guarantor accounts, cheque page empty |
 
