@@ -18,7 +18,7 @@ tags: [ngf, roles-screens, permissions, security]
 
 Types: `Role` in `types/index.ts:1`. Role list: `lib/config.ts:13`.
 
-**Staff detail**: `staff_access.permissions` is a list of keys from `APP_CONFIG.STAFF_FEATURES`: customers, leads, collection, settlements, guarantors, reports, agentTracking (`lib/config.ts:16-24`). Admin sets them via `POST /api/branches`. `GET /api/branches?self=1` returns the caller's own list; `AppShell` builds the menu from it (`AppShell.tsx:125-155`).
+**Staff detail**: `staff_access.permissions` is a list of keys from `APP_CONFIG.STAFF_FEATURES`: customers, leads, collection, settlements, guarantors, reports, agentTracking, plus the payment-matching keys `upiPayments`, `upiPaymentsBank`, `upiPaymentsOverride` (`lib/config.ts`; entries with `view: ''` add no menu item). Agents can also be given the payment-matching keys (Dev → Branches → Staff Access lists Staff and Agents); see [[Payment Matching]]. Admin sets them via `POST /api/branches`. `GET /api/branches?self=1` returns the caller's own list; `AppShell` builds the menu from it (`AppShell.tsx:125-155`).
 **Branch roles** `manager, accountant, cashier, collection_agent` live in `branch_staff_roles` (`role_in_branch`). `BRANCH_ROLES` only gives suggested permission sets (`lib/config.ts:26-31`). Nothing in the API checks a branch role for access. See [[Branches and Staff]].
 
 ## How it works

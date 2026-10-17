@@ -21,6 +21,7 @@ tags: [ngf, roles-screens, screens, appshell]
 | `customers` | `CustomersPage` | Customers / Assigned Customers | Admin, Agent, Staff* | Customer list and loan info |
 | `leads` | `LeadsPage` | Leads | Admin, Guarantor, Staff* | Submit, review, approve leads |
 | `collection` | `CollectionPage` | Collection | all four | Weekly collection, payments, sheet download |
+| `payments` | `PaymentMatchingPage` | Payment Matching / UPI Payments | Admin, Guarantor (view only), Staff and Agent with `upiPayments` | Mark UTR payments, flagged duplicates, diagram records, bank check. See [[Payment Matching]] |
 | `reports` | `ReportsPage` | Reports | Admin, Staff* | Reports |
 | `settlements` | `SettlementsPage` | Settlements | Admin, Staff* | Cash/UPI settlement records |
 | `importCustomer` | `ImportCustomerPage` | Import Customer | Admin | Bulk/legacy import |

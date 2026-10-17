@@ -37,7 +37,7 @@ Details and edge cases: [[Loan Products and Math]], [[Repayments and Collections
 | Architecture | [[Architecture Brain]] | How the app is built, login, data access |
 | Roles and Screens | [[Roles and Screens Brain]] | Who sees what, screen map, mobile layout |
 | Loan Lifecycle | [[Loan Lifecycle Brain]] | Lead to loan, renewals, guarantors |
-| Money | [[Money Brain]] | Collections, settlements, commissions, deposits, dashboard figures |
+| Money | [[Money Brain]] | Collections, settlements, commissions, deposits, UTR payment matching, dashboard figures |
 | Field and Org | [[Field and Org Brain]] | Branches, staff, agents, notifications, files |
 | Database | [[Database Brain]] | Tables, status values, drift between repo and live |
 | Security | [[Security Brain]] | The 2026-10-17 audit, 24 open leads, fix plan |
@@ -54,6 +54,7 @@ Details and edge cases: [[Loan Products and Math]], [[Repayments and Collections
 
 ## Where we are (2026-10-17)
 - Security audit finished: 24 open leads, **no code fixed yet** (waiting for the build to finish). See [[Open Security Leads]] and [[Security Fix Plan]].
+- New 2026-10-18: **Payment Matching** (UTR payments, duplicate flagging, diagram records, bank check). See [[Payment Matching]] and [[2026-10-18]].
 - Recent changes: guarantor edit (username, password, delete), dashboard card layout and recollection meter, collection payment-mode fix, dev server auto-start. See [[2026-10-17]].
 
 ## Related

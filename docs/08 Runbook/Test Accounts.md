@@ -12,7 +12,7 @@ tags: [ngf, runbook,testing]
 | Role | Account | Where the login is stored |
 |---|---|---|
 | Admin | `admin` | `.env.test.example` (admin variables) |
-| Staff / manager | Vincent Antony | `.env.test` (`PLAYWRIGHT_MANAGER_*`) |
+| Staff / manager | Vincent Antony | `.env.test` (`PLAYWRIGHT_MANAGER_*`). Password in `.env.test` stopped working on 2026-10-18; update it. Payment Matching tests used a temporary staff user that was deleted afterwards |
 | Guarantor | Bindhu (`BINDHU@NGFGBN`), Revathy exists too | `.env.test` (`PLAYWRIGHT_GUARANTOR_*`) |
 | NGF Agent | none stored yet | create one before testing agent screens |
 
