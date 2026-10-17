@@ -203,7 +203,7 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
     <div className="flex h-screen w-full bg-[#f4f5f7]">
 {/* Mobile Sheet */}
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-        <SheetContent side="left" hideClose className="w-[80vw] max-w-[320px] p-0 lg:hidden">
+        <SheetContent side="left" hideClose className="h-dvh w-[80vw] max-w-[320px] p-0 lg:hidden">
           <div className="flex h-full flex-col">
             <div className="border-b border-[#e5e7eb] px-4 py-4 flex items-center justify-between">
               <div>
@@ -232,7 +232,7 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
                 ))}
               </div>
             </nav>
-            <div className="border-t border-[#e5e7eb] p-4">
+            <div className="border-t border-[#e5e7eb] p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
               <div className="flex items-center gap-3">
                 <Avatar className="h-9 w-9">
                   <AvatarImage src={session.photo} alt={session.name} />
