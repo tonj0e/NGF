@@ -4,6 +4,8 @@ import { readTable, appendRow, makeId, nowIso, formatDateYmd, invalidateCache, u
 import { validateBody, attendanceSchema } from '@/lib/validation'
 import { createAuditLogger, AUDIT_ACTIONS } from '@/lib/audit'
 import { csrfProtection } from '@/lib/csrf'
+import { onAttendance } from '@/lib/routes'
+import { getTodayIST } from '@/lib/dateUtils'
 
 export const POST = apiHandler(async (req: NextRequest) => {
   const session = await getSession(req)
@@ -53,6 +55,11 @@ export const POST = apiHandler(async (req: NextRequest) => {
     attendanceId,
     { agentId: agent['Agent ID'], latitude, longitude, date: today }
   )
+
+  // Re-order today's visit route from where the agent is starting the day
+  try {
+    await onAttendance(agent['Agent ID'], getTodayIST(), Number(latitude), Number(longitude), session.userId)
+  } catch (e) { console.error('Route re-order on attendance failed:', e instanceof Error ? e.message : e) }
 
   return ok({ success: true, message: 'Attendance marked successfully' })
 })

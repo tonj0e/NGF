@@ -21,14 +21,16 @@ export const APP_CONFIG = {
     { key: 'guarantors',  label: 'Guarantors',            view: 'guarantors' },
     { key: 'reports',     label: 'Reports',               view: 'reports' },
     { key: 'agentTracking', label: 'Agent Tracking',      view: 'agentTracking' },
+    { key: 'verificationPlanning', label: 'Verification Routes (call customers, plan agent visits)', view: 'routes' },
     { key: 'upiPayments', label: 'Payment Matching (mark UTR payments)', view: 'payments' },
     { key: 'upiPaymentsBank', label: 'Payment Matching: bank statement', view: '' },
     { key: 'upiPaymentsOverride', label: 'Payment Matching: override duplicate UTR', view: '' },
   ] as { key: string; label: string; view: string }[],
   // Branch roles with suggested permissions (editable suggestions, not auto-granted)
   BRANCH_ROLES: [
-    { key: 'manager', label: 'Manager', description: 'Branch oversight', suggestedPermissions: ['customers', 'leads', 'collection', 'settlements', 'reports', 'guarantors', 'agentTracking'] },
-    { key: 'accountant', label: 'Accountant', description: 'Financial records', suggestedPermissions: ['customers', 'reports', 'settlements'] },
+    { key: 'manager', label: 'Manager', description: 'Branch oversight', suggestedPermissions: ['customers', 'leads', 'collection', 'settlements', 'reports', 'guarantors', 'agentTracking', 'verificationPlanning'] },
+    { key: 'assistant_manager', label: 'Assistant Branch Manager', description: 'Supports the branch manager', suggestedPermissions: ['customers', 'leads', 'collection', 'reports', 'guarantors', 'agentTracking', 'verificationPlanning'] },
+    { key: 'accountant', label: 'Accountant', description: 'Financial records', suggestedPermissions: ['customers', 'reports', 'settlements', 'verificationPlanning'] },
     { key: 'cashier', label: 'Cashier', description: 'Cash and receipts', suggestedPermissions: ['collection', 'settlements'] },
     { key: 'collection_agent', label: 'Collection Agent', description: 'Assigned collections', suggestedPermissions: ['collection'] },
   ] as { key: string; label: string; description: string; suggestedPermissions: string[] }[],

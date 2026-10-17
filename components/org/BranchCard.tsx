@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronDown, Building2, Users, TrendingUp, DollarSign, Shield, Plus, Search } from 'lucide-react'
 import { BranchRoleBadge } from './BranchRoleBadge'
 
-type BranchRole = 'manager' | 'accountant' | 'cashier' | 'collection_agent' | 'guarantor'
+type BranchRole = 'manager' | 'assistant_manager' | 'accountant' | 'cashier' | 'collection_agent' | 'guarantor'
 
 interface BranchCardProps {
   branch: {
@@ -14,6 +14,7 @@ interface BranchCardProps {
     status: string
     counts: {
       manager: number
+      assistantManagers: number
       accountants: number
       cashiers: number
       collectionAgents: number
@@ -41,8 +42,9 @@ interface BranchCardProps {
   onOpenRoleList?: (branchId: string, role: BranchRole, branchName: string) => void
 }
 
-const roleCards: Array<{ key: string; role: BranchRole; label: string; description: string; icon: React.ElementType; color: string; countKey: 'manager' | 'accountants' | 'cashiers' | 'collectionAgents' | 'guarantors' }> = [
+const roleCards: Array<{ key: string; role: BranchRole; label: string; description: string; icon: React.ElementType; color: string; countKey: 'manager' | 'assistantManagers' | 'accountants' | 'cashiers' | 'collectionAgents' | 'guarantors' }> = [
   { key: 'manager', role: 'manager', label: 'Manager', description: 'Branch oversight', icon: Building2, color: 'bg-blue-100 text-blue-700', countKey: 'manager' as const },
+  { key: 'assistantManagers', role: 'assistant_manager', label: 'Assistant Managers', description: 'Supports the manager', icon: Building2, color: 'bg-sky-100 text-sky-700', countKey: 'assistantManagers' as const },
   { key: 'accountants', role: 'accountant', label: 'Accountants', description: 'Financial records', icon: TrendingUp, color: 'bg-green-100 text-green-700', countKey: 'accountants' as const },
   { key: 'cashiers', role: 'cashier', label: 'Cashiers', description: 'Cash and receipts', icon: DollarSign, color: 'bg-amber-100 text-amber-700', countKey: 'cashiers' as const },
   { key: 'collectionAgents', role: 'collection_agent', label: 'Collection Agents', description: 'Assigned collections', icon: Users, color: 'bg-purple-100 text-purple-700', countKey: 'collectionAgents' as const },
@@ -57,7 +59,7 @@ export function BranchCard({ branch, onAddUser, onAddBranch, onManageStaff, onOp
                       branch.status === 'Inactive' ? 'bg-gray-100 text-gray-700' :
                       'bg-amber-100 text-amber-700'
 
-  const totalStaff = branch.counts.manager + branch.counts.accountants + branch.counts.cashiers + branch.counts.collectionAgents
+  const totalStaff = branch.counts.manager + branch.counts.assistantManagers + branch.counts.accountants + branch.counts.cashiers + branch.counts.collectionAgents
   const totalAll = totalStaff + branch.counts.guarantors
 
   return (
@@ -146,6 +148,7 @@ export function BranchCard({ branch, onAddUser, onAddBranch, onManageStaff, onOp
                   const isEmpty = count === 0
                   const emptyMessages: Record<string, string> = {
                     manager: 'No manager assigned',
+                    assistantManagers: 'No assistant branch manager added yet',
                     accountants: 'No accountants added yet',
                     cashiers: 'No cashiers added yet',
                     collectionAgents: 'No collection agents assigned',

@@ -30,6 +30,8 @@ export interface Lead {
   guarantorId: string
   guarantorUserId: string
   guarantorName?: string
+  branchId?: string
+  branchName?: string
   customerName: string
   phone: string
   aadhaarNo: string

@@ -164,6 +164,20 @@ export default function DevPage({ session }: { session: Session }) {
     fetch('/api/settings', { headers: { Authorization: `Bearer ${session.token}` } })
       .then(r => r.json()).then(j => { if (j.success) { setQrLogin(j.data.qrLogin || {}); if (j.data.deposit) setDeposit(j.data.deposit) } }).catch(() => {})
   }, [])
+  // Verification route planning switches (global, server-side)
+  const [routeCfg, setRouteCfg] = useState({ enabled: true, windows: true, googleReady: false })
+  useEffect(() => {
+    fetch('/api/routes?view=config', { headers: { Authorization: `Bearer ${session.token}` } })
+      .then(r => r.json()).then(j => { if (j.success) setRouteCfg(j.data) }).catch(() => {})
+  }, [])
+  async function toggleRoute(field: 'enabled' | 'windows') {
+    const next = !routeCfg[field]
+    setRouteCfg(p => ({ ...p, [field]: next }))
+    await fetch('/api/settings', {
+      method: 'POST', headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: `route:${field}`, value: next ? '1' : '0' }),
+    })
+  }
   async function saveDepositSetting(key: string, value: string) {
     await fetch('/api/settings', {
       method: 'POST', headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' },
@@ -839,6 +853,25 @@ export default function DevPage({ session }: { session: Session }) {
                   onClick={() => toggleQrLogin(role)}
                   className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${qrLogin[role] ? 'bg-green-600' : 'bg-[#d1d5db]'}`}>
                   <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${qrLogin[role] ? 'left-6' : 'left-1'}`} />
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {/* Verification route planning */}
+          <div className="rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] px-5 py-4 space-y-3">
+            <div>
+              <p className="text-sm font-semibold">Verification routes</p>
+              <p className="mt-0.5 text-xs text-[#697586]">
+                Lets branch staff fix visit locations and order each agent's day by road distance. Road distances come from Google ({routeCfg.googleReady ? 'key found' : 'no key yet, using straight-line estimates'}).
+              </p>
+            </div>
+            {([['enabled', 'Route planning on'], ['windows', 'Visit time windows (morning / afternoon / evening)']] as const).map(([field, label]) => (
+              <div key={field} className="flex items-center justify-between gap-4">
+                <span className="text-sm font-medium">{label}</span>
+                <button type="button" role="switch" aria-checked={routeCfg[field]} onClick={() => toggleRoute(field)}
+                  className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${routeCfg[field] ? 'bg-green-600' : 'bg-[#d1d5db]'}`}>
+                  <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${routeCfg[field] ? 'left-6' : 'left-1'}`} />
                 </button>
               </div>
             ))}

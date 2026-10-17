@@ -72,7 +72,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
 
     // Create branch staff role and staff access if provided
     if (body.branchId && body.branchRole && body.role !== 'Guarantor') {
-      const validRoles = ['manager', 'accountant', 'cashier', 'collection_agent']
+      const validRoles = ['manager', 'assistant_manager', 'accountant', 'cashier', 'collection_agent']
       if (!validRoles.includes(body.branchRole)) {
         throw new Error('Invalid branch role')
       }

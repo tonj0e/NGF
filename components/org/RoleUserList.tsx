@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 
-type UserRole = 'manager' | 'accountant' | 'cashier' | 'collection_agent' | 'guarantor'
+type UserRole = 'manager' | 'assistant_manager' | 'accountant' | 'cashier' | 'collection_agent' | 'guarantor'
 
 interface StaffUser {
   userId: string
@@ -52,6 +52,7 @@ interface RoleUserListProps {
 
 const roleIcons: Record<UserRole, React.ElementType> = {
   manager: Building2,
+  assistant_manager: Building2,
   accountant: TrendingUp,
   cashier: DollarSign,
   collection_agent: Users,
@@ -60,6 +61,7 @@ const roleIcons: Record<UserRole, React.ElementType> = {
 
 const emptyMessages: Record<UserRole, string> = {
   manager: 'No manager assigned yet',
+  assistant_manager: 'No assistant branch manager added yet',
   accountant: 'No accountants added yet',
   cashier: 'No cashiers added yet',
   collection_agent: 'No collection agents assigned yet',

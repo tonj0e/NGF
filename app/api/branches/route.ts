@@ -93,7 +93,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
     if (!userId || !branchId || !roleInBranch) {
       return err('userId, branchId, and roleInBranch are required')
     }
-    const validRoles = ['manager', 'accountant', 'cashier', 'collection_agent']
+    const validRoles = ['manager', 'assistant_manager', 'accountant', 'cashier', 'collection_agent']
     if (!validRoles.includes(roleInBranch)) {
       return err('Invalid roleInBranch')
     }

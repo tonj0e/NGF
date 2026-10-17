@@ -81,7 +81,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
           userId: r['User ID'],
           username: user?.Username || '',
           name: user?.Name || '',
-          roleInBranch: r['Role In Branch'] as 'manager' | 'accountant' | 'cashier' | 'collection_agent',
+          roleInBranch: r['Role In Branch'] as 'manager' | 'assistant_manager' | 'accountant' | 'cashier' | 'collection_agent',
           permissions,
           isActive: r['Is Active'],
           isBlocked: isBlocked || false,
@@ -132,6 +132,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
 
     const counts = {
       manager: staffRoles.filter(s => s.roleInBranch === 'manager').length,
+      assistantManagers: staffRoles.filter(s => s.roleInBranch === 'assistant_manager').length,
       accountants: staffRoles.filter(s => s.roleInBranch === 'accountant').length,
       cashiers: staffRoles.filter(s => s.roleInBranch === 'cashier').length,
       collectionAgents: branchAgents.length,

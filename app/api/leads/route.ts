@@ -6,6 +6,7 @@ import { notifyRole, notifyUser } from '@/lib/notifications'
 import { validateBody, createLeadSchema } from '@/lib/validation'
 import { createAuditLogger, AUDIT_ACTIONS } from '@/lib/audit'
 import { csrfProtection } from '@/lib/csrf'
+import { notifyBranchOfLead } from '@/lib/routes'
 
 export const GET = apiHandler(async (req: NextRequest) => {
   const session = await getSession(req)
@@ -14,12 +15,15 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const page = Number(searchParams.get('page') || 1)
   const pageSize = Number(searchParams.get('pageSize') || 20)
 
-  const [leads, users, agents, guarantors] = await Promise.all([
+  const [leads, users, agents, guarantors, branches, guarantorBranches] = await Promise.all([
     readTable('Leads', { forceFresh: true }),
     readTable('Users', { forceFresh: true }),
     readTable('Agents', { forceFresh: true }),
     readTable('Guarantors', { forceFresh: true }),
+    readTable('Branches'),
+    readTable('GuarantorBranches'),
   ])
+  const branchOf = (guarantorId: string) => guarantorBranches.find(x => x['Guarantor ID'] === guarantorId && String(x['Is Active']) !== 'false')?.['Branch ID'] || ''
 
   let filtered = leads
   if (session.role === 'Guarantor') {
@@ -46,10 +50,12 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const enriched = filtered.map(l => {
     const guarantor = guarantors.find(g => g['Guarantor ID'] === l['Guarantor ID'])
     const agent = agents.find(a => a['Agent ID'] === l['Assigned Agent ID'])
+    const branchId = branchOf(l['Guarantor ID'])
     const existing = leads.filter(x => x['Aadhaar No'] && x['Aadhaar No'] === l['Aadhaar No'] && x['Lead ID'] !== l['Lead ID'])
     return {
       leadId: l['Lead ID'], submittedDate: l['Submitted Date'],
       guarantorId: l['Guarantor ID'], guarantorName: guarantor?.['Name'] || '',
+      branchId, branchName: branches.find(b => b['Branch ID'] === branchId)?.['Name'] || '',
       customerName: l['Customer Name'], phone: l['Phone'],
       aadhaarNo: l['Aadhaar No'], address: l['Address'],
       houseName: l['House Name'], place: l['Place'], landmark: l['Landmark'],
@@ -186,6 +192,10 @@ export const POST = apiHandler(async (req: NextRequest) => {
   )
 
   await notifyRole('Admin', 'New Lead Submitted', `${body.customerName} submitted by ${session.name}`, 'Lead', leadId)
+  // The guarantor's branch team (manager, assistant manager, accountant) must phone the customer and plan the visit
+  try {
+    if (!autoRejected) await notifyBranchOfLead(guarantorId, 'New lead to call', `${body.customerName} from ${session.name}. Call the customer and fix the visit location.`, leadId)
+  } catch (e) { console.error('Branch lead alert failed:', e instanceof Error ? e.message : e) }
 
   return ok({ leadId, autoRejected })
 })

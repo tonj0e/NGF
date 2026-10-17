@@ -22,6 +22,7 @@ Purpose: explain who belongs where, how field agents are tracked, and how files 
 |---|---|---|
 | [[Branches and Staff]] | Branch model, roles, permissions, add/edit/block/delete, guarantor list in a branch | Changing the NGF Branches page or user admin |
 | [[Agent Attendance Location and Trips]] | Check-in gate, location push, live map, trips | Touching agent screens or the map |
+| [[Verification Day Routes]] | Visit location + day per lead, road-distance ordering of each agent's day, drag to reorder, My Route | Touching lead assignment, agent day, Google Maps |
 | [[Notifications]] | Who creates and sees notifications, read state, the bell | Adding an event or fixing unread state |
 | [[ID Cards and QR]] | Card build, QR payload, print, photo | Changing the card or QR login |
 | [[Files and Storage]] | Drive and Supabase buckets, naming, proxy route | Any upload or image display work |

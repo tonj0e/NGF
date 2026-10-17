@@ -2,7 +2,7 @@
 
 import { Briefcase, Calculator, Landmark, Users, Shield } from 'lucide-react'
 
-export type BranchRole = 'manager' | 'accountant' | 'cashier' | 'collection_agent' | 'guarantor'
+export type BranchRole = 'manager' | 'assistant_manager' | 'accountant' | 'cashier' | 'collection_agent' | 'guarantor'
 
 interface BranchRoleBadgeProps {
   role: BranchRole
@@ -16,6 +16,12 @@ const roleConfig: Record<BranchRole, { label: string; description: string; icon:
     description: 'Branch oversight',
     icon: Briefcase,
     color: 'bg-blue-100 text-blue-700',
+  },
+  assistant_manager: {
+    label: 'Assistant Branch Manager',
+    description: 'Supports the branch manager',
+    icon: Briefcase,
+    color: 'bg-sky-100 text-sky-700',
   },
   accountant: {
     label: 'Accountant',

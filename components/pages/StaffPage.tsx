@@ -12,7 +12,7 @@ import { EditGuarantorDialog } from '@/components/org/EditGuarantorDialog'
 import { RoleUserList } from '@/components/org/RoleUserList'
 import { Button } from '@/components/ui/button'
 
-type BranchRole = 'manager' | 'accountant' | 'cashier' | 'collection_agent' | 'guarantor'
+type BranchRole = 'manager' | 'assistant_manager' | 'accountant' | 'cashier' | 'collection_agent' | 'guarantor'
 
 interface OrgHierarchyData {
   organizationAdmin: {
@@ -29,6 +29,7 @@ interface OrgHierarchyData {
     status: string
     counts: {
       manager: number
+      assistantManagers: number
       accountants: number
       cashiers: number
       collectionAgents: number
@@ -487,6 +488,7 @@ if (json.success) {
   function openRoleList(branchId: string, role: BranchRole, branchName: string) {
     const titles: Record<BranchRole, string> = {
       manager: 'Branch Managers',
+      assistant_manager: 'Assistant Branch Managers',
       accountant: 'Accountants',
       cashier: 'Cashiers',
       collection_agent: 'Collection Agents',

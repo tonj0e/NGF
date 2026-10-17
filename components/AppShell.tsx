@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel } from '@/components/ui/dropdown-menu'
 import { Sheet, SheetContent, SheetClose } from '@/components/ui/sheet'
-import { Menu, X, Bell, User, LogOut, LayoutDashboard, Users, FileText, Truck, BarChart3, LandPlot, Upload, CreditCard, Settings, Shield, MessageSquare, MapPin, ClipboardList, Wallet, History, Sparkles, HelpCircle, ChevronLeft, ChevronRight, DollarSign, Coins, Banknote, Pin, PinOff, PieChart, TrendingUp } from 'lucide-react'
+import { Menu, X, Bell, User, LogOut, LayoutDashboard, Users, FileText, Truck, BarChart3, LandPlot, Upload, CreditCard, Settings, Shield, MessageSquare, MapPin, ClipboardList, Wallet, History, Sparkles, HelpCircle, ChevronLeft, ChevronRight, DollarSign, Coins, Banknote, Pin, PinOff, PieChart, TrendingUp, Route as RouteIcon, Navigation } from 'lucide-react'
 import Dashboard from './pages/Dashboard'
 import LeadsPage from './pages/LeadsPage'
 import StaffPage from './pages/StaffPage'
@@ -27,6 +27,8 @@ import ImportCustomerPage from './pages/ImportCustomerPage'
 import CollectionPage from './pages/CollectionPage'
 import SettlementsPage from './pages/SettlementsPage'
 import PaymentMatchingPage from './pages/PaymentMatchingPage'
+import VisitRoutesPage from './pages/VisitRoutesPage'
+import MyRoutePage from './pages/MyRoutePage'
 import ReviewOptionsPage from './pages/ReviewOptionsPage'
 import MyCustomersPage from './pages/MyCustomersPage'
 import DevPage from './pages/DevPage'
@@ -62,6 +64,8 @@ function MenuIcon({ name }: { name: string }) {
     tripDetails: History,
     financialAnalytics: PieChart,
     payments: Banknote,
+    routes: RouteIcon,
+    myRoute: Navigation,
   }
   const Icon = icons[name] || LayoutDashboard
   return <Icon className="h-5 w-5 shrink-0" />
@@ -72,6 +76,7 @@ const MENUS: Record<string, { key: string; label: string }[]> = {
     { key: 'dashboard',      label: 'Dashboard' },
     { key: 'customers',      label: 'Customers' },
     { key: 'leads',          label: 'Leads' },
+    { key: 'routes',         label: 'Visit Routes' },
     { key: 'collection',     label: 'Collection' },
     { key: 'reports',        label: 'Reports' },
     { key: 'financialAnalytics', label: 'Financial Analytics' },
@@ -99,6 +104,7 @@ const MENUS: Record<string, { key: string; label: string }[]> = {
   ],
   'NGF AGENT': [
     { key: 'verifications', label: 'Assigned Verifications' },
+    { key: 'myRoute',       label: 'My Route' },
     { key: 'customers',     label: 'Assigned Customers' },
     { key: 'collection',    label: 'Collection' },
     { key: 'tripDetails',   label: 'Trip Details' },
@@ -182,6 +188,8 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
       case 'collection':   return <CollectionPage session={session} />
       case 'settlements':  return <SettlementsPage session={session} />
       case 'payments':     return <PaymentMatchingPage session={session} />
+      case 'routes':       return <VisitRoutesPage session={session} />
+      case 'myRoute':      return <MyRoutePage session={session} onOpenVerification={() => setView('verifications')} />
       case 'reviewOptions': return <ReviewOptionsPage session={session} />
       case 'pastMonth':    return <PastMonthCollectionPage session={session} />
       case 'collections':  return <CollectionsPage session={session} />

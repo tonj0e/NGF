@@ -56,6 +56,7 @@ export default function LeadsPage({ session }: { session: Session }) {
   const [busy, setBusy] = useState<string | null>(null)
   const [products, setProducts] = useState<any[]>([])
   const [approveProduct, setApproveProduct] = useState('')
+  const [branchFilter, setBranchFilter] = useState('')
 
   function showToast(m: string) { setToast(m); setTimeout(() => setToast(''), 3000) }
 
@@ -415,7 +416,9 @@ export default function LeadsPage({ session }: { session: Session }) {
   const newLeads = [...leads].filter(l => !historyStatuses.includes(l.status) && l.loanProduct !== 'RENEWAL').reverse()
   const historyLeads = [...leads].filter(l => historyStatuses.includes(l.status) && l.loanProduct !== 'RENEWAL').reverse()
   const renewalLeads = [...leads].filter(l => l.loanProduct === 'RENEWAL').reverse()
-  const visibleLeads = tab === 'renewal' ? renewalLeads : tab === 'history' ? historyLeads : newLeads
+  const branchOptions = Array.from(new Map(leads.filter(l => l.branchId).map(l => [l.branchId as string, l.branchName || l.branchId as string])).entries())
+  const byBranch = (list: Lead[]) => (branchFilter ? list.filter(l => (l.branchId || '') === (branchFilter === 'none' ? '' : branchFilter)) : list)
+  const visibleLeads = byBranch(tab === 'renewal' ? renewalLeads : tab === 'history' ? historyLeads : newLeads)
 
   if (showSubmit) return (
     <SubmitLeadPage session={session} onDone={() => { setShowSubmit(false); load() }} />
@@ -467,6 +470,12 @@ export default function LeadsPage({ session }: { session: Session }) {
       </div>
       {isManager && tab !== 'disbursements' && (
         <div className="flex items-center gap-3 flex-wrap">
+          <select value={branchFilter} onChange={e => setBranchFilter(e.target.value)}
+            className="rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2.5 text-sm font-medium">
+            <option value="">All branches</option>
+            {branchOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+            <option value="none">No branch</option>
+          </select>
           {!deleteMode && (
             <button onClick={() => { setDeleteMode(true); setSelected(new Set()) }}
               className="rounded-2xl border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-600">
@@ -508,6 +517,7 @@ export default function LeadsPage({ session }: { session: Session }) {
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="font-semibold text-sm">{l.customerName}</p>
                   <StatusPill status={l.status} />
+                  {isManager && <span className="rounded-lg bg-sky-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-sky-700">{l.branchName || 'No branch'}</span>}
                 </div>
                 <p className="mt-0.5 text-xs text-[#697586]">{l.phone}</p>
                 <div className="mt-1 flex flex-wrap gap-2 text-xs text-[#697586]">

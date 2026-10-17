@@ -94,3 +94,6 @@ See [[Payment Matching]].
 
 ## Related
 - [[Database Brain]], [[Enums and Status Values]], [[Live vs Repo Drift]], [[Queries We Use]], [[Branches and Staff]], [[Lead to Loan]]
+
+## Verification routes (2026-10-19)
+`leads` gained `visit_lat/lng/place/date/window/note`, `call_outcome`, `visit_status`, `route_seq`, `route_pin`, `leg_km`, `leg_min`. New `route_plans` (PK agent_id + plan_date) and `route_dist_cache` (PK pair_key). See [[Verification Day Routes]].
