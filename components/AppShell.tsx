@@ -26,6 +26,7 @@ import PastMonthCollectionPage from './pages/PastMonthCollectionPage'
 import ImportCustomerPage from './pages/ImportCustomerPage'
 import CollectionPage from './pages/CollectionPage'
 import SettlementsPage from './pages/SettlementsPage'
+import PaymentMatchingPage from './pages/PaymentMatchingPage'
 import ReviewOptionsPage from './pages/ReviewOptionsPage'
 import MyCustomersPage from './pages/MyCustomersPage'
 import DevPage from './pages/DevPage'
@@ -60,6 +61,7 @@ function MenuIcon({ name }: { name: string }) {
     location: MapPin,
     tripDetails: History,
     financialAnalytics: PieChart,
+    payments: Banknote,
   }
   const Icon = icons[name] || LayoutDashboard
   return <Icon className="h-5 w-5 shrink-0" />
@@ -74,6 +76,7 @@ const MENUS: Record<string, { key: string; label: string }[]> = {
     { key: 'reports',        label: 'Reports' },
     { key: 'financialAnalytics', label: 'Financial Analytics' },
     { key: 'settlements',    label: 'Settlements' },
+    { key: 'payments',       label: 'Payment Matching' },
     { key: 'importCustomer', label: 'Import Customer' },
     { key: 'payoutRequests', label: 'Payout Requests' },
     { key: 'staff',          label: 'NGF Branches' },
@@ -87,6 +90,7 @@ const MENUS: Record<string, { key: string; label: string }[]> = {
     { key: 'dashboard',     label: 'Dashboard' },
     { key: 'leads',         label: 'Leads' },
     { key: 'collection',    label: 'Collection' },
+    { key: 'payments',      label: 'UPI Payments' },
     { key: 'commissions',   label: 'Commissions' },
     { key: 'deposits',      label: 'Deposits' },
     { key: 'myCustomers',   label: 'My Customers' },
@@ -123,14 +127,15 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
 
   // Staff menu is built from the features granted in Dev → Branches
   useEffect(() => {
-    if (session.role !== 'Staff') return
+    if (session.role !== 'Staff' && session.role !== 'NGF AGENT') return
     fetch('/api/branches?self=1', { headers: { Authorization: `Bearer ${session.token}` } })
       .then(r => r.json())
       .then(j => {
         if (!j.success) return
         const perms = j.data.permissions || []
         setStaffPerms(perms)
-        const first = APP_CONFIG.STAFF_FEATURES.find(f => perms.includes(f.key))
+        if (session.role !== 'Staff') return
+        const first = APP_CONFIG.STAFF_FEATURES.find(f => f.view && perms.includes(f.key))
         setView(first ? first.view : 'notifications')
       })
       .catch(() => {})
@@ -149,10 +154,14 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
   }, [sidebarHovered, sidebarPinned])
 
   const staffMenu = [
-    ...APP_CONFIG.STAFF_FEATURES.filter(f => staffPerms.includes(f.key)).map(f => ({ key: f.view, label: f.label })),
+    ...APP_CONFIG.STAFF_FEATURES.filter(f => f.view && staffPerms.includes(f.key)).map(f => ({ key: f.view, label: f.label })),
     { key: 'notifications', label: 'Notifications' },
   ]
-  const menu = session.role === 'Staff' ? staffMenu : (MENUS[session.role] || [])
+  const agentMenu = [
+    ...(MENUS['NGF AGENT'] || []),
+    ...(staffPerms.includes('upiPayments') ? [{ key: 'payments', label: 'Payment Matching' }] : []),
+  ]
+  const menu = session.role === 'Staff' ? staffMenu : session.role === 'NGF AGENT' ? agentMenu : (MENUS[session.role] || [])
   const pageTitle = menu.find(m => m.key === view)?.label || view
   const PageIcon = MenuIcon
 
@@ -172,6 +181,7 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
       case 'saturday':     return <RepayPage session={session} mode="saturday" />
       case 'collection':   return <CollectionPage session={session} />
       case 'settlements':  return <SettlementsPage session={session} />
+      case 'payments':     return <PaymentMatchingPage session={session} />
       case 'reviewOptions': return <ReviewOptionsPage session={session} />
       case 'pastMonth':    return <PastMonthCollectionPage session={session} />
       case 'collections':  return <CollectionsPage session={session} />

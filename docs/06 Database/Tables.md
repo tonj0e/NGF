@@ -81,5 +81,16 @@ erDiagram
 - Money columns are `numeric`; lead_id/guarantor_id and similar references are plain text.
 - `leads.recommendation_status` and `admin_final_decision` are text, not enums.
 
+## Payment matching tables (added 2026-10-18, migration `2026-10-18-payment-matching.sql`)
+| Table | Holds |
+|---|---|
+| `payment_groups` | One payment: UTR, mode, total, `status` (Verified / Flagged / Overridden), marker, screenshot |
+| `payment_lines` | The customers/repayments a payment covers; `repayment_id` unique |
+| `payment_events` | History: created, flagged, UTR edits, override, discard |
+| `bank_transactions` | Uploaded bank-statement credits, `utr` unique |
+| `customers.pay_code` | 4-digit code, unique per guarantor |
+
+See [[Payment Matching]].
+
 ## Related
 - [[Database Brain]], [[Enums and Status Values]], [[Live vs Repo Drift]], [[Queries We Use]], [[Branches and Staff]], [[Lead to Loan]]

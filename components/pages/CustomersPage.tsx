@@ -825,6 +825,7 @@ export default function CustomersPage({ session }: { session: Session }) {
                   <p className="font-semibold">{c.name}</p>
                   <p className="text-xs text-[#697586]">{c.phone}</p>
                   {c.activeLoanId && <p className="font-mono text-[11px] text-[#697586]">{c.activeLoanId}</p>}
+                  {(c as any).payCode && <p className="mt-0.5 text-[11px] font-semibold text-[#1a1a2e]">Pay code <span className="rounded-md bg-[#f4f5f7] px-1.5 py-0.5 font-mono">{(c as any).payCode}</span></p>}
                   <StarBadge joinedDate={c.joinedDate} />
                   {isKycExpired(c.joinedDate) && (
                     <span className="mt-1 inline-block rounded-lg bg-orange-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-orange-700">KYC Updation Required</span>

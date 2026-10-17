@@ -17,6 +17,7 @@ SORT date DESC
 ```
 
 ## Days
+- [[2026-10-18]]
 - [[2026-10-17]]
 
 ## Related

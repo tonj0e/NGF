@@ -37,8 +37,8 @@ export const GET = apiHandler(async (req: NextRequest) => {
         permissions,
       }
     }),
-    staff: users.filter(u => u['Role'] === 'Staff').map(u => ({
-      userId: u['User ID'], username: u['Username'], name: u['Name'], status: u['Status'],
+    staff: users.filter(u => u['Role'] === 'Staff' || u['Role'] === 'NGF AGENT').map(u => ({
+      userId: u['User ID'], username: u['Username'], name: u['Name'], status: u['Status'], role: u['Role'],
     })),
   })
 })

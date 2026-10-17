@@ -960,7 +960,7 @@ export default function DevPage({ session }: { session: Session }) {
           <div className="rounded-[1.75rem] border border-white/70 bg-white shadow-panel p-6 space-y-4">
             <div>
               <p className="text-sm font-semibold">Staff Access</p>
-              <p className="mt-1 text-xs text-[#697586]">Assign a branch and toggle which features each Staff account can use. Create Staff accounts from Staff / Agents.</p>
+              <p className="mt-1 text-xs text-[#697586]">Assign a branch and toggle which features each Staff or Agent account can use. Create accounts from Staff / Agents. Agents only use the Payment Matching options.</p>
             </div>
             {staffList.length === 0 ? (
               <p className="text-xs text-[#697586]">No staff accounts yet. Add one with role &quot;Staff&quot; in Staff / Agents.</p>
@@ -973,7 +973,7 @@ export default function DevPage({ session }: { session: Session }) {
                       <div className="flex items-center justify-between gap-3 flex-wrap">
                         <div>
                           <p className="text-sm font-semibold">{u.name}</p>
-                          <p className="text-xs text-[#697586]">{u.username}</p>
+                          <p className="text-xs text-[#697586]">{u.username}{u.role === 'NGF AGENT' ? ' · Agent' : ''}</p>
                         </div>
                         <select value={a.branchId} onChange={e => patchAccess(u.userId, { branchId: e.target.value })}
                           className="rounded-xl border border-[#e5e7eb] bg-white px-3 py-2 text-sm outline-none focus:border-[#1a1a2e]">
@@ -982,7 +982,7 @@ export default function DevPage({ session }: { session: Session }) {
                         </select>
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        {APP_CONFIG.STAFF_FEATURES.map(f => {
+                        {APP_CONFIG.STAFF_FEATURES.filter(f => u.role !== 'NGF AGENT' || f.key.startsWith('upiPayments')).map(f => {
                           const on = a.permissions.includes(f.key)
                           return (
                             <button key={f.key} type="button" onClick={() => togglePerm(u.userId, f.key)}

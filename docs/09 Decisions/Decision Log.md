@@ -23,3 +23,6 @@ tags: [ngf, decisions]
 
 ## Related
 - [[Decisions Brain]]
+
+## 2026-10-18: UTR payments are marked by staff, not claimed by guarantors
+The owner wanted collection-day marking by staff (search the customer's 4-digit code, enter the UTR, group customers on one UTR) instead of guarantor-submitted claims, so guarantors cannot submit someone else's screenshot. A duplicate UTR is saved as Flagged (not rejected) so both sides can be compared and corrected; only users the admin grants override permission can approve a duplicate, with a written reason. Bank statement upload is a later cross-check. Guarantors get a view-only diagram of their own customers. See [[Payment Matching]].

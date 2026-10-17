@@ -21,6 +21,9 @@ export const APP_CONFIG = {
     { key: 'guarantors',  label: 'Guarantors',            view: 'guarantors' },
     { key: 'reports',     label: 'Reports',               view: 'reports' },
     { key: 'agentTracking', label: 'Agent Tracking',      view: 'agentTracking' },
+    { key: 'upiPayments', label: 'Payment Matching (mark UTR payments)', view: 'payments' },
+    { key: 'upiPaymentsBank', label: 'Payment Matching: bank statement', view: '' },
+    { key: 'upiPaymentsOverride', label: 'Payment Matching: override duplicate UTR', view: '' },
   ] as { key: string; label: string; view: string }[],
   // Branch roles with suggested permissions (editable suggestions, not auto-granted)
   BRANCH_ROLES: [

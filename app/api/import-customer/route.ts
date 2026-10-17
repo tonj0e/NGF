@@ -3,6 +3,7 @@ import { apiHandler, requireRole, ok, err } from '@/lib/api'
 import { readTable, appendRow, updateById, findRecord, makeId, nowIso, formatDateYmd, invalidateCache } from '@/lib/supabase-db'
 import { APP_CONFIG } from '@/lib/config'
 import { getLeadDocFolder, uploadLeadPhoto } from '@/lib/drive'
+import { ensurePayCodes } from '@/lib/payments'
 
 async function makeLoanId(guarantorCode: string): Promise<string> {
   const loans = await readTable('Loans')
@@ -142,6 +143,8 @@ export const POST = apiHandler(async (req: NextRequest) => {
     'Created At': joinedDate ? new Date(joinedDate).toISOString() : nowIso(),
     'Updated At': nowIso(),
   })
+
+  try { await ensurePayCodes(guarantorId) } catch (e) { console.error('pay code assignment failed', e) }
 
   await appendRow('Loans', {
     'Loan ID': loanId, 'Customer ID': customerId, 'Lead ID': leadId,
