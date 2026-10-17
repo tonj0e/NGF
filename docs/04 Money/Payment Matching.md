@@ -26,7 +26,7 @@ Purpose: stop one screenshot or UTR being used for the wrong customers. Staff ma
 | Staff / Agent with `upiPayments` | yes | all | only with `upiPaymentsBank` | only with `upiPaymentsOverride` |
 | Guarantor | no | own customers only, view-only | no | no |
 
-Permissions are granted in **Dev → Branches → Staff Access** (Staff and Agents both listed; agents only see the Payment Matching toggles). They are stored in `staff_access.permissions`, keyed in `lib/config.ts` `STAFF_FEATURES` (`view: ''` features add no menu item). Access is decided server-side in `lib/payments.ts` `getAccess`.
+Permissions are granted in **Dev → Branches → Staff Access** (a branch must be chosen: `staff_access.branch_id` has a foreign key) (Staff and Agents both listed; agents only see the Payment Matching toggles). They are stored in `staff_access.permissions` (a Postgres `text[]`; `/api/branches` `setAccess` now writes a `{a,b}` array literal and ignores unknown keys), keyed in `lib/config.ts` `STAFF_FEATURES` (`view: ''` features add no menu item). Access is decided server-side in `lib/payments.ts` `getAccess`.
 
 ## Rules in code (`lib/payments.ts`)
 - UTR is normalised (spaces/dashes removed, uppercase), 8–30 letters/digits.

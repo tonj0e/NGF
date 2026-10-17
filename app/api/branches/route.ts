@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { apiHandler, getSession, requireRole, ok, err } from '@/lib/api'
 import { readTable, appendRow, updateById, findRecord, makeId, nowIso, deleteById, invalidateCache, getRowById } from '@/lib/supabase-db'
 import { randomUUID } from 'crypto'
+import { APP_CONFIG } from '@/lib/config'
 
 // GET ?self=1  → the caller's own branch + granted permissions (used to build the
 //                Staff menu).
@@ -67,7 +68,10 @@ export const POST = apiHandler(async (req: NextRequest) => {
   if (action === 'setAccess') {
     const { userId, branchId } = body
     if (!userId) return err('userId required')
-    const permissions = Array.isArray(body.permissions) ? body.permissions.join(',') : ''
+    // staff_access.permissions is a text[] column: send a Postgres array literal of known feature keys only
+    const known = new Set(APP_CONFIG.STAFF_FEATURES.map(f => f.key))
+    const picked = Array.isArray(body.permissions) ? body.permissions.filter((k: unknown): k is string => typeof k === 'string' && known.has(k)) : []
+    const permissions = `{${Array.from(new Set(picked)).join(',')}}`
     const access = await readTable('StaffAccess')
     const existing = access.find(a => a['User ID'] === userId)
     if (existing) {

@@ -35,7 +35,7 @@ export default function PaymentDiagram({ utr, mode, total, status, lines }: {
   const mid = H / 2
   return (
     <div className="flex items-center">
-      <div className={`w-[40%] max-w-[190px] shrink-0 rounded-2xl border p-3 ${tone.node}`}>
+      <div className={`w-[38%] max-w-[190px] shrink-0 rounded-2xl border p-3 ${tone.node}`}>
         <div className="flex items-center gap-1.5 text-xs font-semibold text-[#1a1a2e]">
           <ModeIcon mode={mode} /> {mode === 'UPI' ? 'UPI payment' : mode}
         </div>
@@ -63,12 +63,13 @@ export default function PaymentDiagram({ utr, mode, total, status, lines }: {
       <div className="flex min-w-0 flex-1 flex-col" style={{ gap: GAP }}>
         {lines.map((l, i) => (
           <div key={i} style={{ height: ROW }}
-            className={`flex items-center justify-between gap-2 rounded-2xl border px-3 ${l.hidden ? 'border-dashed border-[#d1d5db] bg-[#f9fafb]' : 'border-[#e5e7eb] bg-white'}`}>
-            <div className="min-w-0">
-              <p className={`truncate text-sm font-semibold ${l.hidden ? 'text-[#697586]' : 'text-[#1a1a2e]'}`}>{l.name || 'Customer'}</p>
-              {l.payCode ? <p className="font-mono text-[11px] text-[#697586]">#{l.payCode}</p> : null}
+            className={`flex items-center gap-2 rounded-2xl border px-3 ${l.hidden ? 'border-dashed border-[#d1d5db] bg-[#f9fafb]' : 'border-[#e5e7eb] bg-white'}`}>
+            <div className="min-w-0 flex-1">
+              <p className={`line-clamp-2 break-words text-[13px] font-semibold leading-tight ${l.hidden ? 'text-[#697586]' : 'text-[#1a1a2e]'}`}>{l.name || 'Customer'}</p>
+              <p className="mt-0.5 text-xs text-[#697586]">
+                {l.payCode ? <span className="font-mono">#{l.payCode} · </span> : null}<span className="font-bold text-[#1a1a2e]">{currency(l.amount)}</span>
+              </p>
             </div>
-            <p className="shrink-0 text-sm font-bold text-[#1a1a2e]">{currency(l.amount)}</p>
           </div>
         ))}
       </div>
