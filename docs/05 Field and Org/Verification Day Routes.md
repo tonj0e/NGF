@@ -27,7 +27,7 @@ Problem it solves: agents were sent to ten verifications in the wrong order (Era
 - At most 24 stops per agent per day (Google matrix limit).
 
 ## Distances
-Road distances come from the **Google Routes API** (`computeRouteMatrix`, server key `GOOGLE_MAPS_SERVER_KEY`, falling back to `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`). Results are cached per pair of places in `route_dist_cache`, so re-ordering does not call Google again. If Google is not available the app uses a straight-line estimate (x1.4 road factor, 28 km/h) and says "Estimate" on the route card. **The Routes API must be enabled in the Google Cloud project** (it was not, on 2026-10-19).
+Road distances come from the **Google Routes API** (`computeRouteMatrix`, server key `GOOGLE_MAPS_SERVER_KEY`, falling back to `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`). Results are cached per pair of places in `route_dist_cache`, so re-ordering does not call Google again. If Google is not available the app uses a straight-line estimate (x1.4 road factor, 28 km/h) and says "Estimate" on the route card. **The Routes API must be enabled in the Google Cloud project.** It was off on 2026-10-19; the owner then made a new project with a key restricted to Routes API only and a live test returned real road distances (Ernakulam to Chalakudy about 39 km). The key lives in `.env.local` and must also be added to Hostinger's environment as `GOOGLE_MAPS_SERVER_KEY`. To allow another Google API later, edit the key's API restrictions in Google Cloud (Credentials).
 
 ## Data (migration `migrations/2026-10-19-verification-routes.sql`, applied)
 - `leads`: `visit_lat`, `visit_lng`, `visit_place`, `visit_date`, `visit_window`, `visit_note`, `call_outcome`, `visit_status`, `route_seq`, `route_pin`, `leg_km`, `leg_min`.
