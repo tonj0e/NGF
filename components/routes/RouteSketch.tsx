@@ -41,7 +41,7 @@ export default function RouteSketch({ start, startLabel, stops, nextId, onPick }
   const done = stops.filter(s => s.done).length
 
   return (
-    <div className="overflow-hidden rounded-[1.75rem] bg-gradient-to-br from-[#1a1a2e] via-[#20204a] to-[#2b2461] p-4 text-white shadow-panel">
+    <div className="mx-auto w-full max-w-[520px] overflow-hidden rounded-[1.75rem] bg-gradient-to-br from-[#1a1a2e] via-[#20204a] to-[#2b2461] p-4 text-white shadow-panel">
       <div className="mb-1 flex items-end justify-between gap-3">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/55">Today at a glance</p>
