@@ -11,7 +11,7 @@ tags: [ngf, money, payments, utr]
 Purpose: stop one screenshot or UTR being used for the wrong customers. Staff mark each payment on collection day; the server refuses to treat the same UTR as two payments.
 
 ## Flow
-1. Pick a **guarantor** and a **Saturday**. The sheet lists their customers due that week (plus older unpaid weeks) with the **4-digit pay code**.
+1. Pick a **guarantor** and a **Saturday**. The sheet lists their customers due that week (plus older unpaid weeks) with the **4-digit code from their loan ID** (GBN-7425 shows 7425).
 2. Search by code, name or phone. Tap customers to add them to one payment (a group payment: one UTR, several customers).
 3. Choose mode. UPI and Bank need a **UTR**; Cash/Cheque/Other do not. Amounts are always the weekly amount due (no partials).
 4. **Save.** If no verified payment already holds the UTR, the payment is `Verified` and the repayments become Paid (same effect as `/api/repayments`: repayment row + `collections` row + loan completion check).
@@ -34,7 +34,7 @@ Permissions are granted in **Dev → Branches → Staff Access** (a branch must 
 - A repayment can have only one payment line (`payment_lines.repayment_id` unique).
 - Editing a UTR on a verified payment needs the marker or override permission; every edit/override/discard is logged in `payment_events` and in `logs`.
 - A guarantor never sees other guarantors' customer names: they show as "Another guarantor's customer".
-- Pay codes: `customers.pay_code`, 4 digits, unique **per guarantor** (`ensurePayCodes`, run when a customer is created and when a collect sheet opens).
+- Pay code = the 4 digits at the end of the customer's loan ID (`lib/payCode.ts`, `payCodeFromLoanId`). Loan IDs are `<guarantor code>-<4 digits>` and unique per guarantor, so no separate code is stored or generated. The old `customers.pay_code` column is unused (random codes removed 2026-10-19).
 
 ## Files
 `migrations/2026-10-18-payment-matching.sql`, `lib/payments.ts`, `app/api/payments/route.ts`, `components/pages/PaymentMatchingPage.tsx`, `components/payments/PaymentDiagram.tsx`, `components/payments/bankCsv.ts`.

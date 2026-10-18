@@ -50,7 +50,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
     const a = loan ? agents.find(ag => ag['Agent ID'] === loan['Assigned Agent ID']) : null
     const lead = leads.find(l => l['Lead ID'] === c['Lead ID'])
     return {
-      customerId: c['Customer ID'], name: c['Name'], phone: c['Phone'], payCode: c['Pay Code'] || '',
+      customerId: c['Customer ID'], name: c['Name'], phone: c['Phone'],
       address: c['Address'], houseName: c['House Name'], place: c['Place'],
       occupation: c['Occupation'], status: c['Status'],
       guarantorName: g?.['Name'] || '', guarantorCode: g?.['Code'] || '',

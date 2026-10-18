@@ -23,7 +23,7 @@ async function allowed(session: Session, customer: { guarantor_id: string | null
 export async function customerHistory(session: Session, customerId: string) {
   if (!customerId) throw new HistoryError('customerId required')
   const sb = getSupabase()
-  const { data: customer, error: ce } = await sb.from('customers').select('customer_id, name, pay_code, guarantor_id, phone').eq('customer_id', customerId).maybeSingle()
+  const { data: customer, error: ce } = await sb.from('customers').select('customer_id, name, guarantor_id, phone').eq('customer_id', customerId).maybeSingle()
   if (ce) throw new Error(ce.message)
   if (!customer) throw new HistoryError('Customer not found')
 
@@ -94,7 +94,7 @@ export async function customerHistory(session: Session, customerId: string) {
   }).reverse() // newest loan first
 
   return {
-    customer: { customerId: customer.customer_id, name: customer.name, payCode: customer.pay_code || '' },
+    customer: { customerId: customer.customer_id, name: customer.name },
     score: { value: score.value, max: score.max, band: score.band, completedLoans: score.completedLoans, onTimeRate: score.onTimeRate, inProgress: score.inProgress, rules: score.rules },
     loans: loansOut,
   }

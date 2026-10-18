@@ -6,7 +6,6 @@ import { notifyUser, notifyRole } from '@/lib/notifications'
 import { validateBody, submitVerificationSchema, adminReviewSchema, assignAgentSchema, updateLeadSchema, tripSchema } from '@/lib/validation'
 import { FilePayload } from '@/types'
 import { csrfProtection } from '@/lib/csrf'
-import { ensurePayCodes } from '@/lib/payments'
 
 function toPayload(b64: string, filename: string): FilePayload {
   const [header, data] = b64.split(',')
@@ -347,7 +346,6 @@ async function approveLoan(lead: Record<string, string>, guarantors: Record<stri
       'Active Loan ID': loanId, 'Status': 'Active',
       'Created At': nowIso(), 'Updated At': nowIso(),
     })
-    try { await ensurePayCodes(lead['Guarantor ID']) } catch (e) { console.error('pay code assignment failed', e) }
   } else {
     // Update existing customer's active loan and status
     await updateById('Customers', customerId, { 'Active Loan ID': loanId, 'Status': 'Active', 'Updated At': nowIso() })

@@ -233,7 +233,6 @@ export default function MyCustomersPage({ session }: { session: Session }) {
                   <p className="font-semibold truncate">{c.name}</p>
                   <p className="text-xs text-[#697586]">{c.phone}</p>
                   {c.activeLoanId && <p className="font-mono text-[11px] text-[#697586]">{c.activeLoanId}</p>}
-                  {(c as any).payCode && <p className="mt-0.5 text-[11px] font-semibold text-[#1a1a2e]">Pay code <span className="rounded-md bg-[#f4f5f7] px-1.5 py-0.5 font-mono">{(c as any).payCode}</span></p>}
                 </div>
                 <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${c.isOverdue ? 'bg-red-100 text-red-700' : c.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-[#f4f5f7] text-[#697586]'}`}>
                   {c.isOverdue ? 'Overdue' : c.status}

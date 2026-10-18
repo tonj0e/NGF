@@ -14,7 +14,7 @@ type Loan = {
   completed: boolean; points: number; penalty: number
 }
 type Data = {
-  customer: { customerId: string; name: string; payCode: string }
+  customer: { customerId: string; name: string }
   score: {
     value: number; max: number; band: string; completedLoans: number; onTimeRate: number | null
     inProgress: { loanId: string; paidWeeks: number; totalWeeks: number; nextPoints: number } | null

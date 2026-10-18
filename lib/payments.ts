@@ -2,6 +2,7 @@
 // Tables: payment_groups, payment_lines, payment_events, bank_transactions (see migrations/2026-10-18-payment-matching.sql).
 // All access control lives here and in app/api/payments/route.ts; the browser is never trusted.
 import { getSupabase, readTable, makeId, invalidateCache } from './supabase-db'
+import { payCodeFromLoanId } from './payCode'
 import { getTodayIST, getThisSaturday } from './dateUtils'
 import { saveFileSupabase } from './drive'
 import type { Session } from '../types'
@@ -67,29 +68,6 @@ export async function getAccess(session: Session): Promise<Access> {
 
 export function need(ok: boolean) {
   if (!ok) throw new Error('No permission')
-}
-
-// ─── Pay codes (4 digits, unique within one guarantor) ────────────────────────
-
-export async function ensurePayCodes(guarantorId: string): Promise<void> {
-  if (!guarantorId) return
-  const sb = getSupabase()
-  const { data, error } = await sb.from('customers').select('customer_id, pay_code').eq('guarantor_id', guarantorId)
-  if (error) throw new Error(error.message)
-  const used = new Set((data || []).map(c => c.pay_code).filter(Boolean) as string[])
-  const missing = (data || []).filter(c => !c.pay_code)
-  if (!missing.length) return
-  if (used.size + missing.length > 9000) throw new PaymentError('Too many customers for 4-digit codes under one guarantor')
-  for (const c of missing) {
-    for (let attempt = 0; attempt < 40; attempt++) {
-      const code = String(Math.floor(Math.random() * 10000)).padStart(4, '0')
-      if (used.has(code)) continue
-      const { error: upErr } = await sb.from('customers').update({ pay_code: code }).eq('customer_id', c.customer_id).is('pay_code', null)
-      if (!upErr) { used.add(code); break }
-      if (upErr.code !== '23505') throw new Error(upErr.message)
-    }
-  }
-  invalidateCache('Customers')
 }
 
 // ─── Events ───────────────────────────────────────────────────────────────────
@@ -162,9 +140,9 @@ async function hydrate(groups: GroupRow[], viewer: Access): Promise<PublicGroup[
 
   const allLines = [...lines, ...extraLines]
   const customerIds = Array.from(new Set(allLines.map(l => l.customer_id).filter(Boolean) as string[]))
-  const custMap = new Map<string, { name: string; pay_code: string | null; guarantor_id: string | null }>()
+  const custMap = new Map<string, { name: string; guarantor_id: string | null }>()
   if (customerIds.length) {
-    const { data } = await sb.from('customers').select('customer_id, name, pay_code, guarantor_id').in('customer_id', customerIds)
+    const { data } = await sb.from('customers').select('customer_id, name, guarantor_id').in('customer_id', customerIds)
     for (const c of data || []) custMap.set(c.customer_id, c as any)
   }
   const gName = (id: string | null) => guarantors.find(g => g['Guarantor ID'] === id)?.['Name'] || ''
@@ -175,7 +153,7 @@ async function hydrate(groups: GroupRow[], viewer: Access): Promise<PublicGroup[
     const hidden = viewer.isGuarantor && (l.guarantor_id || c?.guarantor_id) !== viewer.guarantorId
     return {
       lineId: l.line_id, customerId: hidden ? '' : (l.customer_id || ''), name: hidden ? "Another guarantor's customer" : (c?.name || ''),
-      payCode: hidden ? '' : (c?.pay_code || ''), amount: Number(l.amount), weekNo: l.week_no, dueDate: l.due_date, applied: l.applied, hidden,
+      payCode: hidden ? '' : payCodeFromLoanId(l.loan_id), amount: Number(l.amount), weekNo: l.week_no, dueDate: l.due_date, applied: l.applied, hidden,
     }
   }
   const brief = (g: GroupRow): PublicGroupBrief => ({
@@ -221,14 +199,13 @@ export async function listGuarantors(): Promise<{ guarantorId: string; name: str
 export async function collectSheet(guarantorId: string, date: string) {
   if (!guarantorId) throw new PaymentError('Choose a guarantor')
   if (!isDate(date)) throw new PaymentError('Invalid date')
-  await ensurePayCodes(guarantorId)
   const sb = getSupabase()
   const { data: loans } = await sb.from('loans').select('loan_id, customer_id').eq('guarantor_id', guarantorId)
   const loanIds = (loans || []).map(l => l.loan_id)
   if (!loanIds.length) return { date, rows: [], expected: 0 }
   const [{ data: reps }, { data: custs }] = await Promise.all([
     sb.from('repayments').select('repayment_id, loan_id, customer_id, due_date, week_no, amount, status, paid_date, payment_mode').in('loan_id', loanIds).lte('due_date', date),
-    sb.from('customers').select('customer_id, name, phone, pay_code').eq('guarantor_id', guarantorId),
+    sb.from('customers').select('customer_id, name, phone').eq('guarantor_id', guarantorId),
   ])
   const custMap = new Map((custs || []).map(c => [c.customer_id, c]))
   const rows = (reps || []).filter(r => r.due_date === date || r.status !== 'Paid')
@@ -249,7 +226,7 @@ export async function collectSheet(guarantorId: string, date: string) {
     const line = lineMap.get(r.repayment_id)
     const g = line ? groupMap.get(line.group_id) : undefined
     return {
-      repaymentId: r.repayment_id, customerId: r.customer_id, name: c?.name || '', phone: c?.phone || '', payCode: c?.pay_code || '',
+      repaymentId: r.repayment_id, customerId: r.customer_id, name: c?.name || '', phone: c?.phone || '', payCode: payCodeFromLoanId(r.loan_id),
       weekNo: r.week_no, dueDate: r.due_date, amount: Number(r.amount), status: r.status as string, overdue: r.due_date < date && r.status !== 'Paid',
       payment: g ? { groupId: g.group_id, status: g.status, mode: g.mode, utr: g.utr || '', total: Number(g.total_amount) } : null,
     }
