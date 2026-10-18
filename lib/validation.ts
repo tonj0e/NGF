@@ -30,11 +30,11 @@ export const verifyQrSchema = z.object({
 })
 
 export const forgotPasswordSchema = z.object({
-  email: z.string().trim().max(254).email('Invalid email address'),
+  username: z.string().trim().min(1, 'Enter your user ID').max(100),
 })
 
 export const verifyOtpSchema = z.object({
-  email: z.string().trim().max(254).email('Invalid email address'),
+  username: z.string().trim().min(1, 'Enter your user ID').max(100),
   otp: z.string().regex(/^\d{6}$/, 'Enter the 6-digit code'),
 })
 

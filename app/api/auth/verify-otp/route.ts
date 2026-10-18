@@ -3,10 +3,10 @@ import { getSupabase } from '@/lib/supabase-db'
 import { authRateLimit } from '@/lib/rate-limiter'
 import { validateBody, verifyOtpSchema } from '@/lib/validation'
 import { createAuditLogger, AUDIT_ACTIONS } from '@/lib/audit'
-import { verifyOtp, normalizeEmail } from '@/lib/otp'
+import { verifyOtp } from '@/lib/otp'
 import { createResetToken } from '@/lib/auth'
 
-// Step 2 of recovery: exchange email + 6-digit code for a short-lived, single-purpose reset token.
+// Step 2 of recovery: exchange user ID + 6-digit code for a short-lived, single-purpose reset token.
 // Every failure returns the same message so account existence and OTP state are not disclosed.
 const FAIL = () => NextResponse.json(
   { success: false, error: 'That code is incorrect or has expired. Check the code or request a new one.' },
@@ -19,12 +19,12 @@ export async function POST(req: NextRequest) {
 
   const validation = await validateBody(verifyOtpSchema)(req)
   if (!validation.success) return validation.response
-  const email = normalizeEmail(validation.data.email)
+  const username = validation.data.username.trim()
 
   try {
     const { data: matches } = await getSupabase().from('users')
       .select('user_id, username, role')
-      .ilike('email', email.replace(/[\\%_]/g, '\\$&'))
+      .ilike('username', username.replace(/[\\%_]/g, '\\$&'))
       .eq('status', 'Active')
       .limit(2)
 

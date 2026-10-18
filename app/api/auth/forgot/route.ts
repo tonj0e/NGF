@@ -13,7 +13,7 @@ import { sendOtpEmail } from '@/lib/email'
 const GENERIC = {
   success: true,
   data: {
-    message: 'If an account is registered with that email address, a verification code will be sent to it shortly. It can take a minute to arrive — check your spam folder too.',
+    message: 'If that user ID has an email address on file, a verification code will be sent to it shortly. It can take a minute to arrive — check your spam folder too.',
     cooldownSeconds: OTP_RESEND_COOLDOWN_MS / 1000,
     expiresInMinutes: OTP_TTL_MS / 60000,
   },
@@ -25,14 +25,14 @@ export async function POST(req: NextRequest) {
 
   const validation = await validateBody(forgotPasswordSchema)(req)
   if (!validation.success) return validation.response
-  const email = normalizeEmail(validation.data.email)
+  const username = validation.data.username.trim()
 
-  // Per-email request cap (5/hour), applied identically to registered and unregistered addresses so the
+  // Per-user-ID request cap (5/hour), applied identically to real and unknown IDs so the
   // UI can tell the user to wait without revealing whether an account exists.
-  const perEmail = rateLimitKey(`forgot-email:${email}`, 5, 3600_000)
+  const perEmail = rateLimitKey(`forgot-user:${username.toLowerCase()}`, 5, 3600_000)
   if (!perEmail.success) {
     const res = NextResponse.json(
-      { success: false, error: 'Too many code requests for this email address. Please try again later.' },
+      { success: false, error: 'Too many code requests for this user ID. Please try again later.' },
       { status: 429 }
     )
     res.headers.set('Retry-After', String(perEmail.retryAfterSec))
@@ -41,14 +41,15 @@ export async function POST(req: NextRequest) {
 
   try {
     const sb = getSupabase()
-    // Exact, case-insensitive match (escape LIKE wildcards); only an unambiguous Active account is used
+    // The code goes to the email saved on the account the user ID belongs to (user IDs are unique, so this
+    // can only ever reset that one account). Exact, case-insensitive match; only an Active account with a usable email.
     const { data: matches } = await sb.from('users')
       .select('user_id, username, name, role, status, email')
-      .ilike('email', email.replace(/[\\%_]/g, '\\$&'))
+      .ilike('username', username.replace(/[\\%_]/g, '\\$&'))
       .eq('status', 'Active')
       .limit(2)
 
-    if (matches && matches.length === 1) {
+    if (matches && matches.length === 1 && /^\S+@\S+\.\S+$/.test(normalizeEmail(matches[0].email || '')) && !/\.invalid$/i.test(normalizeEmail(matches[0].email || ''))) {
       const user = matches[0]
       const { ipAddress } = extractClientInfo(req)
       const issued = await issueOtp(user.user_id, ipAddress)

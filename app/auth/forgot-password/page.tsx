@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 
-type Step = 'email' | 'otp' | 'password' | 'done'
+type Step = 'user' | 'otp' | 'password' | 'done'
 
 const POLICY_HINT = 'At least 10 characters, with at least three of: lowercase, uppercase, number, symbol.'
 const inputCls =
@@ -16,8 +16,8 @@ function fmt(sec: number) {
 }
 
 export default function ForgotPasswordPage() {
-  const [step, setStep] = useState<Step>('email')
-  const [email, setEmail] = useState('')
+  const [step, setStep] = useState<Step>('user')
+  const [username, setUsername] = useState('')
   const [otp, setOtp] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -67,10 +67,10 @@ export default function ForgotPasswordPage() {
 
   async function requestCode(isResend = false) {
     setError(''); setNotice('')
-    if (!/^\S+@\S+\.\S+$/.test(email.trim())) { setError('Enter a valid email address'); return }
+    if (!username.trim()) { setError('Enter your user ID'); return }
     setLoading(true)
     try {
-      const { res, json } = await post('/api/auth/forgot', { email: email.trim() })
+      const { res, json } = await post('/api/auth/forgot', { username: username.trim() })
       if (res.status === 429) { setError(json.error || 'Too many requests. Please wait a minute and try again.'); return }
       if (!res.ok || !json.success) { setError(json.error || 'Something went wrong. Please try again.'); return }
       const t = Date.now()
@@ -95,7 +95,7 @@ export default function ForgotPasswordPage() {
     if (expiresIn === 0) { setError('This code has expired. Request a new one.'); return }
     setLoading(true)
     try {
-      const { res, json } = await post('/api/auth/verify-otp', { email: email.trim(), otp })
+      const { res, json } = await post('/api/auth/verify-otp', { username: username.trim(), otp })
       if (res.status === 429) { setError(json.error || 'Too many attempts. Please wait a minute and try again.'); return }
       if (!res.ok || !json.success) {
         const n = failedTries + 1
@@ -122,7 +122,7 @@ export default function ForgotPasswordPage() {
       const { res, json } = await post('/api/auth/reset', { resetToken, password })
       if (!res.ok || !json.success) {
         setError(json.error || 'Could not update the password')
-        if (/start again|expired/i.test(json.error || '')) { setStep('email'); setResetToken('') }
+        if (/start again|expired/i.test(json.error || '')) { setStep('user'); setResetToken('') }
         return
       }
       setPassword(''); setConfirm(''); setResetToken('')
@@ -135,12 +135,12 @@ export default function ForgotPasswordPage() {
   }
 
   const titles: Record<Step, { h: string; p: string }> = {
-    email: { h: 'Forgot Password', p: 'Enter the email address registered to your account and we will send a verification code.' },
-    otp: { h: 'Enter Verification Code', p: 'Enter the 6-digit code from the email. It can be used once.' },
+    user: { h: 'Forgot Password', p: 'Enter your user ID. We will send a verification code to the email saved on your account.' },
+    otp: { h: 'Enter Verification Code', p: 'Enter the 6-digit code from the email sent for this user ID. It can be used once.' },
     password: { h: 'Set New Password', p: POLICY_HINT },
     done: { h: 'Password Updated', p: 'Your password has been changed. Any other signed-in sessions have been signed out.' },
   }
-  const stepNo = { email: 1, otp: 2, password: 3, done: 4 }[step]
+  const stepNo = { user: 1, otp: 2, password: 3, done: 4 }[step]
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#f4f5f7] px-4 py-8">
@@ -173,12 +173,12 @@ export default function ForgotPasswordPage() {
           <div role="alert" className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>
         )}
 
-        {step === 'email' && (
+        {step === 'user' && (
           <form onSubmit={e => { e.preventDefault(); requestCode() }} className="mt-6 space-y-4" noValidate>
             <label className="block">
-              <span className="mb-2 block text-sm font-medium">Email Address</span>
-              <input name="email" type="email" value={email} onChange={e => setEmail(e.target.value)} required
-                autoComplete="email" autoCapitalize="none" autoCorrect="off" inputMode="email" data-no-upper
+              <span className="mb-2 block text-sm font-medium">User ID</span>
+              <input name="username" type="text" value={username} onChange={e => setUsername(e.target.value)} required
+                autoComplete="username" autoCapitalize="none" autoCorrect="off" data-no-upper autoFocus
                 className={inputCls} />
             </label>
             <button type="submit" disabled={loading} className={primaryBtn}>
@@ -189,7 +189,7 @@ export default function ForgotPasswordPage() {
 
         {step === 'otp' && (
           <form onSubmit={submitOtp} className="mt-6 space-y-4" noValidate>
-            <p className="text-center text-xs text-[#697586]">Code requested for <span className="font-medium text-[#1a1a2e]">{email.trim()}</span></p>
+            <p className="text-center text-xs text-[#697586]">Code requested for user ID <span className="font-medium text-[#1a1a2e]">{username.trim()}</span></p>
             <label className="block">
               <span className="mb-2 block text-sm font-medium">Verification Code</span>
               <input name="otp" value={otp} onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
@@ -204,8 +204,8 @@ export default function ForgotPasswordPage() {
               {loading ? 'Verifying…' : 'Verify Code'}
             </button>
             <div className="flex items-center justify-between text-sm">
-              <button type="button" onClick={() => { setStep('email'); setError(''); setNotice('') }}
-                className="text-[#697586] hover:underline">Change email</button>
+              <button type="button" onClick={() => { setStep('user'); setError(''); setNotice('') }}
+                className="text-[#697586] hover:underline">Change user ID</button>
               <button type="button" onClick={() => requestCode(true)} disabled={loading || cooldown > 0}
                 className="font-medium text-[#1a1a2e] hover:underline disabled:cursor-not-allowed disabled:text-[#9aa3af] disabled:no-underline">
                 {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend code'}
