@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, getSession, requireRole, ok, err } from '@/lib/api'
-import { readTable, appendRow, updateById, findRecord, makeId, nowIso, invalidateCache } from '@/lib/supabase-db'
+import { readTable, appendRow, updateById, findRecord, makeId, nowIso, invalidateCache, getSupabase } from '@/lib/supabase-db'
 import { computeDepositAccount, getDepositSettings, DepositTxn, TXN_INTEREST_PAYOUT, TXN_PRINCIPAL_WITHDRAWAL } from '@/lib/deposits'
 import { getTodayIST } from '@/lib/dateUtils'
 
@@ -73,10 +73,24 @@ export const PATCH = apiHandler(async (req: NextRequest) => {
   const { requestId } = await req.json()
   if (!requestId) return err('requestId required')
 
-  const requests = await readTable('DepositRequests')
+  const requests = await readTable('DepositRequests', { forceFresh: true })
   const reqRow = requests.find(r => r['Request ID'] === requestId)
   if (!reqRow) return err('Request not found', 404)
   if (reqRow['Status'] !== 'Pending') return err('Request already processed')
+
+  // The balance may have changed since the request was made: check it again before paying
+  const [deposits, settings] = await Promise.all([readTable('Deposits', { forceFresh: true }), getDepositSettings()])
+  const account = computeDepositAccount(txnsFor(deposits, reqRow['Guarantor ID']), settings)
+  const wanted = Number(reqRow['Amount'] || 0)
+  if (reqRow['Type'] === 'Principal' ? wanted > account.principal : wanted > account.availableInterest + 0.5) {
+    return err('The balance is lower than this request. Reject it and ask for a new one.')
+  }
+
+  // Claim the request in one database step so a second click or a second admin cannot pay it twice
+  const { data: claimed, error: claimError } = await getSupabase()
+    .from('deposit_requests').update({ status: 'Processing' })
+    .eq('request_id', requestId).eq('status', 'Pending').select('request_id')
+  if (claimError || !claimed || claimed.length === 0) return err('Request already processed')
 
   const type = reqRow['Type'] === 'Principal' ? 'Principal' : 'Interest'
   const ledgerType = type === 'Principal' ? TXN_PRINCIPAL_WITHDRAWAL : TXN_INTEREST_PAYOUT
@@ -84,11 +98,17 @@ export const PATCH = apiHandler(async (req: NextRequest) => {
   const today = getTodayIST()
 
   // Record the ledger transaction (interest payout resets the 122-day cycle)
-  await appendRow('Deposits', {
-    'Txn ID': makeId('DEP'), 'Guarantor ID': reqRow['Guarantor ID'], 'Type': ledgerType,
-    'Amount': String(amount), 'Date': today,
-    'Notes': `Withdrawal request ${requestId}`, 'Recorded By': session.userId, 'Created At': nowIso(),
-  })
+  try {
+    await appendRow('Deposits', {
+      'Txn ID': makeId('DEP'), 'Guarantor ID': reqRow['Guarantor ID'], 'Type': ledgerType,
+      'Amount': String(amount), 'Date': today,
+      'Notes': `Withdrawal request ${requestId}`, 'Recorded By': session.userId, 'Created At': nowIso(),
+    })
+  } catch (e) {
+    // Nothing was paid: put the request back so it can be tried again
+    await getSupabase().from('deposit_requests').update({ status: 'Pending' }).eq('request_id', requestId)
+    throw e
+  }
 
   await updateById('DepositRequests', requestId, {
     ...reqRow, 'Status': 'Paid', 'Processed At': nowIso(), 'Notes': `Approved by ${session.userId}`,

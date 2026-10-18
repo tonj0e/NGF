@@ -141,7 +141,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
 
   // notifications
   const myNotifications = notifications
-    .filter(n => n['Is Read'] === 'false' && (n['User ID'] === session.userId || n['Role'] === session.role))
+    .filter(n => n['Is Read'] === 'false' && (n['User ID'] === session.userId || (!n['User ID'] && n['Role'] === session.role)))
     .slice(0, 5)
     .map(n => ({ notificationId: n['Notification ID'], title: n['Title'], message: n['Message'], createdAt: n['Created At'] }))
 
@@ -160,10 +160,8 @@ export const GET = apiHandler(async (req: NextRequest) => {
       assignedVerifications,
       todayDue,
       weekCollected,
-      totalCapital,
-      investorMoney,
-      totalInterest,
-      availableCapital,
+      // Capital, investor and interest totals are for Admin and Staff only
+      ...(session.role === 'Admin' || session.role === 'Staff' ? { totalCapital, investorMoney, totalInterest, availableCapital } : {}),
       recollectionRate,
       collectedCount,
       pendingCount,

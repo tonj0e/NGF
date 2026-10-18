@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { apiHandler, getSession, requireRole, ok } from '@/lib/api'
+import { apiHandler, getSession, requireRole, ok, err } from '@/lib/api'
 import { readTable, appendRow, updateById, nowIso, invalidateCache } from '@/lib/supabase-db'
 import { APP_CONFIG } from '@/lib/config'
 import { saveFileSupabase } from '@/lib/drive'
@@ -72,14 +72,15 @@ export const POST = apiHandler(async (req: NextRequest) => {
   }
 
   // Handle profile photo upload to Supabase
+  // The photo is either empty, an embedded image, or a link to a stored profile picture. Nothing else is kept.
+  const okPhoto = (v: unknown) => typeof v === 'string' && (v === '' || /^data:image\/(png|jpe?g|gif|webp);base64,[A-Za-z0-9+/=]+$/.test(v) || /^\/api\/drive\/supabase:profiles\/[\w./-]+$/.test(v))
+  if (body.photo !== undefined && !okPhoto(body.photo)) return err('Photo must be an image')
   let photoUrl = body.photo !== undefined ? body.photo : (prof?.['Photo'] || '')
   if (body.photo && body.photoFile) {
-    photoUrl = await saveFileSupabase(
-      'profiles',
-      `${userId}/profile.${body.photoFileType || 'jpg'}`,
-      body.photoFileType || 'image/jpeg',
-      body.photoFile
-    )
+    const ext: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' }
+    const type = String(body.photoFileType || 'image/jpeg')
+    if (!ext[type]) return err('Photo must be a JPEG, PNG, WebP or GIF image')
+    photoUrl = await saveFileSupabase('profiles', `${userId}/profile.${ext[type]}`, type, body.photoFile)
   }
 
   const data = {

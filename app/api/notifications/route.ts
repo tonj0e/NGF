@@ -8,7 +8,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const page = Number(searchParams.get('page') || 1)
   const pageSize = Number(searchParams.get('pageSize') || 20)
   const notifs = await readTable('Notifications', { forceFresh: true })
-  const mine = notifs.filter(n => n['User ID'] === session.userId || n['Role'] === session.role)
+  const mine = notifs.filter(n => n['User ID'] === session.userId || (!n['User ID'] && n['Role'] === session.role))
     .sort((a, b) => b['Created At'].localeCompare(a['Created At']))
   const mapped = mine.map(n => ({
     notificationId: n['Notification ID'], userId: n['User ID'], role: n['Role'],
@@ -24,6 +24,8 @@ export const PATCH = apiHandler(async (req: NextRequest) => {
   const notifs = await readTable('Notifications', { forceFresh: true })
   const n = notifs.find(x => x['Notification ID'] === notificationId)
   if (!n) return ok({ success: false })
+  // Only the recipient may mark it read: their own row, or a broadcast to their role
+  if (!(n['User ID'] === session.userId || (!n['User ID'] && n['Role'] === session.role))) return ok({ success: false })
   await updateById('Notifications', notificationId, { 'Is Read': 'true' })
   invalidateCache('Notifications')
   return ok({ success: true })

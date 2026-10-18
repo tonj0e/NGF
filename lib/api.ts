@@ -13,7 +13,7 @@ export async function getSession(req: NextRequest): Promise<Session> {
   const supabase = getSupabase()
   const { data: user } = await supabase
     .from('users')
-    .select('blocked_until, block_reason, password_hash, updated_at')
+    .select('blocked_until, block_reason, password_hash, updated_at, role, status')
     .eq('user_id', session.userId)
     .single()
 
@@ -27,7 +27,11 @@ export async function getSession(req: NextRequest): Promise<Session> {
     if (!session.iat || Number.isNaN(changedAt) || changedAt > session.iat * 1000) throw new Error('Session expired')
   }
 
-  // Check if user is temporarily blocked (server-side time)
+  // Role and status come from the database on every request, so a demotion or deactivation takes effect at once
+  if (user.status && user.status !== 'Active') throw new Error('Session expired')
+  if (user.role && user.role !== session.role) session.role = user.role
+
+  // Check if user is blocked (server-side time). A permanent block is stored as a far-future date.
   if (user.blocked_until && user.blocked_until > now) {
     const blockExpiry = new Date(user.blocked_until).toLocaleString()
     throw new Error(`Account temporarily blocked until ${blockExpiry}. Reason: ${user.block_reason || 'Not specified'}`)

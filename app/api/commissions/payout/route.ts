@@ -87,6 +87,11 @@ export const POST = apiHandler(async (req: NextRequest) => {
   const { pastCycles } = buildCycles(guarantorLoans)
   if (pastCycles.length === 0) return err('No completed payout cycles yet. Payout unlocks after 35 days.')
 
+  // A request cannot be more than the commission earned and not yet paid out
+  const earned = guarantorLoans.reduce((sum, l) => sum + Number(l['Guarantor Commission'] || 0), 0)
+  const alreadyPaid = payouts.filter((p: any) => p['Guarantor ID'] === g['Guarantor ID'] && p['Status'] === 'Paid').reduce((sum: number, p: any) => sum + Number(p['Amount'] || 0), 0)
+  if (!Number.isFinite(amount) || amount > earned - alreadyPaid + 0.5) return err('Amount is more than your available commission')
+
   const payoutId = `PYOUT${Date.now()}`
   const now = new Date().toISOString()
 
@@ -114,6 +119,10 @@ export const PATCH = apiHandler(async (req: NextRequest) => {
   const payouts = await readTable('PayoutRequests')
   const payout = payouts.find((p: any) => p['Payout ID'] === payoutId)
   if (!payout) return err('Payout request not found', 404)
+
+  // Only a request that is still waiting can be decided; a paid or rejected one is final
+  if (payout['Status'] !== 'Pending') return err(`This payout is already ${String(payout['Status']).toLowerCase()}`)
+  if (action !== 'approve' && action !== 'reject') return err('action must be approve or reject')
 
   const newStatus = action === 'reject' ? 'Rejected' : 'Paid'
   const notes = action === 'reject'

@@ -8,8 +8,9 @@ interface RateLimitEntry {
 const store = new Map<string, RateLimitEntry>()
 
 function getKey(req: NextRequest, prefix: string): string {
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-             req.headers.get('x-real-ip') ||
+  // x-real-ip is set by the front proxy; a client-sent x-forwarded-for is only a fallback
+  const ip = req.headers.get('x-real-ip') ||
+             req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
              'unknown'
   return `${prefix}:${ip}`
 }

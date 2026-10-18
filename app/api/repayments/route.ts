@@ -117,16 +117,34 @@ export const POST = apiHandler(async (req: NextRequest) => {
   if (paymentMode && !mode) return err('Invalid payment mode')
   if (payStatus === 'Paid' && !mode) return err('Please choose a payment mode')
 
-  const [repayments, loans] = await Promise.all([readTable('Repayments'), readTable('Loans')])
+  const [repayments, loans] = await Promise.all([readTable('Repayments', { forceFresh: true }), readTable('Loans', { forceFresh: true })])
   const r = repayments.find(r => r['Repayment ID'] === repaymentId)
   if (!r) return ok({ success: false, error: 'Repayment not found' })
+
+  // Same scope as the list above: Admin and Staff any loan, Guarantor own loans, agent assigned loans
+  if (session.role !== 'Admin' && session.role !== 'Staff') {
+    const loan = loans.find(l => l['Loan ID'] === r['Loan ID'])
+    let mine = false
+    if (session.role === 'NGF AGENT') {
+      const agents = await readTable('Agents')
+      const agent = agents.find(a => a['User ID'] === session.userId)
+      mine = !!agent && loan?.['Assigned Agent ID'] === agent['Agent ID']
+    } else if (session.role === 'Guarantor') {
+      const guarantors = await readTable('Guarantors')
+      const g = guarantors.find(g => g['User ID'] === session.userId)
+      mine = !!g && loan?.['Guarantor ID'] === g['Guarantor ID']
+    }
+    if (!mine) return err('No permission', 403)
+  }
+  // A settled week is final: no second payment record, no overwriting a waiver
+  if (r['Status'] === 'Paid' || r['Status'] === 'Waived') return err(`This week is already ${String(r['Status']).toLowerCase()}`)
 
   let proofFileId = ''
   if (paymentProof) {
     const ts = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, 14)
     proofFileId = await saveFileSupabase(
       'payment-proofs',
-      `${r['Loan ID']}/${ts}_${paymentProof.fileName}`,
+      `${r['Loan ID']}/${ts}_${String(paymentProof.fileName || 'proof').replace(/[^a-zA-Z0-9._-]/g, '_').slice(-60)}`,
       paymentProof.mimeType,
       paymentProof.base64Data
     )

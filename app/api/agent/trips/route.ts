@@ -81,7 +81,8 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const agent = agents.find(a => a['User ID'] === session.userId)
   if (!agent && session.role === 'NGF AGENT') return err('Agent not found')
 
-  const targetAgentId = agentId || agent?.['Agent ID']
+  // An agent sees only their own trips; Admin and Staff may ask for any agent
+  const targetAgentId = session.role === 'NGF AGENT' ? agent?.['Agent ID'] : (agentId || agent?.['Agent ID'])
   if (!targetAgentId) return err('Agent ID required')
 
   let trips = await readTable('AgentTrips')

@@ -12,8 +12,10 @@ import {
 
 export async function getOrCreateFolder(parentId: string, name: string): Promise<string> {
   const drive = getOAuthDriveClient()
+  // Escape the customer name so it cannot end the quoted value and add its own conditions
+  const q = (v: string) => String(v).replace(/\\/g, '\\\\').replace(/'/g, "\\'")
   const res = await drive.files.list({
-    q: `'${parentId}' in parents and name='${name}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+    q: `'${q(parentId)}' in parents and name='${q(name)}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
     fields: 'files(id)',
     supportsAllDrives: true,
     includeItemsFromAllDrives: true,
@@ -28,6 +30,8 @@ export async function getOrCreateFolder(parentId: string, name: string): Promise
 }
 
 export async function saveFile(folderId: string, fileName: string, mimeType: string, base64Data: string): Promise<string> {
+  if (!/^(image\/(jpe?g|png|webp|gif|heic|heif)|application\/pdf)$/.test(mimeType)) throw new Error('Only images and PDF files are allowed')
+  if (base64Data.length > 11_000_000) throw new Error('File is too large (limit 8 MB)')
   const drive = getOAuthDriveClient()
   const b64 = base64Data.replace(/^data:[^;]+;base64,/, '')
   const buffer = Buffer.from(b64, 'base64')

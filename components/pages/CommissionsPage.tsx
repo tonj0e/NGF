@@ -109,11 +109,12 @@ export default function CommissionsPage({ session }: { session: Session }) {
   const canRequestPayout = pastCycles.length > 0 && availableAmount > 0 && !hasPending
 
   // ── Receipt generator ──
+  const esc = (v: any) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string))
   const buildReceiptHtml = (payoutId: string, qrDataUrl: string, amount: number, periodFrom: string, periodTo: string, eligibleLoans: any[]) => {
     const loanRows = eligibleLoans.map(l =>
-      `<tr><td>${l.customerName}</td><td class="mono">${l.loanId.slice(-9)}</td><td class="amt">+₹${Number(l.guarantorCommission || 0).toLocaleString('en-IN')}</td></tr>`
+      `<tr><td>${esc(l.customerName)}</td><td class="mono">${esc(String(l.loanId).slice(-9))}</td><td class="amt">+₹${Number(l.guarantorCommission || 0).toLocaleString('en-IN')}</td></tr>`
     ).join('')
-    return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Payout Receipt – ${payoutId}</title>
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Payout Receipt – ${esc(payoutId)}</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Segoe UI',sans-serif;background:#f5f5f5;display:flex;justify-content:center;padding:24px}
@@ -142,10 +143,10 @@ td.mono{font-family:monospace;font-size:10px;color:#697586}
   <div class="header">
     <h1>NGF FINCORP</h1>
     <p class="sub">Commission Payout Receipt</p>
-    <div class="pid">${payoutId}</div>
+    <div class="pid">${esc(payoutId)}</div>
   </div>
   <div class="meta">
-    <div class="mi"><label>Guarantor</label><span>${session.name}</span></div>
+    <div class="mi"><label>Guarantor</label><span>${esc(session.name)}</span></div>
     <div class="mi"><label>Requested On</label><span>${todayStr}</span></div>
     <div class="mi"><label>Period From</label><span>${periodFrom}</span></div>
     <div class="mi"><label>Pay Day</label><span>${periodTo}</span></div>

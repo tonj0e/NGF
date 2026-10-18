@@ -28,7 +28,13 @@ export const GET = apiHandler(async (req: NextRequest) => {
 export const POST = apiHandler(async (req: NextRequest) => {
   await requireRole(req, ['Admin', 'Staff'])
   const body = await req.json()
-  const { entityType, entityId, entityName, saturdayDate, totalCashDue, totalUpiDue, amountSubmitted, notes, recordedBy } = body
+  const { entityType, entityId, entityName, saturdayDate, notes } = body
+  const session = await requireRole(req, ['Admin', 'Staff'])
+  // Amounts must be real, non-negative numbers; the recorder is always the signed-in user
+  const money = (v: unknown) => { const n = Number(v ?? 0); return Number.isFinite(n) && n >= 0 && n < 1e9 ? n : NaN }
+  const totalCashDue = money(body.totalCashDue), totalUpiDue = money(body.totalUpiDue), amountSubmitted = money(body.amountSubmitted)
+  if ([totalCashDue, totalUpiDue, amountSubmitted].some(Number.isNaN)) return err('Amounts must be valid numbers')
+  const recordedBy = session.userId
 
   if (!entityId || !saturdayDate) return err('entityId and saturdayDate required')
 

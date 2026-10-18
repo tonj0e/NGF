@@ -3,6 +3,9 @@ import { apiHandler, requireRole, ok, err, getSession } from '@/lib/api'
 import { getSupabase } from '@/lib/supabase-db'
 import { createAuditLogger, AUDIT_ACTIONS } from '@/lib/audit'
 
+// A permanent block is a date no clock will reach, so the same check as a timed block enforces it
+const PERMANENT_BLOCK = '9999-12-31T00:00:00.000Z'
+
 // Block a user
 export const POST = apiHandler(async (req: NextRequest) => {
   const session = await getSession(req)
@@ -48,17 +51,18 @@ export const POST = apiHandler(async (req: NextRequest) => {
   // Calculate block expiry
   let blockedUntil: string | null = null
   if (duration === 'permanent') {
-    blockedUntil = null
+    blockedUntil = PERMANENT_BLOCK
   } else if (duration === 'custom' && endDateTime) {
     blockedUntil = endDateTime
   } else if (duration) {
-    const hours = parseInt(duration.replace('h', ''))
-    if (!isNaN(hours)) {
+    const m = /^(\d+)\s*([hd]?)$/.exec(String(duration).trim())
+    if (m) {
+      const hours = Number(m[1]) * (m[2] === 'd' ? 24 : 1)
       blockedUntil = new Date(Date.now() + hours * 60 * 60 * 1000).toISOString()
     }
   }
 
-  if (blockedUntil === null && duration !== 'permanent') {
+  if (blockedUntil === null) {
     return err('Invalid duration or missing endDateTime for custom duration')
   }
 
@@ -99,7 +103,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
   return ok({
     success: true,
     blockedUntil,
-    message: blockedUntil ? `User blocked until ${new Date(blockedUntil).toLocaleString()}` : 'User blocked permanently'
+    message: blockedUntil === PERMANENT_BLOCK ? 'User blocked permanently' : `User blocked until ${new Date(blockedUntil).toLocaleString()}`
   })
 })
 

@@ -193,8 +193,7 @@ function getPrimaryKey(table: TableName): string {
 }
 
 export const GET = apiHandler(async (req: NextRequest) => {
-  // Temporarily allow unauthenticated for initial migration
-  // await requireRole(req, ['Admin'])
+  await requireRole(req, ['Admin'])
   const { searchParams } = new URL(req.url)
   const dryRun = searchParams.get('dryRun') === 'true'
   const specificTable = searchParams.get('table') as TableName | null

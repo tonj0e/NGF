@@ -106,8 +106,10 @@ export function buildIdCardHtml(user: IdCardUser, qrDataUrl: string, logoUrl = '
   const join = fmtDate(user.createdAt) || fmtDate(new Date().toISOString())
   const expire = fmtDate(addYearsIso(user.createdAt, 2))
   const initials = (user.name || user.username || '?').trim().charAt(0).toUpperCase()
-  const photo = user.photoDataUrl
-    ? `<img src="${user.photoDataUrl}" class="photo-img" alt="photo" />`
+  // Only an embedded image is allowed as the photo: anything else could break out of the attribute
+  const safePhoto = user.photoDataUrl && /^data:image\/(png|jpe?g|gif|webp);base64,[A-Za-z0-9+/=]+$/.test(user.photoDataUrl) ? user.photoDataUrl : ''
+  const photo = safePhoto
+    ? `<img src="${safePhoto}" class="photo-img" alt="photo" />`
     : `<div class="photo-initials">${esc(initials)}</div>`
 
   const detailRow = (k: string, v?: string) => v ? `<div class="drow"><span class="k">${k}</span><span class="v">${esc(v)}</span></div>` : ''

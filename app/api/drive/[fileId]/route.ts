@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getFileBase64 } from '@/lib/drive'
 import { downloadFromSupabase, parseSupabaseProxyUrl } from '@/lib/supabase'
 import { getSession } from '@/lib/api'
+import { canReadFile } from '@/lib/fileAccess'
 
 export async function GET(req: NextRequest, { params }: any) {
   try {
-    await getSession(req)
+    const session = await getSession(req)
     const { fileId } = await params
+    if (!(await canReadFile(session, fileId))) return new NextResponse(null, { status: 404 })
 
     // Check if this is a Supabase storage identifier
     const supabaseInfo = parseSupabaseProxyUrl(fileId)

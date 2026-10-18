@@ -94,6 +94,10 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
     const leads = await readTable('Leads')
     const lead = findRecord(leads, 'Lead ID', leadId)
     if (!lead) return err('Lead not found')
+    // Only the agent the lead is assigned to may verify it, and only while it is waiting for verification
+    const myAgent = (await readTable('Agents')).find(a => a['User ID'] === session.userId)
+    if (!myAgent || lead['Assigned Agent ID'] !== myAgent['Agent ID']) return err('No permission', 403)
+    if (lead['Status'] !== 'Agent Assigned') return err('This lead is not waiting for verification')
     let folderId = lead['Document Folder ID']
     let customerPhotoUrl = lead['Customer Photo URL']
     let housePhotoUrl = lead['House Photo URL']
@@ -417,6 +421,9 @@ async function approveRenewal(lead: Record<string, string>, guarantors: Record<s
   const customer = (m ? customers.find(c => c['Customer ID'] === m[1]) : undefined)
     || customers.find(c => c['Phone'] === lead['Phone'] && c['Name'] === lead['Customer Name'])
   if (!customer) throw new Error('Customer not found for renewal')
+  // The customer must belong to the guarantor who asked, and must have no loan still running
+  if (customer['Guarantor ID'] !== lead['Guarantor ID']) throw new Error('This customer does not belong to the guarantor who requested the renewal')
+  if (loans.some(l => l['Customer ID'] === customer['Customer ID'] && l['Status'] === 'Active')) throw new Error('This customer still has an active loan')
 
   const prev = loans
     .filter(l => l['Customer ID'] === customer['Customer ID'])

@@ -7,6 +7,8 @@ tags: [ngf, security,plan]
 ---
 
 # Security Fix Plan
+> **2026-10-18:** steps 1, 4 to 10 are done in code (see [[Open Security Leads]], "Fix status"). Step 2 found nothing to remove. Step 3 (rotating keys) is still the owner's job. Lead 4 (QR factor) is open.
+
 **The order to fix the audit leads, the risk of each fix and what to test. Do this after the build is complete.**
 
 ## Before any fix

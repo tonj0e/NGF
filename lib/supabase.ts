@@ -6,6 +6,9 @@ export const BUCKETS = {
   PROFILES: 'profiles',
 } as const
 
+// 8 MB of file is about 10.7 million base64 characters
+const MAX_UPLOAD_BASE64 = 11_000_000
+
 export type BucketName = typeof BUCKETS[keyof typeof BUCKETS]
 
 let _supabase: SupabaseClient | null = null
@@ -40,6 +43,10 @@ export async function uploadToSupabase(
   base64Data: string,
   mimeType: string
 ): Promise<void> {
+  // Keys stay inside their own folder and uploads stay a sensible size and type
+  if (path.split('/').some(seg => seg === '..' || seg === '.' ) || path.startsWith('/') || path.includes('\\')) throw new Error('Invalid file path')
+  if (!/^(image\/(jpe?g|png|webp|gif|heic|heif)|application\/pdf)$/.test(mimeType)) throw new Error('Only images and PDF files are allowed')
+  if (base64Data.length > MAX_UPLOAD_BASE64) throw new Error('File is too large (limit 8 MB)')
   const buffer = Buffer.from(base64Data.replace(/^data:[^;]+;base64,/, ''), 'base64')
   const { error } = await getSupabase().storage.from(bucket).upload(path, buffer, {
     contentType: mimeType,
@@ -89,8 +96,10 @@ export async function uploadLeadPhotoSupabase(
   file: { fileName: string; mimeType: string; base64Data: string }
 ): Promise<string> {
   const folderPath = getOrCreateFolderSupabase(guarantorCode, customerName, 'customer-docs')
-  const ext = file.fileName.split('.').pop() || 'jpg'
-  const path = `${folderPath}/${prefix}.${ext}`
+  const rawExt = (file.fileName.split('.').pop() || '').toLowerCase()
+  const ext = /^(jpe?g|png|webp|gif|pdf)$/.test(rawExt) ? rawExt : 'jpg'
+  const safePrefix = prefix.replace(/[^a-zA-Z0-9_-]/g, '_')
+  const path = `${folderPath}/${safePrefix}.${ext}`
   await uploadToSupabase('customer-docs', path, file.base64Data, file.mimeType)
   return buildSupabaseProxyUrl('customer-docs', path)
 }

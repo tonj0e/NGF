@@ -3,7 +3,7 @@ import { apiHandler, ok, err } from '@/lib/api'
 import { verifyPassword, createToken, createPreAuthToken, verifyTrustToken } from '@/lib/auth'
 import { readTable, findRecord } from '@/lib/supabase-db'
 import { APP_CONFIG } from '@/lib/config'
-import { authRateLimit } from '@/lib/rate-limiter'
+import { authRateLimit, rateLimitKey } from '@/lib/rate-limiter'
 import { validateBody, loginSchema } from '@/lib/validation'
 import { createAuditLogger, AUDIT_ACTIONS } from '@/lib/audit'
 import { generateCsrfToken, addCsrfToResponse } from '@/lib/csrf'
@@ -18,6 +18,10 @@ export const POST = apiHandler(async (req: NextRequest) => {
   if (!validation.success) return validation.response
   const { username, password, trust } = validation.data
 
+  // Limit per account as well as per address: a forged X-Forwarded-For cannot dodge this one
+  const perUser = rateLimitKey(`login-user:${String(username).trim().toLowerCase()}`, 15, 5 * 60 * 1000)
+  if (!perUser.success) return NextResponse.json({ success: false, error: 'Too many attempts for this account. Please try again later.' }, { status: 429, headers: { 'Retry-After': String(perUser.retryAfterSec) } })
+
   const users = await readTable('Users', { forceFresh: true })
   
   // Try to find user by username first, then by name, then by email
@@ -30,7 +34,6 @@ export const POST = apiHandler(async (req: NextRequest) => {
   }
   
   if (!user) {
-    console.log('[LOGIN] User not found:', username, 'Available usernames:', users.map(u => u['Username']))
     await createAuditLogger(req, { userId: 'unknown', username, role: 'unknown' }).failure(
       AUDIT_ACTIONS.LOGIN_FAILED,
       'User',
@@ -60,7 +63,8 @@ export const POST = apiHandler(async (req: NextRequest) => {
       user['User ID'],
       { reason: 'Account temporarily blocked', blockedUntil: user['Blocked Until'], blockReason: user['Block Reason'] }
     )
-    return err(`Account temporarily blocked until ${blockExpiry}. Reason: ${user['Block Reason'] || 'Not specified'}`)
+    const when = String(user['Blocked Until']).startsWith('9999') ? 'Account blocked' : `Account temporarily blocked until ${blockExpiry}`
+    return err(`${when}. Reason: ${user['Block Reason'] || 'Not specified'}`)
   }
 
   const valid = await verifyPassword(password, user['Password Hash'])

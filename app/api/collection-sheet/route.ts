@@ -61,6 +61,13 @@ export const GET = apiHandler(async (req: NextRequest) => {
     })
   }
 
+  // A field agent sees only customers whose loan is assigned to them
+  if (session.role === 'NGF AGENT') {
+    const agent = (await readTable('Agents')).find(a => a['User ID'] === session.userId)
+    const mine = new Set(loans.filter(l => agent && l['Assigned Agent ID'] === agent['Agent ID']).map(l => l['Customer ID']))
+    scoped = scoped.filter(c => mine.has(c['Customer ID']))
+  }
+
   // Quick lookup for guarantor name/code by Guarantor ID (for grouping in the
   // all-customers sheet)
   const gById = new Map(guarantors.map(g => [g['Guarantor ID'], g]))
