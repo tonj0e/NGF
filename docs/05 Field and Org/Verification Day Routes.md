@@ -18,6 +18,9 @@ Problem it solves: agents were sent to ten verifications in the wrong order (Era
 5. **Agent routes** tab: each agent's stops in order with km and minutes from the previous stop and day totals. Controls: drag handle or up/down arrows, *Best order*, *Must be first / last* pins, *Move to agent*, *Remove*, and a *Map* link that opens the whole route in Google Maps.
 6. The agent opens **My Route**: Navigate (Google Maps to the stop), Call, *I have reached*, *Not at home* (tells the branch team to reschedule), *Re-plan from where I am now* (re-orders the remaining stops from live GPS). *Start verification* leads to the existing Assigned Verifications form.
 
+## Route sketch on My Route (2026-10-18)
+A small "Today at a glance" picture at the top of the agent's **My Route** page (`components/routes/RouteSketch.tsx`). It is a schematic, not a map: Start (home icon), then stop 1, 2, 3 ... zig-zagging down in visiting order, joined by dashed arrows. Each leg shows the km and a small compass arrow (which way the agent drives, north up). The next stop pulses amber with "NEXT"; finished stops go green with a tick; "Not at home" goes red with "!". Tapping a stop scrolls to its card. Stops without a saved location are left out of the picture but stay in the list. Data comes from the same `mine` call, no new API.
+
 ## Ordering rules (`lib/routeMath.ts`)
 - Start point = where the agent **marked attendance** (usually home). Before attendance it is the last attendance, else last live location. When the agent marks attendance, today's route is re-ordered from that point unless staff ordered it by hand.
 - Order = nearest-stop-first, then 2-opt and move-one improvements, minimising total travel minutes.

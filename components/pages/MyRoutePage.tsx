@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Session } from '@/types'
 import { Phone, Navigation, MapPin, RefreshCw } from 'lucide-react'
+import RouteSketch from '@/components/routes/RouteSketch'
 
 type Stop = {
   leadId: string; customerName: string; phone: string; place: string; address: string; landmark: string; guarantorName: string
@@ -68,6 +69,11 @@ export default function MyRoutePage({ session, onOpenVerification }: { session: 
   if (error && !data) return <div className={card}><p className="text-sm text-red-600">{error}</p></div>
   const stops = data?.stops || []
   const next = stops.find(s => !s.done)
+  const sketchStops = stops.flatMap((s, i) => s.hasLocation && s.visitLat != null && s.visitLng != null
+    ? [{ id: s.leadId, n: i + 1, label: s.visitPlace || s.place || s.customerName, lat: s.visitLat, lng: s.visitLng, done: s.done, absent: s.visitStatus === 'Absent', legKm: s.legKm }]
+    : [])
+  const startPt = data?.plan?.startLat != null && data?.plan?.startLng != null ? { lat: data.plan.startLat, lng: data.plan.startLng } : null
+  const pickStop = (id: string) => document.getElementById(`stop-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
 
   return (
     <div className="space-y-4">
@@ -89,6 +95,11 @@ export default function MyRoutePage({ session, onOpenVerification }: { session: 
         </button>
       )}
 
+      {sketchStops.length > 0 && (
+        <RouteSketch start={startPt} startLabel="Start"
+          stops={sketchStops} nextId={next?.leadId} onPick={pickStop} />
+      )}
+
       {loading && <p className="p-8 text-center text-sm text-[#697586]">Loading…</p>}
       {!loading && !stops.length && <p className="p-8 text-center text-sm text-[#697586]">No visits planned for this day.</p>}
 
@@ -97,7 +108,7 @@ export default function MyRoutePage({ session, onOpenVerification }: { session: 
           const isNext = next?.leadId === s.leadId
           const nav = s.hasLocation ? `https://www.google.com/maps/dir/?api=1&destination=${s.visitLat},${s.visitLng}&travelmode=driving` : ''
           return (
-            <div key={s.leadId} className={`${card} ${isNext ? 'ring-2 ring-[#f0b429]' : ''} ${s.done ? 'opacity-70' : ''}`}>
+            <div key={s.leadId} id={`stop-${s.leadId}`} className={`${card} ${isNext ? 'ring-2 ring-[#f0b429]' : ''} ${s.done ? 'opacity-70' : ''}`}>
               <div className="flex items-start gap-3">
                 <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold ${s.done ? 'bg-green-600 text-white' : 'bg-[#1a1a2e] text-white'}`}>{s.done ? '✓' : i + 1}</span>
                 <div className="min-w-0 flex-1">
