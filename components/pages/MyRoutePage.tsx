@@ -96,7 +96,7 @@ export default function MyRoutePage({ session, onOpenVerification }: { session: 
       )}
 
       {sketchStops.length > 0 && (
-        <RouteSketch start={startPt} startLabel="Start"
+        <RouteSketch start={startPt} startLabel="START"
           stops={sketchStops} nextId={next?.leadId} onPick={pickStop} />
       )}
 
