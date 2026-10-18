@@ -54,3 +54,6 @@ Dev tools → **User Password Reset**. `POST /api/dev/user-password-reset` retur
 ## Known limits
 - `users.email` is free text and unverified; whoever can edit a user's email can direct codes to it (Admins can already set passwords directly).
 - Per-IP limiting is in-memory (per server instance); per-account limits are database-backed and shared.
+
+## Screen look (2026-10-18)
+The recovery pages sit on a white background with soft moving bands and a frosted-glass card (black text, black buttons). The code step has six digit boxes (paste and backspace work). While the code is checked the boxes gather and orbit; on success they merge into a green tick box, the title becomes "Verified Successfully" and the button turns green "Verified & Secured" before the new-password step. A wrong code shakes the boxes. Reduced-motion settings switch the orbit off. Code: `app/auth/forgot-password/page.tsx` (CSS in the `CSS` constant).
