@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, requireRole, ok, err } from '@/lib/api'
 import { readTable, getRowsByField, getSupabase } from '@/lib/supabase-db'
+import { buildGuarantorEarnedMap } from '@/lib/guarantorEarned'
 
 export const GET = apiHandler(async (req: NextRequest) => {
   await requireRole(req, ['Admin'])
@@ -46,6 +47,8 @@ export const GET = apiHandler(async (req: NextRequest) => {
     readTable('BranchStaffRoles', { forceFresh: true }),
     readTable('GuarantorBranches', { forceFresh: true }),
   ])
+
+  const guarantorEarned = buildGuarantorEarnedMap(await readTable('Loans', { forceFresh: true }))
 
   // Find admin user
   const adminUser = users.find(u => u.Role === 'Admin')
@@ -127,7 +130,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
         name: g['Name'],
         code: g['Code'],
         phone: g['Phone'] || '',
-        commissionEarned: Number(g['Commission Earned'] || 0),
+        commissionEarned: guarantorEarned.get(g['Guarantor ID']) || 0,
       }))
 
     const counts = {

@@ -1,8 +1,8 @@
 ---
 title: Lead 20 Payout can be re-processed
 section: Security
-status: open
-last_verified: 2026-10-17
+status: fixed
+last_verified: 2026-10-19
 priority: 20
 area: Money
 fix_step: fix-10
@@ -10,7 +10,9 @@ fingerprint: commission-payout-patch-no-pending-state-guard
 tags: [ngf, security, lead, money]
 ---
 # Lead 20 Payout can be re-processed
-**Staff or stale screen. Status: open, not yet fixed. Needs validation (nothing was run).**
+**Staff or stale screen. Status: fixed in code (2026-10-19). The trace below describes the code before the fix.**
+
+Fix: PATCH only decides a `Pending` request and accepts only `approve`/`reject`. POST caps the amount at eligible (finished-cycle) commission minus Paid and Pending, re-checks for a second Pending row after insert, and uses a collision-safe id. A database unique index is in `supabase/migrations/20261019120000_payout_one_pending.sql` (owner runs it). See [[Commissions and Payouts]].
 
 ## What the source shows
 PATCH /api/commissions/payout (Admin or Staff) sets a payout to Paid or Rejected for any existing payout ID without requiring the current Status to be Pending. A Paid payout can be flipped to Rejected, or a Rejected one to Paid, repeatedly, and Processed At and Notes are overwritten each time. Any action other than 'reject' is treated as Paid. On the request side, a Guarantor's POST only checks amount > 0. The amount is not bounded by accrued unpaid commission, and the hasPending check is a non-atomic read-then-insert, so parallel POSTs can create several Pending rows. The UI hides actions for non-Pending rows, but that is client-side only. Every PATCH actor is a privileged Admin or Staff principal, and each POST request is reviewed by a human admin. The realistic impact is ledger or audit-trail integrity, such as a stale-UI double submission or a Staff user rewriting a processed decisi…

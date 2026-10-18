@@ -1,11 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { Session } from '@/types'
-import QRCode from 'qrcode'
-
-function currency(n: number) {
-  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n)
-}
+import { formatINR, formatDateIN } from '@/lib/format'
 
 export default function PayoutRequestsPage({ session }: { session: Session }) {
   const [payouts, setPayouts] = useState<any[]>([])
@@ -14,6 +10,10 @@ export default function PayoutRequestsPage({ session }: { session: Session }) {
   const [scanning, setScanning] = useState<string | null>(null)
   const [rejecting, setRejecting] = useState<string | null>(null)
   const [rejectNotes, setRejectNotes] = useState('')
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
   const [rejectModal, setRejectModal] = useState<{ payoutId: string } | null>(null)
 
   function showToast(msg: string, ok: boolean) {
@@ -23,12 +23,14 @@ export default function PayoutRequestsPage({ session }: { session: Session }) {
 
   async function load() {
     setLoading(true)
+    setLoadError(null)
     try {
       const res = await fetch('/api/commissions/payout?all=1', { headers: { Authorization: `Bearer ${session.token}` } })
       const json = await res.json()
-      if (json.success) setPayouts(json.data.payouts)
+      if (json.success === false || !json.data) setLoadError(json.error || json.message || 'Failed to load payout requests')
+      else setPayouts(json.data.payouts || [])
     } catch (e: any) {
-      showToast(e.message || 'Failed to load', false)
+      setLoadError(e.message || 'Failed to load payout requests')
     } finally {
       setLoading(false)
     }
@@ -59,8 +61,10 @@ export default function PayoutRequestsPage({ session }: { session: Session }) {
         showToast(`Payout ${action === 'approve' ? 'approved' : 'rejected'}`, true)
         load()
       } else {
-        showToast(res.error || 'Action failed', false)
+        showToast(res.error || res.message || 'Action failed', false)
       }
+    } catch (e: any) {
+      showToast(e.message || 'Action failed', false)
     } finally {
       setScanning(null)
       setRejecting(null)
@@ -85,8 +89,13 @@ export default function PayoutRequestsPage({ session }: { session: Session }) {
 
   if (loading) return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" /></div>
 
-  const pendingPayouts = payouts.filter(p => p.status === 'Pending')
-  const processedPayouts = payouts.filter(p => p.status !== 'Pending')
+  const inRange = (p: any) => {
+    const d = (p.requestedAt || '').slice(0, 10)
+    return (!fromDate || d >= fromDate) && (!toDate || d <= toDate)
+  }
+  const filtered = payouts.filter(p => inRange(p) && (statusFilter === 'all' || p.status === statusFilter))
+  const pendingPayouts = filtered.filter(p => p.status === 'Pending')
+  const processedPayouts = filtered.filter(p => p.status !== 'Pending')
 
   return (
     <div className="space-y-5">
@@ -103,6 +112,33 @@ export default function PayoutRequestsPage({ session }: { session: Session }) {
         </button>
       </div>
 
+      {loadError && (
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <span>{loadError}</span>
+          <button onClick={load} className="rounded-xl bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 transition">Retry</button>
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="text-xs text-[#697586]">Status
+          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="mt-1 block rounded-2xl border border-[#e5e7eb] bg-white px-3 py-2 text-sm text-black">
+            <option value="all">All</option>
+            <option value="Pending">Pending</option>
+            <option value="Paid">Paid</option>
+            <option value="Rejected">Rejected</option>
+          </select>
+        </label>
+        <label className="text-xs text-[#697586]">From
+          <input type="date" value={fromDate} max={toDate || undefined} onChange={e => setFromDate(e.target.value)} className="mt-1 block rounded-2xl border border-[#e5e7eb] bg-white px-3 py-2 text-sm text-black" />
+        </label>
+        <label className="text-xs text-[#697586]">To
+          <input type="date" value={toDate} min={fromDate || undefined} onChange={e => setToDate(e.target.value)} className="mt-1 block rounded-2xl border border-[#e5e7eb] bg-white px-3 py-2 text-sm text-black" />
+        </label>
+        {(fromDate || toDate || statusFilter !== 'all') && (
+          <button onClick={() => { setFromDate(''); setToDate(''); setStatusFilter('all') }} className="rounded-2xl border border-[#e5e7eb] bg-white px-3 py-2 text-sm hover:bg-[#f4f5f7] transition">Clear</button>
+        )}
+      </div>
+
       {/* Pending Requests */}
       {pendingPayouts.length > 0 && (
         <div className="overflow-hidden rounded-[1.75rem] border border-white/70 bg-white shadow-panel">
@@ -112,7 +148,7 @@ export default function PayoutRequestsPage({ session }: { session: Session }) {
               <p className="text-sm font-semibold text-amber-700">Pending Review ({pendingPayouts.length})</p>
             </div>
           </div>
-          <table className="w-full text-left text-sm">
+          <div className="overflow-x-auto"><table className="w-full text-left text-sm">
             <thead className="border-b border-black/5 bg-[#fafafa] text-[#697586]">
               <tr>
                 {['Guarantor', 'Request ID', 'Amount', 'Requested On', 'Action'].map(h => (
@@ -125,8 +161,8 @@ export default function PayoutRequestsPage({ session }: { session: Session }) {
                 <tr key={p.payoutId} className="hover:bg-[#fafafa]">
                   <td className="px-5 py-3 font-medium">{p.guarantorName || p.guarantorId}</td>
                   <td className="px-5 py-3 font-mono text-xs text-[#697586]">{p.payoutId}</td>
-                  <td className="px-5 py-3 font-semibold text-green-700">{currency(p.amount)}</td>
-                  <td className="px-5 py-3 text-[#697586]">{p.requestedAt?.slice(0, 10)}</td>
+                  <td className="px-5 py-3 font-semibold text-green-700">{formatINR(p.amount)}</td>
+                  <td className="px-5 py-3 text-[#697586]">{p.requestedAt ? formatDateIN(p.requestedAt) : '—'}</td>
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-2">
                       <button
@@ -148,7 +184,7 @@ export default function PayoutRequestsPage({ session }: { session: Session }) {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         </div>
       )}
 
@@ -160,7 +196,7 @@ export default function PayoutRequestsPage({ session }: { session: Session }) {
         {processedPayouts.length === 0 ? (
           <p className="p-8 text-center text-sm text-[#697586]">No processed payouts yet.</p>
         ) : (
-          <table className="w-full text-left text-sm">
+          <div className="overflow-x-auto"><table className="w-full text-left text-sm">
             <thead className="border-b border-black/5 bg-[#fafafa] text-[#697586]">
               <tr>
                 {['Guarantor', 'Request ID', 'Amount', 'Status', 'Requested On', 'Processed On', 'Notes'].map(h => (
@@ -173,7 +209,7 @@ export default function PayoutRequestsPage({ session }: { session: Session }) {
                 <tr key={p.payoutId} className="hover:bg-[#fafafa]">
                   <td className="px-5 py-3 font-medium">{p.guarantorName || p.guarantorId}</td>
                   <td className="px-5 py-3 font-mono text-xs text-[#697586]">{p.payoutId}</td>
-                  <td className="px-5 py-3 font-semibold">{currency(p.amount)}</td>
+                  <td className="px-5 py-3 font-semibold">{formatINR(p.amount)}</td>
                   <td className="px-5 py-3">
                     <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
                       p.status === 'Paid' ? 'bg-green-100 text-green-700'
@@ -181,13 +217,15 @@ export default function PayoutRequestsPage({ session }: { session: Session }) {
                       : 'bg-amber-100 text-amber-700'
                     }`}>{p.status}</span>
                   </td>
-                  <td className="px-5 py-3 text-[#697586]">{p.requestedAt?.slice(0, 10)}</td>
-                  <td className="px-5 py-3 text-[#697586]">{p.processedAt?.slice(0, 10) || '—'}</td>
-                  <td className="px-5 py-3 text-[#697586] max-w-xs truncate">{p.notes || '—'}</td>
+                  <td className="px-5 py-3 text-[#697586]">{p.requestedAt ? formatDateIN(p.requestedAt) : '—'}</td>
+                  <td className="px-5 py-3 text-[#697586]">{p.processedAt ? formatDateIN(p.processedAt) : '—'}</td>
+                  <td className={`px-5 py-3 max-w-xs ${p.status === 'Rejected' ? 'text-red-700' : 'text-[#697586]'}`}>
+                    {p.status === 'Rejected' ? <span title={p.notes || ''}>Reason: {p.notes || 'Not provided'}</span> : <span className="truncate block">{p.notes || '—'}</span>}
+                  </td>
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </div>
 

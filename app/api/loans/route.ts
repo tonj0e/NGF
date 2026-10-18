@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { apiHandler, getSession, requireRole, ok, err } from '@/lib/api'
 import { readTable, updateById, findRecord, formatDateYmd, addDays, nowIso, invalidateCache } from '@/lib/supabase-db'
 import { getTodayIST } from '@/lib/dateUtils'
+import { guarantorCanSeeCommissions } from '@/lib/commissions'
 
 export const GET = apiHandler(async (req: NextRequest) => {
   const session = await getSession(req)
@@ -23,6 +24,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
     loans.filter(l => l['Status'] === 'Active').map(l => l['Customer ID'])
   )
 
+  const showCommission = await guarantorCanSeeCommissions(session)
   let filtered = loans
   if (session.role === 'Guarantor') {
     const g = guarantors.find(g => g['User ID'] === session.userId)
@@ -49,7 +51,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
       guarantorName: g?.['Name'] || '', guarantorCode: g?.['Code'] || '',
       agentName: a?.['Name'] || '',
       principal: l['Principal Amount'], netDisbursed: l['Net Disbursed'],
-      guarantorCommission: l['Guarantor Commission'],
+      guarantorCommission: showCommission ? l['Guarantor Commission'] : '',
       weeklyAmount: l['Weekly Collection Amount'], durationWeeks: l['Duration Weeks'],
       totalCollection: l['Total Collection Amount'],
       status: l['Status'], startDate: l['Start Date'], endDate: l['End Date'],

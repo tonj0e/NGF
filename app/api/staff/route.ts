@@ -4,16 +4,18 @@ import { readTable, appendRow, updateRow, findRecord, makeId, nowIso, deleteById
 import { hashPassword } from '@/lib/auth'
 import { validatePasswordPolicy } from '@/lib/passwordPolicy'
 import { randomUUID } from 'crypto'
+import { buildGuarantorEarnedMap } from '@/lib/guarantorEarned'
 
 export const GET = apiHandler(async (req: NextRequest) => {
   await requireRole(req, ['Admin', 'Staff'])
-  const [users, agents, guarantors] = await Promise.all([
-    readTable('Users', { forceFresh: true }), readTable('Agents', { forceFresh: true }), readTable('Guarantors', { forceFresh: true }),
+  const [users, agents, guarantors, loans] = await Promise.all([
+    readTable('Users', { forceFresh: true }), readTable('Agents', { forceFresh: true }), readTable('Guarantors', { forceFresh: true }), readTable('Loans', { forceFresh: true }),
   ])
+  const earnedMap = buildGuarantorEarnedMap(loans)
   return ok({
     staff: users.map(u => ({ userId: u['User ID'], username: u['Username'], role: u['Role'], name: u['Name'], email: u['Email'], phone: u['Phone'] || '', status: u['Status'], createdAt: u['Created At'] })),
     agents: agents.map(a => ({ agentId: a['Agent ID'], userId: a['User ID'], name: a['Name'], phone: a['Phone'], agentType: a['Agent Type'], status: a['Status'] })),
-    guarantors: guarantors.map(g => ({ guarantorId: g['Guarantor ID'], userId: g['User ID'], name: g['Name'], code: g['Code'], phone: g['Phone'], address: g['Address'] || '', status: g['Status'], commissionEarned: Number(g['Commission Earned'] || 0) })),
+    guarantors: guarantors.map(g => ({ guarantorId: g['Guarantor ID'], userId: g['User ID'], name: g['Name'], code: g['Code'], phone: g['Phone'], address: g['Address'] || '', status: g['Status'], commissionEarned: earnedMap.get(g['Guarantor ID']) || 0 })),
   })
 })
 

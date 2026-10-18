@@ -53,7 +53,7 @@ No page receives `setView`, so nothing can switch to these. Only code in `AppShe
 | `repayments`, `today`, `saturday` | `RepayPage` modes `all`, `today`, `saturday` |
 | `pastMonth` | `PastMonthCollectionPage` (also a tab inside `CollectionPage`) |
 | `collections` | `CollectionsPage` (route `GET /api/collections` is Admin-only) |
-Also: `MenuIcon` has an `agent` icon with no view (`AppShell.tsx:52`); `components/pages/Dashboard.tsx.bak` is a stray backup; `RenewalModal.tsx` is a modal, not a view. Unknown `view` shows "Coming soon." Orphan titles fall back to the raw key.
+Also: `MenuIcon` has an `agent` icon with no view (`AppShell.tsx:52`); `RenewalModal.tsx` is a modal, not a view. Unknown `view` shows "Coming soon." Orphan titles fall back to the raw key.
 
 ## Layout sketch (verified against `AppShell.tsx`)
 Desktop (`lg` and up, sidebar `hidden lg:flex`, `w-14` collapsed, `w-64` expanded):

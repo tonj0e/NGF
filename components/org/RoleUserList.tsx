@@ -7,6 +7,7 @@ import { BranchRoleBadge } from './BranchRoleBadge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { formatINR } from '@/lib/format'
 
 type UserRole = 'manager' | 'assistant_manager' | 'accountant' | 'cashier' | 'collection_agent' | 'guarantor'
 
@@ -230,7 +231,7 @@ export function RoleUserList({
                           )}
                           <span>
                             {isGuarantor
-                              ? `₹${(item as GuarantorUser).commissionEarned.toLocaleString('en-IN')}`
+                              ? formatINR((item as GuarantorUser).commissionEarned)
                               : (item as StaffUser).permissions.length > 0
                               ? `${(item as StaffUser).permissions.length} permissions`
                               : 'No permissions'}

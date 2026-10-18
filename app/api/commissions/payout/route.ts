@@ -1,28 +1,8 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, getSession, requireRole, ok, err } from '@/lib/api'
-import { readTable, appendRow, updateById, invalidateCache, findRecord } from '@/lib/supabase-db'
-import { addDaysIST, getTodayIST } from '@/lib/dateUtils'
-
-const CYCLE_DAYS = 35
-
-function buildCycles(loans: any[]): { pastCycles: any[]; currentCycle: any | null } {
-  const sorted = [...loans].filter(l => l.startDate).sort((a, b) => a.startDate.localeCompare(b.startDate))
-  const cycles: any[] = []
-  let remaining = [...sorted]
-  let cycleIdx = 0
-  while (remaining.length > 0) {
-    const start = remaining[0].startDate
-    const end = addDaysIST(start, CYCLE_DAYS)
-    const inCycle = remaining.filter(l => l.startDate < end)
-    remaining = remaining.filter(l => l.startDate >= end)
-    cycles.push({ start, end, loans: inCycle, cycleIdx })
-    cycleIdx++
-  }
-  const todayStr = getTodayIST()
-  const pastCycles = cycles.filter(c => c.end <= todayStr)
-  const currentCycle = cycles.find(c => c.start <= todayStr && c.end > todayStr) ?? null
-  return { pastCycles, currentCycle }
-}
+import { readTable, appendRow, updateById, invalidateCache, deleteById } from '@/lib/supabase-db'
+import { computeSummary, guarantorCanSeeCommissions } from '@/lib/commissions'
+import { randomInt } from 'crypto'
 
 export const GET = apiHandler(async (req: NextRequest) => {
   const session = await getSession(req)
@@ -32,8 +12,10 @@ export const GET = apiHandler(async (req: NextRequest) => {
   if (!showAll && session.role !== 'Guarantor') return err('Guarantors only', 403)
   if (showAll && session.role !== 'Admin' && session.role !== 'Staff') return err('Admins/Staff only', 403)
 
+  if (!showAll && !(await guarantorCanSeeCommissions(session))) return err('You do not have access to commissions', 403)
+
   const [guarantors, payouts] = await Promise.all([
-    readTable('Guarantors'), readTable('PayoutRequests'),
+    readTable('Guarantors'), readTable('PayoutRequests', { forceFresh: true }),
   ])
 
   let mine = payouts
@@ -41,6 +23,12 @@ export const GET = apiHandler(async (req: NextRequest) => {
     const g = guarantors.find((g: any) => g['User ID'] === session.userId)
     if (!g) return err('Guarantor not found', 404)
     mine = payouts.filter((p: any) => p['Guarantor ID'] === g['Guarantor ID'])
+
+    if (searchParams.get('summary') === '1') {
+      const loans = await readTable('Loans', { forceFresh: true })
+      const gl = loans.filter(l => l['Guarantor ID'] === g['Guarantor ID'])
+      return ok(computeSummary(gl, mine))
+    }
   }
 
   const enriched = mine
@@ -56,6 +44,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
         requestedAt: p['Requested At'],
         processedAt: p['Processed At'] || null,
         notes: p['Notes'] || '',
+        rejectionReason: p['Status'] === 'Rejected' ? (p['Notes'] || '') : '',
       }
     })
 
@@ -63,48 +52,58 @@ export const GET = apiHandler(async (req: NextRequest) => {
 })
 
 export const POST = apiHandler(async (req: NextRequest) => {
-  const session = await getSession(req)
-  if (session.role !== 'Guarantor') return err('Guarantors only', 403)
+  try {
+    const session = await getSession(req)
+    if (session.role !== 'Guarantor') return err('Guarantors only', 403)
+    if (!(await guarantorCanSeeCommissions(session))) return err('You do not have access to commissions', 403)
 
-  const body = await req.json()
-  const amount = Number(body.amount || 0)
-  if (amount <= 0) return err('Invalid amount')
+    const body = await req.json().catch(() => ({}))
+    const amount = Math.round(Number(body?.amount) * 100) / 100
+    if (!Number.isFinite(amount) || amount <= 0) return err('Invalid amount')
 
-  const [guarantors, payouts, loans] = await Promise.all([
-    readTable('Guarantors'), readTable('PayoutRequests'), readTable('Loans'),
-  ])
-  const g = guarantors.find((g: any) => g['User ID'] === session.userId)
-  if (!g) return err('Guarantor not found', 404)
+    const [guarantors, payouts, loans] = await Promise.all([
+      readTable('Guarantors'), readTable('PayoutRequests', { forceFresh: true }), readTable('Loans', { forceFresh: true }),
+    ])
+    const g = guarantors.find((g: any) => g['User ID'] === session.userId)
+    if (!g) return err('Guarantor not found', 404)
+    const gid = g['Guarantor ID']
 
-  // Check for existing pending or rejected request
-  const hasPending = payouts.some(
-    (p: any) => p['Guarantor ID'] === g['Guarantor ID'] && p['Status'] === 'Pending'
-  )
-  if (hasPending) return err('You already have a pending payout request')
+    const isPending = (p: any) => p['Guarantor ID'] === gid && p['Status'] === 'Pending'
+    if (payouts.some(isPending)) return err('You already have a pending payout request')
 
-  // Enforce cycle rule: only completed cycles (past cycles) are eligible
-  const guarantorLoans = loans.filter(l => l['Guarantor ID'] === g['Guarantor ID'] && l['Guarantor Commission'])
-  const { pastCycles } = buildCycles(guarantorLoans)
-  if (pastCycles.length === 0) return err('No completed payout cycles yet. Payout unlocks after 35 days.')
+    // Only commission from finished 35-day cycles, minus Paid and Pending, can be requested
+    const summary = computeSummary(loans.filter(l => l['Guarantor ID'] === gid), payouts.filter((p: any) => p['Guarantor ID'] === gid))
+    if (summary.eligible <= 0) return err('No completed payout cycles yet. Payout unlocks after 35 days.')
+    if (amount > summary.available + 0.005) return err(`Amount is more than your available commission (${summary.available.toFixed(2)})`)
 
-  // A request cannot be more than the commission earned and not yet paid out
-  const earned = guarantorLoans.reduce((sum, l) => sum + Number(l['Guarantor Commission'] || 0), 0)
-  const alreadyPaid = payouts.filter((p: any) => p['Guarantor ID'] === g['Guarantor ID'] && p['Status'] === 'Paid').reduce((sum: number, p: any) => sum + Number(p['Amount'] || 0), 0)
-  if (!Number.isFinite(amount) || amount > earned - alreadyPaid + 0.5) return err('Amount is more than your available commission')
+    // PYOUT + digits (settlements matches /PYOUT\d+/): millisecond timestamp + 4 random digits
+    const payoutId = `PYOUT${Date.now()}${String(randomInt(0, 10000)).padStart(4, '0')}`
+    await appendRow('PayoutRequests', {
+      'Payout ID': payoutId,
+      'Guarantor ID': gid,
+      'Amount': amount.toFixed(2),
+      'Status': 'Pending',
+      'Requested At': new Date().toISOString(),
+      'Notes': '',
+    })
+    invalidateCache('PayoutRequests')
 
-  const payoutId = `PYOUT${Date.now()}`
-  const now = new Date().toISOString()
+    // Race guard: if another Pending row for this guarantor slipped in, the newer one (by id) withdraws itself
+    const after = await readTable('PayoutRequests', { forceFresh: true })
+    const dupes = after.filter(isPending).map((p: any) => p['Payout ID']).sort()
+    if (dupes.length > 1 && dupes[0] !== payoutId) {
+      await deleteById('PayoutRequests', payoutId)
+      invalidateCache('PayoutRequests')
+      return err('You already have a pending payout request')
+    }
 
-  await appendRow('PayoutRequests', {
-    'Payout ID': payoutId,
-    'Guarantor ID': g['Guarantor ID'],
-    'Amount': String(amount),
-    'Status': 'Pending',
-    'Requested At': now,
-    'Notes': '',
-  })
-
-  return ok({ payoutId, message: 'Payout request submitted' })
+    return ok({ payoutId, message: 'Payout request submitted' })
+  } catch (e: any) {
+    const msg = String(e?.message || '')
+    // Unique-index violation from the one-pending rule
+    if (/duplicate key|payout_one_pending/i.test(msg)) return err('You already have a pending payout request')
+    return err('Could not submit payout request. Please try again.', 500)
+  }
 })
 
 // Admin marks payout as Paid after scanning QR

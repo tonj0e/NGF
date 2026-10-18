@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, getSession, ok, err } from '@/lib/api'
 import { readTable } from '@/lib/supabase-db'
+import { earnedForGuarantor } from '@/lib/guarantorEarned'
 import { getTodayIST, getThisSaturday, getNextSaturday, addDaysIST } from '@/lib/dateUtils'
 
 export const maxDuration = 30
@@ -60,7 +61,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
 
   // guarantor-specific
   const myGuarantor = session.role === 'Guarantor' ? guarantors.find(g => g['User ID'] === session.userId) : null
-  const commissionEarned = myGuarantor ? Number(myGuarantor['Commission Earned'] || 0) : 0
+  const commissionEarned = myGuarantor ? earnedForGuarantor(loans, myGuarantor['Guarantor ID']) : 0
 
   // agent-specific
   const myAgent = session.role === 'NGF AGENT' ? agents.find(a => a['User ID'] === session.userId) : null

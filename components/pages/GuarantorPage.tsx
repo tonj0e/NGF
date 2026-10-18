@@ -2,10 +2,21 @@
 import { useEffect, useRef, useState } from 'react'
 import { Session } from '@/types'
 import jsQR from 'jsqr'
+import { formatINR, formatDateIN } from '@/lib/format'
 
-function currency(n: number) {
-  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n)
+const currency = (n: number) => formatINR(n)
+
+type Loan = {
+  loanId: string; customerId?: string; customerName?: string; status?: string; startDate?: string
+  principal?: number | string; paidWeeks?: number; totalWeeks?: number
+  guarantorCommission?: number | string; guarantorCode?: string; guarantorName?: string
 }
+type Settlement = {
+  'Settlement ID': string; 'Settlement Date'?: string; 'Saturday Date'?: string; 'Entity ID'?: string
+  'Entity Type'?: string; 'Amount Submitted'?: string | number; Status?: string; Notes?: string
+}
+type Cycle = { cycleStart: string; settlementDue: string; scheduledSaturday: string; daysLeft: number; isOverdue: boolean; cycleLoans: Loan[]; totalCommission: number; loanCount: number }
+type QrPayload = { t: string; uid?: string; gn?: string; amt: number; pid?: string; pf?: string; pt?: string; rid?: string; typ?: string; rd?: string }
 
 function getMonday(dateStr: string): string {
   const d = new Date(dateStr)
@@ -30,13 +41,13 @@ function daysBetween(from: string, to: string): number {
 // If settled early (before Saturday) → still wait until Monday
 // If settled late (delayed/held) → next cycle starts day after actual settlement
 // Loans starting during cycle window (cycleStart to settlementDue) are included
-function calcCycle(gLoans: any[], gSettlements: any[]) {
-  const activeLoans = gLoans.filter(l => l.status === 'Active' && l.startDate)
+function calcCycle(gLoans: Loan[], gSettlements: Settlement[]): Cycle | null {
+  const activeLoans = gLoans.filter(l => l.status === 'Active' && l.startDate) as (Loan & { startDate: string })[]
   if (!activeLoans.length) return null
 
   const sortedSettlements = [...gSettlements]
     .filter(s => s['Settlement Date'])
-    .sort((a, b) => a['Settlement Date'].localeCompare(b['Settlement Date']))
+    .sort((a, b) => (a['Settlement Date'] || '').localeCompare(b['Settlement Date'] || ''))
   const lastSettlement = sortedSettlements.length
     ? sortedSettlements[sortedSettlements.length - 1]
     : null
@@ -48,7 +59,7 @@ function calcCycle(gLoans: any[], gSettlements: any[]) {
   let scheduledSaturday: string
 
   if (lastSettlement) {
-    const lastSettlementDate = lastSettlement['Settlement Date']
+    const lastSettlementDate = lastSettlement['Settlement Date'] as string
     const lastSaturday = lastSettlement['Saturday Date'] || lastSettlementDate
 
     // Check if last settlement was delayed (after its scheduled Saturday)
@@ -88,20 +99,23 @@ function calcCycle(gLoans: any[], gSettlements: any[]) {
   }
 }
 
+type Guarantor = { guarantorId: string; userId?: string; name: string; code: string; phone?: string; status?: string }
 type DetailTab = 'overview' | 'settlement' | 'history' | 'commission' | 'deposits'
 
 export default function GuarantorPage({ session }: { session: Session }) {
-  const [guarantors, setGuarantors] = useState<any[]>([])
-  const [loans, setLoans] = useState<any[]>([])
-  const [settlements, setSettlements] = useState<any[]>([])
+  const [guarantors, setGuarantors] = useState<Guarantor[]>([])
+  const [loans, setLoans] = useState<Loan[]>([])
+  const [settlements, setSettlements] = useState<Settlement[]>([])
   const [customers, setCustomers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [selected, setSelected] = useState<any | null>(null)
+  const [selected, setSelected] = useState<Guarantor | null>(null)
   const [detailTab, setDetailTab] = useState<DetailTab>('overview')
   const [search, setSearch] = useState('')
   const [toast, setToast] = useState('')
+  const [ledgerMonth, setLedgerMonth] = useState('')
+  const [ledgerStatus, setLedgerStatus] = useState('')
   const [showScanner, setShowScanner] = useState(false)
-  const [manualPayoutGuarantor, setManualPayoutGuarantor] = useState<any | null>(null)
+  const [manualPayoutGuarantor, setManualPayoutGuarantor] = useState<Guarantor | null>(null)
 
   function showToast(m: string) { setToast(m); setTimeout(() => setToast(''), 3000) }
 
@@ -113,11 +127,13 @@ export default function GuarantorPage({ session }: { session: Session }) {
       fetch('/api/settlements', { headers: { Authorization: `Bearer ${session.token}` } }).then(r => r.json()),
       fetch('/api/customers', { headers: { Authorization: `Bearer ${session.token}` } }).then(r => r.json()),
     ]).then(([sR, lR, stR, cR]) => {
+      const bad = [sR, lR, stR, cR].find(r => r && r.success === false)
+      if (bad) showToast(bad.error || 'Some data failed to load')
       setGuarantors(sR.data?.guarantors || [])
       setLoans(lR.data?.loans || [])
       setSettlements(stR.data?.settlements || [])
       setCustomers(cR.data?.customers || [])
-    }).finally(() => setLoading(false))
+    }).catch(() => showToast('Could not load guarantor data. Check your connection.')).finally(() => setLoading(false))
   }
 
   useEffect(() => { load() }, [])
@@ -182,7 +198,7 @@ export default function GuarantorPage({ session }: { session: Session }) {
                     {cycle.isOverdue ? '⚠ Commission Settlement Overdue' : '📅 Commission Settlement Due'}
                   </p>
                   <p className="text-xs text-[#697586]">
-                    Due: {cycle.settlementDue} · Cycle from: {cycle.cycleStart} · {cycle.loanCount} active loan(s) · Commission: {currency(cycle.totalCommission)}
+                    Due: {formatDateIN(cycle.settlementDue)} · Cycle from: {formatDateIN(cycle.cycleStart)} · {cycle.loanCount} active loan(s) · Commission: {currency(cycle.totalCommission)}
                   </p>
                 </div>
                 <span className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-bold ${cycle.isOverdue ? 'bg-red-200 text-red-800' : 'bg-amber-200 text-amber-800'}`}>
@@ -262,11 +278,11 @@ export default function GuarantorPage({ session }: { session: Session }) {
                   <div className="grid grid-cols-3 gap-3 text-xs">
                     <div>
                       <p className="text-[#697586]">Cycle Start</p>
-                      <p className="font-semibold">{cycle.cycleStart}</p>
+                      <p className="font-semibold">{formatDateIN(cycle.cycleStart)}</p>
                     </div>
                     <div>
                       <p className="text-[#697586]">Settlement Due (Day 35)</p>
-                      <p className={`font-semibold ${cycle.isOverdue ? 'text-red-700' : 'text-amber-800'}`}>{cycle.settlementDue}</p>
+                      <p className={`font-semibold ${cycle.isOverdue ? 'text-red-700' : 'text-amber-800'}`}>{formatDateIN(cycle.settlementDue)}</p>
                     </div>
                     <div>
                       <p className="text-[#697586]">Active Loans</p>
@@ -335,10 +351,10 @@ export default function GuarantorPage({ session }: { session: Session }) {
                     <div key={s['Settlement ID']} className="flex items-center justify-between px-5 py-3">
                       <div>
                         <div className="flex items-center gap-2">
-                          <p className="text-sm font-semibold">{s['Settlement Date']}</p>
+                          <p className="text-sm font-semibold">{formatDateIN(s['Settlement Date'])}</p>
                           <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${s['Status'] === 'Settled' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>{s['Status']}</span>
                         </div>
-                        <p className="text-xs text-[#697586]">Payment date: {s['Saturday Date']}</p>
+                        <p className="text-xs text-[#697586]">Payment date: {formatDateIN(s['Saturday Date'])}</p>
                         {s['Notes'] && <p className="text-xs text-[#697586]">{s['Notes']}</p>}
                       </div>
                       <p className="text-base font-bold text-green-700">+{currency(Number(s['Amount Submitted'] || 0))}</p>
@@ -365,33 +381,59 @@ export default function GuarantorPage({ session }: { session: Session }) {
               <CommissionBalanceCard balance={balance} />
             </div>
 
-            <div className="rounded-[1.75rem] border border-white/70 bg-white shadow-panel overflow-hidden">
-              <div className="border-b border-black/5 px-5 py-4">
-                <p className="text-sm font-semibold">Commission Ledger</p>
-              </div>
-              <div className="divide-y divide-black/5">
-                {gLoans.map(l => (
-                  <div key={l.loanId} className="flex items-center justify-between px-5 py-3">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium">{l.customerName}</p>
-                        <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${l.status === 'Active' ? 'bg-green-100 text-green-700' : l.status === 'Completed' ? 'bg-blue-100 text-blue-700' : 'bg-[#f4f5f7] text-[#697586]'}`}>{l.status}</span>
-                      </div>
-                      <p className="text-xs text-[#697586] font-mono">{l.loanId} · Start: {l.startDate}</p>
-                      <p className="text-xs text-[#697586]">Principal: {currency(Number(l.principal))} · {l.paidWeeks}/{l.totalWeeks} weeks paid</p>
+            {(() => {
+              const months = Array.from(new Set(gLoans.map(l => (l.startDate || '').slice(0, 7)).filter(Boolean))).sort().reverse()
+              const statuses = Array.from(new Set(gLoans.map(l => l.status || '').filter(Boolean)))
+              const rows = gLoans.filter(l => (!ledgerMonth || (l.startDate || '').startsWith(ledgerMonth)) && (!ledgerStatus || l.status === ledgerStatus))
+              const rowsTotal = rows.reduce((s, l) => s + Number(l.guarantorCommission || 0), 0)
+              const filterCls = 'rounded-xl border border-[#e5e7eb] bg-white px-3 py-2 text-xs outline-none focus:border-[#1a1a2e]'
+              return (
+                <div className="rounded-[1.75rem] border border-white/70 bg-white shadow-panel overflow-hidden">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-black/5 px-5 py-4">
+                    <p className="text-sm font-semibold">Commission Ledger</p>
+                    <div className="flex flex-wrap gap-2">
+                      <select value={ledgerMonth} onChange={e => setLedgerMonth(e.target.value)} className={filterCls}>
+                        <option value="">All months</option>
+                        {months.map(m => <option key={m} value={m}>{formatDateIN(`${m}-01`).replace(/^\d+\s/, '')}</option>)}
+                      </select>
+                      <select value={ledgerStatus} onChange={e => setLedgerStatus(e.target.value)} className={filterCls}>
+                        <option value="">All statuses</option>
+                        {statuses.map(st => <option key={st} value={st}>{st}</option>)}
+                      </select>
                     </div>
-                    <p className="text-base font-bold text-green-700">+{currency(Number(l.guarantorCommission || 0))}</p>
                   </div>
-                ))}
-                {gLoans.length === 0 && <p className="p-5 text-sm text-[#697586]">No commission records.</p>}
-              </div>
-              {gLoans.length > 0 && (
-                <div className="border-t border-black/5 px-5 py-3 flex justify-between items-center bg-[#fafafa]">
-                  <p className="text-sm font-semibold">Total Commission Earned</p>
-                  <p className="text-base font-bold text-green-700">+{currency(totalEarned)}</p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[640px] text-left text-sm">
+                      <thead className="border-b border-black/5 bg-[#fafafa] text-[#697586]">
+                        <tr>{['Customer', 'Loan ID', 'Status', 'Start date', 'Principal', 'Weeks paid', 'Commission'].map(h => <th key={h} className="px-5 py-3 text-xs font-medium">{h}</th>)}</tr>
+                      </thead>
+                      <tbody className="divide-y divide-black/5">
+                        {rows.map(l => (
+                          <tr key={l.loanId}>
+                            <td className="px-5 py-3 font-medium">{l.customerName}</td>
+                            <td className="px-5 py-3 font-mono text-xs text-[#697586]">{l.loanId}</td>
+                            <td className="px-5 py-3"><span className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${l.status === 'Active' ? 'bg-green-100 text-green-700' : l.status === 'Completed' ? 'bg-blue-100 text-blue-700' : 'bg-[#f4f5f7] text-[#697586]'}`}>{l.status}</span></td>
+                            <td className="px-5 py-3 text-xs text-[#697586]">{formatDateIN(l.startDate)}</td>
+                            <td className="px-5 py-3 text-xs">{currency(Number(l.principal || 0))}</td>
+                            <td className="px-5 py-3 text-xs">{l.paidWeeks}/{l.totalWeeks}</td>
+                            <td className="px-5 py-3 font-bold text-green-700">+{currency(Number(l.guarantorCommission || 0))}</td>
+                          </tr>
+                        ))}
+                        {rows.length === 0 && <tr><td colSpan={7} className="p-5 text-sm text-[#697586]">No commission records{gLoans.length ? ' for this filter' : ''}.</td></tr>}
+                      </tbody>
+                      {rows.length > 0 && (
+                        <tfoot className="border-t border-black/5 bg-[#fafafa]">
+                          <tr>
+                            <td colSpan={6} className="px-5 py-3 text-sm font-semibold">Total commission ({rows.length} loan{rows.length === 1 ? '' : 's'}{ledgerMonth || ledgerStatus ? ', filtered' : ''})</td>
+                            <td className="px-5 py-3 text-base font-bold text-green-700">+{currency(rowsTotal)}</td>
+                          </tr>
+                        </tfoot>
+                      )}
+                    </table>
+                  </div>
                 </div>
-              )}
-            </div>
+              )
+            })()}
           </div>
         )}
 
@@ -490,7 +532,7 @@ export default function GuarantorPage({ session }: { session: Session }) {
               </div>
               {gCycle && (
                 <div className={`rounded-xl px-3 py-2 text-xs flex items-center justify-between ${gCycle.isOverdue ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`}>
-                  <span>{gCycle.isOverdue ? '⚠ Commission overdue' : '📅 Commission due'}: {gCycle.settlementDue}</span>
+                  <span>{gCycle.isOverdue ? '⚠ Commission overdue' : '📅 Commission due'}: {formatDateIN(gCycle.settlementDue)}</span>
                   <span className="font-bold">{gCycle.isOverdue ? `${Math.abs(gCycle.daysLeft)}d late` : `${gCycle.daysLeft}d left`}</span>
                 </div>
               )}
@@ -526,17 +568,16 @@ export default function GuarantorPage({ session }: { session: Session }) {
 
 // ── QR PAYOUT SCANNER (list-level) ──
 function QrPayoutScanner({ guarantors, session, onClose, onDone }: {
-  guarantors: any[]; session: Session; onClose: () => void; onDone: (g: any) => void
+  guarantors: Guarantor[]; session: Session; onClose: () => void; onDone: (g: Guarantor) => void
 }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const rafRef = useRef<number>(0)
-  const [scanned, setScanned] = useState<any>(null)
-  const [matchedG, setMatchedG] = useState<any>(null)
+  const [scanned, setScanned] = useState<QrPayload | null>(null)
+  const [matchedG, setMatchedG] = useState<Guarantor | null>(null)
   const [confirming, setConfirming] = useState(false)
   const [error, setError] = useState('')
-  const cur = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 })
 
   const stopCamera = () => {
     cancelAnimationFrame(rafRef.current)
@@ -555,7 +596,7 @@ function QrPayoutScanner({ guarantors, session, onClose, onDone }: {
     const code = jsQR(img.data, img.width, img.height)
     if (code?.data) {
       try {
-        const data = JSON.parse(code.data)
+        const data = JSON.parse(code.data) as QrPayload
         if (data.t === 'NGF_PAYOUT' || data.t === 'NGF_DEPOSIT_PAYOUT') {
           stopCamera()
           const g = guarantors.find(g => g.userId === data.uid) ?? guarantors.find(g => g.name === data.gn) ?? null
@@ -595,33 +636,43 @@ function QrPayoutScanner({ guarantors, session, onClose, onDone }: {
       const res = await fetch('/api/deposits/request', {
         method: 'PATCH', headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ requestId: scanned.rid }),
-      }).then(r => r.json())
+      }).then(r => r.json()).catch(() => ({ success: false, error: 'Network error' }))
       setConfirming(false)
       if (!res.success) { setError(res.error || 'Failed to approve deposit withdrawal'); return }
       onDone(matchedG); return
     }
 
-    const today = new Date().toISOString().slice(0, 10)
-    const res = await fetch('/api/settlements', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        entityType: 'GuarantorCommission', entityId: matchedG.guarantorId, entityName: matchedG.name,
-        saturdayDate: today, totalCashDue: scanned.amt, totalUpiDue: 0, amountSubmitted: scanned.amt,
-        notes: `QR Payout · ${scanned.pid} · Period: ${scanned.pf} to ${scanned.pt}`,
-        recordedBy: session.userId,
-      }),
-    }).then(r => r.json())
-    if (!res.success) { setConfirming(false); setError(res.error || 'Failed to record payout'); return }
+    if (!scanned.pid) { setConfirming(false); setError('QR code has no payout ID'); return }
 
-    // Mark payout request as Paid so guarantor's CommissionsPage updates
-    const patchRes = await fetch('/api/commissions/payout', {
-      method: 'PATCH',
-      headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ payoutId: scanned.pid }),
-    }).then(r => r.json())
+    // Step 1: mark the payout request Paid first. The server only allows this while it is Pending,
+    // so a second attempt is refused and money can never be recorded twice.
+    let patchRes: { success?: boolean; error?: string }
+    try {
+      patchRes = await fetch('/api/commissions/payout', {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payoutId: scanned.pid, action: 'approve' }),
+      }).then(r => r.json())
+    } catch { setConfirming(false); setError('Network error while approving the payout. Nothing was recorded.'); return }
+    if (!patchRes.success) { setConfirming(false); setError(patchRes.error || 'Could not approve the payout. Nothing was recorded.'); return }
+
+    // Step 2: record the settlement.
+    const today = new Date().toISOString().slice(0, 10)
+    let res: { success?: boolean; error?: string }
+    try {
+      res = await fetch('/api/settlements', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          entityType: 'GuarantorCommission', entityId: matchedG.guarantorId, entityName: matchedG.name,
+          saturdayDate: today, totalCashDue: scanned.amt, totalUpiDue: 0, amountSubmitted: scanned.amt,
+          notes: `QR Payout · ${scanned.pid} · Period: ${scanned.pf} to ${scanned.pt}`,
+          recordedBy: session.userId,
+        }),
+      }).then(r => r.json())
+    } catch { res = { success: false, error: 'Network error' } }
     setConfirming(false)
-    if (!patchRes.success) { setError(`Settlement saved but payout status update failed: ${patchRes.error}`); return }
+    if (!res.success) { setError(`Payout ${scanned.pid} is marked Paid but the settlement was NOT recorded (${res.error || 'unknown error'}). Use Record Payout to add it manually; do not scan again.`); return }
     onDone(matchedG)
   }
 
@@ -639,17 +690,17 @@ function QrPayoutScanner({ guarantors, session, onClose, onDone }: {
             <div className="rounded-2xl bg-green-50 border border-green-200 p-4 space-y-3">
               <div className="grid grid-cols-2 gap-3 text-xs">
                 <div><p className="text-[9px] font-bold uppercase tracking-wide text-[#697586]">Guarantor</p><p className="font-semibold mt-0.5">{matchedG.name}</p></div>
-                <div><p className="text-[9px] font-bold uppercase tracking-wide text-[#697586]">Amount</p><p className="font-bold text-green-700 text-base mt-0.5">{cur.format(scanned.amt)}</p></div>
+                <div><p className="text-[9px] font-bold uppercase tracking-wide text-[#697586]">Amount</p><p className="font-bold text-green-700 text-base mt-0.5">{formatINR(scanned.amt)}</p></div>
                 {scanned.t === 'NGF_DEPOSIT_PAYOUT' ? (
                   <>
                     <div><p className="text-[9px] font-bold uppercase tracking-wide text-[#697586]">Withdrawal</p><p className="font-semibold mt-0.5">{scanned.typ}</p></div>
-                    <div><p className="text-[9px] font-bold uppercase tracking-wide text-[#697586]">Date</p><p className="font-semibold mt-0.5">{scanned.rd}</p></div>
+                    <div><p className="text-[9px] font-bold uppercase tracking-wide text-[#697586]">Date</p><p className="font-semibold mt-0.5">{formatDateIN(scanned.rd)}</p></div>
                     <div className="col-span-2"><p className="text-[9px] font-bold uppercase tracking-wide text-[#697586]">Request ID</p><p className="font-mono text-[10px] mt-0.5">{scanned.rid}</p></div>
                   </>
                 ) : (
                   <>
-                    <div><p className="text-[9px] font-bold uppercase tracking-wide text-[#697586]">Period From</p><p className="font-semibold mt-0.5">{scanned.pf}</p></div>
-                    <div><p className="text-[9px] font-bold uppercase tracking-wide text-[#697586]">Pay Day</p><p className="font-semibold mt-0.5">{scanned.pt}</p></div>
+                    <div><p className="text-[9px] font-bold uppercase tracking-wide text-[#697586]">Period From</p><p className="font-semibold mt-0.5">{formatDateIN(scanned.pf)}</p></div>
+                    <div><p className="text-[9px] font-bold uppercase tracking-wide text-[#697586]">Payout date</p><p className="font-semibold mt-0.5">{formatDateIN(scanned.pt)}</p></div>
                     <div className="col-span-2"><p className="text-[9px] font-bold uppercase tracking-wide text-[#697586]">Payout ID</p><p className="font-mono text-[10px] mt-0.5">{scanned.pid}</p></div>
                   </>
                 )}
@@ -697,13 +748,13 @@ function CommissionBalanceCard({ balance }: { balance: number }) {
   if (balance > 0) return (
     <div className="rounded-[1.5rem] border border-amber-200 bg-amber-50 p-4 shadow-panel text-center">
       <p className="text-xs font-medium text-amber-700">Commission Due</p>
-      <p className="mt-1 text-xl font-bold text-amber-700">{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(balance)}</p>
+      <p className="mt-1 text-xl font-bold text-amber-700">{formatINR(balance)}</p>
     </div>
   )
   if (balance < 0) return (
     <div className="rounded-[1.5rem] border border-[#e5e7eb] bg-[#f9fafb] p-4 shadow-panel text-center">
       <p className="text-xs font-medium text-[#697586]">Overpaid</p>
-      <p className="mt-1 text-xl font-bold text-[#697586]">{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(Math.abs(balance))}</p>
+      <p className="mt-1 text-xl font-bold text-[#697586]">{formatINR(Math.abs(balance))}</p>
     </div>
   )
   return (
@@ -716,10 +767,10 @@ function CommissionBalanceCard({ balance }: { balance: number }) {
 
 // ── COMMISSION PAYMENT FORM ──
 function CommissionPaymentForm({ guarantor, balance, cycle, session, onDone }: {
-  guarantor: any; balance: number; cycle: any; session: Session; onDone: () => void
+  guarantor: Guarantor; balance: number; cycle: Cycle | null; session: Session; onDone: () => void
 }) {
   const today = new Date().toISOString().slice(0, 10)
-  const defaultAmount = cycle?.totalCommission > 0
+  const defaultAmount = cycle && cycle.totalCommission > 0
     ? String(cycle.totalCommission)
     : balance > 0 ? String(balance) : '0'
 
@@ -728,12 +779,17 @@ function CommissionPaymentForm({ guarantor, balance, cycle, session, onDone }: {
   const [paymentMethod, setPaymentMethod] = useState('Cash')
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
+  const [formError, setFormError] = useState('')
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    setSaving(true)
+    setFormError('')
     const amount = Number(commissionAmount)
+    if (!Number.isFinite(amount) || amount <= 0) { setFormError('Enter an amount greater than zero'); return }
+    setSaving(true)
     const fullNotes = `${paymentMethod} payment${notes ? ': ' + notes : ''}`
+    let json: { success?: boolean; error?: string }
+    try {
     const res = await fetch('/api/settlements', {
       method: 'POST',
       headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' },
@@ -749,9 +805,10 @@ function CommissionPaymentForm({ guarantor, balance, cycle, session, onDone }: {
         recordedBy: session.userId,
       }),
     })
-    const json = await res.json()
+    json = await res.json()
+    } catch { json = { success: false, error: 'Network error. Payment not recorded.' } }
     setSaving(false)
-    if (json.success) onDone()
+    if (json.success) onDone(); else setFormError(json.error || 'Failed to record payment')
   }
 
   return (
@@ -760,12 +817,12 @@ function CommissionPaymentForm({ guarantor, balance, cycle, session, onDone }: {
         <p className="text-sm font-semibold">Record Commission Payment — {guarantor.name}</p>
         {cycle && (
           <p className="mt-1 text-xs text-green-700 font-medium">
-            This cycle commission: {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(cycle.totalCommission)}
+            This cycle commission: {formatINR(cycle.totalCommission)}
           </p>
         )}
         {balance < 0 && (
           <p className="mt-1 text-xs text-[#697586]">
-            Note: Previous payments exceeded recorded commission by {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(Math.abs(balance))}.
+            Note: Previous payments exceeded recorded commission by {formatINR(Math.abs(balance))}.
           </p>
         )}
       </div>
@@ -795,7 +852,8 @@ function CommissionPaymentForm({ guarantor, balance, cycle, session, onDone }: {
             className="w-full rounded-xl border border-[#e5e7eb] px-3 py-2.5 text-sm outline-none focus:border-[#1a1a2e]" />
         </div>
       </div>
-      <div className="px-6 py-4 flex gap-3">
+      <div className="px-6 py-4 flex flex-wrap items-center gap-3">
+        {formError && <p className="w-full text-sm text-red-600">{formError}</p>}
         <button type="submit" disabled={saving}
           className="rounded-2xl bg-[#1a1a2e] px-6 py-3 text-sm font-semibold text-white disabled:opacity-50">
           {saving ? 'Saving…' : 'Record Commission Payment'}
@@ -807,7 +865,7 @@ function CommissionPaymentForm({ guarantor, balance, cycle, session, onDone }: {
 
 // ── DEPOSIT ACCOUNT (admin view per guarantor) ──
 function DepositAdmin({ guarantorId, session }: { guarantorId: string; session: Session }) {
-  const cur = (n: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n)
+  const cur = (n: number) => formatINR(n)
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [type, setType] = useState('Deposit')
@@ -833,7 +891,7 @@ function DepositAdmin({ guarantorId, session }: { guarantorId: string; session: 
         body: JSON.stringify({ guarantorId, type, amount: amt, notes }),
       }).then(r => r.json())
       if (res.success) { setAmount(''); setNotes(''); showToast('Recorded.'); load() } else showToast(res.error || 'Failed')
-    } finally { setBusy(false) }
+    } catch { showToast('Network error. Not recorded.') } finally { setBusy(false) }
   }
 
   async function approve(requestId: string) {
@@ -841,7 +899,7 @@ function DepositAdmin({ guarantorId, session }: { guarantorId: string; session: 
     const res = await fetch('/api/deposits/request', {
       method: 'PATCH', headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ requestId }),
-    }).then(r => r.json())
+    }).then(r => r.json()).catch(() => ({ success: false, error: 'Network error' }))
     if (res.success) { showToast('Approved & recorded.'); load() } else showToast(res.error || 'Failed')
   }
 
@@ -867,7 +925,7 @@ function DepositAdmin({ guarantorId, session }: { guarantorId: string; session: 
           <div className="divide-y divide-amber-200">
             {pending.map((r: any) => (
               <div key={r.requestId} className="flex items-center justify-between px-5 py-3">
-                <div><p className="text-sm font-semibold">{r.type} · {cur(r.amount)}</p><p className="text-xs text-[#697586]">{r.requestedAt?.slice(0, 10)}</p></div>
+                <div><p className="text-sm font-semibold">{r.type} · {cur(r.amount)}</p><p className="text-xs text-[#697586]">{formatDateIN(r.requestedAt)}</p></div>
                 <button onClick={() => approve(r.requestId)} className="rounded-xl bg-green-700 px-4 py-2 text-xs font-semibold text-white hover:bg-green-800">Approve & Pay</button>
               </div>
             ))}
@@ -895,7 +953,8 @@ function DepositAdmin({ guarantorId, session }: { guarantorId: string; session: 
       {/* Passbook */}
       <div className="rounded-[1.75rem] border border-white/70 bg-white shadow-panel overflow-hidden">
         <div className="border-b border-black/5 px-5 py-3"><p className="text-sm font-semibold">Passbook</p></div>
-        <table className="w-full text-left text-sm">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[480px] text-left text-sm">
           <thead className="border-b border-black/5 bg-[#fafafa] text-[#697586]"><tr>{['Date', 'Type', 'Amount', 'Note'].map(h => <th key={h} className="px-5 py-3 font-medium text-xs">{h}</th>)}</tr></thead>
           <tbody className="divide-y divide-black/5">
             {data.ledger.length === 0 && <tr><td colSpan={4} className="px-5 py-6 text-center text-sm text-[#697586]">No transactions.</td></tr>}
@@ -903,7 +962,7 @@ function DepositAdmin({ guarantorId, session }: { guarantorId: string; session: 
               const isIn = t.type === 'Deposit'
               return (
                 <tr key={t.txnId} className="hover:bg-[#fafafa]">
-                  <td className="px-5 py-3 text-[#697586]">{t.date}</td>
+                  <td className="px-5 py-3 text-[#697586]">{formatDateIN(t.date)}</td>
                   <td className="px-5 py-3 font-medium">{t.type}</td>
                   <td className={`px-5 py-3 font-semibold ${isIn ? 'text-green-700' : 'text-red-600'}`}>{isIn ? '+' : '−'} {cur(t.amount)}</td>
                   <td className="px-5 py-3 text-[#697586] text-xs">{t.notes || '—'}</td>
@@ -912,6 +971,7 @@ function DepositAdmin({ guarantorId, session }: { guarantorId: string; session: 
             })}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   )

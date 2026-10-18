@@ -39,7 +39,7 @@ Next.js 16 differs from older versions. `AGENTS.md` says to read `node_modules/n
 | `app/api/**/route.ts` | All backend endpoints (about 26 groups: auth, leads, loans, repayments, settlements, staff, branches, deposits, dev ...) |
 | `components/AppShell.tsx` | Sidebar, header, view switch. See [[Screens Map]] |
 | `components/Login.tsx` | Sign-in, QR scan step |
-| `components/pages/` | One component per screen (30 files; `Dashboard.tsx.bak` is a stray backup) |
+| `components/pages/` | One component per screen (30 files) |
 | `components/charts/` | Dashboard charts incl. `RecollectionGauge` |
 | `components/org/` | Branch/staff org dialogs and cards |
 | `components/ui/` | Shared Radix-based primitives (button, sheet, avatar, `DriveImage`) |

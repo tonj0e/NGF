@@ -182,6 +182,12 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
   const PageIcon = MenuIcon
 
   function renderPage() {
+    // a Guarantor must not reach a page an Admin switched off, even if view state points at it
+    if (session.role === 'Guarantor' && staffPerms.includes('pages:custom')
+      && (MENUS.Guarantor || []).some(m => m.key === view) && !guarantorMenu.some(m => m.key === view)) {
+      const home = guarantorMenu.find(m => m.key === 'dashboard')
+      return home ? <Dashboard session={session} /> : <div className="rounded-2xl border border-[#e5e7eb] bg-white p-6 text-sm text-[#697586]">You do not have access to this page.</div>
+    }
     switch (view) {
       case 'dashboard':    return <Dashboard session={session} />
       case 'customers':    return <CustomersPage session={session} />

@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { APP_CONFIG } from '@/lib/config'
+import { formatINR } from '@/lib/format'
 
 interface GuarantorData {
   guarantorId: string
@@ -381,7 +382,7 @@ export function EditGuarantorDialog({
               </div>
               <div>
                 <p className="text-gray-500">Commission Earned</p>
-                <p className="font-mono text-green-700">₹{guarantor.commissionEarned.toLocaleString('en-IN')}</p>
+                <p className="font-mono text-green-700">{formatINR(guarantor.commissionEarned)}</p>
               </div>
             </div>
             <p className="text-xs text-gray-500">

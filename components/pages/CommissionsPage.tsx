@@ -1,67 +1,69 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Session } from '@/types'
 import QRCode from 'qrcode'
 
-function currency(n: number) {
-  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n)
+import { formatINR, formatINRShort, formatDateIN } from '@/lib/format'
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+function monthLabel(ym: string) {
+  const [y, m] = ym.split('-')
+  return `${MONTHS[Number(m) - 1] ?? m} ${y}`
+}
+function dayDiff(from: string, to: string) {
+  return Math.round((new Date(to + 'T00:00:00Z').getTime() - new Date(from + 'T00:00:00Z').getTime()) / 86400000)
 }
 
-function daysBetween(a: string, b: Date) {
-  return Math.floor((b.getTime() - new Date(a + 'T00:00:00Z').getTime()) / (1000 * 60 * 60 * 24))
-}
-
-function addDays(dateStr: string, d: number) {
-  const dt = new Date(dateStr + 'T00:00:00Z')
-  dt.setUTCDate(dt.getUTCDate() + d)
-  return dt.toISOString().slice(0, 10)
-}
-
-const CYCLE_DAYS = 35
-
-type Cycle = { start: string; end: string; loans: any[]; cycleIdx: number }
-
-function buildCycles(loans: any[]): Cycle[] {
-  const sorted = [...loans].filter(l => l.startDate).sort((a, b) => a.startDate.localeCompare(b.startDate))
-  const cycles: Cycle[] = []
-  let remaining = [...sorted]
-  while (remaining.length > 0) {
-    const start = remaining[0].startDate
-    const end = addDays(start, CYCLE_DAYS)
-    const inCycle = remaining.filter(l => l.startDate < end)
-    remaining = remaining.filter(l => l.startDate >= end)
-    cycles.push({ start, end, loans: inCycle, cycleIdx: cycles.length })
-  }
-  return cycles
-}
+type Loan = { loanId: string; customerName?: string; guarantorCommission?: string | number; status?: string; startDate?: string }
+type Payout = { payoutId: string; amount: number; status: string; requestedAt?: string; processedAt?: string; notes?: string; rejectionReason?: string }
+type SummaryCycle = { start: string; end: string; amount: number; past: boolean }
+type Summary = { earned: number; eligible: number; locked: number; paid: number; pending: number; available: number; todayIST: string; nextPayoutDate: string | null; cycles: SummaryCycle[] }
+type Row = Loan & { inCurrentCycle: boolean; cycleIdx: number }
+type ReceiptData = { payoutId: string; qrDataUrl: string; amount: number; periodFrom: string; periodTo: string; loans: Row[] }
 
 export default function CommissionsPage({ session }: { session: Session }) {
-  const [loans, setLoans] = useState<any[]>([])
-  const [payouts, setPayouts] = useState<any[]>([])
+  const [loans, setLoans] = useState<Loan[]>([])
+  const [payouts, setPayouts] = useState<Payout[]>([])
+  const [summary, setSummary] = useState<Summary | null>(null)
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [requesting, setRequesting] = useState(false)
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
-  const [receipt, setReceipt] = useState<{ payoutId: string; qrDataUrl: string; amount: number; periodFrom: string; periodTo: string; loans: any[] } | null>(null)
+  const [receipt, setReceipt] = useState<ReceiptData | null>(null)
   const [dismissedRejected, setDismissedRejected] = useState(false)
+  const [monthFilter, setMonthFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const loadedOnce = useRef(false)
 
-  // Persist dismissal across reloads using localStorage keyed by latest rejected payout ID
-  const dismissedKey = `payout_dismissed_${payouts[0]?.payoutId || 'none'}`
-
-  const load = () => {
-    setLoading(true)
-    Promise.all([
-      fetch('/api/loans?filter=all', { headers: { Authorization: `Bearer ${session.token}` } }).then(r => r.json()),
-      fetch('/api/commissions/payout', { headers: { Authorization: `Bearer ${session.token}` } }).then(r => r.json()),
-    ]).then(([loansRes, payoutsRes]) => {
+  const load = async () => {
+    if (loadedOnce.current) setRefreshing(true)
+    else setLoading(true)
+    try {
+      const headers = { Authorization: `Bearer ${session.token}` }
+      const [loansRes, payoutsRes, sumRes] = await Promise.all([
+        fetch('/api/loans?filter=all', { headers }).then(r => r.json()),
+        fetch('/api/commissions/payout', { headers }).then(r => r.json()),
+        fetch('/api/commissions/payout?summary=1', { headers }).then(r => r.json()),
+      ])
+      const failed = [loansRes, payoutsRes, sumRes].find(r => !r || r.success === false)
+      if (failed) throw new Error(failed?.error || 'Could not load commissions')
+      const pl: Payout[] = payoutsRes.data?.payouts || []
       setLoans(loansRes.data?.loans || [])
-      setPayouts(payoutsRes.data?.payouts || [])
-      // Restore dismissal state from localStorage
-      const latestId = payoutsRes.data?.payouts?.[0]?.payoutId
+      setPayouts(pl)
+      setSummary(sumRes.data as Summary)
+      setLoadError(null)
+      loadedOnce.current = true
+      const latestId = pl[0]?.payoutId
       if (latestId) {
-        const saved = localStorage.getItem(`payout_dismissed_${latestId}`)
-        setDismissedRejected(saved === 'true')
+        try { setDismissedRejected(localStorage.getItem(`payout_dismissed_${latestId}`) === 'true') } catch { setDismissedRejected(false) }
       }
-    }).finally(() => setLoading(false))
+    } catch (e) {
+      setLoadError(e instanceof Error && e.message ? e.message : 'Could not load commissions')
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
   }
 
   useEffect(() => {
@@ -69,6 +71,7 @@ export default function CommissionsPage({ session }: { session: Session }) {
     const onVisible = () => { if (document.visibilityState === 'visible') load() }
     document.addEventListener('visibilitychange', onVisible)
     return () => document.removeEventListener('visibilitychange', onVisible)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const showToast = (msg: string, ok: boolean) => {
@@ -76,43 +79,44 @@ export default function CommissionsPage({ session }: { session: Session }) {
     setTimeout(() => setToast(null), 3500)
   }
 
-  // ── Computations (safe on empty arrays during loading) ──
-  const todayStr = new Date().toISOString().slice(0, 10)
-  const totalEarned = loans.reduce((s, l) => s + Number(l.guarantorCommission || 0), 0)
-  const totalPaidOut = payouts.filter(p => p.status === 'Paid').reduce((s, p) => s + p.amount, 0)
-  const hasPending = payouts.some(p => p.status === 'Pending')
-  // Only block if the LATEST request is rejected (allow re-request after rejection)
+  // ── Derived from server summary ──
+  const todayStr = summary?.todayIST ?? ''
+  const cycles = summary?.cycles ?? []
+  const pastCycles = cycles.filter(c => c.past)
+  const currentCycle = cycles.find(c => !c.past) ?? null
+  const currentCycleIdx = currentCycle ? cycles.indexOf(currentCycle) : -1
+  const nextPayout = summary?.nextPayoutDate ?? currentCycle?.end ?? null
+  const daysUntilPayout = nextPayout && todayStr ? Math.max(0, dayDiff(todayStr, nextPayout)) : 0
+  const totalEarned = summary?.earned ?? 0
+  const lockedCommission = summary?.locked ?? 0
+  const availableAmount = summary?.available ?? 0
+  const pendingAmount = summary?.pending ?? 0
+
+  const pendingPayout = payouts.find(p => p.status === 'Pending')
+  const hasPending = !!pendingPayout
   const latestPayout = payouts.length > 0 ? payouts[0] : null
-  const latestRejected = latestPayout?.status === 'Rejected'
-  const hasRejected = latestRejected // for display in rejected UI
-
-  const cycles = buildCycles(loans)
-  const pastCycles = cycles.filter(c => c.end <= todayStr)
-  const currentCycle = cycles.find(c => c.start <= todayStr && c.end > todayStr) ?? null
-  const daysUntilPayout = currentCycle ? daysBetween(todayStr, new Date(currentCycle.end + 'T00:00:00Z')) : 0
-
-  const loanCycleMap = new Map<string, { past: boolean; cycleIdx: number }>()
-  cycles.forEach(c => {
-    const isPast = c.end <= todayStr
-    c.loans.forEach(l => loanCycleMap.set(l.loanId, { past: isPast, cycleIdx: c.cycleIdx }))
-  })
-  const enriched = loans.map(l => {
-    const info = loanCycleMap.get(l.loanId)
-    return { ...l, inCurrentCycle: !info?.past, cycleIdx: info?.cycleIdx ?? 0 }
-  })
-
-  const eligibleCommission = pastCycles.reduce((s, c) => s + c.loans.reduce((cs, l) => cs + Number(l.guarantorCommission || 0), 0), 0)
-  const lockedCommission = currentCycle ? currentCycle.loans.reduce((s, l) => s + Number(l.guarantorCommission || 0), 0) : 0
-  const availableAmount = Math.max(0, eligibleCommission - totalPaidOut)
-  // Can request payout if: has completed cycles, available amount > 0, no pending request
-  // (Allow re-request after rejection since latestRejected check handles it)
+  const hasRejected = latestPayout?.status === 'Rejected'
   const canRequestPayout = pastCycles.length > 0 && availableAmount > 0 && !hasPending
 
+  const enriched: Row[] = loans.map(l => {
+    const idx = l.startDate ? cycles.findIndex(c => l.startDate! >= c.start && l.startDate! < c.end) : -1
+    const past = idx >= 0 ? cycles[idx].past : false
+    return { ...l, inCurrentCycle: !past, cycleIdx: idx >= 0 ? idx : 0 }
+  })
+  const eligibleRows = enriched.filter(l => !l.inCurrentCycle)
+
+  const months = Array.from(new Set(enriched.map(l => (l.startDate || '').slice(0, 7)).filter(Boolean))).sort().reverse()
+  const visibleRows = enriched.filter(l =>
+    (monthFilter === 'all' || (l.startDate || '').startsWith(monthFilter)) &&
+    (statusFilter === 'all' || (statusFilter === 'eligible' ? !l.inCurrentCycle : l.inCurrentCycle))
+  )
+  const visibleTotal = visibleRows.reduce((s, l) => s + Number(l.guarantorCommission || 0), 0)
+
   // ── Receipt generator ──
-  const esc = (v: any) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string))
-  const buildReceiptHtml = (payoutId: string, qrDataUrl: string, amount: number, periodFrom: string, periodTo: string, eligibleLoans: any[]) => {
+  const esc = (v: unknown) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string))
+  const buildReceiptHtml = (payoutId: string, qrDataUrl: string, amount: number, periodFrom: string, periodTo: string, eligibleLoans: Row[]) => {
     const loanRows = eligibleLoans.map(l =>
-      `<tr><td>${esc(l.customerName)}</td><td class="mono">${esc(String(l.loanId).slice(-9))}</td><td class="amt">+₹${Number(l.guarantorCommission || 0).toLocaleString('en-IN')}</td></tr>`
+      `<tr><td>${esc(l.customerName)}</td><td class="mono">${esc(String(l.loanId).slice(-9))}</td><td class="amt">+${esc(formatINR(Number(l.guarantorCommission || 0)))}</td></tr>`
     ).join('')
     return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Payout Receipt – ${esc(payoutId)}</title>
 <style>
@@ -147,26 +151,26 @@ td.mono{font-family:monospace;font-size:10px;color:#697586}
   </div>
   <div class="meta">
     <div class="mi"><label>Guarantor</label><span>${esc(session.name)}</span></div>
-    <div class="mi"><label>Requested On</label><span>${todayStr}</span></div>
-    <div class="mi"><label>Period From</label><span>${periodFrom}</span></div>
-    <div class="mi"><label>Pay Day</label><span>${periodTo}</span></div>
+    <div class="mi"><label>Requested On</label><span>${esc(formatDateIN(todayStr))}</span></div>
+    <div class="mi"><label>Period From</label><span>${esc(formatDateIN(periodFrom))}</span></div>
+    <div class="mi"><label>Payout date</label><span>${esc(formatDateIN(periodTo))}</span></div>
   </div>
   <table>
     <thead><tr><th>Customer</th><th>Loan</th><th style="text-align:right">Commission</th></tr></thead>
     <tbody>${loanRows || '<tr><td colspan="3" style="text-align:center;color:#697586;padding:12px">No eligible loans</td></tr>'}</tbody>
   </table>
-  <div class="total"><span>Total Payout Amount</span><span>₹${amount.toLocaleString('en-IN')}</span></div>
+  <div class="total"><span>Total Payout Amount</span><span>${esc(formatINR(amount))}</span></div>
   <div class="qr">
     <img src="${qrDataUrl}" width="190" height="190" alt="Payout QR" />
     <p class="qr-label">Admin scans this QR to record payment</p>
   </div>
-  <div class="footer">NGF FINCORP · Status: Pending Admin Approval<br/>Generated on ${todayStr}</div>
+  <div class="footer">NGF FINCORP · Status: Pending Admin Approval<br/>Generated on ${esc(formatDateIN(todayStr))}</div>
 </div>
 </body></html>`
   }
 
   const generateReceipt = async (payoutId: string) => {
-    const eligibleLoans = enriched.filter(l => !l.inCurrentCycle)
+    const eligibleLoans = eligibleRows
     const periodFrom = pastCycles[0]?.start ?? todayStr
     const periodTo = pastCycles[pastCycles.length - 1]?.end ?? todayStr
     const qrPayload = JSON.stringify({ t: 'NGF_PAYOUT', pid: payoutId, gn: session.name, uid: session.userId, amt: availableAmount, pf: periodFrom, pt: periodTo, rd: todayStr })
@@ -175,14 +179,16 @@ td.mono{font-family:monospace;font-size:10px;color:#697586}
   }
 
   const showPendingReceipt = async () => {
-    const pending = payouts.find(p => p.status === 'Pending')
+   try {
+    const pending = pendingPayout
     if (!pending) return
-    const eligibleLoans = enriched.filter(l => !l.inCurrentCycle)
+    const eligibleLoans = eligibleRows
     const periodFrom = pastCycles[0]?.start ?? todayStr
     const periodTo = pastCycles[pastCycles.length - 1]?.end ?? todayStr
     const qrPayload = JSON.stringify({ t: 'NGF_PAYOUT', pid: pending.payoutId, gn: session.name, uid: session.userId, amt: pending.amount, pf: periodFrom, pt: periodTo, rd: pending.requestedAt?.slice(0, 10) ?? todayStr })
     const qrDataUrl = await QRCode.toDataURL(qrPayload, { width: 220, margin: 2, color: { dark: '#1a1a2e', light: '#ffffff' } })
     setReceipt({ payoutId: pending.payoutId, qrDataUrl, amount: pending.amount, periodFrom, periodTo, loans: eligibleLoans })
+   } catch { showToast('Could not generate receipt', false) }
   }
 
   const downloadReceipt = () => {
@@ -196,33 +202,51 @@ td.mono{font-family:monospace;font-size:10px;color:#697586}
   const handleRequest = async () => {
     setRequesting(true)
     try {
-      const res = await fetch('/api/commissions/payout', {
+      const resp = await fetch('/api/commissions/payout', {
         method: 'POST',
         headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ amount: availableAmount }),
-      }).then(r => r.json())
-      if (res.success) {
+      })
+      let res: { success?: boolean; error?: string; data?: { payoutId: string } } | null = null
+      try { res = await resp.json() } catch { res = null }
+      if (res?.success && res.data?.payoutId) {
         showToast('Payout request submitted!', true)
-        await generateReceipt(res.data.payoutId)
+        try { await generateReceipt(res.data.payoutId) } catch { showToast('Request submitted, but the receipt could not be generated', false) }
         load()
       } else {
-        showToast(res.error || 'Request failed', false)
+        showToast(res?.error || `Request failed (${resp.status})`, false)
+        load()
       }
+    } catch (e) {
+      showToast(e instanceof Error && e.message ? e.message : 'Request failed', false)
     } finally {
       setRequesting(false)
     }
   }
 
-  if (loading) return (
+  if (loading && !summary && !loadError) return (
     <div className="flex h-40 items-center justify-center">
       <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" />
     </div>
   )
 
+  if (!summary) return (
+    <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700 flex items-center justify-between gap-3">
+      <span>{loadError || 'Could not load commissions'}</span>
+      <button onClick={load} className="rounded-2xl bg-red-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-red-700 transition">Retry</button>
+    </div>
+  )
+
   return (
     <div className="space-y-5">
+      {loadError && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 flex items-center justify-between gap-3">
+          <span>{loadError}</span>
+          <button onClick={load} className="shrink-0 rounded-2xl bg-red-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-red-700 transition">Retry</button>
+        </div>
+      )}
       {toast && (
-        <div className={`fixed top-5 right-5 z-50 rounded-2xl px-5 py-3 text-sm font-medium text-white shadow-lg ${toast.ok ? 'bg-green-600' : 'bg-red-600'}`}>
+        <div className={`fixed top-4 left-4 right-4 sm:left-auto sm:right-5 sm:top-5 z-50 rounded-2xl px-5 py-3 text-center sm:text-left text-sm font-medium text-white shadow-lg ${toast.ok ? 'bg-green-600' : 'bg-red-600'}`}>
           {toast.msg}
         </div>
       )}
@@ -246,9 +270,9 @@ td.mono{font-family:monospace;font-size:10px;color:#697586}
             <div className="px-5 py-4 space-y-3">
               <div className="grid grid-cols-2 gap-3 text-xs">
                 <div><p className="text-[#697586] font-medium uppercase tracking-wide text-[9px]">Guarantor</p><p className="font-semibold mt-0.5">{session.name}</p></div>
-                <div><p className="text-[#697586] font-medium uppercase tracking-wide text-[9px]">Amount</p><p className="font-bold text-green-700 mt-0.5 text-base">{currency(receipt.amount)}</p></div>
-                <div><p className="text-[#697586] font-medium uppercase tracking-wide text-[9px]">Period From</p><p className="font-semibold mt-0.5">{receipt.periodFrom}</p></div>
-                <div><p className="text-[#697586] font-medium uppercase tracking-wide text-[9px]">Pay Day</p><p className="font-semibold mt-0.5">{receipt.periodTo}</p></div>
+                <div><p className="text-[#697586] font-medium uppercase tracking-wide text-[9px]">Amount</p><p className="font-bold text-green-700 mt-0.5 text-base">{formatINR(receipt.amount)}</p></div>
+                <div><p className="text-[#697586] font-medium uppercase tracking-wide text-[9px]">Period From</p><p className="font-semibold mt-0.5">{formatDateIN(receipt.periodFrom)}</p></div>
+                <div><p className="text-[#697586] font-medium uppercase tracking-wide text-[9px]">Payout date</p><p className="font-semibold mt-0.5">{formatDateIN(receipt.periodTo)}</p></div>
               </div>
 
               {/* Loan breakdown */}
@@ -256,12 +280,12 @@ td.mono{font-family:monospace;font-size:10px;color:#697586}
                 {receipt.loans.map(l => (
                   <div key={l.loanId} className="flex justify-between items-center px-3 py-2 text-xs">
                     <span className="font-medium">{l.customerName}</span>
-                    <span className="font-semibold text-green-700">+{currency(Number(l.guarantorCommission || 0))}</span>
+                    <span className="font-semibold text-green-700">+{formatINR(Number(l.guarantorCommission || 0))}</span>
                   </div>
                 ))}
                 <div className="flex justify-between items-center px-3 py-2 text-xs font-bold bg-green-50">
                   <span>Total</span>
-                  <span className="text-green-700">{currency(receipt.amount)}</span>
+                  <span className="text-green-700">{formatINR(receipt.amount)}</span>
                 </div>
               </div>
 
@@ -292,9 +316,9 @@ td.mono{font-family:monospace;font-size:10px;color:#697586}
       {/* Header row */}
       <div className="flex items-center justify-between">
         <p className="text-sm font-semibold text-[#697586]">Commission Overview</p>
-        <button onClick={load} className="flex items-center gap-1.5 rounded-2xl border border-[#e5e7eb] bg-white px-4 py-1.5 text-xs font-semibold text-[#697586] hover:bg-[#f4f5f7] transition">
+        <button onClick={load} disabled={refreshing} className="flex items-center disabled:opacity-60 gap-1.5 rounded-2xl border border-[#e5e7eb] bg-white px-4 py-1.5 text-xs font-semibold text-[#697586] hover:bg-[#f4f5f7] transition">
           <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-          Refresh
+          {refreshing ? 'Refreshing…' : 'Refresh'}
         </button>
       </div>
 
@@ -302,19 +326,20 @@ td.mono{font-family:monospace;font-size:10px;color:#697586}
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-[1.5rem] border border-white/70 bg-white p-5 shadow-panel">
           <p className="text-xs text-[#697586]">Total Earned</p>
-          <p className="mt-2 text-3xl font-semibold">{currency(totalEarned)}</p>
+          <p className="mt-2 text-3xl font-semibold">{formatINRShort(totalEarned)}</p>
           <p className="mt-1 text-xs text-[#697586]">Across {loans.length} loan{loans.length !== 1 ? 's' : ''}</p>
         </div>
         <div className="rounded-[1.5rem] border border-white/70 bg-white p-5 shadow-panel">
           <p className="text-xs text-[#697586]">Available for Payout</p>
-          <p className={`mt-2 text-3xl font-semibold ${availableAmount > 0 ? 'text-green-700' : ''}`}>{currency(availableAmount)}</p>
-          <p className="mt-1 text-xs text-[#697586]">{pastCycles.length} completed cycle{pastCycles.length !== 1 ? 's' : ''} · {CYCLE_DAYS}-day windows</p>
+          <p className={`mt-2 text-3xl font-semibold ${availableAmount > 0 ? 'text-green-700' : ''}`}>{formatINR(availableAmount)}</p>
+          <p className="mt-1 text-xs text-[#697586]">{pastCycles.length} completed cycle{pastCycles.length !== 1 ? 's' : ''}</p>
+          {pendingAmount > 0 && <p className="mt-0.5 text-xs font-medium text-amber-700">Pending request: {formatINR(pendingAmount)}</p>}
         </div>
         <div className="rounded-[1.5rem] border border-white/70 bg-white p-5 shadow-panel">
-          <p className="text-xs text-[#697586]">This Cycle (Locked)</p>
-          <p className="mt-2 text-3xl font-semibold text-amber-600">{currency(lockedCommission)}</p>
+          <p className="text-xs text-[#697586]">Locked until payout date</p>
+          <p className="mt-2 text-3xl font-semibold text-amber-600">{formatINR(lockedCommission)}</p>
           <p className="mt-1 text-xs text-[#697586]">
-            {currentCycle ? `Pays out in ${daysUntilPayout} day${daysUntilPayout !== 1 ? 's' : ''}` : 'No active cycle'}
+            {currentCycle ? `Payout date ${nextPayout ? formatDateIN(nextPayout) : ''} · ${daysUntilPayout} day${daysUntilPayout !== 1 ? 's' : ''}` : 'No active cycle'}
           </p>
         </div>
       </div>
@@ -331,7 +356,7 @@ td.mono{font-family:monospace;font-size:10px;color:#697586}
             <div className="flex-1">
               <p className="font-semibold text-amber-700">Payout Request Pending</p>
               <p className="text-sm text-[#697586] mt-0.5">
-                Your request of {currency(payouts.find(p => p.status === 'Pending')?.amount || 0)} is under review. You will be notified once processed.
+                Your request of {formatINR(pendingPayout?.amount || 0)} is under review. You will be notified once processed.
               </p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
@@ -352,7 +377,7 @@ td.mono{font-family:monospace;font-size:10px;color:#697586}
             <div className="flex-1">
               <p className="font-semibold text-red-700">Payout Request Rejected</p>
               <p className="text-sm text-[#697586] mt-0.5">
-                {latestPayout?.notes ? latestPayout.notes : 'Your payout request was rejected.'}
+                {latestPayout?.rejectionReason || latestPayout?.notes || 'Your payout request was rejected.'}
               </p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
@@ -360,12 +385,12 @@ td.mono{font-family:monospace;font-size:10px;color:#697586}
                 onClick={() => {
                   setDismissedRejected(true)
                   if (latestPayout?.payoutId) {
-                    localStorage.setItem(`payout_dismissed_${latestPayout.payoutId}`, 'true')
+                    try { localStorage.setItem(`payout_dismissed_${latestPayout.payoutId}`, 'true') } catch { /* ignore */ }
                   }
                 }}
                 className="rounded-2xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition"
               >
-                Go Back
+                Dismiss
               </button>
             </div>
           </div>
@@ -373,9 +398,9 @@ td.mono{font-family:monospace;font-size:10px;color:#697586}
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
             <div className="flex-1">
               <p className="text-xs text-[#697586] mb-1">Withdraw Amount</p>
-              <p className="text-3xl font-bold text-green-700">{currency(availableAmount)}</p>
+              <p className="text-3xl font-bold text-green-700">{formatINR(availableAmount)}</p>
               <p className="text-sm text-[#697586] mt-1">
-                From {enriched.filter(l => !l.inCurrentCycle).length} loan{enriched.filter(l => !l.inCurrentCycle).length !== 1 ? 's' : ''} · {pastCycles.length} completed cycle{pastCycles.length !== 1 ? 's' : ''}
+                From {eligibleRows.length} loan{eligibleRows.length !== 1 ? 's' : ''} · {pastCycles.length} completed cycle{pastCycles.length !== 1 ? 's' : ''}
               </p>
             </div>
             <button
@@ -392,7 +417,7 @@ td.mono{font-family:monospace;font-size:10px;color:#697586}
               <p className="font-semibold">No payout available yet</p>
               <p className="text-sm text-[#697586] mt-0.5">
                 {currentCycle
-                  ? `Current cycle pays out in ${daysUntilPayout} day${daysUntilPayout !== 1 ? 's' : ''} — ${CYCLE_DAYS}-day window`
+                  ? `Next payout date ${nextPayout ? formatDateIN(nextPayout) : ''} (${daysUntilPayout} day${daysUntilPayout !== 1 ? 's' : ''})`
                   : loans.length === 0
                     ? 'No commissions recorded yet'
                     : 'All eligible commissions already paid out'}
@@ -404,15 +429,31 @@ td.mono{font-family:monospace;font-size:10px;color:#697586}
 
       {/* Commission Ledger */}
       <div className="overflow-hidden rounded-[1.75rem] border border-white/70 bg-white shadow-panel">
-        <div className="border-b border-black/5 px-5 py-4">
-          <p className="text-sm font-semibold">Commission Ledger</p>
-          <p className="text-xs text-[#697586] mt-0.5">
-            {currentCycle
-              ? `Cycle ${currentCycle.cycleIdx + 1} · started ${currentCycle.start} · pays out in ${daysUntilPayout}d`
-              : `${CYCLE_DAYS}-day pay window`}
-          </p>
+        <div className="flex flex-col gap-3 border-b border-black/5 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold">Commission Ledger</p>
+            <p className="text-xs text-[#697586] mt-0.5">
+              {currentCycle
+                ? `Cycle ${currentCycleIdx + 1} · started ${formatDateIN(currentCycle.start)} · payout date ${formatDateIN(currentCycle.end)}`
+                : 'Commission pay cycles'}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <select value={monthFilter} onChange={e => setMonthFilter(e.target.value)} aria-label="Filter by month"
+              className="rounded-2xl border border-[#e5e7eb] bg-white px-3 py-1.5 text-xs font-semibold text-[#697586]">
+              <option value="all">All months</option>
+              {months.map(m => <option key={m} value={m}>{monthLabel(m)}</option>)}
+            </select>
+            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} aria-label="Filter by status"
+              className="rounded-2xl border border-[#e5e7eb] bg-white px-3 py-1.5 text-xs font-semibold text-[#697586]">
+              <option value="all">All status</option>
+              <option value="eligible">Eligible</option>
+              <option value="locked">Locked</option>
+            </select>
+          </div>
         </div>
-        <table className="w-full text-left text-sm">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[640px] text-left text-sm">
           <thead className="border-b border-black/5 bg-[#fafafa] text-[#697586]">
             <tr>
               {['Customer', 'Loan ID', 'Commission', 'Loan Status', 'Start Date', 'Cycle'].map(h => (
@@ -421,23 +462,23 @@ td.mono{font-family:monospace;font-size:10px;color:#697586}
             </tr>
           </thead>
           <tbody className="divide-y divide-black/5">
-            {enriched.length === 0 && (
-              <tr><td colSpan={6} className="px-5 py-8 text-center text-sm text-[#697586]">No commissions recorded yet.</td></tr>
+            {visibleRows.length === 0 && (
+              <tr><td colSpan={6} className="px-5 py-8 text-center text-sm text-[#697586]">{enriched.length === 0 ? 'No commissions recorded yet.' : 'No loans match the filters.'}</td></tr>
             )}
-            {enriched.map(l => (
+            {visibleRows.map(l => (
               <tr key={l.loanId} className="hover:bg-[#fafafa]">
                 <td className="px-5 py-3 font-medium">{l.customerName}</td>
                 <td className="px-5 py-3 font-mono text-xs text-[#697586]">{l.loanId?.slice(-9)}</td>
-                <td className="px-5 py-3 font-semibold text-green-700">{currency(Number(l.guarantorCommission || 0))}</td>
+                <td className="px-5 py-3 font-semibold text-green-700">{formatINR(Number(l.guarantorCommission || 0))}</td>
                 <td className="px-5 py-3">
                   <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${l.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-[#f4f5f7] text-[#697586]'}`}>
                     {l.status}
                   </span>
                 </td>
-                <td className="px-5 py-3 text-[#697586] text-xs">{l.startDate}</td>
+                <td className="px-5 py-3 text-[#697586] text-xs">{l.startDate ? formatDateIN(l.startDate) : '—'}</td>
                 <td className="px-5 py-3">
                   {l.inCurrentCycle ? (
-                    <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-700">This cycle</span>
+                    <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-700">Locked</span>
                   ) : (
                     <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-700">Eligible</span>
                   )}
@@ -445,7 +486,17 @@ td.mono{font-family:monospace;font-size:10px;color:#697586}
               </tr>
             ))}
           </tbody>
+          {visibleRows.length > 0 && (
+            <tfoot className="border-t border-black/10 bg-[#fafafa]">
+              <tr>
+                <td className="px-5 py-3 text-xs font-semibold text-[#697586]" colSpan={2}>Total ({visibleRows.length} loan{visibleRows.length !== 1 ? 's' : ''})</td>
+                <td className="px-5 py-3 font-bold text-green-700">{formatINR(visibleTotal)}</td>
+                <td colSpan={3} />
+              </tr>
+            </tfoot>
+          )}
         </table>
+        </div>
       </div>
 
       {/* Payout History */}
@@ -454,7 +505,8 @@ td.mono{font-family:monospace;font-size:10px;color:#697586}
           <div className="border-b border-black/5 px-5 py-4">
             <p className="text-sm font-semibold">Payout History</p>
           </div>
-          <table className="w-full text-left text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[640px] text-left text-sm">
             <thead className="border-b border-black/5 bg-[#fafafa] text-[#697586]">
               <tr>
                 {['Request ID', 'Amount', 'Status', 'Requested On', 'Processed On'].map(h => (
@@ -466,7 +518,7 @@ td.mono{font-family:monospace;font-size:10px;color:#697586}
               {payouts.map(p => (
                 <tr key={p.payoutId} className="hover:bg-[#fafafa]">
                   <td className="px-5 py-3 font-mono text-xs text-[#697586]">{p.payoutId}</td>
-                  <td className="px-5 py-3 font-semibold">{currency(p.amount)}</td>
+                  <td className="px-5 py-3 font-semibold">{formatINR(p.amount)}</td>
                   <td className="px-5 py-3">
                     <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
                       p.status === 'Paid' ? 'bg-green-100 text-green-700'
@@ -474,12 +526,18 @@ td.mono{font-family:monospace;font-size:10px;color:#697586}
                       : 'bg-red-100 text-red-700'
                     }`}>{p.status}</span>
                   </td>
-                  <td className="px-5 py-3 text-[#697586]">{p.requestedAt?.slice(0, 10)}</td>
-                  <td className="px-5 py-3 text-[#697586]">{p.processedAt ? p.processedAt.slice(0, 10) : '—'}</td>
+                  <td className="px-5 py-3 text-[#697586]">{p.requestedAt ? formatDateIN(p.requestedAt) : '—'}</td>
+                  <td className="px-5 py-3 text-[#697586]">
+                    {p.processedAt ? formatDateIN(p.processedAt) : '—'}
+                    {p.status === 'Rejected' && (p.rejectionReason || p.notes) && (
+                      <p className="mt-1 text-xs text-red-600">Reason: {p.rejectionReason || p.notes}</p>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>
