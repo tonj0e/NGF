@@ -6,7 +6,12 @@
     "dev": "next dev -H 0.0.0.0",
     "build": "next build --webpack",
     "start": "next start -p 3000",
-    "lint": "eslint"
+    "lint": "eslint app components lib tests",
+    "typecheck": "tsc --noEmit",
+    "test:e2e": "playwright test",
+    "check": "npm run typecheck",
+    "hooks": "git config core.hooksPath .githooks",
+    "backup": "bash scripts/backup.sh"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.2.7",

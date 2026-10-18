@@ -28,3 +28,4 @@ tags: [ngf, runbook,brain]
 
 ## Related
 - [[00 BRAIN]], [[Security Fix Plan]]
+- Checks and CI: [[Checks and CI]]
