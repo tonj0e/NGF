@@ -76,9 +76,51 @@ export async function getLeadDocFolder(guarantorCode: string, customerName: stri
   return getOrCreateFolder(gcodeFolder, customerName)
 }
 
+const ONE_MB = 1024 * 1024
+const EXT: Record<string, string> = { 'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'image/heic': 'heic', 'image/heif': 'heif', 'application/pdf': 'pdf' }
+
+// Safety net behind the phone's own compression: keep the picture as sharp as possible but under 1 MB.
+// Tries the biggest size and best quality first and steps down only until it fits.
+async function fitUnderOneMb(buf: Buffer, mime: string): Promise<{ buf: Buffer; mime: string }> {
+  if (buf.length <= ONE_MB || !/^image\/(jpe?g|png|webp)$/.test(mime)) return { buf, mime }
+  try {
+    const sharp = (await import('sharp')).default
+    for (const dim of [2560, 2048, 1920, 1600, 1280]) {
+      for (const quality of [92, 88, 84, 80, 75, 70, 65]) {
+        const out = await sharp(buf).rotate().resize({ width: dim, height: dim, fit: 'inside', withoutEnlargement: true }).jpeg({ quality, mozjpeg: true }).toBuffer()
+        if (out.length <= ONE_MB) return { buf: out, mime: 'image/jpeg' }
+      }
+    }
+  } catch (e) { console.error('Image shrink failed, storing the original:', e instanceof Error ? e.message : e) }
+  return { buf, mime }
+}
+
+// One file per document type in the customer's folder (aadhaar_front.jpg, house.jpg ...). A new upload of the same
+// type replaces the old one in place, so the link already saved on the lead keeps working.
 export async function uploadLeadPhoto(folderId: string, prefix: string, file: FilePayload): Promise<string> {
-  const fileId = await saveFile(folderId, `${prefix}_${file.fileName}`, file.mimeType, file.base64Data)
-  return driveUrl(fileId)
+  if (!/^(image\/(jpe?g|png|webp|gif|heic|heif)|application\/pdf)$/.test(file.mimeType)) throw new Error('Only images and PDF files are allowed')
+  if (file.base64Data.length > 11_000_000 * 3) throw new Error('File is too large')
+  const raw = Buffer.from(file.base64Data.replace(/^data:[^;]+;base64,/, ''), 'base64')
+  const { buf, mime } = await fitUnderOneMb(raw, file.mimeType)
+  const name = `${prefix.replace(/[^a-zA-Z0-9_-]/g, '_')}.${EXT[mime] || 'jpg'}`
+
+  const drive = getOAuthDriveClient()
+  const safeName = name.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
+  const existing = await drive.files.list({
+    q: `'${folderId.replace(/'/g, "\\'")}' in parents and name='${safeName}' and trashed=false`,
+    fields: 'files(id)', supportsAllDrives: true, includeItemsFromAllDrives: true,
+  })
+  const found = existing.data.files?.[0]?.id
+  if (found) {
+    await drive.files.update({ fileId: found, media: { mimeType: mime, body: Readable.from(buf) }, fields: 'id', supportsAllDrives: true })
+    return driveUrl(found)
+  }
+  const created = await drive.files.create({
+    requestBody: { name, parents: [folderId] },
+    media: { mimeType: mime, body: Readable.from(buf) },
+    fields: 'id', supportsAllDrives: true,
+  })
+  return driveUrl(created.data.id!)
 }
 
 /* ==================== NEW: Supabase Storage Functions ==================== */

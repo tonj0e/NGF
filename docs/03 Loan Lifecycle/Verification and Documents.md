@@ -45,3 +45,9 @@ tags: [ngf, loan-lifecycle, verification, storage, reviews]
 
 ## Related
 [[Loan Lifecycle Brain]] [[Lead to Loan]] [[Renewals]] [[Repayments and Collections]] [[Tech Stack and Folder Map]] [[Data Access Layer]]
+
+## Customer photos on Google Drive (changed 2026-10-18)
+- Photos go to Google Drive through the app's own Google sign-in (OAuth client id, secret and refresh token in the server settings). Folder: `PHOTO_ROOT_FOLDER_ID` / `NGF-<guarantor code>` / `<customer name>`.
+- Each document type is **one file named by section**: `customer.jpg`, `aadhaar_front.jpg`, `aadhaar_back.jpg`, `house.jpg`, `landmark.jpg`, `cheque.jpg`. A new upload of the same type **replaces the old file in place** (same link, no duplicates). Older files keep their old long names.
+- Phones shrink pictures under 1 MB before upload. The server (`lib/drive.ts`, `fitUnderOneMb`, uses `sharp`) is a second net: a picture over 1 MB is stepped down from the largest size and best quality only until it fits. A 6 MB noise-heavy test picture came out at 923 KB.
+- Only images and PDF are accepted.
