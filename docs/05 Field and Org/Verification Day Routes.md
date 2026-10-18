@@ -21,6 +21,9 @@ Problem it solves: agents were sent to ten verifications in the wrong order (Era
 ## Route sketch on My Route (2026-10-18)
 A dark "Today at a glance" card at the top of the agent's **My Route** page (`components/routes/RouteSketch.tsx`). It is a schematic, not a map, and it reads **from the bottom up**: **START** (home icon, where attendance was marked) at the bottom, then stop 1, 2, 3 ... climbing in visiting order, zig-zagging so every name stays readable. Each leg is a curved arrow with a chip showing the km and a small compass arrow (direction of travel, north up). Colours: white = to visit, amber with a pulsing ring and "NEXT STOP" = next, green with a tick and a glow = done, red with "!" = customer not at home. A progress bar and "N of M done" sit at the top. The next leg's dashes flow forward (switched off when the phone asks for reduced motion). Tapping a stop scrolls to its card. Stops without a saved location are left out of the picture but stay in the list. No new API: it uses the same `mine` data.
 
+## Verification queue follows the route (2026-10-18)
+The agent's **Assigned Verifications** list (`VerificationsPage`) is now sorted by today's route: stop 1 first, each row has a numbered badge. It reads `/api/routes?view=mine` for today (IST) and sorts the leads by that order; leads not on today's route follow in their old order. If route planning is off or the call fails, the old order stays.
+
 ## Ordering rules (`lib/routeMath.ts`)
 - Start point = where the agent **marked attendance** (usually home). Before attendance it is the last attendance, else last live location. When the agent marks attendance, today's route is re-ordered from that point unless staff ordered it by hand.
 - Order = nearest-stop-first, then 2-opt and move-one improvements, minimising total travel minutes.

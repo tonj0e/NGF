@@ -95,6 +95,7 @@ function UploadBox({ photoKey, preview, onChange }: { photoKey: PhotoKey; previe
 
 export default function VerificationsPage({ session }: { session: Session }) {
   const [leads, setLeads] = useState<Lead[]>([])
+  const [stops, setStops] = useState<Record<string, number>>({})
   const [active, setActive] = useState<Lead | null>(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -194,9 +195,24 @@ export default function VerificationsPage({ session }: { session: Session }) {
   }
 
   async function load() {
-    const res = await fetch('/api/leads?status=Agent+Assigned', { headers: { Authorization: `Bearer ${session.token}` } })
+    const headers = { Authorization: `Bearer ${session.token}` }
+    const today = new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10)
+    const [res, routeRes] = await Promise.all([
+      fetch('/api/leads?status=Agent+Assigned', { headers }),
+      fetch(`/api/routes?view=mine&date=${today}`, { headers }).catch(() => null),
+    ])
     const json = await res.json()
-    if (json.success) setLeads(json.data.rows)
+    // Today's route decides the order: stop 1 first. Leads that are not on today's route follow, in their old order.
+    const stopNo: Record<string, number> = {}
+    try {
+      const rj = routeRes ? await routeRes.json() : null
+      if (rj?.success) (rj.data.stops as { leadId: string }[]).forEach((st, i) => { stopNo[st.leadId] = i + 1 })
+    } catch { /* route planning off or unavailable: keep the plain order */ }
+    setStops(stopNo)
+    if (json.success) {
+      const rows: Lead[] = json.data.rows
+      setLeads(rows.map((l, i) => ({ l, i })).sort((a, b) => (stopNo[a.l.leadId] ?? 1e6) - (stopNo[b.l.leadId] ?? 1e6) || a.i - b.i).map(x => x.l))
+    }
     setLoading(false)
   }
 
@@ -264,14 +280,17 @@ export default function VerificationsPage({ session }: { session: Session }) {
         <div className="rounded-[1.75rem] border border-white/70 bg-white shadow-panel">
           <div className="border-b border-black/5 px-6 py-4">
             <p className="text-sm font-semibold">Verification Queue</p>
-            <p className="mt-1 text-sm text-[#697586]">Leads assigned to you for field verification.</p>
+            <p className="mt-1 text-sm text-[#697586]">Leads assigned to you for field verification, in the order of today&apos;s route.</p>
           </div>
           <div className="divide-y divide-black/5">
             {leads.map(l => (
               <div key={l.leadId} className="flex items-center justify-between gap-4 px-6 py-4">
-                <div>
-                  <p className="font-medium">{l.customerName}</p>
-                  <p className="text-sm text-[#697586]">{l.phone} &bull; {l.place}</p>
+                <div className="flex min-w-0 items-center gap-3">
+                  {stops[l.leadId] && <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#1a1a2e] text-sm font-bold text-white" title="Stop number on today's route">{stops[l.leadId]}</span>}
+                  <div className="min-w-0">
+                    <p className="font-medium">{l.customerName}</p>
+                    <p className="text-sm text-[#697586]">{l.phone} &bull; {l.place}</p>
+                  </div>
                 </div>
                 <button onClick={() => setActive(l)} className="rounded-2xl bg-[#1a1a2e] px-4 py-2 text-sm font-semibold text-white">
                   Start Verification
