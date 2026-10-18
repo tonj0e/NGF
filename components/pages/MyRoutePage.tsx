@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Session } from '@/types'
 import { Phone, Navigation, MapPin, RefreshCw } from 'lucide-react'
-import RouteSketch from '@/components/routes/RouteSketch'
+import RouteMap from '@/components/routes/RouteMap'
 
 type Stop = {
   leadId: string; customerName: string; phone: string; place: string; address: string; landmark: string; guarantorName: string
@@ -96,7 +96,7 @@ export default function MyRoutePage({ session, onOpenVerification }: { session: 
       )}
 
       {sketchStops.length > 0 && (
-        <RouteSketch start={startPt} startLabel="START"
+        <RouteMap start={startPt} startLabel="START"
           stops={sketchStops} nextId={next?.leadId} onPick={pickStop} />
       )}
 

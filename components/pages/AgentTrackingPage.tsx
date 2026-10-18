@@ -26,7 +26,7 @@ function getMarkerColor(isOnline: boolean, ageMinutes: number | null): string {
 
 export default function AgentTrackingPage({ session }: { session: Session }) {
   const [locations, setLocations] = useState<Map<string, AgentLocation>>(new Map())
-  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_JAVASCRIPT_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
   const isApiKeyConfigured = !!(apiKey && apiKey !== 'your_google_maps_api_key_here')
   const [loading, setLoading] = useState(isApiKeyConfigured)
   const [error, setError] = useState<string | null>(null)
@@ -324,7 +324,7 @@ export default function AgentTrackingPage({ session }: { session: Session }) {
 
   // Load Google Maps JS API (only once globally)
   useEffect(() => {
-    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_JAVASCRIPT_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
 
     if (!apiKey || apiKey === 'your_google_maps_api_key_here') {
       // State already set via initial value

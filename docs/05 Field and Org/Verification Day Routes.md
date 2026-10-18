@@ -55,3 +55,6 @@ Road distances come from the **Google Routes API** (`computeRouteMatrix`, server
 
 ## Related
 [[Field and Org Brain]], [[Agent Attendance Location and Trips]], [[Branches and Staff]], [[Lead to Loan]], [[Verification and Documents]], [[Dev and Admin Tools]], [[Notifications]]
+
+### Real map version (2026-10-18)
+My Route now shows `components/routes/RouteMap.tsx`: the same card header and progress bar over a **real Google map** (Maps JavaScript API). Numbered pins in visiting order, START pin, dashed line between stops (straight lines, not roads), green tick when done, red "!" when absent, the next stop has a pulsing ring and an amber arrow travels along the next leg. Tapping a pin scrolls to that stop. If the map cannot load (no key, key refused) it falls back to the sketch above. Key env name: `NEXT_PUBLIC_GOOGLE_MAPS_JAVASCRIPT_API_KEY` (falls back to `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`); it is a browser key, restricted in Google Cloud to Maps JavaScript API and to the allowed websites (ngffincorp.com, localhost:3000). It is baked in at build time, so changing it needs a rebuild. `AgentTrackingPage` reads the same key.
