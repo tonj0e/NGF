@@ -399,22 +399,19 @@ if (!open) return null
                   </Label>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {APP_CONFIG.STAFF_FEATURES.map(f => (
-                    <Label key={f.key} className="inline-flex items-center gap-1.5 cursor-pointer rounded-full border px-3 py-1.5 text-xs font-medium transition-colors hover:bg-gray-50">
-                      <Checkbox
-                        checked={formData.permissions.includes(f.key)}
-                        onCheckedChange={(checked) => handlePermissionChange(f.key, checked === true)}
-                        disabled={loading}
-                        className="h-3.5 w-3.5"
-                      />
-                      <span className={`font-medium ${formData.permissions.includes(f.key) ? 'text-blue-700' : 'text-gray-700'}`}>
-                        {f.label}
-                      </span>
-                    </Label>
-                  ))}
+                  {APP_CONFIG.STAFF_FEATURES.map(f => {
+                    const on = formData.permissions.includes(f.key)
+                    return (
+                      <button key={f.key} type="button" disabled={loading} aria-pressed={on}
+                        onClick={() => handlePermissionChange(f.key, !on)}
+                        className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${on ? 'border-green-600 bg-green-600 text-white' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'}`}>
+                        {on ? '✓ ' : ''}{f.label}
+                      </button>
+                    )
+                  })}
                 </div>
                 <p className="mt-2 text-xs text-gray-500">
-                  Permissions are suggestions based on the selected role. Uncheck any that should not apply.
+                  Green with a tick = this person has it. Click to switch it off (blank) or on, then save.
                 </p>
               </div>
             </div>

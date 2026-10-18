@@ -26,11 +26,21 @@ export const APP_CONFIG = {
     { key: 'upiPaymentsBank', label: 'Payment Matching: bank statement', view: '' },
     { key: 'upiPaymentsOverride', label: 'Payment Matching: override duplicate UTR', view: '' },
   ] as { key: string; label: string; view: string }[],
-  // Features an Admin can switch on for a Guarantor (set in NGF Branches → edit guarantor). Deliberately small:
-  // no bank-statement access (it lists every customer's bank credits) and no duplicate-UTR override.
+  // What a Guarantor can see, switched on or off in NGF Branches → edit guarantor. `gp:` keys are the pages in the
+  // guarantor's own menu (all on until an Admin saves a custom list, which adds the `pages:custom` marker).
+  // `upiPayments` lets them mark UTR payments for their own customers. Notifications is always on. Bank-statement
+  // access and the duplicate-UTR override are never offered to guarantors.
   GUARANTOR_FEATURES: [
-    { key: 'upiPayments', label: 'Payment Matching: mark UTR payments for own customers' },
-  ] as { key: string; label: string }[],
+    { key: 'gp:dashboard',   label: 'Dashboard',          view: 'dashboard' },
+    { key: 'gp:leads',       label: 'Leads',              view: 'leads' },
+    { key: 'gp:collection',  label: 'Collection',         view: 'collection' },
+    { key: 'gp:payments',    label: 'UPI Payments (view)', view: 'payments' },
+    { key: 'gp:commissions', label: 'Commissions',        view: 'commissions' },
+    { key: 'gp:deposits',    label: 'Deposits',           view: 'deposits' },
+    { key: 'gp:myCustomers', label: 'My Customers',       view: 'myCustomers' },
+    { key: 'gp:myIdCard',    label: 'My ID Card',         view: 'myIdCard' },
+    { key: 'upiPayments',    label: 'Payment Matching: mark UTR payments (own customers)', view: '' },
+  ] as { key: string; label: string; view: string }[],
   // Branch roles with suggested permissions (editable suggestions, not auto-granted)
   BRANCH_ROLES: [
     { key: 'manager', label: 'Manager', description: 'Branch oversight', suggestedPermissions: ['customers', 'leads', 'collection', 'settlements', 'reports', 'guarantors', 'agentTracking', 'verificationPlanning'] },

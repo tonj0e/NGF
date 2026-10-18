@@ -54,3 +54,8 @@ Permissions are granted in **Dev → Branches → Staff Access** (a branch must 
 
 ## Guarantor permission (2026-10-18)
 An Admin can switch on "Payment Matching: mark UTR payments for own customers" for a guarantor in **NGF Branches → branch → Guarantors → edit**. Stored in `staff_access.permissions` (`upiPayments`) with the branch it was set from. Server rules (`lib/payments.ts getAccess`): for a guarantor the guarantor id is always forced to their own, edit/discard only on their own payments, bank-statement and override are never allowed. Staff permissions are set the same way (edit the person in NGF Branches). The Dev → Branches "Staff Access" list now shows field agents only.
+
+### Guarantor access list (2026-10-18, later)
+The guarantor edit dialog (NGF Branches) now lists every page the guarantor has: Dashboard, Leads, Collection, UPI Payments (view), Commissions, Deposits, My Customers, My ID Card, plus "mark UTR payments". Green with a tick = has it, blank = switched off. Notifications is always on. Until an Admin saves a custom list every guarantor keeps all pages; saving adds the `pages:custom` marker and then only ticked pages appear in the guarantor's menu (`AppShell` reads `/api/branches?self=1`). This hides pages from the menu; the data APIs still follow the role rules. Staff and manager permission chips use the same green style. Config: `APP_CONFIG.GUARANTOR_FEATURES`.
+
+Branch links: staff via `branch_staff_roles`, field agents via `agents.branch_id`, guarantors via `guarantor_branches`. Accounts with none of these (e.g. `NGF000101`, `otp_test`) are not shown under any branch.

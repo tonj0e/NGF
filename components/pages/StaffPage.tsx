@@ -8,6 +8,7 @@ import { OrgAdminCard } from '@/components/org/OrgAdminCard'
 import { BranchCard } from '@/components/org/BranchCard'
 import { AddBranchDialog } from '@/components/org/AddBranchDialog'
 import { AddUserDialog } from '@/components/org/AddUserDialog'
+import { APP_CONFIG } from '@/lib/config'
 import { EditGuarantorDialog } from '@/components/org/EditGuarantorDialog'
 import { RoleUserList } from '@/components/org/RoleUserList'
 import { Button } from '@/components/ui/button'
@@ -438,6 +439,8 @@ if (json.success) {
         const mine = aj?.data?.access?.find((a: any) => a.userId === fullGuarantor.userId)
         perms = mine?.permissions || []; accessBranch = mine?.branchId || ''
       } catch {}
+      // Until an Admin saves a custom list, a guarantor has every page they always had
+      if (!perms.includes('pages:custom')) perms = [...perms.filter(k => !k.startsWith('gp:')), ...APP_CONFIG.GUARANTOR_FEATURES.filter(f => f.key.startsWith('gp:')).map(f => f.key)]
 
       // Open the edit dialog with full guarantor data
       setEditingGuarantor({
@@ -495,6 +498,7 @@ if (json.success) {
       const before = [...(editingGuarantor?.permissions || [])].sort().join(',')
       const after = [...data.permissions].sort().join(',')
       if (before !== after) {
+        data = { ...data, permissions: Array.from(new Set(['pages:custom', ...data.permissions])) }
         if (!data.branchId) throw new Error('Open this guarantor from a branch to change permissions')
         const pr = await fetch('/api/branches', {
           method: 'POST',

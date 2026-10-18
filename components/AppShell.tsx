@@ -133,13 +133,21 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
 
   // Staff menu is built from the features granted in Dev → Branches
   useEffect(() => {
-    if (session.role !== 'Staff' && session.role !== 'NGF AGENT') return
+    if (session.role !== 'Staff' && session.role !== 'NGF AGENT' && session.role !== 'Guarantor') return
     fetch('/api/branches?self=1', { headers: { Authorization: `Bearer ${session.token}` } })
       .then(r => r.json())
       .then(j => {
         if (!j.success) return
         const perms = j.data.permissions || []
         setStaffPerms(perms)
+        if (session.role === 'Guarantor') {
+          // pages an Admin switched off for this guarantor; the first allowed page opens
+          if (perms.includes('pages:custom')) {
+            const first = (MENUS.Guarantor || []).find(m => m.key === 'notifications' || perms.includes(`gp:${m.key}`) || (m.key === 'payments' && perms.includes('upiPayments')))
+            if (first && !(MENUS.Guarantor || []).some(m => m.key === 'dashboard' && perms.includes('gp:dashboard'))) setView(first.key)
+          }
+          return
+        }
         if (session.role !== 'Staff') return
         const first = APP_CONFIG.STAFF_FEATURES.find(f => f.view && perms.includes(f.key))
         setView(first ? first.view : 'notifications')
@@ -167,7 +175,9 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
     ...(MENUS['NGF AGENT'] || []),
     ...(staffPerms.includes('upiPayments') ? [{ key: 'payments', label: 'Payment Matching' }] : []),
   ]
-  const menu = session.role === 'Staff' ? staffMenu : session.role === 'NGF AGENT' ? agentMenu : (MENUS[session.role] || [])
+  const guarantorMenu = (MENUS.Guarantor || []).filter(m =>
+    !staffPerms.includes('pages:custom') || m.key === 'notifications' || staffPerms.includes(`gp:${m.key}`) || (m.key === 'payments' && staffPerms.includes('upiPayments')))
+  const menu = session.role === 'Staff' ? staffMenu : session.role === 'NGF AGENT' ? agentMenu : session.role === 'Guarantor' ? guarantorMenu : (MENUS[session.role] || [])
   const pageTitle = menu.find(m => m.key === view)?.label || view
   const PageIcon = MenuIcon
 

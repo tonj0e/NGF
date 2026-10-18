@@ -69,7 +69,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
     const { userId, branchId } = body
     if (!userId) return err('userId required')
     // staff_access.permissions is a text[] column: send a Postgres array literal of known feature keys only
-    const known = new Set(APP_CONFIG.STAFF_FEATURES.map(f => f.key))
+    const known = new Set([...APP_CONFIG.STAFF_FEATURES.map(f => f.key), ...APP_CONFIG.GUARANTOR_FEATURES.map(f => f.key), 'pages:custom'])
     const picked = Array.isArray(body.permissions) ? body.permissions.filter((k: unknown): k is string => typeof k === 'string' && known.has(k)) : []
     const permissions = `{${Array.from(new Set(picked)).join(',')}}`
     const access = await readTable('StaffAccess')
