@@ -1030,13 +1030,13 @@ export default function DevPage({ session }: { session: Session }) {
           <div className="rounded-[1.75rem] border border-white/70 bg-white shadow-panel p-6 space-y-4">
             <div>
               <p className="text-sm font-semibold">Staff Access</p>
-              <p className="mt-1 text-xs text-[#697586]">Assign a branch and toggle which features each Staff or Agent account can use. Create accounts from Staff / Agents. Agents only use the Payment Matching options.</p>
+              <p className="mt-1 text-xs text-[#697586]">Field agents only. Staff and guarantor permissions are now set in NGF Branches: open the branch and use the edit icon on the person. Agents only use the Payment Matching options.</p>
             </div>
-            {staffList.length === 0 ? (
-              <p className="text-xs text-[#697586]">No staff accounts yet. Add one with role &quot;Staff&quot; in Staff / Agents.</p>
+            {staffList.filter(u => u.role === 'NGF AGENT').length === 0 ? (
+              <p className="text-xs text-[#697586]">No field agents yet. Staff and guarantor permissions are in NGF Branches.</p>
             ) : (
               <div className="space-y-4">
-                {staffList.map(u => {
+                {staffList.filter(u => u.role === 'NGF AGENT').map(u => {
                   const a = accessMap[u.userId] || { branchId: '', permissions: [] }
                   return (
                     <div key={u.userId} className="rounded-2xl border border-[#e5e7eb] p-4 space-y-3">

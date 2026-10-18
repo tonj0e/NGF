@@ -26,6 +26,11 @@ export const APP_CONFIG = {
     { key: 'upiPaymentsBank', label: 'Payment Matching: bank statement', view: '' },
     { key: 'upiPaymentsOverride', label: 'Payment Matching: override duplicate UTR', view: '' },
   ] as { key: string; label: string; view: string }[],
+  // Features an Admin can switch on for a Guarantor (set in NGF Branches → edit guarantor). Deliberately small:
+  // no bank-statement access (it lists every customer's bank credits) and no duplicate-UTR override.
+  GUARANTOR_FEATURES: [
+    { key: 'upiPayments', label: 'Payment Matching: mark UTR payments for own customers' },
+  ] as { key: string; label: string }[],
   // Branch roles with suggested permissions (editable suggestions, not auto-granted)
   BRANCH_ROLES: [
     { key: 'manager', label: 'Manager', description: 'Branch oversight', suggestedPermissions: ['customers', 'leads', 'collection', 'settlements', 'reports', 'guarantors', 'agentTracking', 'verificationPlanning'] },

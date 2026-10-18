@@ -24,7 +24,7 @@ Purpose: stop one screenshot or UTR being used for the wrong customers. Staff ma
 |---|---|---|---|---|
 | Admin | yes | all | yes | yes |
 | Staff / Agent with `upiPayments` | yes | all | only with `upiPaymentsBank` | only with `upiPaymentsOverride` |
-| Guarantor | no | own customers only, view-only | no | no |
+| Guarantor | only if an Admin switches it on (NGF Branches → edit guarantor → Permissions), own customers only | own customers only | never | never |
 
 Permissions are granted in **Dev → Branches → Staff Access** (a branch must be chosen: `staff_access.branch_id` has a foreign key) (Staff and Agents both listed; agents only see the Payment Matching toggles). They are stored in `staff_access.permissions` (a Postgres `text[]`; `/api/branches` `setAccess` now writes a `{a,b}` array literal and ignores unknown keys), keyed in `lib/config.ts` `STAFF_FEATURES` (`view: ''` features add no menu item). Access is decided server-side in `lib/payments.ts` `getAccess`.
 
@@ -50,3 +50,7 @@ Permissions are granted in **Dev → Branches → Staff Access** (a branch must 
 
 ## Related
 - [[Money Brain]], [[Repayments and Collections]], [[Tables]], [[Roles and Permissions]], [[Decision Log]]
+
+
+## Guarantor permission (2026-10-18)
+An Admin can switch on "Payment Matching: mark UTR payments for own customers" for a guarantor in **NGF Branches → branch → Guarantors → edit**. Stored in `staff_access.permissions` (`upiPayments`) with the branch it was set from. Server rules (`lib/payments.ts getAccess`): for a guarantor the guarantor id is always forced to their own, edit/discard only on their own payments, bank-statement and override are never allowed. Staff permissions are set the same way (edit the person in NGF Branches). The Dev → Branches "Staff Access" list now shows field agents only.

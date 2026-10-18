@@ -49,7 +49,12 @@ export async function getAccess(session: Session): Promise<Access> {
   if (session.role === 'Guarantor') {
     const guarantors = await readTable('Guarantors', { forceFresh: true })
     const g = guarantors.find(x => x['User ID'] === session.userId)
-    return { isAdmin: false, isGuarantor: true, guarantorId: g?.['Guarantor ID'] || '', canMark: false, canBank: false, canOverride: false, canView: !!g }
+    // A guarantor can mark UTR payments for their own customers only when an Admin has switched that on for them;
+    // bank-statement access and duplicate-UTR override are never available to guarantors.
+    const acc = await readTable('StaffAccess', { forceFresh: true })
+    const mineAcc = acc.find(a => a['User ID'] === session.userId)
+    const canMark = !!g && permsOf(mineAcc?.['Permissions']).includes(PERM_USE)
+    return { isAdmin: false, isGuarantor: true, guarantorId: g?.['Guarantor ID'] || '', canMark, canBank: false, canOverride: false, canView: !!g }
   }
   const access = await readTable('StaffAccess', { forceFresh: true })
   const mine = access.find(a => a['User ID'] === session.userId)
@@ -323,6 +328,7 @@ export async function markPayment(session: Session, access: Access, input: MarkI
   const repaymentIds = Array.from(new Set((input.repaymentIds || []).filter(Boolean)))
   if (!repaymentIds.length) throw new PaymentError('Select at least one customer')
   if (repaymentIds.length > 25) throw new PaymentError('Too many customers in one payment')
+  if (access.isGuarantor) input = { ...input, guarantorId: access.guarantorId }   // a guarantor can only ever act for themselves
   if (!input.guarantorId) throw new PaymentError('Choose a guarantor')
 
   const sb = getSupabase()
@@ -387,6 +393,7 @@ export async function markPayment(session: Session, access: Access, input: MarkI
 export async function editUtr(session: Session, access: Access, groupId: string, utrRaw: string) {
   need(access.canMark)
   const group = await getGroupRow(groupId)
+  if (access.isGuarantor && group.guarantor_id !== access.guarantorId) throw new Error('No permission')
   if (!group.utr && !UTR_MODES.has(group.mode)) throw new PaymentError('This payment has no UTR')
   const ownFlagged = group.status === 'Flagged'
   const mine = group.marked_by === session.userId
@@ -448,6 +455,7 @@ export async function overrideGroup(session: Session, access: Access, groupId: s
 export async function discardGroup(session: Session, access: Access, groupId: string) {
   need(access.canMark)
   const group = await getGroupRow(groupId)
+  if (access.isGuarantor && group.guarantor_id !== access.guarantorId) throw new Error('No permission')
   if (group.status !== 'Flagged') throw new PaymentError('Only flagged payments can be discarded')
   if (!(access.canOverride || group.marked_by === session.userId)) throw new Error('No permission')
   await logEvent(groupId, 'discarded', session, { oldUtr: group.utr, reason: `Discarded flagged payment of ${group.total_amount}` })

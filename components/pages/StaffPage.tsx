@@ -98,6 +98,8 @@ export default function StaffPage({ session }: { session: Session }) {
     address: string
     status: string
     commissionEarned: number
+    branchId?: string
+    permissions?: string[]
   } | null>(null)
   const [editGuarantorLoading, setEditGuarantorLoading] = useState(false)
 
@@ -410,7 +412,8 @@ if (json.success) {
     phone: string
     commissionEarned: number
   }) {
-    // Close the role list modal first
+    // Remember which branch this guarantor was opened from, then close the role list modal
+    const fromBranchId = roleListOpen?.branchId || ''
     setRoleListOpen(null)
 
     // Fetch full guarantor details including userId for editing
@@ -427,8 +430,19 @@ if (json.success) {
       // Username lives on the user record, not the guarantor record
       const linkedUser = (json.data.staff || []).find((u: any) => u.userId === fullGuarantor.userId)
 
+      // Current extra permissions for this guarantor (Admin-only endpoint)
+      let perms: string[] = [], accessBranch = ''
+      try {
+        const ar = await fetch('/api/branches', { headers: { Authorization: `Bearer ${session.token}` } })
+        const aj = await ar.json()
+        const mine = aj?.data?.access?.find((a: any) => a.userId === fullGuarantor.userId)
+        perms = mine?.permissions || []; accessBranch = mine?.branchId || ''
+      } catch {}
+
       // Open the edit dialog with full guarantor data
       setEditingGuarantor({
+        branchId: accessBranch || fromBranchId,
+        permissions: perms,
         guarantorId: fullGuarantor.guarantorId,
         userId: fullGuarantor.userId,
         username: linkedUser?.username || '',
@@ -454,6 +468,8 @@ if (json.success) {
     address: string
     status: string
     password?: string
+    branchId?: string
+    permissions: string[]
   }) {
     setEditGuarantorLoading(true)
     try {
@@ -474,6 +490,20 @@ if (json.success) {
       })
       const json = await res.json()
       if (!json.success) throw new Error(json.error || 'Failed to update guarantor')
+
+      // Extra permissions live in staff_access (needs a branch)
+      const before = [...(editingGuarantor?.permissions || [])].sort().join(',')
+      const after = [...data.permissions].sort().join(',')
+      if (before !== after) {
+        if (!data.branchId) throw new Error('Open this guarantor from a branch to change permissions')
+        const pr = await fetch('/api/branches', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'setAccess', userId: data.userId, branchId: data.branchId, permissions: data.permissions }),
+        })
+        const pj = await pr.json()
+        if (!pj.success) throw new Error(pj.error || 'Could not save permissions')
+      }
 
       showToast('Guarantor updated successfully')
       setEditingGuarantor(null)

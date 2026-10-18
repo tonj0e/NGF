@@ -24,7 +24,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
         guarantors: access.isGuarantor ? [] : await listGuarantors(),
       })
     }
-    if (view === 'collect') { need(access.canMark); return ok(await collectSheet(sp.get('guarantorId') || '', date)) }
+    if (view === 'collect') { need(access.canMark); return ok(await collectSheet(access.isGuarantor ? access.guarantorId : (sp.get('guarantorId') || ''), date)) }
     if (view === 'utr') { need(access.canMark); return ok(await lookupUtr(sp.get('utr') || '', access)) }
     if (view === 'records') return ok(await records(access, sp.get('guarantorId') || '', date))
     if (view === 'bank') return ok(await bankReport(access))

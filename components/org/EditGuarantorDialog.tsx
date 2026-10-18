@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { APP_CONFIG } from '@/lib/config'
 
 interface GuarantorData {
   guarantorId: string
@@ -20,6 +21,8 @@ interface GuarantorData {
   address: string
   status: string
   commissionEarned: number
+  branchId?: string
+  permissions?: string[]
 }
 
 interface EditGuarantorDialogProps {
@@ -40,6 +43,8 @@ interface EditGuarantorData {
   address: string
   status: string
   password?: string
+  branchId?: string
+  permissions: string[]
 }
 
 export function EditGuarantorDialog({
@@ -60,6 +65,8 @@ export function EditGuarantorDialog({
         phone: guarantor.phone || '',
         address: guarantor.address || '',
         status: guarantor.status || 'Active',
+        branchId: guarantor.branchId || '',
+        permissions: guarantor.permissions || [],
       }
     }
     return {
@@ -71,6 +78,8 @@ export function EditGuarantorDialog({
       phone: '',
       address: '',
       status: 'Active',
+      branchId: '',
+      permissions: [],
     }
   })
 
@@ -85,6 +94,8 @@ export function EditGuarantorDialog({
         phone: guarantor.phone || '',
         address: guarantor.address || '',
         status: guarantor.status || 'Active',
+        branchId: guarantor.branchId || '',
+        permissions: guarantor.permissions || [],
       })
     }
   }, [guarantor])
@@ -266,6 +277,27 @@ export function EditGuarantorDialog({
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+          </div>
+
+          {/* Permissions */}
+          <div className="rounded-xl bg-gray-50 p-4 space-y-3">
+            <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+              <Shield className="h-4 w-4" />
+              Permissions
+            </h3>
+            <p className="text-xs text-gray-500">Switch on extra features for this guarantor. They only ever apply to this guarantor&apos;s own customers. The duplicate-UTR override and the bank-statement check are not available to guarantors.</p>
+            <div className="flex flex-wrap gap-2">
+              {APP_CONFIG.GUARANTOR_FEATURES.map(f => {
+                const on = formData.permissions.includes(f.key)
+                return (
+                  <button key={f.key} type="button" disabled={loading}
+                    onClick={() => setFormData(prev => ({ ...prev, permissions: on ? prev.permissions.filter(k => k !== f.key) : [...prev.permissions, f.key] }))}
+                    className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition border ${on ? 'bg-green-600 border-green-600 text-white' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100'}`}>
+                    {on ? '✓ ' : ''}{f.label}
+                  </button>
+                )
+              })}
             </div>
           </div>
 

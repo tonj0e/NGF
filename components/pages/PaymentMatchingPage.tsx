@@ -528,7 +528,7 @@ export default function PaymentMatchingPage({ session }: { session: Session }) {
       <div className={`${card} space-y-3`}>
         <div>
           <h2 className="text-lg font-bold">{me.access.isGuarantor ? 'UPI Payments' : 'Payment Matching'}</h2>
-          <p className="text-xs text-[#697586]">{me.access.isGuarantor ? 'See how each of your customers’ payments was received. View only.' : 'Mark UPI and cash payments by UTR. Each UTR can be used only once.'}</p>
+          <p className="text-xs text-[#697586]">{me.access.isGuarantor ? (me.access.canMark ? 'Mark your customers’ UPI and cash payments by UTR, and see how each payment was received.' : 'See how each of your customers’ payments was received. View only.') : 'Mark UPI and cash payments by UTR. Each UTR can be used only once.'}</p>
         </div>
         <div className="flex gap-2 overflow-x-auto">
           {tabs.map(([k, label]) => (
