@@ -192,7 +192,7 @@ export default function StaffPage({ session }: { session: Session }) {
         body: JSON.stringify(body),
       })
       const json = await res.json()
-      if (!json.success) throw new Error(json.error || isEditing ? 'Failed to update user' : 'Failed to create user')
+      if (!json.success) throw new Error(json.error || (isEditing ? 'Failed to update user' : 'Failed to create user'))
 
       showToast(isEditing ? 'User updated successfully' : 'User created successfully')
       setEditingUser(null)
