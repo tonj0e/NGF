@@ -160,9 +160,11 @@ export default function DevPage({ session }: { session: Session }) {
   const QR_ROLES = ['Guarantor', 'NGF AGENT', 'Staff']
   const [qrLogin, setQrLogin] = useState<Record<string, boolean>>({})
   const [deposit, setDeposit] = useState({ rate: 4, cycleDays: 122, principalWithdraw: false })
+  const [recovery, setRecovery] = useState({ testEmail: '', testUntil: '', testOn: false })
+  const [recMsg, setRecMsg] = useState('')
   useEffect(() => {
     fetch('/api/settings', { headers: { Authorization: `Bearer ${session.token}` } })
-      .then(r => r.json()).then(j => { if (j.success) { setQrLogin(j.data.qrLogin || {}); if (j.data.deposit) setDeposit(j.data.deposit) } }).catch(() => {})
+      .then(r => r.json()).then(j => { if (j.success) { setQrLogin(j.data.qrLogin || {}); if (j.data.deposit) setDeposit(j.data.deposit); if (j.data.recovery) setRecovery(j.data.recovery) } }).catch(() => {})
   }, [])
   // Verification route planning switches (global, server-side)
   const [routeCfg, setRouteCfg] = useState({ enabled: true, windows: true, googleReady: false })
@@ -183,6 +185,20 @@ export default function DevPage({ session }: { session: Session }) {
       method: 'POST', headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ key, value }),
     })
+  }
+  async function saveRecovery(on: boolean) {
+    setRecMsg('')
+    const email = recovery.testEmail.trim()
+    if (on && !/^\S+@\S+\.\S+$/.test(email)) { setRecMsg('Enter a valid email address first'); return }
+    const until = on ? new Date(Date.now() + 24 * 3600_000).toISOString() : ''
+    const post = (key: string, value: string) => fetch('/api/settings', {
+      method: 'POST', headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ key, value }),
+    }).then(r => r.json())
+    const a = await post('recovery:testEmail', email)
+    const b = await post('recovery:testUntil', until)
+    if (!a.success || !b.success) { setRecMsg(a.error || b.error || 'Could not save'); return }
+    setRecovery({ testEmail: email, testUntil: until, testOn: on })
+    setRecMsg(on ? 'On for 24 hours' : 'Off')
   }
   async function toggleQrLogin(role: string) {
     const next = !qrLogin[role]
@@ -856,6 +872,27 @@ export default function DevPage({ session }: { session: Session }) {
                 </button>
               </div>
             ))}
+          </div>
+
+          {/* Password recovery test mailbox */}
+          <div className="rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] px-5 py-4 space-y-3">
+            <div>
+              <p className="text-sm font-semibold">Recovery codes to one test mailbox</p>
+              <p className="mt-0.5 text-xs text-[#697586]">
+                Testing only. While on, every "Forgot password" code, for any user ID, is emailed to the address below instead of the user&apos;s own. It switches itself off after 24 hours. Turn it off when testing ends.
+              </p>
+            </div>
+            <input type="email" value={recovery.testEmail} onChange={e => setRecovery(p => ({ ...p, testEmail: e.target.value }))}
+              placeholder="your email address" data-no-upper
+              className="w-full rounded-xl border border-[#e5e7eb] bg-white px-3 py-2 text-sm outline-none focus:border-[#1a1a2e]" />
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-sm font-medium">{recovery.testOn ? `On until ${new Date(recovery.testUntil).toLocaleString()}` : 'Off'}</span>
+              <button type="button" role="switch" aria-checked={recovery.testOn} onClick={() => saveRecovery(!recovery.testOn)}
+                className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${recovery.testOn ? 'bg-green-600' : 'bg-[#d1d5db]'}`}>
+                <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${recovery.testOn ? 'left-6' : 'left-1'}`} />
+              </button>
+            </div>
+            {recMsg && <p className="text-xs text-[#697586]">{recMsg}</p>}
           </div>
 
           {/* Verification route planning */}

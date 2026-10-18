@@ -57,3 +57,6 @@ Dev tools → **User Password Reset**. `POST /api/dev/user-password-reset` retur
 
 ## Screen look (2026-10-18)
 The recovery pages sit on a white background with soft moving bands and a frosted-glass card (black text, black buttons). The code step has six digit boxes (paste and backspace work). While the code is checked the boxes gather and orbit; on success they merge into a green tick box, the title becomes "Verified Successfully" and the button turns green "Verified & Secured" before the new-password step. A wrong code shakes the boxes. Reduced-motion settings switch the orbit off. Code: `app/auth/forgot-password/page.tsx` (CSS in the `CSS` constant).
+
+## Test mailbox switch (2026-10-18)
+Dev → Testing → "Recovery codes to one test mailbox" (Admin only). While on, every recovery code for any user ID is emailed to the address saved there, whatever email the account has (even none or `.invalid`). Stored in `settings` keys `recovery:testEmail` and `recovery:testUntil`; it switches itself off 24 hours after being turned on, and changes are audited (`RECOVERY_TEST_SETTING_CHANGED`). The address is read from the database, never from the request. Turn it off and give every user their own email when testing ends (see memory note on the shared test email). Because dev and the live site share one database, the switch applies to both.

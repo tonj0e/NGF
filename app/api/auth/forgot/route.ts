@@ -6,6 +6,7 @@ import { validateBody, forgotPasswordSchema } from '@/lib/validation'
 import { createAuditLogger, extractClientInfo, AUDIT_ACTIONS } from '@/lib/audit'
 import { issueOtp, normalizeEmail, recordEmailResult, OTP_TTL_MS, OTP_RESEND_COOLDOWN_MS } from '@/lib/otp'
 import { sendOtpEmail } from '@/lib/email'
+import { readTable } from '@/lib/supabase-db'
 
 // Step 1 of recovery: request a one-time code by email.
 // The response is identical whether or not an account exists, and nothing here claims an email
@@ -49,8 +50,16 @@ export async function POST(req: NextRequest) {
       .eq('status', 'Active')
       .limit(2)
 
-    if (matches && matches.length === 1 && /^\S+@\S+\.\S+$/.test(normalizeEmail(matches[0].email || '')) && !/\.invalid$/i.test(normalizeEmail(matches[0].email || ''))) {
-      const user = matches[0]
+    // TESTING ONLY: an Admin can switch on "send every recovery code to one mailbox" in Dev settings (24 hours at a time).
+    // The address is read from the database, never from the request, so nobody can redirect a code themselves.
+    const settings = await readTable('Settings', { forceFresh: true })
+    const sv = (k: string) => String(settings.find(r => r['Key'] === k)?.['Value'] ?? '')
+    const usable = (e: string) => /^\S+@\S+\.\S+$/.test(e) && !/\.invalid$/i.test(e)
+    const testTo = normalizeEmail(sv('recovery:testEmail'))
+    const testOn = Date.parse(sv('recovery:testUntil')) > Date.now() && usable(testTo)
+    const sendTo = testOn ? testTo : normalizeEmail(matches?.[0]?.email || '')
+    if (matches && matches.length === 1 && usable(sendTo)) {
+      const user = { ...matches[0], email: sendTo }
       const { ipAddress } = extractClientInfo(req)
       const issued = await issueOtp(user.user_id, ipAddress)
       const audit = createAuditLogger(req, { userId: user.user_id, username: user.username, role: user.role })

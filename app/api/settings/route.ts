@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, requireRole, ok, err } from '@/lib/api'
 import { readTable, appendRow, updateById, findRecord, nowIso, invalidateCache } from '@/lib/supabase-db'
+import { createAuditLogger } from '@/lib/audit'
 
 const QR_LOGIN_ROLES = ['Guarantor', 'NGF AGENT', 'Staff']
 
@@ -27,13 +28,21 @@ export const GET = apiHandler(async (req: NextRequest) => {
     reports: val('agent:reports', '1') === '1',
     approvals: val('agent:approvals', '1') === '1',
   }
-  return ok({ qrLogin, deposit, agent })
+  // Testing switch: while on, every password-recovery code goes to this one mailbox (switches itself off at the end time)
+  const until = val('recovery:testUntil', '')
+  const recovery = { testEmail: val('recovery:testEmail', ''), testUntil: until, testOn: !!until && Date.parse(until) > Date.now() }
+  return ok({ qrLogin, deposit, agent, recovery })
 })
 
 export const POST = apiHandler(async (req: NextRequest) => {
-  await requireRole(req, ['Admin'])
+  const session = await requireRole(req, ['Admin'])
   const { key, value } = await req.json()
   if (!key) return err('key required')
+  if (key === 'recovery:testEmail' && value && !/^\S+@\S+\.\S+$/.test(String(value).trim())) return err('Enter a valid email address')
+  if (key === 'recovery:testUntil' && value && !(Date.parse(String(value)) > 0)) return err('Invalid end time')
+  if (String(key).startsWith('recovery:')) {
+    await createAuditLogger(req, session).log('RECOVERY_TEST_SETTING_CHANGED', 'Setting', String(key), { value: key === 'recovery:testEmail' ? '(email)' : String(value) })
+  }
   const rows = await readTable('Settings')
   const existing = findRecord(rows, 'Key', key)
   if (existing) {
