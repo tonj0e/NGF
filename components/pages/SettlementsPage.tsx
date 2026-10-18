@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Session } from '@/types'
 
 function currency(n: number) {
@@ -50,6 +50,7 @@ export default function SettlementsPage({ session }: { session: Session }) {
   const [summaries, setSummaries] = useState<CollectionSummary[]>([])
   const [settlements, setSettlements] = useState<Settlement[]>([])
   const [loading, setLoading] = useState(true)
+  const loadedOnce = useRef(false)
   const [openId, setOpenId] = useState<string | null>(null)
   const [detailSummary, setDetailSummary] = useState<CollectionSummary | null>(null)
   const [submitAmount, setSubmitAmount] = useState('')
@@ -217,7 +218,7 @@ export default function SettlementsPage({ session }: { session: Session }) {
   function showToast(m: string) { setToast(m); setTimeout(() => setToast(''), 3000) }
 
   async function loadToday() {
-    setLoading(true)
+    if (!loadedOnce.current) setLoading(true)
     const [repRes, stlRes, gRes] = await Promise.all([
       fetch(`/api/settlements/due?saturday=${saturday}`, { headers: { Authorization: `Bearer ${session.token}` } }),
       fetch(`/api/settlements?saturday=${saturday}`, { headers: { Authorization: `Bearer ${session.token}` } }),
@@ -284,6 +285,7 @@ export default function SettlementsPage({ session }: { session: Session }) {
     }
 
     setSummaries(Array.from(map.values()).filter(s => s.totalDue > 0 || s.unpaid > 0))
+    loadedOnce.current = true
     setLoading(false)
   }
 

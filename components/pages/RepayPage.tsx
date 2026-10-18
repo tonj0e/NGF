@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Session } from '@/types'
 import StatusPill from '@/components/ui/StatusPill'
 
@@ -18,16 +18,18 @@ async function fileToPayload(file: File): Promise<string> {
 export default function RepayPage({ session, mode }: { session: Session; mode: 'all' | 'today' | 'saturday' }) {
   const [rows, setRows] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const loadedFor = useRef<string | null>(null)
   const [toast, setToast] = useState('')
 
   function showToast(m: string) { setToast(m); setTimeout(() => setToast(''), 3000) }
 
   async function load() {
-    setLoading(true)
+    if (loadedFor.current !== mode) setLoading(true)
     const url = `/api/repayments?mode=${mode === 'all' ? '' : mode}`
     const res = await fetch(url, { headers: { Authorization: `Bearer ${session.token}` } })
     const json = await res.json()
     if (json.success) setRows(json.data.rows)
+    loadedFor.current = mode
     setLoading(false)
   }
 
@@ -54,7 +56,7 @@ export default function RepayPage({ session, mode }: { session: Session; mode: '
     } finally { if (btn) { btn.disabled = false; btn.textContent = 'Mark as paid' } }
   }
 
-  if (loading) return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" /></div>
+  if (loading && loadedFor.current !== mode) return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" /></div>
 
   return (
     <div className="space-y-4">

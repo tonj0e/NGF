@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Session } from '@/types'
 import { formatINR, formatDateIN } from '@/lib/format'
 
@@ -21,8 +21,9 @@ export default function PayoutRequestsPage({ session }: { session: Session }) {
     setTimeout(() => setToast(null), 3500)
   }
 
+  const loadedOnce = useRef(false)
   async function load() {
-    setLoading(true)
+    if (!loadedOnce.current) setLoading(true)
     setLoadError(null)
     try {
       const res = await fetch('/api/commissions/payout?all=1', { headers: { Authorization: `Bearer ${session.token}` } })
@@ -32,6 +33,7 @@ export default function PayoutRequestsPage({ session }: { session: Session }) {
     } catch (e: any) {
       setLoadError(e.message || 'Failed to load payout requests')
     } finally {
+      loadedOnce.current = true
       setLoading(false)
     }
   }
@@ -87,7 +89,7 @@ export default function PayoutRequestsPage({ session }: { session: Session }) {
     handleAction(rejectModal.payoutId, 'reject', rejectNotes)
   }
 
-  if (loading) return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" /></div>
+  if (loading && !loadedOnce.current) return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" /></div>
 
   const inRange = (p: any) => {
     const d = (p.requestedAt || '').slice(0, 10)

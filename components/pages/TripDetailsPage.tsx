@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useRef, useState, useMemo } from 'react'
 import { Session, AgentTrip } from '@/types'
 
 function currencyInr(n: number) {
@@ -27,11 +27,12 @@ function weekRangeLabel(weekIso: string): string {
 export default function TripDetailsPage({ session }: { session: Session }) {
   const [trips, setTrips] = useState<AgentTrip[]>([])
   const [loading, setLoading] = useState(true)
+  const loadedOnce = useRef(false)
   const [selectedWeek, setSelectedWeek] = useState<string>('')
   const [weeks, setWeeks] = useState<string[]>([])
 
   async function load() {
-    setLoading(true)
+    if (!loadedOnce.current) setLoading(true)
     try {
       const res = await fetch('/api/agent/trips', { headers: { Authorization: `Bearer ${session.token}` } })
       const json = await res.json()
@@ -46,6 +47,7 @@ export default function TripDetailsPage({ session }: { session: Session }) {
         }
       }
     } finally {
+      loadedOnce.current = true
       setLoading(false)
     }
   }
@@ -66,7 +68,7 @@ export default function TripDetailsPage({ session }: { session: Session }) {
     return { totalKm, totalTrips, totalAmount }
   }, [trips, selectedWeek])
 
-  if (loading) return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" /></div>
+  if (loading && !loadedOnce.current) return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" /></div>
 
   return (
     <div className="space-y-4">

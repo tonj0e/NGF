@@ -67,8 +67,7 @@ export default function LoansPage({ session, defaultFilter = 'active', customers
     if (json.success) {
       showToast(`Loan foreclosed. ${json.data.waivedWeeks} week(s) waived.`)
       setCloseModal(null)
-      // Reload
-      setLoading(true)
+      // Reload in place (keep old rows on screen)
       fetch(`/api/loans?filter=${defaultFilter}`, { headers: { Authorization: `Bearer ${session.token}` } })
         .then(r => r.json()).then(j => { if (j.success) setLoans(j.data.loans) }).finally(() => setLoading(false))
     } else showToast(json.error || 'Failed')
@@ -93,7 +92,6 @@ export default function LoansPage({ session, defaultFilter = 'active', customers
     if (json.success) {
       showToast(`Balance settled. ${json.data.settledWeeks} week(s) marked as paid.`)
       setCloseModal(null)
-      setLoading(true)
       fetch(`/api/loans?filter=${defaultFilter}`, { headers: { Authorization: `Bearer ${session.token}` } })
         .then(r => r.json()).then(j => { if (j.success) setLoans(j.data.loans) }).finally(() => setLoading(false))
     } else showToast(json.error || 'Failed')
@@ -118,7 +116,6 @@ export default function LoansPage({ session, defaultFilter = 'active', customers
     if (json.success) {
       showToast('Account closed.')
       setCloseModal(null)
-      setLoading(true)
       fetch(`/api/loans?filter=${defaultFilter}`, { headers: { Authorization: `Bearer ${session.token}` } })
         .then(r => r.json()).then(j => { if (j.success) setLoans(j.data.loans) }).finally(() => setLoading(false))
     } else showToast(json.error || 'Failed')

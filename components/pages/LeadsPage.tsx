@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useRef, useState, useMemo } from 'react'
 import { Session, Lead } from '@/types'
 import StatusPill from '@/components/ui/StatusPill'
 import DriveImage from '@/components/ui/DriveImage'
@@ -44,6 +44,7 @@ export default function LeadsPage({ session }: { session: Session }) {
   const isCollectionAgent = session.role === 'NGF AGENT'
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
+  const loadedOnce = useRef(false)
   const [tab, setTab] = useState<LeadTab>(isCollectionAgent ? 'history' : 'new')
   const [showSubmit, setShowSubmit] = useState(false)
   const [showRenewal, setShowRenewal] = useState(false)
@@ -90,7 +91,7 @@ export default function LeadsPage({ session }: { session: Session }) {
   }
 
   async function load(showLoading = true) {
-    if (showLoading) setLoading(true)
+    if (showLoading && !loadedOnce.current) setLoading(true)
     const res = await fetch('/api/leads', { headers: { Authorization: `Bearer ${session.token}` } })
     const json = await res.json()
     if (json.success) setLeads(json.data.rows)
@@ -102,6 +103,7 @@ export default function LeadsPage({ session }: { session: Session }) {
       const pj = await p.json()
       if (pj.success) setProducts(pj.data.products || [])
     }
+    loadedOnce.current = true
     if (showLoading) setLoading(false)
   }
 

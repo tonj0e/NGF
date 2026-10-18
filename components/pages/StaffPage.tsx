@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Session } from '@/types'
 import { motion } from 'framer-motion'
 import { Plus, Building2, User, Shield, RefreshCw } from 'lucide-react'
@@ -114,8 +114,9 @@ export default function StaffPage({ session }: { session: Session }) {
   const [branchActionsLoading, setBranchActionsLoading] = useState<Record<string, boolean>>({})
   const [userActionsLoading, setUserActionsLoading] = useState<Record<string, boolean>>({})
 
+  const loadedOnce = useRef(false)
   async function loadData() {
-    setLoading(true)
+    if (!loadedOnce.current) setLoading(true)
     setError(null)
     try {
       const res = await fetch('/api/branches/org-hierarchy', {
@@ -130,6 +131,7 @@ export default function StaffPage({ session }: { session: Session }) {
     } catch (err) {
       setError('Failed to load organization hierarchy')
     } finally {
+      loadedOnce.current = true
       setLoading(false)
     }
   }
@@ -536,7 +538,7 @@ if (json.success) {
     })
   }
 
-  if (loading) {
+  if (loading && !loadedOnce.current) {
     return (
       <div className="space-y-5 animate-pulse">
         <div className="rounded-[1.75rem] border border-white/70 bg-white p-5 h-40"></div>

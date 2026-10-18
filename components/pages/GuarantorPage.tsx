@@ -119,8 +119,9 @@ export default function GuarantorPage({ session }: { session: Session }) {
 
   function showToast(m: string) { setToast(m); setTimeout(() => setToast(''), 3000) }
 
+  const loadedOnce = useRef(false)
   function load() {
-    setLoading(true)
+    if (!loadedOnce.current) setLoading(true)
     Promise.all([
       fetch('/api/staff', { headers: { Authorization: `Bearer ${session.token}` } }).then(r => r.json()),
       fetch('/api/loans?filter=all', { headers: { Authorization: `Bearer ${session.token}` } }).then(r => r.json()),
@@ -133,12 +134,12 @@ export default function GuarantorPage({ session }: { session: Session }) {
       setLoans(lR.data?.loans || [])
       setSettlements(stR.data?.settlements || [])
       setCustomers(cR.data?.customers || [])
-    }).catch(() => showToast('Could not load guarantor data. Check your connection.')).finally(() => setLoading(false))
+    }).catch(() => showToast('Could not load guarantor data. Check your connection.')).finally(() => { loadedOnce.current = true; setLoading(false) })
   }
 
   useEffect(() => { load() }, [])
 
-  if (loading) return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" /></div>
+  if (loading && !loadedOnce.current) return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" /></div>
 
   // ── DETAIL VIEW ──
   if (selected) {

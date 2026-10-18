@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Session } from '@/types'
 import { APP_CONFIG } from '@/lib/config'
 import { Button } from '@/components/ui/button'
@@ -117,8 +117,43 @@ const MENUS: Record<string, { key: string; label: string }[]> = {
   ],
 }
 
+// Pages this role can open. The current page is kept in the address (#leads) so a browser refresh, or the back
+// button, returns to the same page instead of the first menu item. The server still checks every request.
+function roleViews(role: string): Set<string> {
+  return new Set([
+    ...(MENUS[role] || []).map(m => m.key),
+    ...(role === 'Staff' ? APP_CONFIG.STAFF_FEATURES.map(f => f.view).filter(Boolean) : []),
+    ...(role === 'NGF AGENT' || role === 'Guarantor' ? ['payments'] : []),
+    ...(role === 'Guarantor' ? ['myIdCard', 'myCustomers'] : []),
+    'notifications',
+  ] as string[])
+}
+function viewFromHash(role: string): string {
+  if (typeof window === 'undefined') return ''
+  try {
+    const key = decodeURIComponent(window.location.hash.slice(1))
+    return key && roleViews(role).has(key) ? key : ''
+  } catch { return '' }
+}
+
 export default function AppShell({ session, onLogout }: { session: Session; onLogout: () => void }) {
-  const [view, setView] = useState(session.role === 'Staff' ? 'notifications' : (MENUS[session.role]?.[0]?.key || 'dashboard'))
+  const defaultView = session.role === 'Staff' ? 'notifications' : (MENUS[session.role]?.[0]?.key || 'dashboard')
+  const restoredView = useRef(viewFromHash(session.role))
+  const [view, setViewState] = useState(restoredView.current || defaultView)
+  const setView = (key: string, replace = false) => {
+    setViewState(key)
+    try {
+      if (window.location.hash !== `#${key}`) window.history[replace ? 'replaceState' : 'pushState'](null, '', `#${key}`)
+    } catch {}
+  }
+  // the address always names the current page; the back and forward buttons move between pages
+  useEffect(() => {
+    try { if (window.location.hash !== `#${view}`) window.history.replaceState(null, '', `#${view}`) } catch {}
+    const onPop = () => setViewState(viewFromHash(session.role) || defaultView)
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const [mobileOpen, setMobileOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true)
   const [sidebarPinned, setSidebarPinned] = useState(false)
@@ -144,13 +179,15 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
           // pages an Admin switched off for this guarantor; the first allowed page opens
           if (perms.includes('pages:custom')) {
             const first = (MENUS.Guarantor || []).find(m => m.key === 'notifications' || perms.includes(`gp:${m.key}`) || (m.key === 'payments' && perms.includes('upiPayments')))
-            if (first && !(MENUS.Guarantor || []).some(m => m.key === 'dashboard' && perms.includes('gp:dashboard'))) setView(first.key)
+            if (first && !restoredView.current && !(MENUS.Guarantor || []).some(m => m.key === 'dashboard' && perms.includes('gp:dashboard'))) setView(first.key, true)
           }
           return
         }
         if (session.role !== 'Staff') return
+        const allowed = ['notifications', ...APP_CONFIG.STAFF_FEATURES.filter(f => f.view && perms.includes(f.key)).map(f => f.view)]
+        if (restoredView.current && allowed.includes(restoredView.current)) return
         const first = APP_CONFIG.STAFF_FEATURES.find(f => f.view && perms.includes(f.key))
-        setView(first ? first.view : 'notifications')
+        setView(first ? first.view : 'notifications', true)
       })
       .catch(() => {})
   }, [])

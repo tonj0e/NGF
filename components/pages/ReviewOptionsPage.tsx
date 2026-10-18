@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Session } from '@/types'
 
 type Option = { 'Option ID': string; 'Label': string; 'Category': string; 'Created At': string }
@@ -124,17 +124,19 @@ export default function ReviewOptionsPage({ session }: { session: Session }) {
 
   function showToast(m: string) { setToast(m); setTimeout(() => setToast(''), 3000) }
 
+  const loadedOnce = useRef(false)
   async function load() {
-    setLoading(true)
+    if (!loadedOnce.current) setLoading(true)
     const res = await fetch('/api/review-options', { headers: { Authorization: `Bearer ${session.token}` } })
     const json = await res.json()
     if (json.success) setOptions(json.data.options)
+    loadedOnce.current = true
     setLoading(false)
   }
 
   useEffect(() => { load() }, [])
 
-  if (loading) return (
+  if (loading && !loadedOnce.current) return (
     <div className="flex h-40 items-center justify-center">
       <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" />
     </div>

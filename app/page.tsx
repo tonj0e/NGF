@@ -184,12 +184,25 @@ export default function Home() {
   const onLogout = () => {
     localStorage.removeItem('ngf_token')
     localStorage.removeItem('ngf_qrtrust')
+    try { window.history.replaceState(null, '', window.location.pathname) } catch {}
     setSession(null)
   }
 
+  // While the saved login is checked, show the app's own frame (bar, header, cards) instead of a blank white page
   if (loading) return (
-    <div className="flex h-screen items-center justify-center">
-      <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" />
+    <div className="flex h-screen bg-[#f4f5f7]" aria-busy="true" aria-label="Loading">
+      <div className="hidden w-14 shrink-0 flex-col items-center gap-4 border-r border-[#e5e7eb] bg-white py-5 sm:flex">
+        {[0, 1, 2, 3, 4, 5].map(i => <div key={i} className="h-7 w-7 animate-pulse rounded-lg bg-[#e8eaf0]" />)}
+      </div>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex h-16 items-center justify-between border-b border-[#e5e7eb] bg-white px-5">
+          <div className="h-5 w-36 animate-pulse rounded bg-[#e8eaf0]" />
+          <div className="h-8 w-8 animate-pulse rounded-full bg-[#e8eaf0]" />
+        </div>
+        <div className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
+          {[0, 1, 2].map(i => <div key={i} className="h-28 animate-pulse rounded-2xl bg-white" />)}
+        </div>
+      </div>
     </div>
   )
 
