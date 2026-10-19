@@ -16,7 +16,7 @@ tags: [ngf, field-and-org, storage, drive, supabase]
 | Supabase bucket `customer-docs` | Only Drive-to-Supabase migrations | `app/api/dev/migrate-images` |
 | Supabase bucket `profiles` | Nothing in normal use | `app/api/profile/route.ts:77` (unused path) |
 - Code: `lib/drive.ts` (Drive + wrappers), `lib/supabase.ts` (buckets, upload, download, URL helpers), `app/api/drive/**`, `components/ui/DriveImage.tsx`.
-- Drive folders: `NGF-<guarantorCode>/<customerName>` (`lib/drive.ts:69`). File name: `<prefix>_<fileName>` e.g. `aadhaar_front_aadhaar_front_lead.jpg`. Stored value is `https://drive.google.com/open?id=<id>`.
+- Drive folders (changed 2026-10-19): `NGF-<guarantorCode>/<customerName> - <code>/`, files `<customerName> - <code> - <type>.<ext>` (types: customer, aadhaar_front, aadhaar_back, house, landmark, cheque). `<code>` is the lead ID while the lead is open and the 4-digit loan code (GBN-7425 -> 7425) once approved: `renameLeadDocs` renames the folder and files at approval (best effort; file IDs and saved links do not change). Imported customers get the loan code straight away. A new upload of the same type replaces the file in place. Saved value is `https://drive.google.com/open?id=<id>`. Code: `docLabel`, `getLeadDocFolder`, `renameLeadDocs`, `uploadLeadPhoto` in `lib/drive.ts`.
 - Supabase names: customer docs `NGF-<code>/<Customer_Name>/<prefix>.<ext>`; proofs `<loanId>/<timestamp>_<fileName>`; profiles `<userId>/profile.<type>`. Stored value is `/api/drive/supabase:<bucket>/<path>` (`lib/supabase.ts:61`).
 - Limits: the server checks no file size and no file type. Uploads are base64 in JSON bodies, `upsert: true`, so the same path is overwritten. Only host limits apply.
 
@@ -35,7 +35,7 @@ Drive OAuth helper: Dev, "Refresh token" tab opens `/api/drive/auth` (redirect t
 - Known issue: Supabase-stored files cannot be fetched with a slash in the path. The route is a single segment `[fileId]`, but identifiers look like `supabase:payment-proofs/<loan>/<file>`. Next will not match that URL, so it returns 404 (static route analysis; payment-proof and migrated customer-docs URLs are affected).
 - Known issue: `/api/drive/auth` and `/api/drive/callback` need no login (`auth/route.ts:4`, `callback/route.ts:4`). The callback sends the refresh token to the opener with target origin `*` (`callback/route.ts:41`). Needs a valid Google code, but the token reaches whoever opened the window.
 - Any signed-in user, including a Guarantor, can fetch any Drive id or bucket path they know. See [[Open Security Leads]].
-- Customer-docs paths use the customer name, so two customers with the same name under one guarantor overwrite each other's photos (`upsert: true`).
+- Supabase customer-docs paths (`getOrCreateFolderSupabase`) still use the customer name only, so same-name customers could overwrite each other there. Drive folders no longer have this problem. Nothing in the app currently writes customer photos to that bucket.
 - `getOrCreateFolder` builds a Drive query by string concatenation of the customer name (`lib/drive.ts:16`). A quote in a name breaks the query.
 - Dev migration routes copy old Drive files into Supabase; they currently fail to update the row. See [[Dev and Admin Tools]].
 

@@ -70,10 +70,42 @@ export function driveUrl(fileId: string): string {
   return `https://drive.google.com/open?id=${fileId}`
 }
 
-export async function getLeadDocFolder(guarantorCode: string, customerName: string): Promise<string> {
+// Folder and file names carry the customer's name plus a unique code, so two customers with the same name never share
+// a folder: the lead ID while the lead is open, the 4-digit loan code (GBN-7425 -> 7425) once the loan exists.
+export function docLabel(customerName: string, code: string): string {
+  const name = String(customerName || 'Customer').replace(/[\\/:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim() || 'Customer'
+  return code ? `${name} - ${code}` : name
+}
+
+export async function getLeadDocFolder(guarantorCode: string, customerName: string, code = ''): Promise<string> {
   const root = APP_CONFIG.PHOTO_ROOT_FOLDER_ID
   const gcodeFolder = await getOrCreateFolder(root, `NGF-${guarantorCode}`)
-  return getOrCreateFolder(gcodeFolder, customerName)
+  return getOrCreateFolder(gcodeFolder, docLabel(customerName, code))
+}
+
+const DOC_TYPES = ['aadhaar_front', 'aadhaar_back', 'customer', 'house', 'landmark', 'cheque']
+
+// When the loan code is known, rename the customer's folder and its files from "<name> - <lead id>" to "<name> - <code>".
+// A rename keeps each file's ID, so the links saved on the lead keep working. Best effort: never blocks an approval.
+export async function renameLeadDocs(folderId: string, customerName: string, code: string): Promise<void> {
+  if (!folderId || !code) return
+  try {
+    const drive = getOAuthDriveClient()
+    const label = docLabel(customerName, code)
+    await drive.files.update({ fileId: folderId, requestBody: { name: label }, fields: 'id', supportsAllDrives: true })
+    // listFolderFiles is oldest first, so for a type uploaded twice only the newest file is renamed; older copies keep their name
+    const newest = new Map<string, { id?: string | null; name?: string | null }>()
+    for (const f of await listFolderFiles(folderId)) {
+      const base = (f.name || '').split(' - ').pop() || ''
+      const type = DOC_TYPES.find(t => base.includes(t))
+      if (type) newest.set(type, f)
+    }
+    for (const [type, f] of newest) {
+      const ext = /(\.[A-Za-z0-9]+)$/.exec(f.name || '')?.[1] || ''
+      const next = `${label} - ${type}${ext}`
+      if (next !== f.name) await drive.files.update({ fileId: f.id!, requestBody: { name: next }, fields: 'id', supportsAllDrives: true })
+    }
+  } catch (e) { console.error('Could not rename customer documents:', e instanceof Error ? e.message : e) }
 }
 
 const ONE_MB = 1024 * 1024
@@ -97,12 +129,13 @@ async function fitUnderOneMb(buf: Buffer, mime: string): Promise<{ buf: Buffer; 
 
 // One file per document type in the customer's folder (aadhaar_front.jpg, house.jpg ...). A new upload of the same
 // type replaces the old one in place, so the link already saved on the lead keeps working.
-export async function uploadLeadPhoto(folderId: string, prefix: string, file: FilePayload): Promise<string> {
+export async function uploadLeadPhoto(folderId: string, prefix: string, file: FilePayload, label = ''): Promise<string> {
   if (!/^(image\/(jpe?g|png|webp|gif|heic|heif)|application\/pdf)$/.test(file.mimeType)) throw new Error('Only images and PDF files are allowed')
   if (file.base64Data.length > 11_000_000 * 3) throw new Error('File is too large')
   const raw = Buffer.from(file.base64Data.replace(/^data:[^;]+;base64,/, ''), 'base64')
   const { buf, mime } = await fitUnderOneMb(raw, file.mimeType)
-  const name = `${prefix.replace(/[^a-zA-Z0-9_-]/g, '_')}.${EXT[mime] || 'jpg'}`
+  const type = prefix.replace(/[^a-zA-Z0-9_-]/g, '_')
+  const name = `${label ? `${label} - ` : ''}${type}.${EXT[mime] || 'jpg'}`
 
   const drive = getOAuthDriveClient()
   const safeName = name.replace(/\\/g, '\\\\').replace(/'/g, "\\'")

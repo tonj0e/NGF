@@ -1,10 +1,11 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, requireRole, ok, err, getSession } from '@/lib/api'
 import { readTable, updateById, appendRow, deleteRow, findRecord, makeId, nowIso, formatDateYmd, addDays, getNextSaturday, deleteById, invalidateCache } from '@/lib/supabase-db'
-import { uploadLeadPhoto, listFolderFiles, driveUrl, getLeadDocFolder } from '@/lib/drive'
+import { uploadLeadPhoto, listFolderFiles, driveUrl, getLeadDocFolder, docLabel, renameLeadDocs } from '@/lib/drive'
 import { notifyUser, notifyRole } from '@/lib/notifications'
 import { validateBody, submitVerificationSchema, adminReviewSchema, assignAgentSchema, updateLeadSchema, tripSchema } from '@/lib/validation'
 import { FilePayload } from '@/types'
+import { payCodeFromLoanId } from '@/lib/payCode'
 import { csrfProtection } from '@/lib/csrf'
 
 function toPayload(b64: string, filename: string): FilePayload {
@@ -110,19 +111,19 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
       const guarantors = await readTable('Guarantors')
       const g = guarantors.find(g => g['Guarantor ID'] === lead['Guarantor ID'])
       const guarantorCode = g?.['Code'] || 'NGF'
-      folderId = await getLeadDocFolder(guarantorCode, lead['Customer Name'])
+      folderId = await getLeadDocFolder(guarantorCode, lead['Customer Name'], leadId)
       await updateById('Leads', leadId, { 'Document Folder ID': folderId, 'Updated At': nowIso() })
       invalidateCache('Leads')
     }
 
     // Upload photos with error handling
     try {
-      if (body.customerPhoto) customerPhotoUrl = await uploadLeadPhoto(folderId, 'customer', toPayload(body.customerPhoto, 'customer_lead.jpg'))
-      if (body.housePhoto) housePhotoUrl = await uploadLeadPhoto(folderId, 'house', toPayload(body.housePhoto, 'house_lead.jpg'))
-      if (body.landmarkPhoto) landmarkPhotoUrl = await uploadLeadPhoto(folderId, 'landmark', toPayload(body.landmarkPhoto, 'landmark_lead.jpg'))
-      if (body.chequePhoto) chequePhotoUrl = await uploadLeadPhoto(folderId, 'cheque', toPayload(body.chequePhoto, 'cheque_lead.jpg'))
-      if (body.aadhaarFront) aadhaarFrontUrl = await uploadLeadPhoto(folderId, 'aadhaar_front', toPayload(body.aadhaarFront, 'aadhaar_front_lead.jpg'))
-      if (body.aadhaarBack) aadhaarBackUrl = await uploadLeadPhoto(folderId, 'aadhaar_back', toPayload(body.aadhaarBack, 'aadhaar_back_lead.jpg'))
+      if (body.customerPhoto) customerPhotoUrl = await uploadLeadPhoto(folderId, 'customer', toPayload(body.customerPhoto, 'customer_lead.jpg'), docLabel(lead['Customer Name'], leadId))
+      if (body.housePhoto) housePhotoUrl = await uploadLeadPhoto(folderId, 'house', toPayload(body.housePhoto, 'house_lead.jpg'), docLabel(lead['Customer Name'], leadId))
+      if (body.landmarkPhoto) landmarkPhotoUrl = await uploadLeadPhoto(folderId, 'landmark', toPayload(body.landmarkPhoto, 'landmark_lead.jpg'), docLabel(lead['Customer Name'], leadId))
+      if (body.chequePhoto) chequePhotoUrl = await uploadLeadPhoto(folderId, 'cheque', toPayload(body.chequePhoto, 'cheque_lead.jpg'), docLabel(lead['Customer Name'], leadId))
+      if (body.aadhaarFront) aadhaarFrontUrl = await uploadLeadPhoto(folderId, 'aadhaar_front', toPayload(body.aadhaarFront, 'aadhaar_front_lead.jpg'), docLabel(lead['Customer Name'], leadId))
+      if (body.aadhaarBack) aadhaarBackUrl = await uploadLeadPhoto(folderId, 'aadhaar_back', toPayload(body.aadhaarBack, 'aadhaar_back_lead.jpg'), docLabel(lead['Customer Name'], leadId))
     } catch (uploadError) {
       console.error('submitVerification: Photo upload failed:', uploadError)
       return err(`Photo upload failed: ${uploadError instanceof Error ? uploadError.message : 'Unknown error'}`)
@@ -332,6 +333,8 @@ async function approveLoan(lead: Record<string, string>, guarantors: Record<stri
 
   // Generate loanId and dates for both new and existing customers
   const loanId = await makeLoanId(guarantorCode)
+  // the customer's Drive folder and photos switch from the lead ID to the 4-digit loan code
+  await renameLeadDocs(lead['Document Folder ID'], lead['Customer Name'], payCodeFromLoanId(loanId))
   const startDate = getNextSaturday()
   const endDate = addDays(startDate, (product.durationWeeks - 1) * 7)
 

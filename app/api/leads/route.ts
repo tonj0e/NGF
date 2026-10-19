@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, getSession, requireRole, ok, err } from '@/lib/api'
 import { readTable, appendRow, findRecord, makeId, nowIso, paginate } from '@/lib/supabase-db'
-import { getLeadDocFolder, uploadLeadPhoto } from '@/lib/drive'
+import { getLeadDocFolder, uploadLeadPhoto, docLabel } from '@/lib/drive'
 import { notifyRole, notifyUser } from '@/lib/notifications'
 import { validateBody, createLeadSchema } from '@/lib/validation'
 import { createAuditLogger, AUDIT_ACTIONS } from '@/lib/audit'
@@ -124,19 +124,19 @@ export const POST = apiHandler(async (req: NextRequest) => {
 
   try {
     if (body.customerPhoto || body.aadhaarFront || body.aadhaarBack || body.landmarkPhoto || body.housePhoto || body.chequePhoto) {
-      folderId = await getLeadDocFolder(guarantorCode, body.customerName)
+      folderId = await getLeadDocFolder(guarantorCode, body.customerName, leadId)
     }
     function toPayload(b64: string, filename: string) {
       const [header, data] = b64.split(',')
       const mimeType = header.match(/:(.*?);/)?.[1] || 'image/jpeg'
       return { fileName: filename, mimeType, base64Data: data }
     }
-    if (body.customerPhoto) customerPhotoUrl = await uploadLeadPhoto(folderId, 'customer', toPayload(body.customerPhoto, 'customer_lead.jpg'))
-    if (body.aadhaarFront) aadhaarFrontUrl = await uploadLeadPhoto(folderId, 'aadhaar_front', toPayload(body.aadhaarFront, 'aadhaar_front_lead.jpg'))
-    if (body.aadhaarBack) aadhaarBackUrl = await uploadLeadPhoto(folderId, 'aadhaar_back', toPayload(body.aadhaarBack, 'aadhaar_back_lead.jpg'))
-    if (body.landmarkPhoto) landmarkPhotoUrl = await uploadLeadPhoto(folderId, 'landmark', toPayload(body.landmarkPhoto, 'landmark_lead.jpg'))
-    if (body.housePhoto) housePhotoUrl = await uploadLeadPhoto(folderId, 'house', toPayload(body.housePhoto, 'house_lead.jpg'))
-    if (body.chequePhoto) chequePhotoUrl = await uploadLeadPhoto(folderId, 'cheque', toPayload(body.chequePhoto, 'cheque_lead.jpg'))
+    if (body.customerPhoto) customerPhotoUrl = await uploadLeadPhoto(folderId, 'customer', toPayload(body.customerPhoto, 'customer_lead.jpg'), docLabel(body.customerName, leadId))
+    if (body.aadhaarFront) aadhaarFrontUrl = await uploadLeadPhoto(folderId, 'aadhaar_front', toPayload(body.aadhaarFront, 'aadhaar_front_lead.jpg'), docLabel(body.customerName, leadId))
+    if (body.aadhaarBack) aadhaarBackUrl = await uploadLeadPhoto(folderId, 'aadhaar_back', toPayload(body.aadhaarBack, 'aadhaar_back_lead.jpg'), docLabel(body.customerName, leadId))
+    if (body.landmarkPhoto) landmarkPhotoUrl = await uploadLeadPhoto(folderId, 'landmark', toPayload(body.landmarkPhoto, 'landmark_lead.jpg'), docLabel(body.customerName, leadId))
+    if (body.housePhoto) housePhotoUrl = await uploadLeadPhoto(folderId, 'house', toPayload(body.housePhoto, 'house_lead.jpg'), docLabel(body.customerName, leadId))
+    if (body.chequePhoto) chequePhotoUrl = await uploadLeadPhoto(folderId, 'cheque', toPayload(body.chequePhoto, 'cheque_lead.jpg'), docLabel(body.customerName, leadId))
   } catch (e) {
     // Drive upload failed — continue without photos, can be added later
   }

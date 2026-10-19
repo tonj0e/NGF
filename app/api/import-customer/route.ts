@@ -2,7 +2,8 @@ import { NextRequest } from 'next/server'
 import { apiHandler, requireRole, ok, err } from '@/lib/api'
 import { readTable, appendRow, updateById, findRecord, makeId, nowIso, formatDateYmd, invalidateCache } from '@/lib/supabase-db'
 import { APP_CONFIG } from '@/lib/config'
-import { getLeadDocFolder, uploadLeadPhoto } from '@/lib/drive'
+import { getLeadDocFolder, uploadLeadPhoto, docLabel } from '@/lib/drive'
+import { payCodeFromLoanId } from '@/lib/payCode'
 
 async function makeLoanId(guarantorCode: string): Promise<string> {
   const loans = await readTable('Loans')
@@ -80,18 +81,20 @@ export const POST = apiHandler(async (req: NextRequest) => {
   let housePhotoUrl = '', landmarkPhotoUrl = '', chequePhotoUrl = ''
 
   if (customerPhoto || aadhaarFront || aadhaarBack || housePhoto || landmarkPhoto || chequePhoto) {
-    const folderId = await getLeadDocFolder(guarantorCode, name)
+    const code = payCodeFromLoanId(loanId)
+    const folderId = await getLeadDocFolder(guarantorCode, name, code)
+    const label = docLabel(name, code)
     const toFilePayload = (b64: string, filename: string) => {
       const [header, data] = b64.split(',')
       const mimeType = header.match(/:(.*?);/)?.[1] || 'image/jpeg'
       return { fileName: filename, mimeType, base64Data: data }
     }
-    if (customerPhoto) customerPhotoUrl = await uploadLeadPhoto(folderId, 'customer', toFilePayload(customerPhoto, 'customer_import.jpg'))
-    if (aadhaarFront)  aadhaarFrontUrl  = await uploadLeadPhoto(folderId, 'aadhaar_front', toFilePayload(aadhaarFront, 'aadhaar_front_import.jpg'))
-    if (aadhaarBack)   aadhaarBackUrl   = await uploadLeadPhoto(folderId, 'aadhaar_back', toFilePayload(aadhaarBack, 'aadhaar_back_import.jpg'))
-    if (housePhoto)    housePhotoUrl    = await uploadLeadPhoto(folderId, 'house', toFilePayload(housePhoto, 'house_import.jpg'))
-    if (landmarkPhoto) landmarkPhotoUrl = await uploadLeadPhoto(folderId, 'landmark', toFilePayload(landmarkPhoto, 'landmark_import.jpg'))
-    if (chequePhoto)   chequePhotoUrl   = await uploadLeadPhoto(folderId, 'cheque', toFilePayload(chequePhoto, 'cheque_import.jpg'))
+    if (customerPhoto) customerPhotoUrl = await uploadLeadPhoto(folderId, 'customer', toFilePayload(customerPhoto, 'customer_import.jpg'), label)
+    if (aadhaarFront)  aadhaarFrontUrl  = await uploadLeadPhoto(folderId, 'aadhaar_front', toFilePayload(aadhaarFront, 'aadhaar_front_import.jpg'), label)
+    if (aadhaarBack)   aadhaarBackUrl   = await uploadLeadPhoto(folderId, 'aadhaar_back', toFilePayload(aadhaarBack, 'aadhaar_back_import.jpg'), label)
+    if (housePhoto)    housePhotoUrl    = await uploadLeadPhoto(folderId, 'house', toFilePayload(housePhoto, 'house_import.jpg'), label)
+    if (landmarkPhoto) landmarkPhotoUrl = await uploadLeadPhoto(folderId, 'landmark', toFilePayload(landmarkPhoto, 'landmark_import.jpg'), label)
+    if (chequePhoto)   chequePhotoUrl   = await uploadLeadPhoto(folderId, 'cheque', toFilePayload(chequePhoto, 'cheque_import.jpg'), label)
   }
 
   // Create Lead row to store nominee + aadhaar + photo URLs

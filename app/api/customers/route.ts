@@ -120,15 +120,18 @@ export const PATCH = apiHandler(async (req: NextRequest) => {
       const loan = loans.find((l: any) => l['Loan ID'] === customer['Active Loan ID'] || l['Customer ID'] === customerId)
       const guarantorId = customer['Guarantor ID'] || loan?.['Guarantor ID'] || lead?.['Guarantor ID'] || ''
       const g = guarantors.find((g: any) => g['Guarantor ID'] === guarantorId)
-      const { getLeadDocFolder, uploadLeadPhoto } = await import('@/lib/drive')
-      const folderId = await getLeadDocFolder(g?.['Code'] || 'NGF', customer['Name'])
+      const { getLeadDocFolder, uploadLeadPhoto, docLabel } = await import('@/lib/drive')
+      const { payCodeFromLoanId } = await import('@/lib/payCode')
+      const code = payCodeFromLoanId(loan?.['Loan ID'] || customer['Active Loan ID'])
+      const folderId = lead['Document Folder ID'] || await getLeadDocFolder(g?.['Code'] || 'NGF', customer['Name'], code)
+      const label = docLabel(customer['Name'], code)
       const leadUpdates: Record<string, string> = {}
       for (const [bodyKey, colName] of imageKeys) {
         if (body[bodyKey]) {
           const b64 = body[bodyKey] as string
           const mimeType = b64.match(/data:(.*?);/)?.[1] || 'image/jpeg'
           const base64Data = b64.includes(',') ? b64.split(',')[1] : b64
-          leadUpdates[colName] = await uploadLeadPhoto(folderId, bodyKey, { fileName: `${bodyKey}.jpg`, mimeType, base64Data })
+          leadUpdates[colName] = await uploadLeadPhoto(folderId, bodyKey, { fileName: `${bodyKey}.jpg`, mimeType, base64Data }, label)
         }
       }
       if (Object.keys(leadUpdates).length > 0) {
