@@ -71,7 +71,7 @@
     "pg": "^8.23.0",
     "playwright": "^1.64.1",
     "supabase": "^2.116.0",
-    "typescript": "^5"
+    "typescript": "^7"
   },
   "allowScripts": {
     "bcrypt@6.0.0": true
