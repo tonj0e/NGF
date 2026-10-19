@@ -51,6 +51,7 @@
     "recharts": "^3.10.1",
     "tailwind-merge": "^3.7.0",
     "tailwindcss": "^4",
+    "three": "^0.170.0",
     "uuid": "^14.0.0",
     "zod": "^4.6.5"
   },
@@ -62,6 +63,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/three": "^0.170.0",
     "@types/uuid": "^10.0.0",
     "dotenv": "^17.4.2",
     "eslint": "^9",

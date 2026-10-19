@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel } from '@/components/ui/dropdown-menu'
 import { Sheet, SheetContent, SheetClose } from '@/components/ui/sheet'
-import { Menu, X, Bell, User, LogOut, LayoutDashboard, Users, FileText, Truck, BarChart3, LandPlot, Upload, CreditCard, Settings, Shield, MessageSquare, MapPin, ClipboardList, Wallet, History, Sparkles, HelpCircle, ChevronLeft, ChevronRight, DollarSign, Coins, Banknote, Pin, PinOff, PieChart, TrendingUp, Route as RouteIcon, Navigation } from 'lucide-react'
+import { Menu, X, Bell, User, LogOut, LayoutDashboard, Users, FileText, Truck, BarChart3, LandPlot, Upload, CreditCard, Settings, Shield, MessageSquare, MapPin, ClipboardList, Wallet, History, Sparkles, HelpCircle, ChevronLeft, ChevronRight, DollarSign, Coins, Banknote, Pin, PinOff, PieChart, TrendingUp, Route as RouteIcon, Navigation, Building2 } from 'lucide-react'
 import Dashboard from './pages/Dashboard'
 import LeadsPage from './pages/LeadsPage'
 import StaffPage from './pages/StaffPage'
@@ -37,6 +37,7 @@ import MyIdCardPage from './pages/MyIdCardPage'
 import DepositsPage from './pages/DepositsPage'
 import AgentLocationPage from './pages/AgentLocationPage'
 import AgentTrackingPage from './pages/AgentTrackingPage'
+import BranchTownPage from './pages/BranchTownPage'
 
 function MenuIcon({ name }: { name: string }) {
   const icons: Record<string, React.ElementType> = {
@@ -49,6 +50,7 @@ function MenuIcon({ name }: { name: string }) {
     importCustomer: Upload,
     payoutRequests: CreditCard,
     staff: Settings,
+    town: Building2,
     guarantors: Shield,
     reviewOptions: ClipboardList,
     notifications: Bell,
@@ -85,6 +87,7 @@ const MENUS: Record<string, { key: string; label: string }[]> = {
     { key: 'importCustomer', label: 'Import Customer' },
     { key: 'payoutRequests', label: 'Payout Requests' },
     { key: 'staff',          label: 'NGF Branches' },
+    { key: 'town',           label: 'Branch Town' },
     { key: 'guarantors',     label: 'Guarantors' },
     { key: 'reviewOptions',  label: 'Review Options' },
     { key: 'notifications',  label: 'Notifications' },
@@ -248,6 +251,7 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
       case 'collections':  return <CollectionsPage session={session} />
       case 'reports':      return <ReportsPage session={session} />
       case 'staff':        return <StaffPage session={session} />
+      case 'town':         return session.role === 'Admin' ? <BranchTownPage session={session} /> : null
       case 'verifications': return <VerificationsPage session={session} />
       case 'tripDetails': return <TripDetailsPage session={session} />
       case 'commissions':  return <CommissionsPage session={session} />

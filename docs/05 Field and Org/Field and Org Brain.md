@@ -38,6 +38,7 @@ Purpose: explain who belongs where, how field agents are tracked, and how files 
 
 ## Update this section when
 - `app/api/branches/**`, `app/api/staff/**`, `components/org/*` or `StaffPage.tsx` change.
+- `BranchTownPage.tsx` or `components/town/*` change ([[Branch Town]]).
 - Any `app/api/agent/**` route, `AgentTrackingPage`, `AgentLocationPage`, `TripDetailsPage` or the gate in `app/page.tsx` changes.
 - `lib/notifications.ts` gets a new caller, or the bell is wired to real data.
 - `lib/idCard.ts`, `app/api/profile/route.ts` or the QR payload changes.
