@@ -67,7 +67,7 @@ export function AddBranchDialog({ open, onClose, onSubmit, loading }: AddBranchD
               id="branchName"
               value={name}
               onChange={e => setName(e.target.value)}
-              placeholder="e.g., NGF Main Branch, Chammanad Branch"
+              placeholder="e.g., NGF HQ, Chammanad Branch"
               className="w-full"
               autoFocus
               disabled={loading}
