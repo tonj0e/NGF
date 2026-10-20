@@ -14,6 +14,7 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     ".next*/**",
     "docs/**",
+    "mcp/**",
     ".playwright-mcp/**",
     ".opencode/**",
   ]),

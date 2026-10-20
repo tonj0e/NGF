@@ -1,17 +1,17 @@
 ---
 title: MCP Plan
 section: Runbook
-status: planned
+status: current
 last_verified: 2026-10-20
 tags: [ngf, mcp, claude, admin, plan]
 ---
 # MCP Plan
-**One line: a stdio MCP server (`mcp/`) that lets Claude operate the CRM as an Admin through the CRM's own API. Designed 2026-10-20; NOT built, because the auto-mode safety classifier blocked the file writes (see Status).**
+**One line: a stdio MCP server (`mcp/server.mjs`, no dependencies) that lets Claude operate the CRM as an Admin through the CRM's own API. Built 2026-10-20 (reads + approval-gated writes).**
 
 ## Status
-- Owner asked for an MCP with admin-level access to everything (any manager, any account).
-- Claude Code's auto-mode classifier denied: `npm install` of the MCP SDK, then writing `mcp/server.mjs` twice (full read+write version: reason "Create Unsafe Agents"; read-only version: "dangerous", no reason). Nothing was created and nothing was worked around.
-- To proceed the owner must allow it: add a permission rule for `Edit`/`Write` on `mcp/**` (and `Bash` for `npm install` in `mcp/`) in Claude Code settings, or approve the action when asked, then tell Claude to resume.
+- Built after the owner added `Write(mcp/**)` and `Edit(mcp/**)` to `.claude/settings.local.json` (the auto-mode classifier had blocked the first attempts). Files: `mcp/server.mjs`, `mcp/selftest.mjs`, `mcp/README.md`, `mcp/.env.example`, `.mcp.json`. `/mcp/.env` and `/mcp/audit.log` are gitignored; `mcp/**` is eslint-ignored.
+- Tested: protocol and safety checks (`node mcp/selftest.mjs`, all pass); live login + reads + refused writes against the dev server with the demo agent account (CRM returned 403 for admin-only routes, audit log written). NOT yet tested with a real Admin account: do that first (`ngf_status` must say Admin).
+- Owner TODO: create a dedicated Admin user for Claude, put it in `mcp/.env`, restart Claude Code and approve the `ngf-crm` server.
 
 ## Design
 - Transport: stdio, runs on the Mac mini; added to the project with `.mcp.json` (no secrets in it). Remote (claude.ai connector) is a later stage and needs HTTP + OAuth.
@@ -23,8 +23,8 @@ tags: [ngf, mcp, claude, admin, plan]
 - Risks to accept knowingly: the Admin credential is the most powerful secret in the system (rotate it, never paste it in chat, never commit it); prompt-injection from CRM data (customer names, notes) could try to steer Claude, which is why writes should keep per-call approval; live data includes real customers.
 
 ## Stages
-1. Read-only server + `.mcp.json` + README; test against the dev server.
-2. Writes (`ngf_write`) with approval prompts; allow-list low-risk routes later.
+1. DONE: server, `.mcp.json`, README, self-test, tested on the dev server.
+2. DONE in the same server: `ngf_write` (reason required, destructive hint so Claude Code asks each time). Next: allow-list low-risk routes once trusted.
 3. Optional remote HTTP version for claude.ai / phone, behind OAuth.
 
 ## Related

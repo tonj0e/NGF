@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "ngf-crm": {
+      "command": "node",
+      "args": ["mcp/server.mjs"]
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "ngf-crm-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "MCP server (stdio, no dependencies) that lets Claude operate the NGF CRM as an Admin through the CRM's own API",
+  "main": "server.mjs",
+  "scripts": {
+    "start": "node server.mjs",
+    "tools": "node server.mjs --list-tools",
+    "selftest": "node selftest.mjs"
+  }
+}

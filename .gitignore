@@ -70,3 +70,7 @@ docs/.obsidian/
 /.next *
 /node_modules
 /node_modules *
+
+# MCP server secrets and audit log
+/mcp/.env
+/mcp/audit.log
