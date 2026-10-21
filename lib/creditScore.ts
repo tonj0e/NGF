@@ -1,4 +1,4 @@
-// Customer repayment score (a simple CIBIL-style number from 0 to 850) built only from the repayment history in the database.
+// NGF Score (our own 0 to 850 score, not a CIBIL score): built from the repayment history and the staff reviews in the database.
 // Pure functions: no database access, so the rules can be tested and changed in one place.
 //
 // RULES (owner's first draft, to be finalised):
@@ -6,6 +6,8 @@
 //  * Finishing a whole loan cycle adds points. Each next loan adds the next step, so a customer who never slips climbs
 //    200, 400, 600, 750, 850 and then stays frozen (about 4.7 ten-week cycles fit in a year).
 //  * A late payment costs points; a week that is overdue and still unpaid costs more.
+//  * Staff reviews (1-5 stars, left when a payment is collected) add or remove a few points: 5 stars +4, 4 stars +2, 3 stars 0, 2 stars -4, 1 star -8,
+//    and the total from reviews can never move the score by more than 100 either way.
 export const SCORE_RULES = {
   cutoffTime: '15:30',              // IST, on the due Saturday
   max: 850,
@@ -13,6 +15,8 @@ export const SCORE_RULES = {
   latePenalty: 10,                  // recorded after the cutoff
   extraPerLateWeek: 10,             // for every further full week of delay
   overduePenalty: 20,               // a past-due week that is still unpaid (per week)
+  reviewPoints: { 5: 4, 4: 2, 3: 0, 2: -4, 1: -8 } as Record<number, number>, // per reviewed payment
+  reviewCap: 100,                   // reviews never move the score by more than this, up or down
   bands: [
     { min: 750, label: 'Excellent' },
     { min: 600, label: 'Good' },
@@ -29,6 +33,7 @@ export type WeekInput = {
   status: string                    // Paid | Pending | Delayed | Waived
   paidDate: string | null           // YYYY-MM-DD
   recordedAt: string | null         // ISO timestamp of when the payment was entered in the system
+  rating?: number                   // staff review, 1-5 stars (0 or missing = no review)
 }
 
 export type LoanInput = {
@@ -67,6 +72,8 @@ export type ScoreResult = {
   band: string
   completedLoans: number
   onTimeRate: number | null         // 0-100, over paid weeks
+  parts: { cyclePoints: number; penalties: number; reviewPoints: number }   // how the number was made
+  reviews: { count: number; average: number | null }
   inProgress: { loanId: string; paidWeeks: number; totalWeeks: number; nextPoints: number } | null
   loans: LoanResult[]
   rules: typeof SCORE_RULES
@@ -114,6 +121,7 @@ export function computeScore(loans: LoanInput[], nowMs: number = Date.now()): Sc
   let totalPoints = 0
   let totalPenalty = 0
   let paidWeeksAll = 0, onTimeAll = 0
+  let ratingSum = 0, ratingCount = 0, reviewRaw = 0
   const results: LoanResult[] = []
 
   for (const l of ordered) {
@@ -126,6 +134,7 @@ export function computeScore(loans: LoanInput[], nowMs: number = Date.now()): Sc
       completedCount++
     }
     const penalty = weeks.reduce((s, w) => s + w.penalty, 0)
+    for (const w of l.weeks) { const r = Number(w.rating) || 0; if (r >= 1 && r <= 5) { ratingSum += r; ratingCount++; reviewRaw += SCORE_RULES.reviewPoints[r] ?? 0 } }
     totalPoints += points
     totalPenalty += penalty
     paidWeeksAll += paid.length
@@ -138,11 +147,14 @@ export function computeScore(loans: LoanInput[], nowMs: number = Date.now()): Sc
     })
   }
 
-  const value = Math.max(0, Math.min(SCORE_RULES.max, totalPoints - totalPenalty))
+  const reviewPoints = Math.max(-SCORE_RULES.reviewCap, Math.min(SCORE_RULES.reviewCap, reviewRaw))
+  const value = Math.max(0, Math.min(SCORE_RULES.max, totalPoints - totalPenalty + reviewPoints))
   const open = [...results].reverse().find(r => !r.completed && r.weeks.length > 0)
   return {
     value, max: SCORE_RULES.max, band: bandOf(value, results.length > 0), completedLoans: completedCount,
     onTimeRate: paidWeeksAll ? Math.round((onTimeAll / paidWeeksAll) * 100) : null,
+    parts: { cyclePoints: totalPoints, penalties: totalPenalty, reviewPoints },
+    reviews: { count: ratingCount, average: ratingCount ? Math.round((ratingSum / ratingCount) * 10) / 10 : null },
     inProgress: open ? { loanId: open.loanId, paidWeeks: open.paidWeeks, totalWeeks: open.weeks.length, nextPoints: SCORE_RULES.cycleSteps[completedCount] ?? 0 } : null,
     loans: results, rules: SCORE_RULES,
   }

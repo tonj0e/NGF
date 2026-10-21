@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import NgfScoreBadge from '@/components/ui/NgfScoreBadge'
 import { Session } from '@/types'
 import LoansPage from './LoansPage'
 
@@ -233,6 +234,7 @@ export default function MyCustomersPage({ session }: { session: Session }) {
                   <p className="font-semibold truncate">{c.name}</p>
                   <p className="text-xs text-[#697586]">{c.phone}</p>
                   {c.activeLoanId && <p className="font-mono text-[11px] text-[#697586]">{c.activeLoanId}</p>}
+                  <div className="mt-1"><NgfScoreBadge value={c.ngfScore} band={c.ngfBand} reviews={c.ngfReviews} average={c.ngfAverage} /></div>
                 </div>
                 <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${c.isOverdue ? 'bg-red-100 text-red-700' : c.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-[#f4f5f7] text-[#697586]'}`}>
                   {c.isOverdue ? 'Overdue' : c.status}

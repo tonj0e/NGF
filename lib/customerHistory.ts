@@ -2,6 +2,7 @@
 // and the repayment score built from it (see lib/creditScore.ts). Access is decided here from the session.
 import { getSupabase } from './supabase-db'
 import { computeScore, type LoanInput } from './creditScore'
+import { parseReview } from './reviews'
 import type { Session } from '../types'
 
 export class HistoryError extends Error {}
@@ -67,7 +68,7 @@ export async function customerHistory(session: Session, customerId: string) {
     loanId: l.loan_id, status: l.status, startDate: l.start_date || '', durationWeeks: Number(l.duration_weeks) || 0,
     weeks: (reps || []).filter(r => r.loan_id === l.loan_id).map(r => ({
       weekNo: Number(r.week_no) || 0, dueDate: r.due_date, amount: Number(r.amount) || 0, status: r.status,
-      paidDate: r.paid_date || null, recordedAt: colOf.get(r.repayment_id)?.created_at || null,
+      paidDate: r.paid_date || null, recordedAt: colOf.get(r.repayment_id)?.created_at || null, rating: parseReview(r.notes || '')?.rating || 0,
     })),
   }))
   const score = computeScore(inputs)
@@ -95,7 +96,33 @@ export async function customerHistory(session: Session, customerId: string) {
 
   return {
     customer: { customerId: customer.customer_id, name: customer.name },
-    score: { value: score.value, max: score.max, band: score.band, completedLoans: score.completedLoans, onTimeRate: score.onTimeRate, inProgress: score.inProgress, rules: score.rules },
+    score: { value: score.value, max: score.max, band: score.band, completedLoans: score.completedLoans, onTimeRate: score.onTimeRate, inProgress: score.inProgress, parts: score.parts, reviews: score.reviews, rules: score.rules },
     loans: loansOut,
   }
+}
+
+/** NGF Score for many customers at once (customer lists). Same rules as the History tab. */
+export async function bulkScores(customerIds: string[]): Promise<Map<string, { value: number; band: string; reviews: number; average: number | null }>> {
+  const out = new Map<string, { value: number; band: string; reviews: number; average: number | null }>()
+  if (!customerIds.length) return out
+  const sb = getSupabase()
+  const { data: loans } = await sb.from('loans').select('loan_id, customer_id, status, start_date, duration_weeks').in('customer_id', customerIds)
+  const loanIds = (loans || []).map(l => l.loan_id)
+  const { data: reps } = loanIds.length ? await sb.from('repayments').select('repayment_id, loan_id, due_date, week_no, amount, status, paid_date, notes').in('loan_id', loanIds) : { data: [] }
+  const repIds = (reps || []).map(r => r.repayment_id)
+  const { data: cols } = repIds.length ? await sb.from('collections').select('repayment_id, created_at').in('repayment_id', repIds) : { data: [] }
+  const first = new Map<string, string>()
+  for (const c of cols || []) { const p = first.get(c.repayment_id); if (!p || c.created_at < p) first.set(c.repayment_id, c.created_at) }
+  for (const id of customerIds) {
+    const inputs: LoanInput[] = (loans || []).filter(l => l.customer_id === id).map(l => ({
+      loanId: l.loan_id, status: l.status, startDate: l.start_date || '', durationWeeks: Number(l.duration_weeks) || 0,
+      weeks: (reps || []).filter(r => r.loan_id === l.loan_id).map(r => ({
+        weekNo: Number(r.week_no) || 0, dueDate: r.due_date, amount: Number(r.amount) || 0, status: r.status,
+        paidDate: r.paid_date || null, recordedAt: first.get(r.repayment_id) || null, rating: parseReview(r.notes || '')?.rating || 0,
+      })),
+    }))
+    const sc = computeScore(inputs)
+    out.set(id, { value: sc.value, band: sc.band, reviews: sc.reviews.count, average: sc.reviews.average })
+  }
+  return out
 }

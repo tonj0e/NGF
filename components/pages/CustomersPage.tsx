@@ -6,6 +6,7 @@ import DriveImage from '@/components/ui/DriveImage'
 import LoansPage from './LoansPage'
 import { parseReview } from '@/lib/reviews'
 import StatusPill from '@/components/ui/StatusPill'
+import NgfScoreBadge from '@/components/ui/NgfScoreBadge'
 import EarlyCloseSection from './EarlyCloseSection'
 import { apiSend } from '@/lib/clientApi'
 
@@ -601,6 +602,7 @@ export default function CustomersPage({ session }: { session: Session }) {
           <p className="text-lg font-semibold">{detail.name}</p>
           {detail.activeLoanId && <p className="font-mono text-sm text-[#697586]">{detail.activeLoanId}{detail.loanAccountNo && <span className="ml-2 text-xs">· {detail.loanAccountNo}</span>}</p>}
           <StarBadge joinedDate={detail.joinedDate} />
+          <div className="mt-1"><NgfScoreBadge size="lg" value={detail.ngfScore} band={detail.ngfBand} reviews={detail.ngfReviews} average={detail.ngfAverage} /></div>
         </div>
         <span className={`rounded-full px-3 py-1 text-xs font-semibold ${detail.isOverdue ? 'bg-red-100 text-red-700' : detail.loanStatus === 'Active' ? 'bg-green-100 text-green-700' : 'bg-[#f4f5f7] text-[#697586]'}`}>
           {detail.isOverdue ? 'Overdue' : detail.loanStatus === 'Active' ? 'Active' : 'Inactive'}
@@ -860,6 +862,7 @@ export default function CustomersPage({ session }: { session: Session }) {
                   <p className="text-xs text-[#697586]">{c.phone}</p>
                   {c.activeLoanId && <p className="font-mono text-[11px] text-[#697586]">{c.activeLoanId}</p>}
                   <StarBadge joinedDate={c.joinedDate} />
+                  <div className="mt-1"><NgfScoreBadge value={c.ngfScore} band={c.ngfBand} reviews={c.ngfReviews} average={c.ngfAverage} /></div>
                   {isKycExpired(c.joinedDate) && (
                     <span className="mt-1 inline-block rounded-lg bg-orange-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-orange-700">KYC Updation Required</span>
                   )}

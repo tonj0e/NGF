@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { Session } from '@/types'
 import { evaluateRenewal } from '@/lib/reviews'
+import NgfScoreBadge from '@/components/ui/NgfScoreBadge'
 
 function currency(n: number) {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n)
@@ -137,6 +138,7 @@ export default function RenewalModal({ session, onClose, onDone }: {
                   <div className="min-w-0">
                     <p className="font-semibold text-sm">{c.name}</p>
                     <p className="text-xs text-[#697586]">{c.phone}</p>
+                    <div className="mt-0.5"><NgfScoreBadge value={c.ngfScore} band={c.ngfBand} reviews={c.ngfReviews} average={c.ngfAverage} /></div>
                     {c.activeLoanId && <p className="font-mono text-[11px] text-[#697586] mt-0.5">{c.activeLoanId}</p>}
                     {c.principal && (
                       <p className="text-xs text-[#697586]">Principal: {currency(Number(c.principal))} · {c.loanStatus}</p>

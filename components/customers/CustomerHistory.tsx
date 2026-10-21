@@ -17,8 +17,9 @@ type Data = {
   customer: { customerId: string; name: string }
   score: {
     value: number; max: number; band: string; completedLoans: number; onTimeRate: number | null
+    parts: { cyclePoints: number; penalties: number; reviewPoints: number }; reviews: { count: number; average: number | null }
     inProgress: { loanId: string; paidWeeks: number; totalWeeks: number; nextPoints: number } | null
-    rules: { cutoffTime: string; cycleSteps: number[]; latePenalty: number; extraPerLateWeek: number; overduePenalty: number; max: number }
+    rules: { cutoffTime: string; cycleSteps: number[]; latePenalty: number; extraPerLateWeek: number; overduePenalty: number; max: number; reviewPoints: Record<string, number>; reviewCap: number }
   }
   loans: Loan[]
 }
@@ -63,7 +64,7 @@ export default function CustomerHistory({ session, customerId }: { session: Sess
       <div className={card}>
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-[#697586]">Repayment score</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-[#697586]">NGF Score</p>
             <p className="mt-1 text-4xl font-bold leading-none text-[#1a1a2e]">{score.value}<span className="ml-1 text-base font-semibold text-[#9ca3af]">/ {score.max}</span></p>
           </div>
           <span className={`rounded-full px-3 py-1 text-xs font-bold ${BAND[score.band] || BAND.New}`}>{score.band}</span>
@@ -75,6 +76,11 @@ export default function CustomerHistory({ session, customerId }: { session: Sess
           <div className="rounded-2xl bg-[#f9fafb] px-2 py-2"><p className="text-lg font-bold">{loans.length}</p><p className="text-[11px] text-[#697586]">Loans taken</p></div>
           <div className="rounded-2xl bg-[#f9fafb] px-2 py-2"><p className="text-lg font-bold">{score.completedLoans}</p><p className="text-[11px] text-[#697586]">Completed</p></div>
           <div className="rounded-2xl bg-[#f9fafb] px-2 py-2"><p className="text-lg font-bold">{score.onTimeRate == null ? '–' : `${score.onTimeRate}%`}</p><p className="text-[11px] text-[#697586]">Paid on time</p></div>
+        </div>
+        <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs">
+          <div className="rounded-2xl bg-green-50 px-2 py-2"><p className="text-base font-bold text-green-800">+{score.parts.cyclePoints}</p><p className="text-[11px] text-[#697586]">Completed loans</p></div>
+          <div className="rounded-2xl bg-sky-50 px-2 py-2"><p className="text-base font-bold text-sky-800">{score.parts.reviewPoints >= 0 ? '+' : ''}{score.parts.reviewPoints}</p><p className="text-[11px] text-[#697586]">Staff reviews{score.reviews.count ? ` (${score.reviews.average}★ avg of ${score.reviews.count})` : ' (none yet)'}</p></div>
+          <div className="rounded-2xl bg-red-50 px-2 py-2"><p className="text-base font-bold text-red-800">−{score.parts.penalties}</p><p className="text-[11px] text-[#697586]">Late / overdue</p></div>
         </div>
         {score.inProgress && (
           <p className="mt-3 rounded-2xl bg-amber-50 px-3 py-2 text-xs text-amber-900">
@@ -89,6 +95,8 @@ export default function CustomerHistory({ session, customerId }: { session: Sess
             <li>Finishing a 10-week loan adds points: {score.rules.cycleSteps.map(n => `+${n}`).join(', ')} for the 1st, 2nd, 3rd... completed loan. The score stops at {score.rules.max}.</li>
             <li>Paid late: −{score.rules.latePenalty}, and a further −{score.rules.extraPerLateWeek} for every full week of delay.</li>
             <li>A past-due week still unpaid: −{score.rules.overduePenalty} for each week.</li>
+            <li>Staff reviews when a payment is collected: 5★ {score.rules.reviewPoints['5'] >= 0 ? '+' : ''}{score.rules.reviewPoints['5']}, 4★ +{score.rules.reviewPoints['4']}, 3★ 0, 2★ {score.rules.reviewPoints['2']}, 1★ {score.rules.reviewPoints['1']}. Reviews can move the score by at most ±{score.rules.reviewCap}.</li>
+            <li>This is NGF&apos;s own score. It is not a CIBIL score.</li>
           </ul>
         )}
       </div>

@@ -3,6 +3,7 @@ import { apiHandler, getSession, requireRole, ok, err } from '@/lib/api'
 import { readTable, updateById, deleteById, findRecord, nowIso, invalidateCache } from '@/lib/supabase-db'
 import { getLeadDocFolder, uploadLeadPhoto } from '@/lib/drive'
 import { getTodayIST } from '@/lib/dateUtils'
+import { bulkScores } from '@/lib/customerHistory'
 
 export const maxDuration = 30
 
@@ -42,6 +43,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
     filtered = customers.filter(c => agentLoanIds.has(c['Customer ID']))
   }
 
+  const scores = await bulkScores(filtered.map(c => c['Customer ID']))
   const rows = filtered.map(c => {
     const loan = loans.find(l => l['Loan ID'] === c['Active Loan ID'])
       || loans.find(l => l['Customer ID'] === c['Customer ID'])
@@ -56,6 +58,8 @@ export const GET = apiHandler(async (req: NextRequest) => {
       guarantorName: g?.['Name'] || '', guarantorCode: g?.['Code'] || '',
       activeLoanId: c['Active Loan ID'] || loan?.['Loan ID'] || '', loanAccountNo: loan?.['Loan Account No'] || '', agentName: a?.['Name'] || '',
       loanStatus: loan?.['Status'] || '',
+      ngfScore: scores.get(c['Customer ID'])?.value ?? 0, ngfBand: scores.get(c['Customer ID'])?.band || 'New',
+      ngfReviews: scores.get(c['Customer ID'])?.reviews ?? 0, ngfAverage: scores.get(c['Customer ID'])?.average ?? null,
       holdUntil: (String(c['Hold Until'] || '').slice(0, 10) > today) ? String(c['Hold Until']).slice(0, 10) : '',
       permanentBlock: String(c['Permanent Block']) === 'true', blockReason: c['Block Reason'] || '',
       isOverdue: loan ? overdueSet.has(loan['Loan ID']) : false,
