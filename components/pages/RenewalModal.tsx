@@ -49,7 +49,12 @@ export default function RenewalModal({ session, onClose, onDone }: {
         .then(r => r.json())
         .then(j => {
           const rows = j.success ? (j.data.rows || []) : []
-          setEvals(prev => ({ ...prev, [c.customerId]: { loading: false, ...evaluateRenewal(rows) } }))
+          const base = evaluateRenewal(rows)
+          const extra: string[] = []
+          if (c.permanentBlock) extra.push('Closed permanently. An admin must re-admit this customer first.')
+          else if (c.holdUntil) extra.push(`On hold until ${c.holdUntil} (the loan was closed early).`)
+          if (c.loanStatus === 'Active') extra.push('The current loan is still running.')
+          setEvals(prev => ({ ...prev, [c.customerId]: { loading: false, ...base, eligible: base.eligible && extra.length === 0, reasons: [...extra, ...base.reasons] } }))
         })
         .catch(() => setEvals(prev => ({ ...prev, [c.customerId]: { loading: false, eligible: false, reasons: ['Could not load history'], rating: 0, reviewCount: 0 } })))
     })

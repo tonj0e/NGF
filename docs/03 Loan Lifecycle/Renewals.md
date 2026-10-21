@@ -6,11 +6,12 @@ last_verified: 2026-10-17
 tags: [ngf, loan-lifecycle, renewal]
 ---
 # Renewals
+> **Changed 2026-10-21:** renewals now need the customer's OTP at approval, go to the guarantor's branch only, and the loan is created at **disbursement**, not at approval. Read [[Customer OTP and Disbursement]] first; the steps below describe the older behaviour where they conflict (approval, start date, who approves).
 **How a finished customer gets a new loan: a RENEWAL lead, a browser-side eligibility check, and `approveRenewal`.**
 
 ## Key facts
 - Who requests: Guarantor, button "+ Renewal" in `LeadsPage.tsx:461`, opens `components/pages/RenewalModal.tsx`.
-- Who approves: Admin or Staff, "Approve & Disburse" in the Leads page (tab "Renewal Requests") or in the lead detail.
+- Who approves: branch accountant, assistant manager, manager of the guarantor's branch, or Admin: "Approve (OTP)" in Leads > Renewal Requests; then "Mark disbursed" in Leads > Disbursements > To Disburse.
 - A renewal is a normal `Leads` row with `Loan Product = RENEWAL` and `Notes = "Renewal request - Customer ID: <id>"` (`RenewalModal.tsx:72`). No agent, no verification step.
 - Lifecycle: `Pending` then `Converted` (or `Rejected`). It never goes through `Agent Assigned`.
 

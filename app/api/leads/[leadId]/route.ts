@@ -1,12 +1,21 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, requireRole, ok, err, getSession } from '@/lib/api'
-import { readTable, updateById, appendRow, deleteRow, findRecord, makeId, nowIso, formatDateYmd, addDays, getNextSaturday, deleteById, invalidateCache } from '@/lib/supabase-db'
+import { readTable, updateById, appendRow, deleteRow, findRecord, makeId, nowIso, formatDateYmd, addDays, deleteById, invalidateCache, getSupabase } from '@/lib/supabase-db'
 import { uploadLeadPhoto, listFolderFiles, driveUrl, getLeadDocFolder, docLabel, renameLeadDocs } from '@/lib/drive'
 import { notifyUser, notifyRole } from '@/lib/notifications'
 import { validateBody, submitVerificationSchema, adminReviewSchema, assignAgentSchema, updateLeadSchema, tripSchema } from '@/lib/validation'
 import { FilePayload } from '@/types'
 import { payCodeFromLoanId } from '@/lib/payCode'
 import { csrfProtection } from '@/lib/csrf'
+import { createAuditLogger } from '@/lib/audit'
+import { firstPaymentSaturdayIST } from '@/lib/dateUtils'
+import { getBranchAccess, branchOfGuarantor, canApproveIn } from '@/lib/branchAccess'
+import { checkRenewalEligibility, customerForRenewalLead } from '@/lib/renewalRules'
+import { normalizeIndianMobile } from '@/lib/phone'
+import { notifyBranchOfLead } from '@/lib/routes'
+
+const OTP_FRESH_MS = 60 * 60 * 1000          // a renewal OTP stays valid for approval for 1 hour
+const OTP_VISIT_FRESH_MS = 12 * 60 * 60 * 1000  // an agent's visit OTP stays valid for submitting for 12 hours
 
 function toPayload(b64: string, filename: string): FilePayload {
   const [header, data] = b64.split(',')
@@ -98,6 +107,14 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
     const myAgent = (await readTable('Agents')).find(a => a['User ID'] === session.userId)
     if (!myAgent || lead['Assigned Agent ID'] !== myAgent['Agent ID']) return err('No permission', 403)
     if (lead['Status'] !== 'Agent Assigned') return err('This lead is not waiting for verification')
+    // The customer's OTP (sent to their phone while the agent is at the house) must be verified first, or overridden with a reason.
+    const visitPhone = normalizeIndianMobile(body.phone || lead['Phone'])
+    const otpFresh = !!lead['Otp Verified At'] && Date.now() - Date.parse(lead['Otp Verified At']) < OTP_VISIT_FRESH_MS
+    if (otpFresh) {
+      if (!visitPhone || lead['Otp Phone'] !== visitPhone) return err('The phone number was changed after the OTP was verified. Verify the OTP again for the new number.')
+    } else if (!lead['Otp Override Reason']) {
+      return err('Customer OTP is required: ask the customer for the code sent to their phone, or record why it could not be done.')
+    }
     let folderId = lead['Document Folder ID']
     let customerPhotoUrl = lead['Customer Photo URL']
     let housePhotoUrl = lead['House Photo URL']
@@ -161,6 +178,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
       })
       invalidateCache('Leads')
       await notifyRole('Admin', 'Verification Submitted', `Verification for ${lead['Customer Name']} submitted by ${session.name}`, 'Lead', leadId)
+      try { await notifyBranchOfLead(lead['Guarantor ID'], 'Verification submitted', `${lead['Customer Name']}: verified at the house${lead['Otp Override Reason'] ? ' (OTP overridden: ' + lead['Otp Override Reason'] + ')' : ' (customer OTP confirmed)'}. Review and approve.`, leadId) } catch (e) { console.error('Branch alert failed:', e instanceof Error ? e.message : e) }
       return ok({ success: true })
     } catch (dbError) {
       console.error('submitVerification: DB update failed:', dbError)
@@ -177,36 +195,88 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
     const body = validation.data
 
     const session = await requireRole(req, ['Admin', 'Staff'])
-    const [leads, guarantors, agents] = await Promise.all([readTable('Leads'), readTable('Guarantors'), readTable('Agents')])
+    const [leads, guarantors] = await Promise.all([readTable('Leads', { forceFresh: true }), readTable('Guarantors')])
     const lead = findRecord(leads, 'Lead ID', leadId)
     if (!lead) return err('Lead not found')
     const { decision, notes } = body
+    // Staff may only act on their own branch's leads (the branch of the guarantor)
+    const access = await getBranchAccess(session)
+    const branchId = await branchOfGuarantor(lead['Guarantor ID'])
+    if (!canApproveIn(access, branchId)) return err('This lead belongs to another branch', 403)
 
     if (decision === 'Approve Loan') {
-      try {
-        if (lead['Loan Product'] === 'RENEWAL') {
-          await approveRenewal(lead, guarantors)
-        } else {
-          await updateById('Leads', leadId, { 'Status': 'Approved', 'Admin Final Decision': notes || 'Approved', 'Updated At': nowIso() })
-          invalidateCache('Leads')
-          await approveLoan(lead, guarantors, agents, body.loanProduct)
+      const isRenewal = lead['Loan Product'] === 'RENEWAL'
+      if (isRenewal) {
+        if (lead['Status'] !== 'Pending') return err('This renewal is not waiting for approval')
+        const otpFresh = !!lead['Otp Verified At'] && Date.now() - Date.parse(lead['Otp Verified At']) < OTP_FRESH_MS
+        if (!otpFresh && !lead['Otp Override Reason']) return err('Verify the customer OTP first (or record why it could not be done).')
+        const cust = customerForRenewalLead(lead, await readTable('Customers', { forceFresh: true }))
+        if (!cust) return err('Customer not found for renewal')
+        const el = await checkRenewalEligibility(cust['Customer ID'])
+        if (!el.ok) return err(el.reason)
+      } else {
+        if (lead['Status'] !== 'Verification Submitted') return err('The agent verification must be submitted before approval')
+        if (!lead['Otp Verified At'] && !lead['Otp Override Reason']) return err('The customer OTP was not confirmed at the visit. Ask for a re-verification.')
+        if (body.loanProduct) {
+          const { findLoanProduct } = await import('@/lib/loanProducts')
+          if (!(await findLoanProduct(body.loanProduct))) return err('Unknown loan product')
+          await updateById('Leads', leadId, { 'Loan Product': body.loanProduct })
         }
-        const g = findRecord(guarantors, 'Guarantor ID', lead['Guarantor ID'])
-        if (g) await notifyUser(g['User ID'], 'Guarantor', 'Lead Approved', `${lead['Customer Name']} has been approved for a loan.`, 'Lead', leadId)
-      } catch (e: any) {
-        console.error('approveLoan failed:', e)
-        return err(e.message || 'Failed to approve loan')
       }
+      // Approval only queues the lead for disbursement. The loan (and its first-Saturday schedule) is created when it is marked disbursed.
+      await updateById('Leads', leadId, { 'Status': 'Approved', 'Admin Final Decision': notes || 'Approved', 'Approved By': session.userId, 'Approved At': nowIso(), 'Updated At': nowIso() })
+      invalidateCache('Leads')
+      await createAuditLogger(req, session).log('LEAD_APPROVED_FOR_DISBURSEMENT', 'Lead', leadId, { renewal: isRenewal, otp: lead['Otp Override Reason'] ? 'override' : 'verified' })
+      const g = findRecord(guarantors, 'Guarantor ID', lead['Guarantor ID'])
+      if (g) await notifyUser(g['User ID'], 'Guarantor', 'Lead Approved', `${lead['Customer Name']} has been approved. It is now in the disbursement list.`, 'Lead', leadId)
+      try { await notifyBranchOfLead(lead['Guarantor ID'], 'Ready to disburse', `${lead['Customer Name']} (${isRenewal ? 'renewal' : 'new'}) is approved. Open Disbursement.`, leadId) } catch (e) { console.error('Branch alert failed:', e instanceof Error ? e.message : e) }
     } else if (decision === 'Reject Lead') {
       await updateById('Leads', leadId, { 'Status': 'Rejected', 'Admin Final Decision': notes || 'Rejected', 'Updated At': nowIso() })
       invalidateCache('Leads')
       const g = findRecord(guarantors, 'Guarantor ID', lead['Guarantor ID'])
       if (g) await notifyUser(g['User ID'], 'Guarantor', 'Lead Rejected', `${lead['Customer Name']} has been rejected.`, 'Lead', leadId)
     } else if (decision === 'Request Reverification') {
-      await updateById('Leads', leadId, { 'Status': 'Agent Assigned', 'Admin Final Decision': notes || '', 'Updated At': nowIso() })
+      // A new visit needs a fresh customer OTP
+      await updateById('Leads', leadId, { 'Status': 'Agent Assigned', 'Admin Final Decision': notes || '', 'Otp Verified At': null, 'Otp Phone': null, 'Otp Override Reason': null, 'Otp Override By': null, 'Updated At': nowIso() })
       invalidateCache('Leads')
     }
     return ok({ success: true })
+  }
+
+  if (action === 'disburse') {
+    const session = await requireRole(req, ['Admin', 'Staff'])
+    const [leads, guarantors, agents] = await Promise.all([readTable('Leads', { forceFresh: true }), readTable('Guarantors'), readTable('Agents')])
+    const lead = findRecord(leads, 'Lead ID', leadId)
+    if (!lead) return err('Lead not found')
+    const access = await getBranchAccess(session)
+    if (!canApproveIn(access, await branchOfGuarantor(lead['Guarantor ID']))) return err('This lead belongs to another branch', 403)
+    if (lead['Status'] !== 'Approved') return err('Only approved leads can be disbursed')
+    const isRenewal = lead['Loan Product'] === 'RENEWAL'
+    if (isRenewal) {
+      const cust = customerForRenewalLead(lead, await readTable('Customers', { forceFresh: true }))
+      if (!cust) return err('Customer not found for renewal')
+      const el = await checkRenewalEligibility(cust['Customer ID'])   // a hold or block set after approval still applies
+      if (!el.ok) return err(el.reason)
+    }
+    // Claim the lead so a double click or two staff cannot create two loans
+    const { data: claimed } = await getSupabase().from('leads')
+      .update({ disbursed_by: session.userId, disbursed_at: nowIso() })
+      .eq('lead_id', leadId).eq('status', 'Approved').is('disbursed_at', null).select('lead_id')
+    if (!claimed || claimed.length === 0) return err('This lead is already being disbursed')
+    try {
+      if (isRenewal) await approveRenewal(lead, guarantors)
+      else await approveLoan(lead, guarantors, agents)
+    } catch (e: any) {
+      await getSupabase().from('leads').update({ disbursed_by: null, disbursed_at: null }).eq('lead_id', leadId)
+      invalidateCache('Leads')
+      console.error('disburse failed:', e)
+      return err(e.message || 'Failed to disburse')
+    }
+    const startDate = firstPaymentSaturdayIST()
+    await createAuditLogger(req, session).log('LOAN_DISBURSED', 'Lead', leadId, { renewal: isRenewal, firstPayment: startDate })
+    const g = findRecord(guarantors, 'Guarantor ID', lead['Guarantor ID'])
+    if (g) await notifyUser(g['User ID'], 'Guarantor', 'Loan Disbursed', `${lead['Customer Name']}: loan disbursed. First payment Saturday ${startDate}.`, 'Lead', leadId)
+    return ok({ success: true, firstPayment: startDate })
   }
 
   if (action === 'scanFolder') {
@@ -335,7 +405,7 @@ async function approveLoan(lead: Record<string, string>, guarantors: Record<stri
   const loanId = await makeLoanId(guarantorCode)
   // the customer's Drive folder and photos switch from the lead ID to the 4-digit loan code
   await renameLeadDocs(lead['Document Folder ID'], lead['Customer Name'], payCodeFromLoanId(loanId))
-  const startDate = getNextSaturday()
+  const startDate = new Date(firstPaymentSaturdayIST())   // next Saturday AFTER the handover day
   const endDate = addDays(startDate, (product.durationWeeks - 1) * 7)
 
   if (!customer) {
@@ -434,36 +504,48 @@ async function approveRenewal(lead: Record<string, string>, guarantors: Record<s
   const g = guarantors.find(gg => gg['Guarantor ID'] === customer['Guarantor ID'])
   const guarantorCode = g?.['Code'] || 'NGF'
   const loanId = await makeLoanId(guarantorCode)
-  const startDate = getNextSaturday()
+  const startDate = new Date(firstPaymentSaturdayIST())   // next Saturday AFTER the handover day
   const durationWeeks = Number(prev['Duration Weeks']) || 10
   const endDate = addDays(startDate, (durationWeeks - 1) * 7)
   const weekly = Number(prev['Weekly Collection Amount']) || 0
   const total = Number(prev['Total Collection Amount']) || weekly * durationWeeks
   const lastWeekAmt = total - weekly * Math.max(0, durationWeeks - 1)
 
-  await appendRow('Loans', {
-    'Loan ID': loanId, 'Customer ID': customer['Customer ID'], 'Lead ID': lead['Lead ID'],
-    'Guarantor ID': customer['Guarantor ID'], 'Assigned Agent ID': prev['Assigned Agent ID'] ?? null,
-    'Principal Amount': prev['Principal Amount'], 'Interest Deduction': prev['Interest Deduction'],
-    'Guarantor Commission': prev['Guarantor Commission'], 'Net Disbursed': prev['Net Disbursed'],
-    'Weekly Collection Amount': String(weekly), 'Duration Weeks': String(durationWeeks),
-    'Total Collection Amount': String(total), 'Status': 'Active',
-    'Start Date': formatDateYmd(startDate), 'End Date': formatDateYmd(endDate),
-    'Created At': nowIso(), 'Updated At': nowIso(),
-  })
-  for (let w = 0; w < durationWeeks; w++) {
-    const due = addDays(startDate, w * 7)
-    const amount = (w === durationWeeks - 1) ? lastWeekAmt : weekly
-    await appendRow('Repayments', {
-      'Repayment ID': makeId('RPY'), 'Loan ID': loanId, 'Customer ID': customer['Customer ID'],
-      'Due Date': formatDateYmd(due), 'Week No': String(w + 1),
-      'Amount': String(amount), 'Status': 'Pending',
-      'Paid Date': '', 'NGF Agent ID': '', 'Proof File ID': '', 'Notes': '',
+  // If any step fails, remove what this call created so no half-made loan (loan without a schedule) is left behind
+  let customerTouched = false
+  try {
+    await appendRow('Loans', {
+      'Loan ID': loanId, 'Customer ID': customer['Customer ID'], 'Lead ID': lead['Lead ID'],
+      'Guarantor ID': customer['Guarantor ID'], 'Assigned Agent ID': prev['Assigned Agent ID'] ?? null,
+      'Principal Amount': prev['Principal Amount'], 'Interest Deduction': prev['Interest Deduction'],
+      'Guarantor Commission': prev['Guarantor Commission'], 'Net Disbursed': prev['Net Disbursed'],
+      'Weekly Collection Amount': String(weekly), 'Duration Weeks': String(durationWeeks),
+      'Total Collection Amount': String(total), 'Status': 'Active',
+      'Start Date': formatDateYmd(startDate), 'End Date': formatDateYmd(endDate),
       'Created At': nowIso(), 'Updated At': nowIso(),
     })
+    for (let w = 0; w < durationWeeks; w++) {
+      const due = addDays(startDate, w * 7)
+      const amount = (w === durationWeeks - 1) ? lastWeekAmt : weekly
+      await appendRow('Repayments', {
+        'Repayment ID': makeId('RPY'), 'Loan ID': loanId, 'Customer ID': customer['Customer ID'],
+        'Due Date': formatDateYmd(due), 'Week No': String(w + 1),
+        'Amount': String(amount), 'Status': 'Pending',
+        'Paid Date': null, 'NGF Agent ID': null, 'Proof File ID': null, 'Notes': '',
+        'Created At': nowIso(), 'Updated At': nowIso(),
+      })
+    }
+    customerTouched = true
+    await updateById('Customers', customer['Customer ID'], { 'Active Loan ID': loanId, 'Status': 'Active', 'Updated At': nowIso() })
+    await updateById('Leads', lead['Lead ID'], { 'Status': 'Converted', 'Updated At': nowIso() })
+  } catch (e) {
+    const reps = (await readTable('Repayments', { forceFresh: true })).filter(r => r['Loan ID'] === loanId)
+    for (const r of reps) await deleteById('Repayments', r['Repayment ID'])
+    await deleteById('Loans', loanId).catch(() => {})
+    if (customerTouched) await updateById('Customers', customer['Customer ID'], { 'Active Loan ID': '', 'Updated At': nowIso() }).catch(() => {})
+    invalidateCache('Customers'); invalidateCache('Leads')
+    throw e
   }
-  await updateById('Customers', customer['Customer ID'], { 'Active Loan ID': loanId, 'Status': 'Active', 'Updated At': nowIso() })
-  await updateById('Leads', lead['Lead ID'], { 'Status': 'Converted', 'Updated At': nowIso() })
   invalidateCache('Customers')
   invalidateCache('Leads')
 }

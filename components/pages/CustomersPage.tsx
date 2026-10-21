@@ -6,6 +6,8 @@ import DriveImage from '@/components/ui/DriveImage'
 import LoansPage from './LoansPage'
 import { parseReview } from '@/lib/reviews'
 import StatusPill from '@/components/ui/StatusPill'
+import EarlyCloseSection from './EarlyCloseSection'
+import { apiSend } from '@/lib/clientApi'
 
 type Tab = 'customers' | 'active' | 'renewal' | 'completed'
 
@@ -467,6 +469,15 @@ export default function CustomersPage({ session }: { session: Session }) {
   const [detailTab, setDetailTab] = useState<'details' | 'transaction' | 'reviews' | 'loans' | 'history'>('details')
   const [activity, setActivity] = useState<any[]>([])
   const [activityLoading, setActivityLoading] = useState(false)
+  const [showClose, setShowClose] = useState(false)
+  useEffect(() => { setShowClose(false) }, [detail?.customerId])
+
+  async function readmit(customerId: string) {
+    const reason = prompt('Re-admit this customer. Describe the verification you did (at least 20 characters):') || ''
+    if (reason.trim().length < 20) { if (reason) showToast('Please describe the verification in more detail (20+ characters).'); return }
+    const r = await apiSend(session.token, 'POST', '/api/customers/readmit', { customerId, reason })
+    if (r.ok) { showToast('Customer re-admitted.'); setDetail(null); load() } else showToast(r.error || 'Could not re-admit')
+  }
 
   function showToast(m: string) { setToast(m); setTimeout(() => setToast(''), 3000) }
 
@@ -595,6 +606,27 @@ export default function CustomersPage({ session }: { session: Session }) {
           {detail.isOverdue ? 'Overdue' : detail.loanStatus === 'Active' ? 'Active' : 'Inactive'}
         </span>
       </div>
+
+      {detail.permanentBlock && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-[1.75rem] border border-red-300 bg-red-50 px-5 py-4">
+          <div>
+            <p className="text-sm font-bold uppercase tracking-wide text-red-700">Closed permanently — no more loans</p>
+            {detail.blockReason && <p className="text-xs text-red-600">Reason: {detail.blockReason}</p>}
+          </div>
+          {session.role === 'Admin' && <button onClick={() => readmit(detail.customerId)} className="rounded-xl border border-red-300 bg-white px-3 py-2 text-xs font-semibold text-red-700">Re-admit after verification</button>}
+        </div>
+      )}
+      {!detail.permanentBlock && detail.holdUntil && (
+        <div className="rounded-[1.75rem] border border-amber-300 bg-amber-50 px-5 py-4">
+          <p className="text-sm font-bold uppercase tracking-wide text-amber-800">On hold until {detail.holdUntil}</p>
+          <p className="text-xs text-amber-700">Loan was closed early. Renewal opens when the original cycle would have finished.</p>
+        </div>
+      )}
+      {(session.role === 'Admin' || session.role === 'Staff') && detail.loanStatus === 'Active' && detail.activeLoanId && (
+        showClose
+          ? <EarlyCloseSection session={session} loanId={detail.activeLoanId} onDone={m => { showToast(m); setShowClose(false); setDetail(null); load() }} />
+          : <div><button onClick={() => setShowClose(true)} className="rounded-2xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 transition">Close loan early…</button></div>
+      )}
 
       {isKycExpired(detail.joinedDate) && (
         <div className="flex items-center gap-3 rounded-[1.75rem] border border-orange-300 bg-orange-50 px-5 py-4">

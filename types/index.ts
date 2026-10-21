@@ -67,6 +67,10 @@ export interface Lead {
   ifscCode: string
   updatedAt: string
   aadhaarStatus?: 'exists' | 'new' | ''
+  otpVerifiedAt?: string | null
+  otpOverrideReason?: string
+  approvedAt?: string | null
+  disbursedAt?: string | null
 }
 
 export interface Customer {

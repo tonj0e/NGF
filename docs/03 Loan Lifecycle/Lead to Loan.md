@@ -6,6 +6,7 @@ last_verified: 2026-10-17
 tags: [ngf, loan-lifecycle, leads, approval]
 ---
 # Lead to Loan
+> **Changed 2026-10-21:** the agent's visit needs the customer's OTP; approval only queues the lead (`Approved`); the loan and schedule are created by the new `disburse` action, with the first payment on the next Saturday after the handover. See [[Customer OTP and Disbursement]].
 **The end-to-end path from a guarantor's lead to an active loan with a repayment schedule.**
 
 ## Key facts
@@ -16,8 +17,8 @@ Statuses in the order the code uses them (enum `lead_status`, `supabase_schema.s
 | Pending | Guarantor submits | `POST /api/leads` (`app/api/leads/route.ts:76`) |
 | Agent Assigned | Admin/Staff `assignAgent` (also "Request Reverification") | `app/api/leads/[leadId]/route.ts:60`, `:200` |
 | Verification Submitted | NGF AGENT `submitVerification` | `[leadId]/route.ts:84` |
-| Approved | Admin/Staff approve, set just before `approveLoan` | `[leadId]/route.ts:185` |
-| Converted | end of `approveLoan` / `approveRenewal` | `[leadId]/route.ts:404`, `:456` |
+| Approved | Branch approver or Admin approves. **Now means "waiting to be disbursed"** (OTP checked) | `adminReview` |
+| Converted | **Mark disbursed**: end of `approveLoan` / `approveRenewal` | `[leadId]/route.ts` action `disburse` |
 | Rejected | Admin/Staff reject, or auto-reject at creation | `[leadId]/route.ts:196`, `leads/route.ts:109` |
 
 `Under Review` and `Verification In Progress` exist in the enum and `lib/config.ts:11` but no code ever sets them.

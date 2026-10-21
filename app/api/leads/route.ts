@@ -7,6 +7,8 @@ import { validateBody, createLeadSchema } from '@/lib/validation'
 import { createAuditLogger, AUDIT_ACTIONS } from '@/lib/audit'
 import { csrfProtection } from '@/lib/csrf'
 import { notifyBranchOfLead } from '@/lib/routes'
+import { getBranchAccess, canSeeBranch } from '@/lib/branchAccess'
+import { checkRenewalEligibility, customerForRenewalLead, isPermanentlyBlockedAadhaar } from '@/lib/renewalRules'
 
 export const GET = apiHandler(async (req: NextRequest) => {
   const session = await getSession(req)
@@ -45,6 +47,11 @@ export const GET = apiHandler(async (req: NextRequest) => {
     const agent = agents.find(a => a['User ID'] === session.userId)
     filtered = filtered.filter(l => l['Assigned Agent ID'] === agent?.['Agent ID'])
   }
+  else if (session.role === 'Staff') {
+    // Branch staff see only the leads of guarantors in their own branch(es)
+    const access = await getBranchAccess(session)
+    filtered = filtered.filter(l => canSeeBranch(access, branchOf(l['Guarantor ID'])))
+  }
   if (status) filtered = filtered.filter(l => l['Status'] === status)
 
   const enriched = filtered.map(l => {
@@ -73,6 +80,8 @@ export const GET = apiHandler(async (req: NextRequest) => {
       housePhotoUrl: l['House Photo URL'], chequePhotoUrl: l['Cheque Photo URL'],
       documentFolderId: l['Document Folder ID'], notes: l['Notes'],
       aadhaarStatus: existing.length > 0 ? 'exists' : (l['Aadhaar No'] ? 'new' : ''),
+      otpVerifiedAt: l['Otp Verified At'] || null, otpOverrideReason: l['Otp Override Reason'] || '',
+      approvedAt: l['Approved At'] || null, disbursedAt: l['Disbursed At'] || null,
     }
   })
 
@@ -110,6 +119,20 @@ export const POST = apiHandler(async (req: NextRequest) => {
   } else {
     const g = guarantors.find(g => g['Guarantor ID'] === guarantorId)
     guarantorCode = g?.['Code'] || ''
+  }
+
+  // A renewal must pass the server-side rules (hold, permanent block, running loan, dues) and belong to this guarantor
+  if (body.loanProduct === 'RENEWAL') {
+    const customers = await readTable('Customers', { forceFresh: true })
+    const cust = customerForRenewalLead({ 'Notes': body.notes || '', 'Phone': body.phone, 'Customer Name': body.customerName }, customers)
+    if (!cust) return err('Customer not found for this renewal')
+    if (session.role === 'Guarantor' && cust['Guarantor ID'] !== guarantorId) return err('This customer does not belong to you')
+    const el = await checkRenewalEligibility(cust['Customer ID'])
+    if (!el.ok) return err(el.reason)
+    const pending = (await readTable('Leads', { forceFresh: true })).some(l => l['Loan Product'] === 'RENEWAL' && ['Pending', 'Approved'].includes(l['Status']) && (l['Notes'] || '').includes(`Customer ID: ${cust['Customer ID']}`))
+    if (pending) return err('A renewal request for this customer is already waiting')
+  } else if (body.aadhaarNo && await isPermanentlyBlockedAadhaar(body.aadhaarNo)) {
+    return err('This customer was closed permanently. An admin must re-admit them after fresh verification before a new lead can be added.')
   }
 
   // auto-reject if aadhaar already converted

@@ -23,6 +23,8 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const activeCustomerIds = new Set(
     loans.filter(l => l['Status'] === 'Active').map(l => l['Customer ID'])
   )
+  // Customers on hold (early closure) or permanently closed are not renewal-eligible
+  const noRenewal = new Set(customers.filter(c => String(c['Permanent Block']) === 'true' || String(c['Hold Until'] || '').slice(0, 10) > today).map(c => c['Customer ID']))
 
   const showCommission = await guarantorCanSeeCommissions(session)
   let filtered = loans
@@ -37,7 +39,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
   if (filter === 'active') filtered = filtered.filter(l => l['Status'] === 'Active')
   else if (filter === 'completed') filtered = filtered.filter(l => l['Status'] === 'Completed')
   else if (filter === 'overdue') filtered = filtered.filter(l => overdueSet.has(l['Loan ID']))
-  else if (filter === 'renewal') filtered = filtered.filter(l => l['Status'] === 'Completed' && !activeCustomerIds.has(l['Customer ID']))
+  else if (filter === 'renewal') filtered = filtered.filter(l => l['Status'] === 'Completed' && !activeCustomerIds.has(l['Customer ID']) && !noRenewal.has(l['Customer ID']))
 
   const rows = filtered.map(l => {
     const c = customers.find(c => c['Customer ID'] === l['Customer ID'])
@@ -59,7 +61,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
       isRenewal: leadProduct.get(l['Lead ID']) === 'RENEWAL',
       paidWeeks: paidCount, totalWeeks: Number(l['Duration Weeks']),
       isOverdue: overdueSet.has(l['Loan ID']),
-      isRenewalEligible: l['Status'] === 'Completed' && !activeCustomerIds.has(l['Customer ID']),
+      isRenewalEligible: l['Status'] === 'Completed' && !activeCustomerIds.has(l['Customer ID']) && !noRenewal.has(l['Customer ID']),
     }
   })
 

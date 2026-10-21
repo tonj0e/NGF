@@ -5,6 +5,8 @@ import StatusPill from '@/components/ui/StatusPill'
 import DriveImage from '@/components/ui/DriveImage'
 import SubmitLeadPage from './SubmitLeadPage'
 import RenewalModal from './RenewalModal'
+import RenewalApproveModal from './RenewalApproveModal'
+import DisburseQueue from './DisburseQueue'
 import { buildLeadNoteData, buildPromissoryHtml, PROMISSORY_TEMPLATE_KEY, DEFAULT_PROMISSORY_BODY } from '@/lib/promissoryNote'
 
 type LeadTab = 'new' | 'history' | 'renewal' | 'disbursements'
@@ -48,6 +50,7 @@ export default function LeadsPage({ session }: { session: Session }) {
   const [tab, setTab] = useState<LeadTab>(isCollectionAgent ? 'history' : 'new')
   const [showSubmit, setShowSubmit] = useState(false)
   const [showRenewal, setShowRenewal] = useState(false)
+  const [approving, setApproving] = useState<Lead | null>(null)
   const [detail, setDetail] = useState<Lead | null>(null)
   const [agents, setAgents] = useState<any[]>([])
   const [toast, setToast] = useState('')
@@ -111,8 +114,8 @@ export default function LeadsPage({ session }: { session: Session }) {
 
   // Memoize idle state to avoid dependency array churn
   const isIdle = useMemo(() => !(
-    showSubmit || showRenewal || detail || editing || deleteMode || busy || selected.size > 0
-  ), [showSubmit, showRenewal, detail, editing, deleteMode, busy, selected.size])
+    showSubmit || showRenewal || approving || detail || editing || deleteMode || busy || selected.size > 0
+  ), [showSubmit, showRenewal, approving, detail, editing, deleteMode, busy, selected.size])
 
   // Auto-refresh leads every 15 seconds (only when UI is idle)
   useEffect(() => {
@@ -166,7 +169,7 @@ export default function LeadsPage({ session }: { session: Session }) {
       })
       const json = await res.json()
       if (!json.success) throw new Error(json.error || 'Server error')
-      showToast('Done.'); setDetail(null); load()
+      showToast(decision === 'Approve Loan' ? 'Approved. It is now in the Disbursement list.' : 'Done.'); setDetail(null); load()
     } catch (e: any) {
       showToast(e.message || 'Failed')
     } finally { setBusy(null) }
@@ -210,6 +213,7 @@ export default function LeadsPage({ session }: { session: Session }) {
 
   if (detail) return (
     <div className="space-y-5">
+      {approving && <RenewalApproveModal session={session} lead={approving} onClose={() => setApproving(null)} onDone={m => { setApproving(null); setDetail(null); showToast(m); load() }} />}
       {toast && <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-2xl bg-[#1a1a2e] px-5 py-3 text-sm font-medium text-white shadow-lg">{toast}</div>}
       <div className="flex flex-wrap items-center gap-3">
         <button onClick={() => { setDetail(null); setEditing(false) }} className="rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-semibold">Back</button>
@@ -297,6 +301,7 @@ export default function LeadsPage({ session }: { session: Session }) {
             </InfoRow>
             <InfoRow>
               <InfoItem label="Verification Date" value={detail.verificationSubmittedDate} />
+              {detail.loanProduct !== 'RENEWAL' && <InfoItem label="Customer OTP at visit" value={detail.otpVerifiedAt ? 'Verified' : detail.otpOverrideReason ? `Not done: ${detail.otpOverrideReason}` : ''} badge={detail.otpVerifiedAt ? 'green' : detail.otpOverrideReason ? 'amber' : undefined} />}
               {(() => {
                 try {
                   const n = JSON.parse(detail.verificationNotes || '{}')
@@ -363,7 +368,7 @@ export default function LeadsPage({ session }: { session: Session }) {
                 </label>
                 <button onClick={() => review(detail.leadId, 'Approve Loan', { loanProduct: approveProduct })} disabled={busy !== null}
                   className="flex items-center justify-center gap-1.5 rounded-2xl bg-[#1a1a2e] px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-60">
-                  {busy === detail.leadId + 'Approve Loan' ? <span><span className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />Approving...</span> : 'Approve Loan'}
+                  {busy === detail.leadId + 'Approve Loan' ? <span><span className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />Approving...</span> : 'Approve'}
                 </button>
                 <button onClick={() => review(detail.leadId, 'Reject Lead')} disabled={busy !== null}
                   className="flex items-center justify-center gap-1.5 rounded-2xl border border-red-200 bg-red-50 px-5 py-2.5 text-sm font-semibold text-red-600 disabled:opacity-60">
@@ -375,9 +380,9 @@ export default function LeadsPage({ session }: { session: Session }) {
                 </button>
               </span>}
               {detail.status === 'Pending' && detail.loanProduct === 'RENEWAL' && <span>
-                <button onClick={() => review(detail.leadId, 'Approve Loan')} disabled={busy !== null}
+                <button onClick={() => setApproving(detail)} disabled={busy !== null}
                   className="flex items-center justify-center gap-1.5 rounded-2xl bg-green-600 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-60">
-                  {busy === detail.leadId + 'Approve Loan' ? <span><span className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />Approving…</span> : 'Approve & Disburse'}
+                  Approve (customer OTP)
                 </button>
                 <button onClick={() => review(detail.leadId, 'Reject Lead')} disabled={busy !== null}
                   className="flex items-center justify-center gap-1.5 rounded-2xl border border-red-200 bg-red-50 px-5 py-2.5 text-sm font-semibold text-red-600 disabled:opacity-60">
@@ -431,6 +436,7 @@ export default function LeadsPage({ session }: { session: Session }) {
       {showRenewal && (
         <RenewalModal session={session} onClose={() => setShowRenewal(false)} onDone={() => { setShowRenewal(false); load() }} />
       )}
+      {approving && <RenewalApproveModal session={session} lead={approving} onClose={() => setApproving(null)} onDone={m => { setApproving(null); showToast(m); load() }} />}
       {toast && <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-2xl bg-[#1a1a2e] px-5 py-3 text-sm font-medium text-white shadow-lg">{toast}</div>}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex gap-2 flex-wrap">
@@ -453,7 +459,7 @@ export default function LeadsPage({ session }: { session: Session }) {
           {isManager && (
             <button onClick={() => { setTab('disbursements'); setDeleteMode(false); setSelected(new Set()) }}
               className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${tab === 'disbursements' ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
-              Disbursements
+              Disbursements {leads.filter(l => l.status === 'Approved').length > 0 && <span className={`ml-1.5 rounded-full px-2 py-0.5 text-xs font-bold ${tab === 'disbursements' ? 'bg-white/20' : 'bg-amber-100 text-amber-700'}`}>{leads.filter(l => l.status === 'Approved').length} to disburse</span>}
             </button>
           )}
         </div>
@@ -527,6 +533,9 @@ export default function LeadsPage({ session }: { session: Session }) {
                   {session.role !== 'Guarantor' && l.assignedAgentName && <span>Agent: <span className="font-medium text-[#1a1a2e]">{l.assignedAgentName}</span></span>}
                   {l.riskLevel && <span>Risk: <span className="font-medium text-[#1a1a2e]">{l.riskLevel}</span></span>}
                 </div>
+                {l.loanProduct !== 'RENEWAL' && l.status === 'Verification Submitted' && (l.otpVerifiedAt
+                  ? <span className="mt-1.5 mr-1.5 inline-block rounded-lg bg-green-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-green-700">Customer OTP verified</span>
+                  : <span className="mt-1.5 mr-1.5 inline-block rounded-lg bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">OTP not done: {(l.otpOverrideReason || 'no reason').slice(0, 60)}</span>)}
                 {l.aadhaarStatus === 'exists'
                   ? <span className="mt-1.5 inline-block rounded-lg bg-red-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-600">Existing Customer — High Risk of Fraud</span>
                   : l.aadhaarNo
@@ -538,11 +547,11 @@ export default function LeadsPage({ session }: { session: Session }) {
               {!deleteMode && <div className="flex flex-wrap items-center justify-end gap-2">
                 {session.role !== 'Guarantor' && <button onClick={() => setDetail(l)} className="rounded-xl border border-[#e5e7eb] px-3 py-1.5 text-xs font-semibold">View</button>}
                 {isManager && <button onClick={() => printNote(l)} className="rounded-xl border border-[#e5e7eb] px-3 py-1.5 text-xs font-semibold">Print Note</button>}
-                {isManager && l.loanProduct === 'RENEWAL' && l.status !== 'Converted' && l.status !== 'Rejected' && (
+                {isManager && l.loanProduct === 'RENEWAL' && l.status === 'Pending' && (
                   <span>
-                    <button onClick={() => review(l.leadId, 'Approve Loan')} disabled={busy !== null}
+                    <button onClick={() => setApproving(l)} disabled={busy !== null}
                       className="flex items-center justify-center gap-1.5 rounded-xl bg-green-600 px-4 py-1.5 text-xs font-semibold text-white disabled:opacity-60">
-                      {busy === l.leadId + 'Approve Loan' ? <span><span className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />Approving…</span> : 'Approve'}
+                      Approve (OTP)
                     </button>
                     <button onClick={() => review(l.leadId, 'Reject Lead')} disabled={busy !== null}
                       className="rounded-xl border border-[#e5e7eb] px-3 py-1.5 text-xs font-semibold text-red-600 disabled:opacity-60">Reject</button>
@@ -604,7 +613,7 @@ export default function LeadsPage({ session }: { session: Session }) {
 function DisbursementsView({ session }: { session: Session }) {
   const [loans, setLoans] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [subTab, setSubTab] = useState<'current' | 'history'>('current')
+  const [subTab, setSubTab] = useState<'queue' | 'current' | 'history'>('queue')
   const [historyWeek, setHistoryWeek] = useState('')
 
   useEffect(() => {
@@ -693,6 +702,10 @@ function DisbursementsView({ session }: { session: Session }) {
     <div className="space-y-4">
       {/* Sub-tabs */}
       <div className="flex gap-2">
+        <button onClick={() => setSubTab('queue')}
+          className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${subTab === 'queue' ? 'bg-green-600 text-white' : 'border border-green-200 bg-white text-green-700 hover:bg-green-50'}`}>
+          To Disburse
+        </button>
         <button onClick={() => setSubTab('current')}
           className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${subTab === 'current' ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
           Current Week
@@ -703,7 +716,7 @@ function DisbursementsView({ session }: { session: Session }) {
         </button>
       </div>
 
-      {subTab === 'current' ? (
+      {subTab === 'queue' ? <DisburseQueue session={session} /> : subTab === 'current' ? (
         <div className="space-y-4">
           <p className="text-sm text-[#697586]">Current week · <span className="font-semibold text-[#1a1a2e]">{weekRangeLabel(currentWeek)}</span> (Mon–Sat)</p>
           {renderWeek(weekLoans(currentWeek))}
@@ -719,6 +732,7 @@ function DisbursementsView({ session }: { session: Session }) {
               ))}
             </select>
           </div>
+          {renderWeek(weekLoans(selectedHistory))}
         </div>
       )}
     </div>

@@ -56,6 +56,8 @@ export const GET = apiHandler(async (req: NextRequest) => {
       guarantorName: g?.['Name'] || '', guarantorCode: g?.['Code'] || '',
       activeLoanId: c['Active Loan ID'] || loan?.['Loan ID'] || '', loanAccountNo: loan?.['Loan Account No'] || '', agentName: a?.['Name'] || '',
       loanStatus: loan?.['Status'] || '',
+      holdUntil: (String(c['Hold Until'] || '').slice(0, 10) > today) ? String(c['Hold Until']).slice(0, 10) : '',
+      permanentBlock: String(c['Permanent Block']) === 'true', blockReason: c['Block Reason'] || '',
       isOverdue: loan ? overdueSet.has(loan['Loan ID']) : false,
       principal: loan?.['Principal Amount'] || '0',
       weeklyAmount: loan?.['Weekly Collection Amount'] || '0',

@@ -49,3 +49,6 @@ Not read from env (despite the packages): `next-auth` has no config here.
 
 ## Related
 - [[Architecture Brain]], [[Tech Stack and Folder Map]], [[Runbook Brain]], [[Branches and Staff]]
+
+## SMS (customer OTP), added 2026-10-21
+- `SMS_PROVIDER` (`msg91` or `twilio`), `MSG91_AUTH_KEY`, `MSG91_OTP_TEMPLATE_ID`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM`, `TWILIO_MESSAGING_SERVICE_SID`. Names only; see [[SMS Setup]]. All optional: without them the OTP can only go to the testing mailbox or be overridden with a reason.

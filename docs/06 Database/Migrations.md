@@ -44,3 +44,5 @@ Root fix files (not migrations, run manually): `fix_all_enums.sql`, `fix_capital
 
 ## Related
 - [[Database Brain]], [[Live vs Repo Drift]], [[Tables]], [[Runbook Brain]], [[Tech Stack and Folder Map]]
+
+- `20261021100000_customer_otp_disbursement_closure.sql` (applied 2026-10-21): `customer_otps`, `loan_closures`, OTP/approval/disbursement columns on `leads`, `hold_until`/`permanent_block`/`block_reason` on `customers`. See [[Customer OTP and Disbursement]].

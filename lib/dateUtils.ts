@@ -24,6 +24,18 @@ export function getTodayIST(): string {
 }
 
 /**
+ * First weekly payment date for a loan handed over today (IST): always the NEXT Saturday after today.
+ * Wed or Fri -> this coming Saturday. Saturday -> a week later. (Owner's rule, 2026-10-21.)
+ */
+export function firstPaymentSaturdayIST(): string {
+  const d = nowIST()
+  const day = d.getUTCDay()               // 0 Sun .. 6 Sat
+  const diff = ((6 - day + 7) % 7) || 7
+  d.setUTCDate(d.getUTCDate() + diff)
+  return d.toISOString().slice(0, 10)
+}
+
+/**
  * Get current date-time in IST as ISO string
  */
 export function getNowIST(): string {

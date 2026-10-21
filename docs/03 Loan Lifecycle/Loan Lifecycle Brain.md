@@ -56,5 +56,6 @@ flowchart LR
 - `lib/reviews.ts` rules or the repayment POST review format change.
 - Loans/customers unique constraints change (see [[Tables]], [[Enums and Status Values]]).
 - Roles per step change (see [[Roles and Permissions]]); screens in [[Screens Map]].
+- Customer OTP, approval, disbursement or early closure change ([[Customer OTP and Disbursement]], [[SMS Setup]]).
 
 Back to [[00 BRAIN]].

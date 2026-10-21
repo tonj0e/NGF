@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import EarlyCloseSection from './EarlyCloseSection'
 import { Session } from '@/types'
 
 function currency(n: number) {
@@ -232,6 +233,11 @@ export default function LoansPage({ session, defaultFilter = 'active', customers
                 </div>
               )}
 
+              {/* Early closure: Close & Hold / Close permanently (branch staff and admin) */}
+              <EarlyCloseSection session={session} loanId={closeModal.loanId}
+                onDone={m => { showToast(m); setCloseModal(null); fetch(`/api/loans?filter=${defaultFilter}`, { headers: { Authorization: `Bearer ${session.token}` } }).then(r => r.json()).then(j => { if (j.success) setLoans(j.data.loans) }) }} />
+
+              {session.role === 'Admin' && <>
               {/* Settle balance */}
               {remaining > 0 && (
                 <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 space-y-2">
@@ -257,6 +263,7 @@ export default function LoansPage({ session, defaultFilter = 'active', customers
                 </button>
                 <p className="text-center text-[10px] text-[#697586]">Permanently closes the account — cheque return & closing procedures apply</p>
               </div>
+              </>}
             </div>
           </div>
         </div>
@@ -312,7 +319,7 @@ export default function LoansPage({ session, defaultFilter = 'active', customers
                       View Customer
                     </button>
                   )}
-                  {session.role === 'Admin' && defaultFilter === 'active' && (
+                  {(session.role === 'Admin' || session.role === 'Staff') && defaultFilter === 'active' && (
                     <button onClick={() => setCloseModal(l)}
                       className="flex-1 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-100 transition">
                       Close Loan

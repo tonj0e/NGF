@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import OtpPanel, { OtpState } from './OtpPanel'
 import { Session, Lead, AgentTrip } from '@/types'
 
 const MAX_BYTES = 1 * 1024 * 1024 // 1 MB
@@ -108,6 +109,9 @@ export default function VerificationsPage({ session }: { session: Session }) {
   const [calculatedDistance, setCalculatedDistance] = useState<number | null>(null)
   const [manualDistance, setManualDistance] = useState<number>(0)
   const [savingTrip, setSavingTrip] = useState(false)
+  const [visitPhone, setVisitPhone] = useState('')
+  const [otpState, setOtpState] = useState<OtpState>({ verified: false, overridden: false })
+  useEffect(() => { setVisitPhone(active?.phone || ''); setOtpState({ verified: false, overridden: false }) }, [active?.leadId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handlePhoto(key: PhotoKey, file: File) {
     setPhotoFiles(p => ({ ...p, [key]: file }))
@@ -331,7 +335,7 @@ export default function VerificationsPage({ session }: { session: Session }) {
                 ].map(([k, l, v]) => (
                   <label key={String(k)} className="block">
                     <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-[#697586]">{String(l)}</span>
-                    <input name={String(k)} defaultValue={String(v || '')} required={String(l).endsWith('*')} className="w-full rounded-2xl border border-[#e5e7eb] bg-[#f4f5f7] px-4 py-3 text-sm outline-none focus:border-[#1a1a2e] focus:bg-white transition" />
+                    <input name={String(k)} defaultValue={String(v || '')} required={String(l).endsWith('*')} onChange={k === 'phone' ? (e => setVisitPhone(e.target.value)) : undefined} className="w-full rounded-2xl border border-[#e5e7eb] bg-[#f4f5f7] px-4 py-3 text-sm outline-none focus:border-[#1a1a2e] focus:bg-white transition" />
                   </label>
                 ))}
               </div>
@@ -392,6 +396,11 @@ export default function VerificationsPage({ session }: { session: Session }) {
               </div>
             </section>
             <section>
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-[#697586]">Customer OTP (required)</p>
+              <p className="mb-3 text-sm text-[#697586]">Ask the customer to confirm with the code sent to their phone. Without it the verification cannot go to the branch.</p>
+              <OtpPanel token={session.token} leadId={active.leadId} purpose="lead_verification" phone={visitPhone} onChange={setOtpState} />
+            </section>
+            <section>
               <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-[#697586]">Documents</p>
               <p className="mb-4 text-sm text-[#697586]">Optional — upload if available. Images are compressed automatically.</p>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -406,8 +415,8 @@ export default function VerificationsPage({ session }: { session: Session }) {
             </section>
             <div className="flex items-center justify-between border-t border-black/5 pt-5">
               <p className="text-sm text-[#697586]">Lead ID {active.leadId}</p>
-              <button type="submit" disabled={submitting} className="rounded-2xl bg-[#1a1a2e] px-6 py-3 text-sm font-semibold text-white disabled:opacity-60">
-                {submitting ? 'Submitting...' : 'Submit Verification'}
+              <button type="submit" disabled={submitting || !(otpState.verified || otpState.overridden)} title={otpState.verified || otpState.overridden ? '' : 'Verify the customer OTP first'} className="rounded-2xl bg-[#1a1a2e] px-6 py-3 text-sm font-semibold text-white disabled:opacity-40">
+                {submitting ? 'Submitting...' : otpState.verified || otpState.overridden ? 'Submit Verification' : 'Verify OTP to submit'}
               </button>
             </div>
           </form>
