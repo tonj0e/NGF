@@ -32,7 +32,8 @@ tags: [ngf, sms, otp, msg91, twilio, env]
 4. Rebuild and test as above.
 
 ## Cost and limits
-- Providers charge per message (roughly paise to a few rupees depending on route); check the current price list. The code sends at most 5 codes per lead per hour and one per minute, which also caps cost.
+- Providers charge per message (roughly paise to a few rupees depending on route); check the current price list.
+- **The app limits sending** (details in [[Customer OTP and Disbursement]]): escalating waits and 4 per customer per hour, per phone 6/hour and 10/day, per login 20/hour and 80/day, per IP 60/hour, and a whole-system cap of 200 a day (`OTP_DAILY_CAP`). Set a **spending limit or low-balance alert inside MSG91/Twilio too** as a second safety net.
 - The OTP is valid 10 minutes, 5 wrong tries lock it.
 
 ## Testing safely

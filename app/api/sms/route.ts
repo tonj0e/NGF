@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, requireRole, ok, err } from '@/lib/api'
 import { smsStatus, sendTestSms } from '@/lib/sms'
+import { otpUsageToday, OTP_LIMITS } from '@/lib/customerOtp'
 import { normalizeIndianMobile, maskMobile } from '@/lib/phone'
 import { rateLimitKey } from '@/lib/rate-limiter'
 import { csrfProtection } from '@/lib/csrf'
@@ -9,7 +10,9 @@ import { createAuditLogger } from '@/lib/audit'
 // Admin only: is SMS connected (names of missing settings, never values) and send a test message to the admin's own number.
 export const GET = apiHandler(async (req: NextRequest) => {
   await requireRole(req, ['Admin'])
-  return ok(await smsStatus())
+  const [st, usage] = await Promise.all([smsStatus(), otpUsageToday()])
+  const { resendGapsSec, perLeadPerHour, perPhonePerHour, perPhonePerDay, perUserPerHour, perUserPerDay, perIpPerHour } = OTP_LIMITS
+  return ok({ ...st, usage, limits: { resendGapsSec, perLeadPerHour, perPhonePerHour, perPhonePerDay, perUserPerHour, perUserPerDay, perIpPerHour, dailyCap: usage.cap } })
 })
 
 export const POST = apiHandler(async (req: NextRequest) => {

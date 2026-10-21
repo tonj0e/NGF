@@ -1,10 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // Small browser helpers for calling our own API with the session token (and a fresh CSRF token on writes).
-export type ApiResult<T = any> = { ok: boolean; status: number; data?: T; error?: string }
+export type ApiResult<T = any> = { ok: boolean; status: number; data?: T; error?: string; retryAfterSec?: number }
 
 async function parse(res: Response): Promise<ApiResult> {
   const json = await res.json().catch(() => ({}))
-  return json?.success ? { ok: true, status: res.status, data: json.data } : { ok: false, status: res.status, error: json?.error || `Request failed (${res.status})` }
+  return json?.success ? { ok: true, status: res.status, data: json.data } : { ok: false, status: res.status, error: json?.error || `Request failed (${res.status})`, retryAfterSec: typeof json?.retryAfterSec === 'number' ? json.retryAfterSec : undefined }
 }
 
 export async function apiGet<T = any>(token: string, url: string): Promise<ApiResult<T>> {

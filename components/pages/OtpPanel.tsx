@@ -40,7 +40,7 @@ export default function OtpPanel({ token, leadId, purpose, phone, onChange }: {
     setBusy('send'); setMsg(null); setDevOtp('')
     const r = await apiSend(token, 'POST', '/api/otp', { action: 'request', purpose, leadId, phone })
     setBusy(null)
-    if (!r.ok) { setMsg({ kind: 'err', text: r.error || 'Could not send' }); return }
+    if (!r.ok) { setMsg({ kind: 'err', text: r.error || 'Could not send' }); if (r.retryAfterSec) setWait(Math.min(r.retryAfterSec, 3600)); return }
     setSentOnce(true); setWait(r.data.cooldownSec || 60); setSendFailed(!r.data.sent)
     if (r.data.devOtp) setDevOtp(r.data.devOtp)
     setMsg({ kind: r.data.sent ? 'ok' : 'err', text: `${r.data.message}${r.data.sent ? ` (${r.data.phoneMasked})` : '. Use the override below if the customer cannot receive it.'}` })
@@ -84,7 +84,7 @@ export default function OtpPanel({ token, leadId, purpose, phone, onChange }: {
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" onClick={send} disabled={busy !== null || wait > 0 || (!!info && !info.hasValidPhone)}
               className="rounded-xl bg-[#1a1a2e] px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">
-              {busy === 'send' ? 'Sending…' : wait > 0 ? `Resend in ${wait}s` : sentOnce ? 'Resend OTP' : 'Send OTP'}
+              {busy === 'send' ? 'Sending…' : wait > 0 ? `Resend in ${wait > 90 ? `${Math.ceil(wait / 60)} min` : `${wait}s`}` : sentOnce ? 'Resend OTP' : 'Send OTP'}
             </button>
             {sentOnce && (!sendFailed || !!devOtp) && (
               <>

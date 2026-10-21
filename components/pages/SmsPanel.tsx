@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { Session } from '@/types'
 import { apiGet, apiSend } from '@/lib/clientApi'
 
-type Status = { chosen: string; provider: 'msg91' | 'twilio' | 'none'; missing: string[]; testMailboxActive: boolean }
+type Status = { chosen: string; provider: 'msg91' | 'twilio' | 'none'; missing: string[]; testMailboxActive: boolean; usage: { today: number; cap: number }; limits: { resendGapsSec: number[]; perLeadPerHour: number; perPhonePerHour: number; perPhonePerDay: number; perUserPerHour: number; perUserPerDay: number; perIpPerHour: number } }
 
 export default function SmsPanel({ session }: { session: Session }) {
   const [st, setSt] = useState<Status | null>(null)
@@ -44,6 +44,25 @@ export default function SmsPanel({ session }: { session: Session }) {
         {st?.testMailboxActive && <p className="rounded-xl bg-blue-50 px-3 py-2 text-xs text-blue-800">The testing mailbox switch is ON (Dev &gt; Testing): customer codes are emailed to the test mailbox instead of being sent by SMS. Turn it off before real use.</p>}
         <p className="text-xs text-[#697586]">Keys are never shown here. They live as environment variables on the server (Hostinger &gt; Node.js &gt; Environment variables). Steps: docs &quot;SMS Setup&quot;.</p>
       </div>
+
+      {st && (
+        <div className="rounded-[1.75rem] border border-white/70 bg-white p-6 shadow-panel space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm font-semibold">Sending limits (protect your SMS budget)</p>
+            <span className={`rounded-full px-3 py-1 text-xs font-bold ${st.usage.today >= st.usage.cap ? 'bg-red-100 text-red-700' : st.usage.today >= st.usage.cap * 0.8 ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>{st.usage.today} of {st.usage.cap} codes used today</span>
+          </div>
+          <div className="h-2 rounded-full bg-[#e5e7eb]"><div className={`h-2 rounded-full ${st.usage.today >= st.usage.cap ? 'bg-red-500' : st.usage.today >= st.usage.cap * 0.8 ? 'bg-amber-500' : 'bg-green-500'}`} style={{ width: `${Math.min(100, Math.round((st.usage.today / Math.max(st.usage.cap, 1)) * 100))}%` }} /></div>
+          <ul className="grid gap-x-6 gap-y-1 text-xs text-[#697586] sm:grid-cols-2">
+            <li>Same customer: wait {st.limits.resendGapsSec.map(g => (g >= 60 ? `${g / 60} min` : `${g}s`)).join(' → ')} between codes, max {st.limits.perLeadPerHour} per hour</li>
+            <li>Same phone number: {st.limits.perPhonePerHour} per hour, {st.limits.perPhonePerDay} per day</li>
+            <li>Same staff or agent login: {st.limits.perUserPerHour} per hour, {st.limits.perUserPerDay} per day</li>
+            <li>Same network address: {st.limits.perIpPerHour} per hour</li>
+            <li>Whole system: {st.usage.cap} per day (resets at midnight IST). You get an alert at 80% and 100%.</li>
+            <li>When a limit is hit, staff can still continue with the override and a written reason.</li>
+          </ul>
+          <p className="text-xs text-[#697586]">To change the daily limit, set <b>OTP_DAILY_CAP</b> on Hostinger and redeploy. Also set a spending limit or low-balance alert inside MSG91 / Twilio as a second safety net.</p>
+        </div>
+      )}
 
       <div className="rounded-[1.75rem] border border-white/70 bg-white p-6 shadow-panel space-y-3">
         <p className="text-sm font-semibold">Send a test message</p>

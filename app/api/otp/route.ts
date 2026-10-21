@@ -1,10 +1,12 @@
 import { NextRequest } from 'next/server'
+import { NextResponse } from 'next/server'
 import { apiHandler, getSession, ok, err } from '@/lib/api'
+import { notifyRole } from '@/lib/notifications'
 import { readTable, updateById, findRecord, nowIso, invalidateCache } from '@/lib/supabase-db'
 import { csrfProtection } from '@/lib/csrf'
 import { createAuditLogger } from '@/lib/audit'
 import { normalizeIndianMobile, maskMobile } from '@/lib/phone'
-import { issueCustomerOtp, verifyCustomerOtp, recordSendResult, otpStatus, CUSTOMER_OTP_TTL_MS, CUSTOMER_OTP_COOLDOWN_MS, type OtpPurpose } from '@/lib/customerOtp'
+import { issueCustomerOtp, verifyCustomerOtp, recordSendResult, otpStatus, OTP_LIMITS, CUSTOMER_OTP_TTL_MS, CUSTOMER_OTP_COOLDOWN_MS, type OtpPurpose, type DenyReason } from '@/lib/customerOtp'
 import { sendCustomerOtp } from '@/lib/sms'
 import { getBranchAccess, branchOfGuarantor, canApproveIn, canOverrideIn, clientIp } from '@/lib/branchAccess'
 import { customerForRenewalLead } from '@/lib/renewalRules'
@@ -81,10 +83,28 @@ export const POST = apiHandler(async (req: NextRequest) => {
 
   if (action === 'request') {
     if (!phone) return err(purpose === 'renewal_approval' ? 'This customer has no valid registered mobile number. Use the override with a reason.' : 'Enter a valid 10-digit mobile number')
+    // Already confirmed: another code would cost money for nothing
+    const fresh = (ctx.lead['Otp Verified At'] && Date.now() - Date.parse(ctx.lead['Otp Verified At'])) || Infinity
+    if (fresh < (purpose === 'renewal_approval' ? 60 * 60 * 1000 : VERIFIED_FRESH_MS)) return err('The customer OTP is already verified. No new code is needed.')
     const issued = await issueCustomerOtp({ purpose, subjectId: leadId, phone, requestedBy: session.userId, ip: clientIp(req) })
     if (!issued.issued) {
-      const msg = issued.reason === 'cooldown' ? 'Please wait a minute before asking for another code' : issued.reason === 'hourly_cap' ? 'Too many codes for this customer in the last hour. Try later or use the override with a reason.' : 'Could not create a code. Try again.'
-      return err(msg, 429)
+      await audit.log('CUSTOMER_OTP_LIMITED', 'Lead', leadId, { purpose, reason: issued.reason, retryAfterSec: issued.retryAfterSec }, false)
+      const mins = Math.max(1, Math.ceil(issued.retryAfterSec / 60))
+      const msg: Record<DenyReason, string> = {
+        cooldown: `Please wait ${issued.retryAfterSec < 90 ? `${issued.retryAfterSec} seconds` : `${mins} minutes`} before asking for another code.`,
+        lead_cap: `Too many codes for this customer this hour. Try again in ${mins} minutes, or use the override with a reason.`,
+        phone_cap: `This phone number has had too many codes today. Try again in ${mins} minutes, or use the override with a reason.`,
+        user_cap: `You have requested too many codes. Try again in ${mins} minutes.`,
+        ip_cap: `Too many codes were requested from this network. Try again in ${mins} minutes.`,
+        daily_cap: 'The daily SMS limit has been reached. Use the override with a reason, or ask the admin to raise the limit.',
+        store: 'Could not create a code. Try again.',
+      }
+      return NextResponse.json({ success: false, error: msg[issued.reason], retryAfterSec: issued.retryAfterSec, canOverride: ctx.canOverride }, { status: issued.reason === 'store' ? 503 : 429, headers: { 'Retry-After': String(issued.retryAfterSec) } })
+    }
+    // Warn the admin when the daily SMS budget is 80% and 100% used
+    const cap = OTP_LIMITS.dailyCap
+    if (issued.usedToday === Math.ceil(cap * 0.8) || issued.usedToday === cap) {
+      try { await notifyRole('Admin', 'SMS limit', `${issued.usedToday} of ${cap} customer OTP codes used today${issued.usedToday === cap ? '. Further codes are blocked until tomorrow (staff can still override with a reason).' : '.'}`, 'Setting', 'sms') } catch { /* alert is best effort */ }
     }
     const sent = await sendCustomerOtp(phone, issued.otp, CUSTOMER_OTP_TTL_MS / 60000, ctx.customerName || 'customer')
     await recordSendResult(issued.id, sent.status === 'sent' ? 'sent' : sent.status, 'provider' in sent ? sent.provider : undefined, 'ref' in sent ? sent.ref : undefined)
@@ -93,7 +113,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
     return ok({
       sent: delivered, sendStatus: sent.status, phoneMasked: maskMobile(phone),
       message: sent.status === 'sent' ? 'Code sent to the customer by SMS' : sent.status === 'test_email' ? 'TEST MODE: the code was emailed to the testing mailbox' : sent.status === 'not_configured' ? 'SMS is not set up yet' : 'The SMS could not be sent',
-      canOverride: ctx.canOverride, expiresInSec: CUSTOMER_OTP_TTL_MS / 1000, cooldownSec: CUSTOMER_OTP_COOLDOWN_MS / 1000,
+      canOverride: ctx.canOverride, expiresInSec: CUSTOMER_OTP_TTL_MS / 1000, cooldownSec: issued.nextWaitSec,
       // Local development only, when no SMS and no test mailbox is available. Never present on the live site.
       ...(!delivered && !isProductionEnv() ? { devOtp: issued.otp } : {}),
     })
