@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import SmsPanel from './SmsPanel'
 import { Session } from '../../types'
 import { PAYMENT_UNLOCK_KEY } from './CollectionPage'
 import { PROMISSORY_TEMPLATE_KEY, DEFAULT_PROMISSORY_BODY, PROMISSORY_PLACEHOLDERS } from '../../lib/promissoryNote'
@@ -543,6 +544,10 @@ export default function DevPage({ session }: { session: Session }) {
           className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${subTab === 'testing' ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
           Testing
         </button>
+        <button onClick={() => setSubTab('sms')}
+          className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${subTab === 'sms' ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
+          SMS
+        </button>
         <button onClick={() => setSubTab('note')}
           className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${subTab === 'note' ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
           Promissory Note
@@ -961,6 +966,8 @@ export default function DevPage({ session }: { session: Session }) {
           </div>
         </div>
       )}
+      {subTab === 'sms' && <SmsPanel session={session} />}
+
       {subTab === 'note' && (
         <div className="rounded-[1.75rem] border border-white/70 bg-white shadow-panel p-6 space-y-4">
           <div>

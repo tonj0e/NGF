@@ -44,3 +44,6 @@ Migrate routes accept `dryRun`, `limit` (default 100), `offset`.
 - [[Runbook Brain]]
 - [[Security Brain]]
 - [[Open Security Leads]]
+
+## Dev > SMS tab (2026-10-21)
+`components/pages/SmsPanel.tsx` + `app/api/sms/route.ts` (Admin only; not under `/api/dev`, so it works on the live site). Status of the SMS provider (names of missing env settings only) and a test send. See [[SMS Setup]].

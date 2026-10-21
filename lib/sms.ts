@@ -65,6 +65,14 @@ async function viaTwilio(mobile: string, otp: string, minutes: number): Promise<
   } catch (e) { return { status: 'failed', provider: 'twilio', error: e instanceof Error ? e.name : 'network error' } }
 }
 
+/** Real provider only (ignores the testing mailbox). */
+async function sendViaProvider(mobile: string, otp: string, minutes: number): Promise<SmsResult> {
+  const provider = configuredProvider()
+  if (provider === 'msg91') return viaMsg91(mobile, otp, minutes)
+  if (provider === 'twilio') return viaTwilio(mobile, otp, minutes)
+  return { status: 'not_configured' }
+}
+
 /** Sends the OTP to a customer's 10-digit mobile. Never throws. */
 export async function sendCustomerOtp(mobile: string, otp: string, minutes: number, label = 'customer'): Promise<SmsResult> {
   const test = await activeTestMailbox()
@@ -74,8 +82,23 @@ export async function sendCustomerOtp(mobile: string, otp: string, minutes: numb
     const r = await sendEmail({ to: test, subject, text, html: `<pre style="font:14px monospace">${text.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</pre>` })
     return r.status === 'sent' ? { status: 'test_email', provider: 'test_email' } : { status: 'failed', provider: 'test_email', error: r.status === 'failed' ? r.error : 'email not configured' }
   }
-  const provider = configuredProvider()
-  if (provider === 'msg91') return viaMsg91(mobile, otp, minutes)
-  if (provider === 'twilio') return viaTwilio(mobile, otp, minutes)
-  return { status: 'not_configured' }
+  return sendViaProvider(mobile, otp, minutes)
+}
+
+/** What the admin screen may show: which provider, whether it is complete, which env NAMES are missing. Never values. */
+export async function smsStatus() {
+  const wanted = (process.env.SMS_PROVIDER || '').toLowerCase()
+  const need: Record<string, string[]> = {
+    msg91: ['MSG91_AUTH_KEY', 'MSG91_OTP_TEMPLATE_ID'],
+    twilio: ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN'],
+  }
+  const missing = wanted in need ? need[wanted].filter(k => !process.env[k]) : []
+  if (wanted === 'twilio' && !process.env.TWILIO_FROM && !process.env.TWILIO_MESSAGING_SERVICE_SID) missing.push('TWILIO_FROM or TWILIO_MESSAGING_SERVICE_SID')
+  return { chosen: wanted || '', provider: configuredProvider(), missing, testMailboxActive: !!(await activeTestMailbox()) }
+}
+
+/** Sends a real test message through the configured provider only (the testing mailbox is ignored on purpose). Never throws. */
+export async function sendTestSms(mobile: string): Promise<SmsResult> {
+  const code = String(Math.floor(100000 + Math.random() * 900000))
+  return sendViaProvider(mobile, code, 10)
 }
