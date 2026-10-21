@@ -27,6 +27,7 @@ tags: [ngf, runbook,brain]
 | [[Tools Connected to Claude]] | Playwright, Supabase, Obsidian, skills | Setting up a new machine |
 | [[MCP Plan]] | The `ngf-crm` MCP server: what Claude can read and change, safeguards, setup | Connecting Claude to the CRM |
 | [[SMS Setup]] | MSG91 / Twilio env variables, testing mailbox, costs | Choosing or changing the SMS provider |
+| [[Integrations Admin Panel]] | Keys and API settings managed from the Dev page (encrypted), WhatsApp auto-send, migration 20261021300000 | Adding or changing any API key |
 
 ## Related
 - [[00 BRAIN]], [[Security Fix Plan]]
