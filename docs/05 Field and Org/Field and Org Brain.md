@@ -11,7 +11,7 @@ tags: [ngf, field-and-org, brain]
 Purpose: explain who belongs where, how field agents are tracked, and how files and admin tools behave, including what is broken.
 
 ## Five things to remember
-1. Branches are labels, not walls. No API filters data by branch; `staff_access.permissions` only decides which sidebar items a Staff user sees.
+1. Branches are mostly labels. Since 2026-10-21 the **leads list, approval, disbursement and early closure** are scoped to the branch for Staff (`lib/branchAccess.ts`); other routes still show Staff everything, and `staff_access.permissions` still decides which sidebar items a Staff user sees.
 2. Live agent map and Trip Details are broken by type mismatches (boolean `is_tracking`, Pascal-case rows). See [[Agent Attendance Location and Trips]].
 3. The header bell is fake. Real notifications exist only on the Notifications page and only for lead events.
 4. Lead photos live in Google Drive; payment proofs in Supabase `payment-proofs`; ID-card photos are data URLs inside `profiles`. The file proxy needs only a login.
@@ -23,6 +23,7 @@ Purpose: explain who belongs where, how field agents are tracked, and how files 
 | [[Branches and Staff]] | Branch model, roles, permissions, add/edit/block/delete, guarantor list in a branch | Changing the NGF Branches page or user admin |
 | [[Agent Attendance Location and Trips]] | Check-in gate, location push, live map, trips | Touching agent screens or the map |
 | [[Verification Day Routes]] | Visit location + day per lead, road-distance ordering of each agent's day, drag to reorder, My Route | Touching lead assignment, agent day, Google Maps |
+| [[Branch Town]] | Admin-only 3D town, branch office layout, camera views for future CCTV | Touching the 3D page or planning CCTV |
 | [[Notifications]] | Who creates and sees notifications, read state, the bell | Adding an event or fixing unread state |
 | [[ID Cards and QR]] | Card build, QR payload, print, photo | Changing the card or QR login |
 | [[Files and Storage]] | Drive and Supabase buckets, naming, proxy route | Any upload or image display work |

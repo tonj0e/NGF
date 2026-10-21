@@ -36,12 +36,12 @@ erDiagram
 | guarantors | Guarantor profile: code, commission_earned, status. PK guarantor_id | user_id -> users (CASCADE) | staff, leads, loans, dashboard, deposits |
 | agents | Field agents: agent_type, status, GPS (latitude, longitude, location_accuracy, location_updated_at, is_tracking), branch_id. PK agent_id | user_id -> users (CASCADE); branch_id -> branches (SET NULL) | staff, agent/*, leads |
 | profiles | ID-card extras: photo, blood_group, emergency_contact, place, card_number. PK user_id | user_id -> users (CASCADE) | profile, branches/org-hierarchy |
-| customers | Borrower: contact, bank, pan, active_loan_id, status. PK customer_id | lead_id -> leads (CASCADE); guarantor_id -> guarantors (no action) | customers, leads/[leadId], import-customer |
+| customers | Borrower: contact, bank, pan, active_loan_id, status, **hold_until, permanent_block, block_reason** (early closure). PK customer_id | lead_id -> leads (CASCADE); guarantor_id -> guarantors (no action) | customers, leads/[leadId], import-customer |
 
 ## Leads and loans
 | Table | Purpose / key columns | FKs (delete rule) | Used by |
 |---|---|---|---|
-| leads | Application + KYC + photo URLs, loan_product, status, verification_status, assigned_agent_id. PK lead_id | guarantor_id -> guarantors; guarantor_user_id -> users (no action); assigned_agent_id -> agents (SET NULL) | leads, leads/[leadId], dashboard |
+| leads | Application + KYC + photo URLs, loan_product, status, verification_status, assigned_agent_id, **otp_verified_at, otp_phone, otp_override_reason/by, approved_by/at, disbursed_by/at**. PK lead_id | guarantor_id -> guarantors; guarantor_user_id -> users (no action); assigned_agent_id -> agents (SET NULL) | leads, leads/[leadId], dashboard |
 | loan_products | Product templates: principal, duration_weeks, weekly_collection, total_collection, interest_deduction, guarantor_commission, net_disbursed. PK key | none | loan-products, `lib/loanProducts.ts` |
 | loans | Issued loan: amounts, weeks, start/end dates, status. PK loan_id | customer_id -> customers (CASCADE); lead_id, guarantor_id (no action); assigned_agent_id -> agents (SET NULL) | loans, leads/[leadId], projection |
 | repayments | One row per week: due_date, week_no, amount, status, paid_date, payment_mode, proof_file_id. PK repayment_id | loan_id -> loans (CASCADE); customer_id (no action); collection_agent_id -> users (no action) | repayments, collection-sheet, loans |
@@ -100,3 +100,9 @@ See [[Payment Matching]].
 
 ## Loan account number (2026-10-19)
 `loans.loan_account_no` (NGF000001 style, sequence `loan_account_seq`, unique). `loans.customer_id` is no longer unique: a customer can have many loans. See [[Customer History and Score]].
+
+## Added 2026-10-21
+| Table | Purpose / key columns | Used by |
+|---|---|---|
+| customer_otps | One row per OTP sent to a customer's phone: purpose, subject_id (lead), phone, `otp_hash` (never the code), expiry, attempts, verified_at, send_status, provider. RLS on, server only | `app/api/otp`, `lib/customerOtp.ts` |
+| loan_closures | Early closure record: loan_id, customer_id, mode (hold/permanent), weeks_remaining, amount_collected, hold_until, reason, closed_by, readmitted_*. RLS on, server only | `app/api/loans/close`, `customers/readmit` |

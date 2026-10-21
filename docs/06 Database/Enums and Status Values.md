@@ -36,10 +36,10 @@ stateDiagram-v2
   [*] --> Pending
   Pending --> AgentAssigned: assign agent
   AgentAssigned --> VerificationSubmitted: agent submits
-  VerificationSubmitted --> Approved: admin approves
+  VerificationSubmitted --> Approved: branch approves (waiting to be disbursed)
   VerificationSubmitted --> Rejected: admin rejects
   VerificationSubmitted --> AgentAssigned: sent back
-  Approved --> Converted: loan created
+  Approved --> Converted: Mark disbursed creates the loan
   Rejected --> [*]
   Converted --> [*]
 ```

@@ -11,6 +11,14 @@ tags: [ngf, decisions]
 
 | Date | Decision | Why |
 |---|---|---|
+| 2026-10-21 | Approval only queues a lead (`Approved`); the loan is created when someone marks it disbursed; first payment = next Saturday after the handover | The start Saturday depends on the day the money is handed over |
+| 2026-10-21 | Customer OTP at the agent's visit and at renewal approval; override needs a written reason; OTP is a consent record, not a legal e-signature | Owner's rule; paper agreement and e-sign are with a lawyer |
+| 2026-10-21 | Branch accountant, assistant manager, manager approve and disburse for their own branch; Staff see only their branch's leads | Owner's rule |
+| 2026-10-21 | Close & Hold = renewal after the loan's original end date; Close permanently = blocked until an admin re-admits | Owner's rule |
+| 2026-10-20 | Claude connects to the CRM through its own API with a dedicated admin login, writes need a reason and approval, dev/setup/login routes blocked | Keeps permissions and audit logs in force ([[MCP Plan]]) |
+| 2026-10-20 | Each branch is the top-floor office of a 4-storey building in a realistic 3D town; agents and guarantors are not drawn; camera views are the future CCTV spots | Owner's design ([[Branch Town]]) |
+| 2026-10-20 | Build workers capped at 4 (`experimental.cpus`) | Hostinger build machine ran out of threads |
+| 2026-10-19 | Pay code = the 4 digits of the loan ID; Drive photos named `<NAME> - <lead id or loan code>` | Owner's rule; same-name customers must not collide |
 | 2026-10-17 | Repo on GitHub (`tonj0e/NGF`, private); git data kept outside iCloud; retired notes with secrets are ignored | Avoid pushing secrets; avoid iCloud corrupting `.git` |
 | 2026-10-17 | New Obsidian vault in `docs/`, written fresh; old `BRAIN.md`, `log.md` and other notes to be retired | Old notes were stale and held secrets |
 | 2026-10-17 | Security audit fixes wait until the build is complete | Avoid breaking screens mid-build; back up first |

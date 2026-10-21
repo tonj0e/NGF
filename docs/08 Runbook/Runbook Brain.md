@@ -25,6 +25,8 @@ tags: [ngf, runbook,brain]
 | [[Troubleshooting]] | Symptoms with causes and fixes | Something broke |
 | [[Git and GitHub]] | Where the code is on GitHub, what is ignored, daily commands | Committing or pushing |
 | [[Tools Connected to Claude]] | Playwright, Supabase, Obsidian, skills | Setting up a new machine |
+| [[MCP Plan]] | The `ngf-crm` MCP server: what Claude can read and change, safeguards, setup | Connecting Claude to the CRM |
+| [[SMS Setup]] | MSG91 / Twilio env variables, testing mailbox, costs | Choosing or changing the SMS provider |
 
 ## Related
 - [[00 BRAIN]], [[Security Fix Plan]]

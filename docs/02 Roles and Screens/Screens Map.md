@@ -19,7 +19,7 @@ tags: [ngf, roles-screens, screens, appshell]
 | `dashboard` | `Dashboard` | Dashboard | Admin, Guarantor | KPIs, charts, recollection gauge |
 | `financialAnalytics` | `Dashboard` (same component) | Financial Analytics | Admin | Duplicate of dashboard, no extra prop |
 | `customers` | `CustomersPage` | Customers / Assigned Customers | Admin, Agent, Staff* | Customer list and loan info |
-| `leads` | `LeadsPage` | Leads | Admin, Guarantor, Staff* | Submit, review, approve leads |
+| `leads` | `LeadsPage` | Leads | Admin, Guarantor, Staff* | Submit, review, approve leads; Disbursements tab has **To Disburse** (`DisburseQueue`), renewal approval with customer OTP (`RenewalApproveModal`); agent verification has the OTP step ([[Customer OTP and Disbursement]]) |
 | `collection` | `CollectionPage` | Collection | all four | Weekly collection, payments, sheet download |
 | `payments` | `PaymentMatchingPage` | Payment Matching / UPI Payments | Admin, Guarantor (view only), Staff and Agent with `upiPayments` | Mark UTR payments, flagged duplicates, diagram records, bank check. See [[Payment Matching]] |
 | `reports` | `ReportsPage` | Reports | Admin, Staff* | Reports |
@@ -27,6 +27,7 @@ tags: [ngf, roles-screens, screens, appshell]
 | `importCustomer` | `ImportCustomerPage` | Import Customer | Admin | Bulk/legacy import |
 | `payoutRequests` | `PayoutRequestsPage` | Payout Requests | Admin | Guarantor payout approvals |
 | `staff` | `StaffPage` | NGF Branches | Admin | Branches, staff, org chart |
+| `town` | `BranchTownPage` | Branch Town | Admin | 3D town of branch offices ([[Branch Town]]) |
 | `guarantors` | `GuarantorPage` | Guarantors | Admin, Staff* | Guarantor list, ID QR scan |
 | `reviewOptions` | `ReviewOptionsPage` | Review Options | Admin | Review label lists |
 | `notifications` | `NotificationsPage` | Notifications | all four | Inbox |

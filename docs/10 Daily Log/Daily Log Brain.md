@@ -2,7 +2,7 @@
 title: Daily Log Brain
 section: Daily Log
 status: current
-last_verified: 2026-10-17
+last_verified: 2026-10-21
 tags: [ngf, daily,brain]
 ---
 
@@ -17,6 +17,8 @@ SORT date DESC
 ```
 
 ## Days
+- [[2026-10-21]]
+- [[2026-10-20]]
 - [[2026-10-18]]
 - [[2026-10-19]]
 - [[2026-10-17]]
