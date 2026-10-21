@@ -11,6 +11,7 @@ tags: [ngf, decisions]
 
 | Date | Decision | Why |
 |---|---|---|
+| 2026-10-21 | Online payment links through the bank's gateway; a configurable percentage fee is added for the customer (default 0, set in Dev > Payments); credit only from a signed webhook, through Payment Matching; closing a loan can be paid by link or QR | Owner's request; money must never be credited from the browser ([[Payment Gateway]]) |
 | 2026-10-21 | Approval only queues a lead (`Approved`); the loan is created when someone marks it disbursed; first payment = next Saturday after the handover | The start Saturday depends on the day the money is handed over |
 | 2026-10-21 | Customer OTP at the agent's visit and at renewal approval; override needs a written reason; OTP is a consent record, not a legal e-signature | Owner's rule; paper agreement and e-sign are with a lawyer |
 | 2026-10-21 | Branch accountant, assistant manager, manager approve and disburse for their own branch; Staff see only their branch's leads | Owner's rule |

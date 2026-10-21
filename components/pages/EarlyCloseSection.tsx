@@ -5,6 +5,7 @@
 import { useEffect, useState } from 'react'
 import { Session } from '@/types'
 import { apiGet, apiSend } from '@/lib/clientApi'
+import LinkPanel, { LinkView } from './LinkPanel'
 
 const inr = (n: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n)
 const nice = (ymd: string) => { const d = new Date(String(ymd).slice(0, 10) + 'T00:00:00'); return isNaN(d.getTime()) ? ymd : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) }
@@ -17,6 +18,8 @@ export default function EarlyCloseSection({ session, loanId, onDone }: { session
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [link, setLink] = useState<LinkView | null>(null)
+  const [linkBusy, setLinkBusy] = useState(false)
 
   useEffect(() => { apiGet(session.token, `/api/loans/close?loanId=${encodeURIComponent(loanId)}`).then(r => r.ok ? setInfo(r.data) : setError(r.error || 'Could not load')) }, [loanId, session.token])
   if (!info) return error ? <p className="rounded-xl bg-red-50 px-3 py-2 text-xs text-red-600">{error}</p> : null
@@ -42,6 +45,15 @@ export default function EarlyCloseSection({ session, loanId, onDone }: { session
     </button>
   )
 
+  async function payOnline() {
+    if (!mode) return
+    setLinkBusy(true); setError('')
+    const r = await apiSend<LinkView>(session.token, 'POST', '/api/payment-links', { loanId, kind: 'closure', closureMode: mode, reason })
+    setLinkBusy(false)
+    if (!r.ok) { setError(r.error || 'Could not create the payment link'); return }
+    setLink(r.data!)
+  }
+
   return (
     <div className="space-y-3 rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] p-4">
       <p className="text-xs font-semibold uppercase tracking-wider text-[#697586]">Customer wants to close early</p>
@@ -62,6 +74,10 @@ export default function EarlyCloseSection({ session, loanId, onDone }: { session
         <textarea value={reason} onChange={e => setReason(e.target.value)} rows={2} data-no-upper placeholder="Why is this closed permanently? (required)" className="w-full rounded-xl border border-[#e5e7eb] bg-white px-3 py-2 text-xs outline-none focus:border-[#1a1a2e]" />
       )}
       {error && <p className="rounded-xl bg-red-50 px-3 py-2 text-xs text-red-600">{error}</p>}
+      {needsPayment && mode && (mode !== 'permanent' || reason.trim().length >= 10) && !link && (
+        <button type="button" onClick={payOnline} disabled={linkBusy} className="w-full rounded-2xl border border-[#1a1a2e] bg-white px-4 py-3 text-sm font-semibold disabled:opacity-40">{linkBusy ? 'Creating link…' : 'Customer pays online instead (link / QR)'}</button>
+      )}
+      {link && <LinkPanel session={session} link={link} onPaid={() => onDone(mode === 'hold' ? `Paid online. ${info.customerName}'s loan is closed and on hold.` : `Paid online. ${info.customerName}'s loan is closed permanently.`)} />}
       <button type="button" onClick={submit} disabled={!ready || busy} className="w-full rounded-2xl bg-[#1a1a2e] px-4 py-3 text-sm font-semibold text-white disabled:opacity-40">{busy ? 'Closing…' : mode === 'hold' ? 'Close & Hold' : mode === 'permanent' ? 'Close permanently' : 'Choose an option'}</button>
     </div>
   )

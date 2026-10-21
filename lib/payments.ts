@@ -365,6 +365,40 @@ export async function markPayment(session: Session, access: Access, input: MarkI
   return { flagged: status === 'Flagged', group: pub }
 }
 
+// ─── Online (gateway) payment ────────────────────────────────────────────────
+// Called by the gateway webhook after the bank confirms money. Same records as a staff-marked UPI payment:
+// payment_groups (Verified, UTR = the gateway reference) + payment_lines, then repayments Paid + collections + loan completion.
+export async function recordGatewayPayment(input: { repaymentIds: string[]; mode: string; utr: string; guarantorId: string | null; createdBy: string; createdByName: string; notes: string }) {
+  const utr = normalizeUtr(input.utr)
+  if (!validUtr(utr)) throw new PaymentError('The gateway reference is not a valid transaction id')
+  const mode = MODES[input.mode] || 'Other'
+  const sb = getSupabase()
+  const ids = Array.from(new Set(input.repaymentIds))
+  const { data: dup } = await sb.from('payment_groups').select('group_id').eq('utr', utr).eq('status', 'Verified').maybeSingle()
+  if (dup) return { groupId: dup.group_id as string, duplicate: true }
+  const { data: reps } = await sb.from('repayments').select('repayment_id, loan_id, customer_id, due_date, week_no, amount, status').in('repayment_id', ids)
+  if (!reps || reps.length !== ids.length) throw new PaymentError('A repayment on this link no longer exists')
+  if (reps.some(r => r.status === 'Paid')) throw new PaymentError('A week on this link was already paid another way')
+  const { data: existing } = await sb.from('payment_lines').select('repayment_id').in('repayment_id', ids)
+  if (existing && existing.length) throw new PaymentError('A week on this link already has a payment recorded')
+  const total = reps.reduce((a, r) => a + Number(r.amount), 0)
+  const groupId = makeId('PAY')
+  const { error } = await sb.from('payment_groups').insert({
+    group_id: groupId, guarantor_id: input.guarantorId, saturday_date: getThisSaturday(), mode, utr, total_amount: total,
+    status: 'Verified', notes: input.notes.slice(0, 500), marked_by: input.createdBy, marked_by_name: input.createdByName,
+  })
+  if (error) throw new PaymentError(error.message)
+  const { error: lineErr } = await sb.from('payment_lines').insert(reps.map(r => ({
+    line_id: makeId('PLN'), group_id: groupId, repayment_id: r.repayment_id, loan_id: r.loan_id, customer_id: r.customer_id,
+    guarantor_id: input.guarantorId, amount: r.amount, week_no: r.week_no, due_date: r.due_date, applied: false,
+  })))
+  if (lineErr) { await sb.from('payment_groups').delete().eq('group_id', groupId); throw new PaymentError(lineErr.message) }
+  const actor = { userId: input.createdBy, name: input.createdByName } as Session
+  await logEvent(groupId, 'created', actor, { newUtr: utr, reason: 'Paid online through a payment link' })
+  await applyGroup(await getGroupRow(groupId), actor)
+  return { groupId, duplicate: false }
+}
+
 // ─── Edit UTR / override / discard ───────────────────────────────────────────
 
 export async function editUtr(session: Session, access: Access, groupId: string, utrRaw: string) {

@@ -6,6 +6,7 @@ import { csrfProtection } from '@/lib/csrf'
 import { createAuditLogger } from '@/lib/audit'
 import { getBranchAccess, branchOfGuarantor, canApproveIn } from '@/lib/branchAccess'
 import { notifyUser } from '@/lib/notifications'
+import { finalizeClosure } from '@/lib/loanClosure'
 
 // Early closure of a loan when the customer pays the remaining weeks up front.
 //  hold      -> customer can renew again only after the ORIGINAL end date of the loan (hold_until = end date)
@@ -68,16 +69,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
       await updateById('Repayments', r['Repayment ID'], { 'Status': 'Paid', 'Paid Date': today, 'NGF Agent ID': session.userId, 'Payment Mode': pm, 'Notes': `Prepaid at early closure (${label})`, 'Updated At': nowIso() })
       await appendRow('Collections', { 'Collection ID': makeId('COL'), 'Repayment ID': r['Repayment ID'], 'Loan ID': loanId, 'Customer ID': loan['Customer ID'], 'Agent ID': session.userId, 'Amount': r['Amount'], 'Payment Date': today, 'Proof File ID': '', 'Payment Mode': pm, 'Notes': `Prepaid at early closure (${label})`, 'Created At': nowIso() })
     }
-    const holdUntil = mode === 'hold' ? String(loan['End Date']).slice(0, 10) : null
-    await updateById('Customers', customer['Customer ID'], {
-      'Active Loan ID': '', 'Hold Until': holdUntil,
-      ...(mode === 'permanent' ? { 'Permanent Block': 'true', 'Block Reason': reason.slice(0, 300) } : {}),
-      'Updated At': nowIso(),
-    })
-    await getSupabase().from('loan_closures').insert({
-      closure_id: makeId('CLS'), loan_id: loanId, customer_id: customer['Customer ID'], mode, weeks_remaining: remaining.length,
-      amount_collected: amount, payment_mode: pm || null, hold_until: holdUntil, reason: reason || null, closed_by: session.userId,
-    })
+    await finalizeClosure({ loanId, customerId: customer['Customer ID'], mode, weeksRemaining: remaining.length, amountCollected: amount, paymentMode: pm || null, endDate: String(loan['End Date']), reason, closedBy: session.userId })
   } catch (e) {
     // Put the loan back so nothing is half closed; paid weeks already marked stay paid and are visible in history
     await getSupabase().from('loans').update({ status: 'Active', updated_at: nowIso() }).eq('loan_id', loanId)

@@ -34,6 +34,7 @@ flowchart LR
 |---|---|---|
 | [[Repayments and Collections]] | How a weekly payment is recorded, IST dates, collection sheet | Touching Collection page or `/api/repayments` |
 | [[Payment Matching]] | UTR/UPI payments marked on collection day, duplicate flagging, bank check | Touching UPI proof or pay codes |
+| [[Payment Gateway]] | Online payment links and QR (weekly and close-loan), fee percentage, webhook, what to ask the bank | Touching online payments or closing by payment |
 | [[Settlements]] | Cash due per guarantor, Settled vs Partial, QR payout rows | Changing Saturday cash handover |
 | [[Commissions and Payouts]] | Commission cycle, request, approve, QR | Changing guarantor payouts |
 | [[Deposits]] | Deposit ledger, interest rule, withdrawals | Changing deposit scheme |

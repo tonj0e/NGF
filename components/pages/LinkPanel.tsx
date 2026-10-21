@@ -1,0 +1,64 @@
+'use client'
+// One payment link: breakdown, QR (customer scans it), WhatsApp send, copy, and live status until it is paid.
+import { useEffect, useRef, useState } from 'react'
+import { Session } from '@/types'
+import { apiGet } from '@/lib/clientApi'
+
+export type LinkView = {
+  linkId: string; kind: 'weeks' | 'closure'; status: string; loanId: string; payCode: string; customerName: string
+  base: number; feePercent: number; fee: number; total: number; url: string; expiresAt: string; paidAt: string | null; method: string | null
+  weeks: { weekNo: number; dueDate: string; amount: number }[]; message: string; whatsappUrl: string; qr: string; closureMode: string | null
+}
+const inr = (n: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(n)
+
+export default function LinkPanel({ session, link, onPaid }: { session: Session; link: LinkView; onPaid?: () => void }) {
+  const [cur, setCur] = useState<LinkView>(link)
+  const [copied, setCopied] = useState('')
+  const paidFired = useRef(false)
+  useEffect(() => { setCur(link); paidFired.current = false }, [link.linkId]) // eslint-disable-line react-hooks/exhaustive-deps, react-hooks/set-state-in-effect
+  useEffect(() => {
+    if (cur.status !== 'Created') return
+    const t = setInterval(async () => {
+      const r = await apiGet<LinkView>(session.token, `/api/payment-links/${cur.linkId}`)
+      if (r.ok && r.data) { setCur(r.data); if (r.data.status === 'Paid' && !paidFired.current) { paidFired.current = true; onPaid?.() } }
+    }, 4000)
+    return () => clearInterval(t)
+  }, [cur.linkId, cur.status, session.token]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function copy(text: string, what: string) { try { await navigator.clipboard.writeText(text); setCopied(what); setTimeout(() => setCopied(''), 1800) } catch { setCopied('Copy failed') } }
+  const tone = cur.status === 'Paid' ? 'bg-green-100 text-green-700' : cur.status === 'Created' ? 'bg-blue-100 text-blue-700' : cur.status === 'Failed' || cur.status === 'Mismatch' || cur.status === 'Error' ? 'bg-red-100 text-red-700' : 'bg-[#e5e7eb] text-[#697586]'
+
+  return (
+    <div className="space-y-3 rounded-2xl border border-[#e5e7eb] bg-white p-4">
+      <div className="flex items-center justify-between gap-2">
+        <div><p className="text-sm font-semibold">{cur.kind === 'closure' ? 'Close loan by payment' : 'Weekly payment link'} · {cur.customerName}</p><p className="text-[11px] text-[#697586]">Loan {cur.loanId} · code {cur.payCode}</p></div>
+        <span className={`rounded-full px-3 py-1 text-xs font-bold ${tone}`}>{cur.status === 'Created' ? 'Waiting for payment' : cur.status}</span>
+      </div>
+
+      {cur.status === 'Paid' ? (
+        <p className="rounded-xl bg-green-50 px-3 py-3 text-sm font-semibold text-green-700">Paid {inr(cur.total)}{cur.method ? ` by ${cur.method}` : ''}. The weeks are marked paid{cur.kind === 'closure' ? ' and the loan is closed' : ''}.</p>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
+          <div className="space-y-2">
+            <ul className="space-y-0.5 text-xs text-[#697586]">{cur.weeks.map(w => <li key={w.weekNo}>Week {w.weekNo} · {w.dueDate} · {inr(w.amount)}</li>)}</ul>
+            <div className="rounded-xl bg-[#f9fafb] p-3 text-sm">
+              <div className="flex justify-between"><span>Amount</span><b>{inr(cur.base)}</b></div>
+              {cur.fee > 0 && <div className="flex justify-between text-[#697586]"><span>Online payment fee ({cur.feePercent}%)</span><span>{inr(cur.fee)}</span></div>}
+              <div className="mt-1 flex justify-between border-t border-[#e5e7eb] pt-1 text-base"><span className="font-semibold">Customer pays</span><b>{inr(cur.total)}</b></div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {cur.whatsappUrl
+                ? <a href={cur.whatsappUrl} target="_blank" rel="noreferrer" className="rounded-xl bg-[#25D366] px-4 py-2 text-xs font-semibold text-white">Send on WhatsApp</a>
+                : <span className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">No valid WhatsApp number for this customer</span>}
+              <button onClick={() => copy(cur.message, 'Message copied')} className="rounded-xl border border-[#e5e7eb] px-3 py-2 text-xs font-semibold">Copy message</button>
+              <button onClick={() => copy(cur.url, 'Link copied')} className="rounded-xl border border-[#e5e7eb] px-3 py-2 text-xs font-semibold">Copy link</button>
+              {copied && <span className="self-center text-xs text-green-700">{copied}</span>}
+            </div>
+            <p className="text-[11px] text-[#697586]">Valid until {new Date(cur.expiresAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true })}. This page updates by itself when the customer pays.</p>
+          </div>
+          {cur.qr && <div className="text-center"><img src={cur.qr} alt="Payment QR" className="mx-auto h-40 w-40 rounded-xl border border-[#e5e7eb]" /><p className="mt-1 text-[11px] text-[#697586]">Customer scans to pay</p></div>}
+        </div>
+      )}
+    </div>
+  )
+}

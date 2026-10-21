@@ -28,6 +28,7 @@ tags: [ngf, roles-screens, screens, appshell]
 | `payoutRequests` | `PayoutRequestsPage` | Payout Requests | Admin | Guarantor payout approvals |
 | `staff` | `StaffPage` | NGF Branches | Admin | Branches, staff, org chart |
 | `town` | `BranchTownPage` | Branch Town | Admin | 3D town of branch offices ([[Branch Town]]) |
+| `payLinks` | `PaymentLinksPage` | Payment Links / Send Payment Link | Admin, Guarantor, Staff* | Search by pay code, WhatsApp link, QR, close by payment ([[Payment Gateway]]) |
 | `guarantors` | `GuarantorPage` | Guarantors | Admin, Staff* | Guarantor list, ID QR scan |
 | `reviewOptions` | `ReviewOptionsPage` | Review Options | Admin | Review label lists |
 | `notifications` | `NotificationsPage` | Notifications | all four | Inbox |

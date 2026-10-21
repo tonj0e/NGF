@@ -52,3 +52,6 @@ Not read from env (despite the packages): `next-auth` has no config here.
 
 ## SMS (customer OTP), added 2026-10-21
 - `SMS_PROVIDER` (`msg91` or `twilio`), `MSG91_AUTH_KEY`, `MSG91_OTP_TEMPLATE_ID`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM`, `TWILIO_MESSAGING_SERVICE_SID`. Names only; see [[SMS Setup]]. All optional: without them the OTP can only go to the testing mailbox or be overridden with a reason.
+
+## Payment gateway, added 2026-10-21
+- `GATEWAY_PROVIDER` (`bank` or `simulator`; the simulator is refused on the live site), `GATEWAY_WEBHOOK_SECRET` (signs the practice webhook; the bank's own secret will get its own name when the adapter is written). The gateway fee percentage is a setting (`gateway:feePercent`, Dev > Payments), not an env variable. See [[Payment Gateway]].

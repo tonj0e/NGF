@@ -106,3 +106,4 @@ See [[Payment Matching]].
 |---|---|---|
 | customer_otps | One row per OTP sent to a customer's phone: purpose, subject_id (lead), phone, `otp_hash` (never the code), expiry, attempts, verified_at, send_status, provider. RLS on, server only | `app/api/otp`, `lib/customerOtp.ts` |
 | loan_closures | Early closure record: loan_id, customer_id, mode (hold/permanent), weeks_remaining, amount_collected, hold_until, reason, closed_by, readmitted_*. RLS on, server only | `app/api/loans/close`, `customers/readmit` |
+| payment_links | Online repayment links: kind weeks/closure, repayment_ids, base/fee/total, closure mode, status, gateway_payment_id (unique), expiry. RLS on, server only | `lib/paymentLinks.ts`, `app/api/payment-links`, `app/api/gateway/*` |

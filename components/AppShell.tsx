@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel } from '@/components/ui/dropdown-menu'
 import { Sheet, SheetContent, SheetClose } from '@/components/ui/sheet'
-import { Menu, X, Bell, User, LogOut, LayoutDashboard, Users, FileText, Truck, BarChart3, LandPlot, Upload, CreditCard, Settings, Shield, MessageSquare, MapPin, ClipboardList, Wallet, History, Sparkles, HelpCircle, ChevronLeft, ChevronRight, DollarSign, Coins, Banknote, Pin, PinOff, PieChart, TrendingUp, Route as RouteIcon, Navigation, Building2 } from 'lucide-react'
+import { Menu, X, Bell, User, LogOut, LayoutDashboard, Users, FileText, Truck, BarChart3, LandPlot, Upload, CreditCard, Settings, Shield, MessageSquare, MapPin, ClipboardList, Wallet, History, Sparkles, HelpCircle, ChevronLeft, ChevronRight, DollarSign, Coins, Banknote, Pin, PinOff, PieChart, TrendingUp, Route as RouteIcon, Navigation, Building2, Link2 } from 'lucide-react'
 import Dashboard from './pages/Dashboard'
 import LeadsPage from './pages/LeadsPage'
 import StaffPage from './pages/StaffPage'
@@ -38,6 +38,7 @@ import DepositsPage from './pages/DepositsPage'
 import AgentLocationPage from './pages/AgentLocationPage'
 import AgentTrackingPage from './pages/AgentTrackingPage'
 import BranchTownPage from './pages/BranchTownPage'
+import PaymentLinksPage from './pages/PaymentLinksPage'
 
 function MenuIcon({ name }: { name: string }) {
   const icons: Record<string, React.ElementType> = {
@@ -51,6 +52,7 @@ function MenuIcon({ name }: { name: string }) {
     payoutRequests: CreditCard,
     staff: Settings,
     town: Building2,
+    payLinks: Link2,
     guarantors: Shield,
     reviewOptions: ClipboardList,
     notifications: Bell,
@@ -84,6 +86,7 @@ const MENUS: Record<string, { key: string; label: string }[]> = {
     { key: 'financialAnalytics', label: 'Financial Analytics' },
     { key: 'settlements',    label: 'Settlements' },
     { key: 'payments',       label: 'Payment Matching' },
+    { key: 'payLinks',       label: 'Payment Links' },
     { key: 'importCustomer', label: 'Import Customer' },
     { key: 'payoutRequests', label: 'Payout Requests' },
     { key: 'staff',          label: 'NGF Branches' },
@@ -99,6 +102,7 @@ const MENUS: Record<string, { key: string; label: string }[]> = {
     { key: 'leads',         label: 'Leads' },
     { key: 'collection',    label: 'Collection' },
     { key: 'payments',      label: 'UPI Payments' },
+    { key: 'payLinks',      label: 'Send Payment Link' },
     { key: 'commissions',   label: 'Commissions' },
     { key: 'deposits',      label: 'Deposits' },
     { key: 'myCustomers',   label: 'My Customers' },
@@ -251,6 +255,7 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
       case 'collections':  return <CollectionsPage session={session} />
       case 'reports':      return <ReportsPage session={session} />
       case 'staff':        return <StaffPage session={session} />
+      case 'payLinks':     return <PaymentLinksPage session={session} />
       case 'town':         return session.role === 'Admin' ? <BranchTownPage session={session} /> : null
       case 'verifications': return <VerificationsPage session={session} />
       case 'tripDetails': return <TripDetailsPage session={session} />
