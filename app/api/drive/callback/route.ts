@@ -1,7 +1,9 @@
+import { devOnlyGuard } from '@/lib/devOnly'
 import { NextRequest, NextResponse } from 'next/server'
 import { google } from 'googleapis'
 
 export async function GET(req: NextRequest) {
+  const blocked = devOnlyGuard(); if (blocked) return blocked   // one-time developer utility: 404 on the live site
   const { searchParams } = new URL(req.url)
   const code = searchParams.get('code')
   if (!code) return NextResponse.json({ error: 'No code' }, { status: 400 })

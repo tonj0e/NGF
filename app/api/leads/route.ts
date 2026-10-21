@@ -97,6 +97,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
   const validation = await validateBody(createLeadSchema)(req)
   if (!validation.success) return validation.response
   const body = validation.data
+  if (!['Guarantor', 'Admin', 'Staff'].includes(session.role)) return err('No permission', 403)
 
   const guarantors = await readTable('Guarantors')
 
@@ -118,7 +119,8 @@ export const POST = apiHandler(async (req: NextRequest) => {
     guarantorCode = g['Code']
   } else {
     const g = guarantors.find(g => g['Guarantor ID'] === guarantorId)
-    guarantorCode = g?.['Code'] || ''
+    if (!g) return err('Choose the guarantor for this lead')
+    guarantorCode = g['Code'] || ''
   }
 
   // A renewal must pass the server-side rules (hold, permanent block, running loan, dues) and belong to this guarantor
@@ -136,7 +138,12 @@ export const POST = apiHandler(async (req: NextRequest) => {
   }
 
   // auto-reject if aadhaar already converted
-  const leads = await readTable('Leads')
+  const leads = await readTable('Leads', { forceFresh: true })
+  const digits = (v: string) => String(v || '').replace(/\D/g, '')
+  if (body.loanProduct !== 'RENEWAL' && digits(body.aadhaarNo || '').length === 12) {
+    const open = leads.find(l => l['Loan Product'] !== 'RENEWAL' && digits(l['Aadhaar No']) === digits(body.aadhaarNo || '') && ['Pending', 'Agent Assigned', 'Verification Submitted', 'Approved'].includes(l['Status']))
+    if (open) return err(`A lead for this Aadhaar is already in progress (${open['Customer Name']}, ${open['Status']}). Do not submit it twice.`)
+  }
   const existingConverted = body.aadhaarNo ? leads.find(l => l['Aadhaar No'] === body.aadhaarNo && l['Status'] === 'Converted') : null
 
   const leadId = makeId('LEAD')

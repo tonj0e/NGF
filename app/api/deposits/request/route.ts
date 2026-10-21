@@ -54,7 +54,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
   } else {
     if (!settings.principalWithdrawEnabled) return err('Principal withdrawal is currently disabled')
     amount = Number(body.amount || 0)
-    if (amount <= 0 || amount > account.principal) return err('Invalid principal withdrawal amount')
+    if (!Number.isFinite(amount) || amount <= 0 || amount > account.principal) return err('Invalid principal withdrawal amount')
   }
   if (amount <= 0) return err('Nothing available to withdraw')
 

@@ -66,7 +66,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
   const amount = Number(body.amount || 0)
   const validTypes = [TXN_DEPOSIT, TXN_INTEREST_PAYOUT, TXN_PRINCIPAL_WITHDRAWAL]
   if (!guarantorId || !validTypes.includes(type)) return err('guarantorId and a valid type are required')
-  if (amount <= 0) return err('Amount must be greater than zero')
+  if (!Number.isFinite(amount) || amount <= 0 || amount >= 1e9) return err('Amount must be greater than zero')
 
   const today = getTodayIST()
   await appendRow('Deposits', {

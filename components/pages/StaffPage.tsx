@@ -317,7 +317,7 @@ if (json.success) {
     const duration = prompt('Enter duration (1h, 24h, 7d, 30d, permanent, or custom):', '24h')
     if (!duration) return
 
-    let endDateTime = ''
+    const endDateTime = ''
     if (duration === 'custom') {
       const customDate = prompt('Enter end date/time (YYYY-MM-DDTHH:MM):')
       if (!customDate) return

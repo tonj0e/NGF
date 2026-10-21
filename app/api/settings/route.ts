@@ -38,6 +38,8 @@ export const POST = apiHandler(async (req: NextRequest) => {
   const session = await requireRole(req, ['Admin'])
   const { key, value } = await req.json()
   if (!key) return err('key required')
+  // Integration settings and the gateway fee have their own endpoints (password re-entry, audit, alert); never writable here
+  if (/^(integration:|gateway:)/i.test(String(key))) return err('This setting is changed from its own panel')
   if (key === 'recovery:testEmail' && value && !/^\S+@\S+\.\S+$/.test(String(value).trim())) return err('Enter a valid email address')
   if (key === 'recovery:testUntil' && value && !(Date.parse(String(value)) > 0)) return err('Invalid end time')
   if (String(key).startsWith('recovery:')) {

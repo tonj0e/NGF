@@ -337,7 +337,6 @@ export const DELETE = apiHandler(async (req: NextRequest) => {
         const associatedRecords = await getRowsByField(table as any, field, guarantor['Guarantor ID'])
         console.log(`Table ${table}: ${associatedRecords.length} associated records found`)
         if (associatedRecords.length > 0) {
-          console.log(`Found associated records in ${table}:`, associatedRecords)
           return err(`Cannot delete guarantor with associated ${table.toLowerCase()}. Please reassign or delete associated records first.`)
         }
       }

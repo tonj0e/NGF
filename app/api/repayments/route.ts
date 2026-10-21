@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, getSession, ok, err } from '@/lib/api'
-import { readTable, updateById, appendRow, makeId, nowIso, paginate, invalidateCache } from '@/lib/supabase-db'
+import { readTable, updateById, appendRow, makeId, nowIso, paginate, invalidateCache, getSupabase } from '@/lib/supabase-db'
 import { APP_CONFIG } from '@/lib/config'
 import { saveFileSupabase } from '@/lib/drive'
 import { getTodayIST, getThisSaturday, getNextSaturday } from '@/lib/dateUtils'
@@ -153,7 +153,18 @@ export const POST = apiHandler(async (req: NextRequest) => {
   const today = getTodayIST()
   const notesFull = [notes, reviewLabel ? `Review: ${reviewLabel}` : ''].filter(Boolean).join(' | ')
 
-  await updateById('Repayments', repaymentId, {
+  if (payStatus === 'Paid') {
+    // A UTR payment already marked for this week (waiting for verification) must be resolved there, not paid again by hand
+    const { data: marked } = await getSupabase().from('payment_lines').select('line_id').eq('repayment_id', repaymentId).limit(1)
+    if (marked && marked.length) return err('A payment is already recorded for this week in Payment Matching. Resolve it there.')
+    // Claim the week in one database step so a double click or two devices cannot record the money twice
+    const { data: claimed, error: claimErr } = await getSupabase().from('repayments')
+      .update({ status: 'Paid', paid_date: today, collection_agent_id: session.userId, payment_mode: mode, proof_file_id: proofFileId, notes: notesFull, updated_at: nowIso() })
+      .eq('repayment_id', repaymentId).not('status', 'in', '("Paid","Waived")').select('repayment_id')
+    if (claimErr) return err(claimErr.message, 500)
+    if (!claimed || claimed.length === 0) return err('This week is already paid')
+    invalidateCache('Repayments')
+  } else await updateById('Repayments', repaymentId, {
     'Status': payStatus,
     'Paid Date': payStatus === 'Paid' ? today : null,
     'NGF Agent ID': session.userId,
@@ -180,9 +191,9 @@ export const POST = apiHandler(async (req: NextRequest) => {
     })
 
     // Check loan completion
-    const allRepayments = await readTable('Repayments')
+    const allRepayments = await readTable('Repayments', { forceFresh: true })
     const loanReps = allRepayments.filter(x => x['Loan ID'] === r['Loan ID'])
-    const allDone = loanReps.every(x => x['Status'] === 'Paid' || x['Repayment ID'] === repaymentId)
+    const allDone = loanReps.every(x => x['Status'] === 'Paid' || x['Status'] === 'Waived' || x['Repayment ID'] === repaymentId)
     if (allDone) {
       const loan = loans.find(l => l['Loan ID'] === r['Loan ID'])
       if (loan) await updateById('Loans', loan['Loan ID'], { 'Status': 'Completed', 'Updated At': nowIso() })

@@ -60,7 +60,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
     phoneMasked: maskMobile(purpose === 'renewal_approval' ? ctx.phone : (ctx.phone || l['Phone'])),
     hasValidPhone: purpose === 'renewal_approval' ? !!ctx.phone : true,
     canOverride: ctx.canOverride,
-    verified: !!l['Otp Verified At'] && Date.now() - Date.parse(l['Otp Verified At']) < VERIFIED_FRESH_MS,
+    verified: !!l['Otp Verified At'] && Date.now() - Date.parse(l['Otp Verified At']) < (purpose === 'renewal_approval' ? 60 * 60 * 1000 : VERIFIED_FRESH_MS),
     overrideReason: l['Otp Override Reason'] || '',
     last: st, cooldownMs: CUSTOMER_OTP_COOLDOWN_MS,
   })
@@ -85,7 +85,9 @@ export const POST = apiHandler(async (req: NextRequest) => {
     if (!phone) return err(purpose === 'renewal_approval' ? 'This customer has no valid registered mobile number. Use the override with a reason.' : 'Enter a valid 10-digit mobile number')
     // Already confirmed: another code would cost money for nothing
     const fresh = (ctx.lead['Otp Verified At'] && Date.now() - Date.parse(ctx.lead['Otp Verified At'])) || Infinity
-    if (fresh < (purpose === 'renewal_approval' ? 60 * 60 * 1000 : VERIFIED_FRESH_MS)) return err('The customer OTP is already verified. No new code is needed.')
+    // (a new number after a verified one is allowed: the old code does not cover it)
+    const numberChanged = purpose === 'lead_verification' && ctx.lead['Otp Phone'] !== phone
+    if (!numberChanged && fresh < (purpose === 'renewal_approval' ? 60 * 60 * 1000 : VERIFIED_FRESH_MS)) return err('The customer OTP is already verified. No new code is needed.')
     const issued = await issueCustomerOtp({ purpose, subjectId: leadId, phone, requestedBy: session.userId, ip: clientIp(req) })
     if (!issued.issued) {
       await audit.log('CUSTOMER_OTP_LIMITED', 'Lead', leadId, { purpose, reason: issued.reason, retryAfterSec: issued.retryAfterSec }, false)

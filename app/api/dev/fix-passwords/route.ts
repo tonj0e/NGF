@@ -1,9 +1,11 @@
 import { NextRequest } from 'next/server'
+import { devOnlyGuard } from '@/lib/devOnly'
 import { apiHandler, requireRole, ok, err } from '@/lib/api'
 import { getSupabase, invalidateCache } from '@/lib/supabase-db'
 import { hashPassword, verifyPassword } from '@/lib/auth'
 
 export const POST = apiHandler(async (req: NextRequest) => {
+  const blocked = devOnlyGuard(); if (blocked) return blocked
   await requireRole(req, ['Admin'])
   const body = await req.json()
   const { action, username, password, defaultPassword } = body

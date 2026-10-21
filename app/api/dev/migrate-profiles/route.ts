@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { devOnlyGuard } from '@/lib/devOnly'
 import { apiHandler, requireRole, ok, err } from '@/lib/api'
 import { readTable, appendRow, updateRow, makeId, nowIso } from '@/lib/supabase-db'
 import { getFileBase64 } from '@/lib/drive'
@@ -19,6 +20,7 @@ async function sleep(ms: number) {
 }
 
 export const GET = apiHandler(async (req: NextRequest) => {
+  const blocked = devOnlyGuard(); if (blocked) return blocked
   await requireRole(req, ['Admin'])
   const { searchParams } = new URL(req.url)
   const dryRun = searchParams.get('dryRun') === 'true'
@@ -42,7 +44,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
   let processed = 0
   let migrated = 0
   let skipped = 0
-  let errors: string[] = []
+  const errors: string[] = []
 
   for (const profile of profilesToProcess) {
     const userId = profile['User ID']
@@ -130,6 +132,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
 })
 
 export const POST = apiHandler(async (req: NextRequest) => {
+  const blocked = devOnlyGuard(); if (blocked) return blocked
   await requireRole(req, ['Admin'])
   return err('Not implemented')
 })

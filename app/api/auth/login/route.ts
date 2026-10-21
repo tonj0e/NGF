@@ -42,7 +42,6 @@ export const POST = apiHandler(async (req: NextRequest) => {
     )
     return err('Invalid credentials')
   }
-  console.log('[LOGIN] User found:', user['Username'], 'Role:', user['Role'], 'Status:', user['Status'])
   if (user['Status'] !== 'Active') {
     await createAuditLogger(req, { userId: user['User ID'], username, role: user['Role'] }).failure(
       AUDIT_ACTIONS.LOGIN_FAILED,
@@ -68,7 +67,6 @@ export const POST = apiHandler(async (req: NextRequest) => {
   }
 
   const valid = await verifyPassword(password, user['Password Hash'])
-  console.log('[LOGIN] Password verification:', valid, 'for user:', username)
   if (!valid) {
     await createAuditLogger(req, { userId: user['User ID'], username, role: user['Role'] }).failure(
       AUDIT_ACTIONS.LOGIN_FAILED,

@@ -52,7 +52,9 @@ export const GET = apiHandler(async (req: NextRequest) => {
 
   // Customers in scope
   let scoped = customers
-  if (guarantorId) {
+  // A guarantor with no guarantor record must never fall through to the unfiltered list
+  if (session.role === 'Guarantor' && !guarantorId) scoped = []
+  else if (guarantorId) {
     scoped = customers.filter(c => {
       if (c['Guarantor ID'] === guarantorId) return true
       const loan = loans.find(l => l['Loan ID'] === c['Active Loan ID'] && l['Guarantor ID'] === guarantorId)

@@ -40,15 +40,17 @@ export default function MyIdCardPage({ session }: { session: Session }) {
   function showToast(m: string) { setToast(m); setTimeout(() => setToast(''), 3000) }
 
   async function load() {
-    const res = await fetch('/api/profile', { headers: { Authorization: `Bearer ${session.token}` } })
-    const j = await res.json()
-    if (j.success) {
-      setProfile(j.data)
-      setPhoto(j.data.photo || '')
-      setBloodGroup(j.data.bloodGroup || '')
-      setEmergencyContact(j.data.emergencyContact || '')
-      setPlace(j.data.place || '')
-    }
+    try {
+      const res = await fetch('/api/profile', { headers: { Authorization: `Bearer ${session.token}` } })
+      const j = await res.json()
+      if (j.success) {
+        setProfile(j.data)
+        setPhoto(j.data.photo || '')
+        setBloodGroup(j.data.bloodGroup || '')
+        setEmergencyContact(j.data.emergencyContact || '')
+        setPlace(j.data.place || '')
+      }
+    } catch {}
     setLoading(false)
   }
   useEffect(() => { load() }, [])

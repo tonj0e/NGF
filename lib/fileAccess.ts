@@ -25,7 +25,7 @@ export async function canReadFile(session: Session, fileId: string): Promise<boo
   ])
 
   let myLeads: Record<string, any>[] = [], myLoans: Record<string, any>[] = []
-  let myCustomerIds = new Set<string>()
+  const myCustomerIds = new Set<string>()
   if (session.role === 'Guarantor') {
     const g = guarantors.find(g => g['User ID'] === session.userId)
     if (!g) return false

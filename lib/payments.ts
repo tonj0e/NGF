@@ -278,7 +278,7 @@ async function applyGroup(group: GroupRow, session: Session) {
   }
   for (const loanId of loanIds) {
     const { data: reps } = await sb.from('repayments').select('status').eq('loan_id', loanId)
-    if (reps && reps.length && reps.every(r => r.status === 'Paid')) {
+    if (reps && reps.length && reps.every(r => r.status === 'Paid' || r.status === 'Waived')) {
       await sb.from('loans').update({ status: 'Completed', updated_at: new Date().toISOString() }).eq('loan_id', loanId)
     }
   }

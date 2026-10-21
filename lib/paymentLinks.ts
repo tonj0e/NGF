@@ -253,7 +253,7 @@ export async function settleFromEvent(ev: GatewayEvent): Promise<{ status: numbe
   }
   // Claim it so a repeated webhook cannot credit twice. A late payment on an expired link is still credited: the money is in.
   const { data: claimed } = await sb.from('payment_links').update({ status: 'Paid', gateway_payment_id: ev.gatewayPaymentId, payment_method: ev.method, paid_at: ev.paidAt || nowIso() })
-    .eq('link_id', row.link_id).in('status', ['Created', 'Expired']).select('link_id')
+    .eq('link_id', row.link_id).in('status', ['Created', 'Expired', 'Cancelled']).select('link_id')   // Cancelled: replaced by a newer link but the customer still paid this one
   if (!claimed || claimed.length === 0) return { status: 200, message: 'Already processed' }
 
   let recorded = false
@@ -276,7 +276,7 @@ export async function settleFromEvent(ev: GatewayEvent): Promise<{ status: numbe
     const msg = e instanceof Error ? e.message : 'failed'
     if (!recorded) {
       // Nothing was credited: release the claim and let the gateway retry
-      await sb.from('payment_links').update({ status: 'Created', gateway_payment_id: null, payment_method: null, paid_at: null, error_text: msg.slice(0, 300) }).eq('link_id', row.link_id)
+      await sb.from('payment_links').update({ status: row.status === 'Cancelled' ? 'Cancelled' : 'Created', gateway_payment_id: null, payment_method: null, paid_at: null, error_text: msg.slice(0, 300) }).eq('link_id', row.link_id)
       await notifyRole('Admin', 'Online payment could not be applied', `Link ${row.link_id}: ${money(ev.amount)} was paid but could not be credited (${msg}). The gateway will retry; if it keeps failing, credit it by hand.`, 'PaymentLink', row.link_id)
       return { status: 500, message: 'Could not apply the payment' }
     }

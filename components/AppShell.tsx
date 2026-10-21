@@ -166,7 +166,6 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
   const [sidebarPinned, setSidebarPinned] = useState(false)
   const [sidebarHovered, setSidebarHovered] = useState(false)
   const [staffPerms, setStaffPerms] = useState<string[]>([])
-  const [notificationsOpen, setNotificationsOpen] = useState(false)
 
   // Apply the saved dark-mode preference (toggled from the Dev page)
   useEffect(() => {
@@ -420,59 +419,10 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
-                  {/* Notifications */}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="relative">
-                        <Bell className="h-5 w-5" />
-                        <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-red-500 text-[10px] font-bold text-white flex items-center justify-center">3</span>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-72">
-                      <DropdownMenuLabel>Notifications</DropdownMenuLabel>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem className="py-2" onClick={() => { setView('notifications'); setNotificationsOpen(false) }}>
-                        <div className="flex items-start gap-3">
-                          <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center">
-                            <FileText className="h-4 w-4 text-blue-600" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium">New lead submitted</p>
-                            <p className="text-xs text-[#697586]">Rajesh Kumar - ₹50,000</p>
-                            <p className="text-xs text-[#9ca3af]">2 min ago</p>
-                          </div>
-                        </div>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem className="py-2">
-                        <div className="flex items-start gap-3">
-                          <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center">
-                            <CreditCard className="h-4 w-4 text-green-600" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium">Payment received</p>
-                            <p className="text-xs text-[#697586]">Weekly collection - ₹12,500</p>
-                            <p className="text-xs text-[#9ca3af]">15 min ago</p>
-                          </div>
-                        </div>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem className="py-2">
-                        <div className="flex items-start gap-3">
-                          <div className="h-8 w-8 rounded-full bg-amber-100 flex items-center justify-center">
-                            <Shield className="h-4 w-4 text-amber-600" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium">Verification approved</p>
-                            <p className="text-xs text-[#697586]">Lead #LEAD123 approved for disbursement</p>
-                            <p className="text-xs text-[#9ca3af]">1 hour ago</p>
-                          </div>
-                        </div>
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem className="py-2 text-center text-sm font-medium text-[#1a1a2e]" onClick={() => { setView('notifications'); setNotificationsOpen(false) }}>
-                        View all notifications
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  {/* Notifications: opens the real inbox (the old dropdown showed fixed sample items and a fixed badge) */}
+                  <Button variant="ghost" size="icon" aria-label="Notifications" onClick={() => setView('notifications')}>
+                    <Bell className="h-5 w-5" />
+                  </Button>
 
                   {/* User Menu */}
                   <DropdownMenu>
@@ -527,59 +477,10 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  {/* Notifications */}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="relative">
-                        <Bell className="h-5 w-5" />
-                        <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-red-500 text-[10px] font-bold text-white flex items-center justify-center">3</span>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-80">
-                      <DropdownMenuLabel>Notifications</DropdownMenuLabel>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem className="py-2" onClick={() => { setView('notifications'); setNotificationsOpen(false) }}>
-                        <div className="flex items-start gap-3">
-                          <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center">
-                            <FileText className="h-4 w-4 text-blue-600" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium">New lead submitted</p>
-                            <p className="text-xs text-[#697586]">Rajesh Kumar - ₹50,000</p>
-                            <p className="text-xs text-[#9ca3af]">2 min ago</p>
-                          </div>
-                        </div>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem className="py-2">
-                        <div className="flex items-start gap-3">
-                          <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center">
-                            <CreditCard className="h-4 w-4 text-green-600" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium">Payment received</p>
-                            <p className="text-xs text-[#697586]">Weekly collection - ₹12,500</p>
-                            <p className="text-xs text-[#9ca3af]">15 min ago</p>
-                          </div>
-                        </div>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem className="py-2">
-                        <div className="flex items-start gap-3">
-                          <div className="h-8 w-8 rounded-full bg-amber-100 flex items-center justify-center">
-                            <Shield className="h-4 w-4 text-amber-600" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium">Verification approved</p>
-                            <p className="text-xs text-[#697586]">Lead #LEAD123 approved for disbursement</p>
-                            <p className="text-xs text-[#9ca3af]">1 hour ago</p>
-                          </div>
-                        </div>
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem className="py-2 text-center text-sm font-medium text-[#1a1a2e]" onClick={() => { setView('notifications'); setNotificationsOpen(false) }}>
-                        View all notifications
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  {/* Notifications: opens the real inbox (the old dropdown showed fixed sample items and a fixed badge) */}
+                  <Button variant="ghost" size="icon" aria-label="Notifications" onClick={() => setView('notifications')}>
+                    <Bell className="h-5 w-5" />
+                  </Button>
 
                   {/* User Menu */}
                   <DropdownMenu>
