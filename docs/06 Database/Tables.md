@@ -107,3 +107,7 @@ See [[Payment Matching]].
 | customer_otps | One row per OTP sent to a customer's phone: purpose, subject_id (lead), phone, `otp_hash` (never the code), expiry, attempts, verified_at, send_status, provider. RLS on, server only | `app/api/otp`, `lib/customerOtp.ts` |
 | loan_closures | Early closure record: loan_id, customer_id, mode (hold/permanent), weeks_remaining, amount_collected, hold_until, reason, closed_by, readmitted_*. RLS on, server only | `app/api/loans/close`, `customers/readmit` |
 | payment_links | Online repayment links: kind weeks/closure, repayment_ids, base/fee/total, closure mode, status, gateway_payment_id (unique), expiry. RLS on, server only | `lib/paymentLinks.ts`, `app/api/payment-links`, `app/api/gateway/*` |
+| integration_secrets | Encrypted (AES-256-GCM) API keys saved from the Dev page (SMS, WhatsApp, gateway). Never returned by any API. RLS on, server only | `lib/integrations.ts`, `app/api/integrations` |
+| outbound_messages | Log of WhatsApp/SMS sent by the server (purpose, masked target, status, provider ref, who). RLS on | `lib/whatsapp.ts` |
+| ai_access_tokens | Tokens for Claude/other AI to reach the CRM (only a hash stored; scope, expiry, IP allowlist, revoke). RLS on. Planned UI/endpoint | migration `20261021300000` |
+| ai_access_log | Every call made with an AI token. RLS on. Planned | migration `20261021300000` |

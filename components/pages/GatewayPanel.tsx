@@ -1,5 +1,6 @@
 'use client'
 // Dev > Payments: online payment gateway status, the fee percentage added for the customer, the webhook address for the bank, recent links.
+import IntegrationFields from './IntegrationFields'
 import { useEffect, useState } from 'react'
 import { Session } from '@/types'
 import { apiGet, apiSend } from '@/lib/clientApi'
@@ -34,10 +35,11 @@ export default function GatewayPanel({ session }: { session: Session }) {
         {error && <p className="rounded-xl bg-red-50 px-3 py-2 text-xs text-red-600">{error}</p>}
         {d && d.provider === 'none' && (
           <div className="rounded-2xl bg-amber-50 p-4 text-xs text-amber-900 space-y-1">
-            <p>The bank&apos;s gateway is not connected yet. When the bank sends its API details, the connection is added and <b>GATEWAY_PROVIDER=bank</b> is set on Hostinger.</p>
-            <p>To try the whole flow without real money on your own computer, set <b>GATEWAY_PROVIDER=simulator</b> in <b>.env.local</b> (the practice gateway never runs on the live site).</p>
+            <p>The bank&apos;s gateway is not connected yet. When the bank sends its API details, the connection code is added and you enter the keys below.</p>
+            <p>The practice gateway (no real money) can be chosen only on your own computer; it never runs on the live site.</p>
           </div>
         )}
+        <IntegrationFields session={session} group="gateway" />
         {d && d.webhookUrl && <div className="rounded-2xl bg-[#f9fafb] p-3 text-xs"><p className="font-semibold">Webhook address to give the bank</p><p className="mt-1 break-all font-mono">{d.webhookUrl}</p><p className="mt-1 text-[#697586]">The bank calls this when a payment succeeds. It is checked with the bank&apos;s signature, so nobody else can use it.</p></div>}
       </div>
 

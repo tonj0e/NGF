@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, requireRole, ok, err } from '@/lib/api'
 import { getGateway } from '@/lib/gateway'
+import { getConfig } from '@/lib/integrations'
 import { getFeePercent, recentLinks } from '@/lib/paymentLinks'
 import { updateById, appendRow, readTable, nowIso, invalidateCache } from '@/lib/supabase-db'
 import { csrfProtection } from '@/lib/csrf'
@@ -9,8 +10,8 @@ import { createAuditLogger } from '@/lib/audit'
 // Admin: gateway status, the fee percentage added to the customer's payment, recent links
 export const GET = apiHandler(async (req: NextRequest) => {
   await requireRole(req, ['Admin'])
-  const g = getGateway()
-  const wanted = (process.env.GATEWAY_PROVIDER || '').toLowerCase()
+  const g = await getGateway()
+  const wanted = ((await getConfig('GATEWAY_PROVIDER')) || '').toLowerCase()
   return ok({
     chosen: wanted, provider: g?.name || 'none', live: !!g?.isLive, feePercent: await getFeePercent(),
     webhookUrl: `${(process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/+$/, '')}/api/gateway/webhook`,

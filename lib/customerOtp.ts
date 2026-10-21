@@ -1,6 +1,7 @@
 import { randomUUID, timingSafeEqual } from 'crypto'
 import { getSupabase } from './supabase-db'
 import { generateOtp, hashOtp } from './otp'
+import { getConfig } from './integrations'
 
 // OTPs sent to a CUSTOMER's phone (new-lead verification at the house, renewal approval at the branch).
 // Only a keyed hash of the code is stored; the code itself is never persisted, logged or returned.
@@ -20,8 +21,9 @@ export const OTP_LIMITS = {
   perPhonePerHour: 6, perPhonePerDay: 10, // the same mobile number, across every lead
   perUserPerHour: 20, perUserPerDay: 80, // the same staff / agent account
   perIpPerHour: 60,                      // the same network address (agents may share a mobile-carrier IP)
-  get dailyCap(): number { const n = Number(process.env.OTP_DAILY_CAP); return Number.isFinite(n) && n > 0 ? Math.floor(n) : 200 },  // whole system, per IST day
 }
+/** Whole-system daily limit (per IST day): set in Dev > SMS, default 200 */
+export async function dailyCap(): Promise<number> { const n = Number(await getConfig('OTP_DAILY_CAP')); return Number.isFinite(n) && n > 0 ? Math.floor(n) : 200 }
 
 export type DenyReason = 'cooldown' | 'lead_cap' | 'phone_cap' | 'user_cap' | 'ip_cap' | 'daily_cap' | 'store'
 export type IssueResult =
@@ -53,7 +55,7 @@ async function serialised<T>(key: string, fn: () => Promise<T>): Promise<T> {
 /** Today's usage for the admin screen */
 export async function otpUsageToday(): Promise<{ today: number; cap: number }> {
   const { count } = await getSupabase().from(TABLE).select('id', { count: 'exact', head: true }).gte('created_at', istDayStart())
-  return { today: count ?? 0, cap: OTP_LIMITS.dailyCap }
+  return { today: count ?? 0, cap: await dailyCap() }
 }
 
 /** Creates a new OTP for this lead + purpose and retires older active ones, after every sending limit has passed. */
@@ -62,7 +64,7 @@ export function issueCustomerOtp(opts: { purpose: OtpPurpose; subjectId: string;
 }
 
 async function issueNow(opts: { purpose: OtpPurpose; subjectId: string; phone: string; requestedBy: string; ip: string }): Promise<IssueResult> {
-  const sb = getSupabase(); const now = Date.now(); const L = OTP_LIMITS
+  const sb = getSupabase(); const now = Date.now(); const L = OTP_LIMITS; const cap = await dailyCap()
   const since = new Date(now - DAY).toISOString()
   const times = (rows: { created_at: string }[] | null) => (rows || []).map(r => Date.parse(r.created_at))
   const [lead, phone, user, ip, today] = await Promise.all([
@@ -75,7 +77,7 @@ async function issueNow(opts: { purpose: OtpPurpose; subjectId: string; phone: s
   if (lead.error || phone.error || user.error || ip.error || today.error) return { issued: false, reason: 'store', retryAfterSec: 30 }
 
   // 1. whole system, per day: the money cap
-  if ((today.count ?? 0) >= L.dailyCap) return { issued: false, reason: 'daily_cap', retryAfterSec: Math.ceil((new Date(istDayStart(now)).getTime() + DAY - now) / 1000) }
+  if ((today.count ?? 0) >= cap) return { issued: false, reason: 'daily_cap', retryAfterSec: Math.ceil((new Date(istDayStart(now)).getTime() + DAY - now) / 1000) }
   // 2. same lead: escalating wait, then an hourly cap
   const leadTimes = times(lead.data)
   if (leadTimes.length >= L.perLeadPerHour) return { issued: false, reason: 'lead_cap', retryAfterSec: windowCount(leadTimes, now, HOUR).retryAfterSec }

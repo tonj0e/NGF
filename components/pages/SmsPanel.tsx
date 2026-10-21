@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Session } from '@/types'
 import { apiGet, apiSend } from '@/lib/clientApi'
+import IntegrationFields from './IntegrationFields'
 
 type Status = { chosen: string; provider: 'msg91' | 'twilio' | 'none'; missing: string[]; testMailboxActive: boolean; usage: { today: number; cap: number }; limits: { resendGapsSec: number[]; perLeadPerHour: number; perPhonePerHour: number; perPhonePerDay: number; perUserPerHour: number; perUserPerDay: number; perIpPerHour: number } }
 
@@ -35,14 +36,15 @@ export default function SmsPanel({ session }: { session: Session }) {
         {error && <p className="rounded-xl bg-red-50 px-3 py-2 text-xs text-red-600">{error}</p>}
         {st && !connected && (
           <div className="rounded-2xl bg-amber-50 p-4 text-xs text-amber-900 space-y-1.5">
-            {!st.chosen && <p>No provider chosen. On Hostinger add <b>SMS_PROVIDER</b> = <b>msg91</b> (or <b>twilio</b>), then the keys below, and redeploy.</p>}
+            {!st.chosen && <p>No provider chosen yet. Choose one in the settings below, then add its keys.</p>}
             {st.chosen && st.missing.length > 0 && <p>Provider <b>{st.chosen}</b> is chosen but these settings are missing: <b>{st.missing.join(', ')}</b>.</p>}
             {st.chosen && !['msg91', 'twilio'].includes(st.chosen) && <p>&quot;{st.chosen}&quot; is not a supported provider. Use <b>msg91</b> or <b>twilio</b>.</p>}
-            <p>MSG91 needs: <b>MSG91_AUTH_KEY</b>, <b>MSG91_OTP_TEMPLATE_ID</b>. Twilio needs: <b>TWILIO_ACCOUNT_SID</b>, <b>TWILIO_AUTH_TOKEN</b> and <b>TWILIO_FROM</b> (or <b>TWILIO_MESSAGING_SERVICE_SID</b>).</p>
+            <p>MSG91 needs an auth key and an OTP template id. Twilio needs the account SID, auth token and a from-number (or messaging service SID).</p>
           </div>
         )}
         {st?.testMailboxActive && <p className="rounded-xl bg-blue-50 px-3 py-2 text-xs text-blue-800">The testing mailbox switch is ON (Dev &gt; Testing): customer codes are emailed to the test mailbox instead of being sent by SMS. Turn it off before real use.</p>}
-        <p className="text-xs text-[#697586]">Keys are never shown here. They live as environment variables on the server (Hostinger &gt; Node.js &gt; Environment variables). Steps: docs &quot;SMS Setup&quot;.</p>
+        <IntegrationFields session={session} group="sms" onChanged={load} />
+        <p className="text-xs text-[#697586]">Keys are saved encrypted on the server and never shown again. Every change asks for your admin password.</p>
       </div>
 
       {st && (
@@ -60,7 +62,7 @@ export default function SmsPanel({ session }: { session: Session }) {
             <li>Whole system: {st.usage.cap} per day (resets at midnight IST). You get an alert at 80% and 100%.</li>
             <li>When a limit is hit, staff can still continue with the override and a written reason.</li>
           </ul>
-          <p className="text-xs text-[#697586]">To change the daily limit, set <b>OTP_DAILY_CAP</b> on Hostinger and redeploy. Also set a spending limit or low-balance alert inside MSG91 / Twilio as a second safety net.</p>
+          <p className="text-xs text-[#697586]">To change the daily limit, use the &quot;Daily limit&quot; setting above. Also set a spending limit or low-balance alert inside MSG91 / Twilio as a second safety net.</p>
         </div>
       )}
 

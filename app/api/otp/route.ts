@@ -6,7 +6,7 @@ import { readTable, updateById, findRecord, nowIso, invalidateCache } from '@/li
 import { csrfProtection } from '@/lib/csrf'
 import { createAuditLogger } from '@/lib/audit'
 import { normalizeIndianMobile, maskMobile } from '@/lib/phone'
-import { issueCustomerOtp, verifyCustomerOtp, recordSendResult, otpStatus, OTP_LIMITS, CUSTOMER_OTP_TTL_MS, CUSTOMER_OTP_COOLDOWN_MS, type OtpPurpose, type DenyReason } from '@/lib/customerOtp'
+import { issueCustomerOtp, verifyCustomerOtp, recordSendResult, otpStatus, dailyCap, CUSTOMER_OTP_TTL_MS, CUSTOMER_OTP_COOLDOWN_MS, type OtpPurpose, type DenyReason } from '@/lib/customerOtp'
 import { sendCustomerOtp } from '@/lib/sms'
 import { getBranchAccess, branchOfGuarantor, canApproveIn, canOverrideIn, clientIp } from '@/lib/branchAccess'
 import { customerForRenewalLead } from '@/lib/renewalRules'
@@ -102,7 +102,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
       return NextResponse.json({ success: false, error: msg[issued.reason], retryAfterSec: issued.retryAfterSec, canOverride: ctx.canOverride }, { status: issued.reason === 'store' ? 503 : 429, headers: { 'Retry-After': String(issued.retryAfterSec) } })
     }
     // Warn the admin when the daily SMS budget is 80% and 100% used
-    const cap = OTP_LIMITS.dailyCap
+    const cap = await dailyCap()
     if (issued.usedToday === Math.ceil(cap * 0.8) || issued.usedToday === cap) {
       try { await notifyRole('Admin', 'SMS limit', `${issued.usedToday} of ${cap} customer OTP codes used today${issued.usedToday === cap ? '. Further codes are blocked until tomorrow (staff can still override with a reason).' : '.'}`, 'Setting', 'sms') } catch { /* alert is best effort */ }
     }

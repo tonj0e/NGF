@@ -3,10 +3,12 @@ import type { GatewayProvider, GatewayEvent, CreateLinkInput } from './types'
 
 // PRACTICE gateway for development only (never active on the live site: see lib/gateway/index.ts).
 // It behaves like a bank gateway: a hosted pay page, then a signed webhook. Used to test the whole flow without real money.
-const secret = () => process.env.GATEWAY_WEBHOOK_SECRET || `practice:${process.env.JWT_SECRET || 'dev'}`
-export const sign = (body: string) => createHmac('sha256', secret()).update(body).digest('hex')
+import { getConfig } from '../integrations'
+export const practiceSecret = async () => (await getConfig('GATEWAY_WEBHOOK_SECRET')) || `practice:${process.env.JWT_SECRET || 'dev'}`
+const hmac = (secret: string, body: string) => createHmac('sha256', secret).update(body).digest('hex')
+export const sign = async (body: string) => hmac(await practiceSecret(), body)
 
-export const simulator: GatewayProvider = {
+export const makeSimulator = (secret: string): GatewayProvider => ({
   name: 'simulator', isLive: false,
   async createLink(i: CreateLinkInput) {
     const base = (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/+$/, '')
@@ -14,7 +16,7 @@ export const simulator: GatewayProvider = {
   },
   verifyWebhook(rawBody, headers): GatewayEvent | null {
     const got = headers.get('x-gateway-signature') || ''
-    const want = sign(rawBody)
+    const want = hmac(secret, rawBody)
     if (got.length !== want.length || !timingSafeEqual(Buffer.from(got), Buffer.from(want))) return null
     try {
       const j = JSON.parse(rawBody)
@@ -22,4 +24,4 @@ export const simulator: GatewayProvider = {
       return { linkId: String(j.linkId), status: j.status === 'paid' ? 'paid' : 'failed', gatewayPaymentId: String(j.gatewayPaymentId), amount: Number(j.amount), method: j.method || 'upi', paidAt: j.paidAt || new Date().toISOString() }
     } catch { return null }
   },
-}
+})

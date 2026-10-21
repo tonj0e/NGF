@@ -5,7 +5,7 @@ import { settleFromEvent } from '@/lib/paymentLinks'
 // PUBLIC: the bank's gateway calls this when a payment succeeds or fails. Nothing is trusted without the gateway's signature.
 // Give this URL to the bank as the callback / webhook URL.
 export async function POST(req: NextRequest) {
-  const gateway = getGateway()
+  const gateway = await getGateway()
   if (!gateway) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 })
   const raw = await req.text()
   const ev = gateway.verifyWebhook(raw, req.headers)
