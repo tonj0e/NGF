@@ -47,3 +47,9 @@ tags: [ngf, field-and-org, agent, location, trips]
 - [[Lead to Loan]]
 - [[Roles and Permissions]]
 - [[Auth and Sessions]]
+
+
+## Live map notes (2026-10-22)
+- `AgentTrackingPage` polls every 5 seconds with one timer (cleared on leave). Staff see only agents of their own branch (`getBranchAccess`).
+- The Google Maps key must allow the site address (referrer restriction), otherwise Google shows `RefererNotAllowedMapError`; the page then shows a clear message and the agent list still works.
+- Agent Tracking is suggested for manager, assistant manager and accountant.

@@ -47,7 +47,7 @@ export const APP_CONFIG = {
   BRANCH_ROLES: [
     { key: 'manager', label: 'Manager', description: 'Branch oversight', suggestedPermissions: ['customers', 'leads', 'collection', 'settlements', 'reports', 'guarantors', 'agentTracking', 'verificationPlanning'] },
     { key: 'assistant_manager', label: 'Assistant Branch Manager', description: 'Supports the branch manager', suggestedPermissions: ['customers', 'leads', 'collection', 'reports', 'guarantors', 'agentTracking', 'verificationPlanning'] },
-    { key: 'accountant', label: 'Accountant', description: 'Financial records', suggestedPermissions: ['customers', 'reports', 'settlements', 'verificationPlanning'] },
+    { key: 'accountant', label: 'Accountant', description: 'Financial records', suggestedPermissions: ['customers', 'reports', 'settlements', 'agentTracking', 'verificationPlanning'] },
     { key: 'cashier', label: 'Cashier', description: 'Cash and receipts', suggestedPermissions: ['collection', 'settlements'] },
     { key: 'collection_agent', label: 'Collection Agent', description: 'Assigned collections', suggestedPermissions: ['collection'] },
   ] as { key: string; label: string; description: string; suggestedPermissions: string[] }[],

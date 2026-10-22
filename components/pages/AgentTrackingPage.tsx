@@ -28,12 +28,15 @@ export default function AgentTrackingPage({ session }: { session: Session }) {
   const [locations, setLocations] = useState<Map<string, AgentLocation>>(new Map())
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_JAVASCRIPT_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
   const isApiKeyConfigured = !!(apiKey && apiKey !== 'your_google_maps_api_key_here')
-  const [loading, setLoading] = useState(isApiKeyConfigured)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const mapInstanceRef = useRef<google.maps.Map | null>(null)
   const markersRef = useRef<Map<string, google.maps.Marker>>(new Map())
   const infoWindowsRef = useRef<Map<string, google.maps.InfoWindow>>(new Map())
   const animationFramesRef = useRef<Map<string, number>>(new Map())
+  const locationsRef = useRef<Map<string, AgentLocation>>(new Map())   // latest list for map callbacks, so they stay stable
+  const inFlightRef = useRef(false)
+  useEffect(() => { locationsRef.current = locations }, [locations])
 
   // ===== Helper functions (defined first, before useEffects) =====
 
@@ -150,12 +153,12 @@ export default function AgentTrackingPage({ session }: { session: Session }) {
     return marker
   }, [createInfoWindow])
 
-  const fitBoundsToOnlineAgents = useCallback(() => {
+  const fitBoundsToOnlineAgents = useCallback((locs: Map<string, AgentLocation>) => {
     if (!mapInstanceRef.current || !window.google) return
 
     const onlineMarkers = Array.from(markersRef.current.entries())
       .filter(([agentId]) => {
-        const loc = locations.get(agentId)
+        const loc = locs.get(agentId)
         return loc?.isOnline
       })
       .map(([, marker]) => marker)
@@ -165,16 +168,18 @@ export default function AgentTrackingPage({ session }: { session: Session }) {
       onlineMarkers.forEach(marker => bounds.extend(marker.getPosition()!))
       mapInstanceRef.current.fitBounds(bounds, { top: 50, right: 50, bottom: 50, left: 50 })
 
-      const listener = window.google.maps.event.addListenerOnce(mapInstanceRef.current, 'idle', () => {
+      window.google.maps.event.addListenerOnce(mapInstanceRef.current, 'idle', () => {
         if (mapInstanceRef.current && mapInstanceRef.current.getZoom()! > 16) {
           mapInstanceRef.current.setZoom(16)
         }
       })
     }
-  }, [locations])
+  }, [])
 
-  // Load initial agent locations
+  // Load agent locations (stable function; one request at a time)
   const loadLocations = useCallback(async () => {
+    if (inFlightRef.current) return
+    inFlightRef.current = true
     try {
       const res = await fetch('/api/agent/location?activeOnly=true', {
         headers: { Authorization: `Bearer ${session.token}` },
@@ -234,7 +239,7 @@ export default function AgentTrackingPage({ session }: { session: Session }) {
           })
 
           // Fit bounds to show all online agents
-          fitBoundsToOnlineAgents()
+          fitBoundsToOnlineAgents(newLocations)
         }
 
         setLocations(newLocations)
@@ -244,6 +249,7 @@ export default function AgentTrackingPage({ session }: { session: Session }) {
     } catch {
       setError('Network error loading agent locations')
     } finally {
+      inFlightRef.current = false
       setLoading(false)
     }
   }, [session.token, animateMarkerMove, createMarker, createInfoWindow, fitBoundsToOnlineAgents])
@@ -288,38 +294,25 @@ export default function AgentTrackingPage({ session }: { session: Session }) {
       })
 
       // Add existing markers from state
-      locations.forEach((loc, agentId) => {
-        if (loc.latitude !== null && loc.longitude !== null) {
-          createMarker(loc, agentId)
+      locationsRef.current.forEach((loc, agentId) => {
+        if (loc.latitude !== null && loc.longitude !== null && !markersRef.current.has(agentId)) {
+          markersRef.current.set(agentId, createMarker(loc, agentId))
         }
       })
 
       // Fit bounds to online agents
-      fitBoundsToOnlineAgents()
+      fitBoundsToOnlineAgents(locationsRef.current)
     })
-  }, [locations, createMarker, fitBoundsToOnlineAgents])
+  }, [createMarker, fitBoundsToOnlineAgents])
 
-  // Connect to SSE for real-time updates (polling fallback)
-  const connectSSE = useCallback(() => {
-    // Fallback: poll every 5 seconds for real-time feel
-    const pollInterval = setInterval(() => {
-      loadLocations()
-    }, 5000)
-
-    // Also listen for visibility change to reduce polling when tab hidden
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        clearInterval(pollInterval)
-      } else {
-        loadLocations()
-      }
-    }
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-
-    return () => {
-      clearInterval(pollInterval)
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-    }
+  // Poll every 5 seconds while the tab is visible. One timer only; it is cleared when the page closes.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadLocations()
+    const timer = setInterval(() => { if (!document.hidden) loadLocations() }, 5000)
+    const onVisible = () => { if (!document.hidden) loadLocations() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => { clearInterval(timer); document.removeEventListener('visibilitychange', onVisible) }
   }, [loadLocations])
 
   // Load Google Maps JS API (only once globally)
@@ -332,10 +325,12 @@ export default function AgentTrackingPage({ session }: { session: Session }) {
       return
     }
 
+    // Google calls this when it rejects the key for this web address (key restrictions in Google Cloud)
+    ;(window as unknown as { gm_authFailure?: () => void }).gm_authFailure = () => setError('Google rejected the map key for this web address. In Google Cloud > Credentials, add this site (for example https://ngffincorp.com/* and http://localhost:3000/*) to the key\'s allowed websites. The agent list still works.')
+
     // If already loaded globally, just init the map
     if (window.__googleMapsLoaded && window.google) {
       initMap()
-      connectSSE()
       return
     }
 
@@ -344,7 +339,6 @@ export default function AgentTrackingPage({ session }: { session: Session }) {
       window.__googleMapsLoadPromise.then(() => {
         if (window.google) {
           initMap()
-          connectSSE()
         }
       })
       return
@@ -371,7 +365,6 @@ export default function AgentTrackingPage({ session }: { session: Session }) {
       .then(() => {
         if (window.google) {
           initMap()
-          connectSSE()
         }
       })
       .catch((err) => {
@@ -381,7 +374,7 @@ export default function AgentTrackingPage({ session }: { session: Session }) {
     return () => {
       // Don't destroy mapInstanceRef here - let it persist for reuse
     }
-  }, [initMap, connectSSE])
+  }, [initMap])
 
   // Convert to array for sidebar
   const markersArray = useMemo(() => {
@@ -411,16 +404,6 @@ export default function AgentTrackingPage({ session }: { session: Session }) {
     return `${hours}h ago`
   }
 
-  if (loading) {
-    return (
-      <div className="space-y-4">
-        <div className="flex h-96 items-center justify-center rounded-[1.75rem] border border-white/70 bg-white shadow-panel">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" />
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="space-y-4">
       {/* Header Controls */}
@@ -446,6 +429,8 @@ export default function AgentTrackingPage({ session }: { session: Session }) {
           {/* Map Area */}
           <div className="lg:w-3/4 relative h-[560px]">
             <div id="agent-map-google" className="w-full h-full" />
+            {loading && <div className="absolute inset-0 flex items-center justify-center bg-white/70"><div className="h-8 w-8 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" /></div>}
+            {!isApiKeyConfigured && <div className="absolute inset-0 flex items-center justify-center bg-[#f4f5f7] p-6 text-center text-sm text-[#697586]">The map key is not set (NEXT_PUBLIC_GOOGLE_MAPS_JAVASCRIPT_API_KEY). The agent list on the right still works.</div>}
           </div>
 
           {/* Sidebar - Agent List */}

@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import { getBranchAccess, canSeeBranch } from '@/lib/branchAccess'
 import { apiHandler, requireRole, ok, err } from '@/lib/api'
 import { readTable, updateById, getRowById } from '@/lib/supabase-db'
 
@@ -85,7 +86,8 @@ export const POST = apiHandler(async (req: NextRequest) => {
 
 // GET - Admin/Staff fetch all agent locations (initial load)
 export const GET = apiHandler(async (req: NextRequest) => {
-  await requireRole(req, ['Admin', 'Staff'])
+  const session = await requireRole(req, ['Admin', 'Staff'])
+  const access = await getBranchAccess(session)   // Admin: every branch; Staff: only the branches where they hold a role
 
   const url = new URL(req.url)
   const activeOnly = url.searchParams.get('activeOnly') !== 'false'
@@ -98,7 +100,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const maxAgeMs = maxAgeMinutes * 60 * 1000
 
   const locations = agents
-    .filter(a => a['Status'] === 'Active')
+    .filter(a => a['Status'] === 'Active' && canSeeBranch(access, String(a['Branch ID'] || '')))
     .map(a => {
       const user = users.find(u => u['User ID'] === a['User ID'])
       const lat = a['Latitude'] ? Number(a['Latitude']) : null
