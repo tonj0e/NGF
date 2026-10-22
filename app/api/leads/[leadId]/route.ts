@@ -9,7 +9,7 @@ import { payCodeFromLoanId } from '@/lib/payCode'
 import { csrfProtection } from '@/lib/csrf'
 import { createAuditLogger } from '@/lib/audit'
 import { firstPaymentSaturdayIST } from '@/lib/dateUtils'
-import { getBranchAccess, branchOfGuarantor, canApproveIn } from '@/lib/branchAccess'
+import { getBranchAccess, branchOfGuarantor, canApproveIn, canSeeBranch } from '@/lib/branchAccess'
 import { checkRenewalEligibility, customerForRenewalLead } from '@/lib/renewalRules'
 import { normalizeIndianMobile } from '@/lib/phone'
 import { notifyBranchOfLead } from '@/lib/routes'
@@ -21,6 +21,12 @@ function toPayload(b64: string, filename: string): FilePayload {
   const [header, data] = b64.split(',')
   const mimeType = header.match(/:(.*?);/)?.[1] || 'image/jpeg'
   return { fileName: filename, mimeType, base64Data: data }
+}
+
+// Staff may only touch leads of their own branch(es); Admin any
+async function staffMaySee(session: { userId: string; role: string }, lead: Record<string, string>) {
+  const access = await getBranchAccess(session as any)
+  return canSeeBranch(access, await branchOfGuarantor(lead['Guarantor ID']))
 }
 
 export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
@@ -45,6 +51,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
     const leads = await readTable('Leads', { forceFresh: true })
     const lead = findRecord(leads, 'Lead ID', leadId)
     if (!lead) return err('Lead not found')
+    if (!(await staffMaySee(session, lead))) return err('This lead belongs to another branch', 403)
     await updateById('Leads', leadId, {
       'Customer Name': body.customerName || lead['Customer Name'],
       'Phone': body.phone || lead['Phone'],
@@ -81,6 +88,8 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
     if (!lead) return err('Lead not found')
     const agent = findRecord(agents, 'Agent ID', body.agentId)
     if (!agent) return err('Agent not found')
+    if (!(await staffMaySee(session, lead))) return err('This lead belongs to another branch', 403)
+    if (['Approved', 'Converted', 'Rejected'].includes(lead['Status']) || lead['Loan Product'] === 'RENEWAL') return err('This lead cannot be assigned to an agent in its current state')
     await updateById('Leads', leadId, {
       'Assigned Agent ID': body.agentId,
       'Status': 'Agent Assigned',
@@ -231,11 +240,13 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
       if (g) await notifyUser(g['User ID'], 'Guarantor', 'Lead Approved', `${lead['Customer Name']} has been approved. It is now in the disbursement list.`, 'Lead', leadId)
       try { await notifyBranchOfLead(lead['Guarantor ID'], 'Ready to disburse', `${lead['Customer Name']} (${isRenewal ? 'renewal' : 'new'}) is approved. Open Disbursement.`, leadId) } catch (e) { console.error('Branch alert failed:', e instanceof Error ? e.message : e) }
     } else if (decision === 'Reject Lead') {
+      if (lead['Status'] === 'Converted' || lead['Status'] === 'Rejected' || lead['Disbursed At']) return err('This lead is already disbursed or closed and cannot be rejected')
       await updateById('Leads', leadId, { 'Status': 'Rejected', 'Admin Final Decision': notes || 'Rejected', 'Updated At': nowIso() })
       invalidateCache('Leads')
       const g = findRecord(guarantors, 'Guarantor ID', lead['Guarantor ID'])
       if (g) await notifyUser(g['User ID'], 'Guarantor', 'Lead Rejected', `${lead['Customer Name']} has been rejected.`, 'Lead', leadId)
     } else if (decision === 'Request Reverification') {
+      if (lead['Loan Product'] === 'RENEWAL' || !['Verification Submitted', 'Approved'].includes(lead['Status']) || lead['Disbursed At']) return err('Re-verification is only possible for a new lead that is verified or approved and not yet disbursed')
       // A new visit needs a fresh customer OTP
       await updateById('Leads', leadId, { 'Status': 'Agent Assigned', 'Admin Final Decision': notes || '', 'Otp Verified At': null, 'Otp Phone': null, 'Otp Override Reason': null, 'Otp Override By': null, 'Updated At': nowIso() })
       invalidateCache('Leads')
@@ -280,10 +291,11 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
   }
 
   if (action === 'scanFolder') {
-    await requireRole(req, ['Admin', 'Staff'])
+    const scanSession = await requireRole(req, ['Admin', 'Staff'])
     const leads = await readTable('Leads')
     const lead = findRecord(leads, 'Lead ID', leadId)
     if (!lead) return err('Lead not found')
+    if (!(await staffMaySee(scanSession, lead))) return err('This lead belongs to another branch', 403)
     const folderId = lead['Document Folder ID']
     if (!folderId) return err('No document folder for this lead')
     const files = await listFolderFiles(folderId)
@@ -331,7 +343,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
 
 export const DELETE = apiHandler(async (req: NextRequest, { params }: any) => {
   const { leadId } = await params
-  await requireRole(req, ['Admin', 'Staff'])
+  const delSession = await requireRole(req, ['Admin', 'Staff'])
 
   // First, find and delete any customers that reference this lead
   const [leads, customers, loans, repayments] = await Promise.all([
@@ -343,6 +355,7 @@ export const DELETE = apiHandler(async (req: NextRequest, { params }: any) => {
 
   const lead = findRecord(leads, 'Lead ID', leadId)
   if (!lead) return err('Lead not found')
+  if (!(await staffMaySee(delSession, lead))) return err('This lead belongs to another branch', 403)
 
   // Delete customers that reference this lead (and their loans/repayments)
   const relatedCustomers = customers.filter(c => c['Lead ID'] === leadId)
@@ -384,13 +397,14 @@ async function makeLoanId(guarantorCode: string): Promise<string> {
 
 async function approveLoan(lead: Record<string, string>, guarantors: Record<string, string>[], agents: Record<string, string>[], productKey?: string) {
   const { findLoanProduct, getLoanProducts } = await import('@/lib/loanProducts')
-  const product = (await findLoanProduct(productKey || lead['Loan Product'])) || (await getLoanProducts())[0]
+  const product = await findLoanProduct(productKey || lead['Loan Product'])
+  if (!product) throw new Error(`Unknown loan product "${lead['Loan Product'] || ''}". Edit the lead and choose a valid product before disbursing.`)
   const g = guarantors.find(g => g['Guarantor ID'] === lead['Guarantor ID'])
   const guarantorCode = g?.['Code'] || 'NGF'
   
   // Check if customer already exists for this lead (e.g., from previous approval)
   const customers = await readTable('Customers')
-  let customer = customers.find(c => c['Lead ID'] === lead['Lead ID'])
+  const customer = customers.find(c => c['Lead ID'] === lead['Lead ID'])
   let customerId: string
   
   if (customer) {

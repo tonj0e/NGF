@@ -180,7 +180,7 @@ export function optimizeOrder(inp: OrderInput, useWindows: boolean): number[] {
     while (left.size) {
       let pick = -1, pc = Infinity
       for (const j of left) {
-        let d = cur >= 0 ? inp.stops[cur][j].min : (inp.fromStart ? inp.fromStart[j].min : 0)
+        const d = cur >= 0 ? inp.stops[cur][j].min : (inp.fromStart ? inp.fromStart[j].min : 0)
         if (d < pc) { pc = d; pick = j }
       }
       mid.push(pick); left.delete(pick); cur = pick

@@ -53,9 +53,9 @@ export default function ReportsPage({ session }: { session: Session }) {
       const g = stR.data?.guarantors || []
       setLoans(l); setRepayments(r); setSettlements(s); setCustomers(c); setGuarantors(g)
 
-      const today = new Date().toISOString().slice(0, 10)
+      const today = new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10) // IST date
       const thisMonth = today.slice(0, 7)
-      const lastMonth = new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString().slice(0, 7)
+      const lastMonth = (() => { const y = Number(today.slice(0, 4)), m = Number(today.slice(5, 7)); return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}` })()
       const paid = r.filter((x: any) => x['Status'] === 'Paid')
       setSummaryData({
         totalPortfolio: l.filter((x: any) => x.status === 'Active').reduce((s: number, x: any) => s + Number(x.principal || 0), 0),
@@ -70,10 +70,12 @@ export default function ReportsPage({ session }: { session: Session }) {
       })
       // Set default year to current year
       setYearFilter(today.slice(0, 4))
-    }).finally(() => setLoading(false))
+    }).catch(() => {}).finally(() => setLoading(false))
   }, [])
 
   if (loading) return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" /></div>
+
+  if (!summaryData) return <div className="rounded-2xl border border-[#e5e7eb] bg-white p-6 text-sm text-[#697586]">Could not load reports. Please refresh and try again.</div>
 
   // ── TABS ──
   const TABS: { key: Tab; label: string }[] = [

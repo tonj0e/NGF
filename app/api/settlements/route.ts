@@ -89,12 +89,14 @@ export const PATCH = apiHandler(async (req: NextRequest) => {
   const s = findRecord(settlements, 'Settlement ID', settlementId)
   if (!s) return err('Settlement not found')
 
+  const submitted = Number(amountSubmitted ?? 0)
+  if (!Number.isFinite(submitted) || submitted < 0 || submitted >= 1e9) return err('Amount must be a valid number')
   const cashDue = Number(s['Total Cash Due']) || 0
-  const newBalance = cashDue - (amountSubmitted || 0)
+  const newBalance = cashDue - submitted
 
   await updateById('Settlements', settlementId, {
-    'Amount Submitted': String(amountSubmitted || 0),
-    'Balance': String(newBalance),
+    'Amount Submitted': String(submitted),
+    'Balance': String(Math.max(0, newBalance)),
     'Status': newBalance <= 0 ? 'Settled' : 'Partial',
     'Notes': notes || s['Notes'],
   })

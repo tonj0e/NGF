@@ -1,3 +1,5 @@
+> Location: the project now lives at `~/Downloads/projects/ngf-crm-main` (moved 2026-10-22). Older notes may show the iCloud path.
+
 ---
 title: Run and Restart
 section: Runbook

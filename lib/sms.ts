@@ -8,6 +8,7 @@
 // the OTP is emailed to that mailbox instead of the customer's phone. See docs/08 Runbook/SMS Setup.md.
 import { readTable } from './supabase-db'
 import { sendEmail } from './email'
+import { getConfig } from './integrations'
 
 export type SmsResult =
   | { status: 'sent'; provider: 'msg91' | 'twilio'; ref?: string }
@@ -15,10 +16,10 @@ export type SmsResult =
   | { status: 'not_configured' }
   | { status: 'failed'; provider: string; error: string }
 
-export function configuredProvider(): 'msg91' | 'twilio' | 'none' {
-  const p = (process.env.SMS_PROVIDER || '').toLowerCase()
-  if (p === 'msg91' && process.env.MSG91_AUTH_KEY && process.env.MSG91_OTP_TEMPLATE_ID) return 'msg91'
-  if (p === 'twilio' && process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && (process.env.TWILIO_FROM || process.env.TWILIO_MESSAGING_SERVICE_SID)) return 'twilio'
+export async function configuredProvider(): Promise<'msg91' | 'twilio' | 'none'> {
+  const p = (await getConfig('SMS_PROVIDER')).toLowerCase()
+  if (p === 'msg91' && (await getConfig('MSG91_AUTH_KEY')) && (await getConfig('MSG91_OTP_TEMPLATE_ID'))) return 'msg91'
+  if (p === 'twilio' && (await getConfig('TWILIO_ACCOUNT_SID')) && (await getConfig('TWILIO_AUTH_TOKEN')) && ((await getConfig('TWILIO_FROM')) || (await getConfig('TWILIO_MESSAGING_SERVICE_SID')))) return 'twilio'
   return 'none'
 }
 
@@ -34,11 +35,11 @@ async function activeTestMailbox(): Promise<string | null> {
 async function viaMsg91(mobile: string, otp: string, minutes: number): Promise<SmsResult> {
   try {
     const url = new URL('https://control.msg91.com/api/v5/otp')
-    url.searchParams.set('template_id', process.env.MSG91_OTP_TEMPLATE_ID!)
+    url.searchParams.set('template_id', await getConfig('MSG91_OTP_TEMPLATE_ID'))
     url.searchParams.set('mobile', `91${mobile}`)
     url.searchParams.set('otp', otp)
     url.searchParams.set('otp_expiry', String(minutes))
-    const res = await fetch(url, { method: 'POST', headers: { authkey: process.env.MSG91_AUTH_KEY!, 'content-type': 'application/json' }, body: '{}', signal: AbortSignal.timeout(10_000) })
+    const res = await fetch(url, { method: 'POST', headers: { authkey: await getConfig('MSG91_AUTH_KEY'), 'content-type': 'application/json' }, body: '{}', signal: AbortSignal.timeout(10_000) })
     const body: { type?: string; message?: string } = await res.json().catch(() => ({}))
     if (res.ok && body.type === 'success') return { status: 'sent', provider: 'msg91', ref: typeof body.message === 'string' ? body.message : undefined }
     return { status: 'failed', provider: 'msg91', error: `MSG91 ${res.status}${body.type ? ` ${body.type}` : ''}` }
@@ -47,13 +48,14 @@ async function viaMsg91(mobile: string, otp: string, minutes: number): Promise<S
 
 async function viaTwilio(mobile: string, otp: string, minutes: number): Promise<SmsResult> {
   try {
-    const sid = process.env.TWILIO_ACCOUNT_SID!, token = process.env.TWILIO_AUTH_TOKEN!
+    const sid = await getConfig('TWILIO_ACCOUNT_SID'), token = await getConfig('TWILIO_AUTH_TOKEN')
     const form = new URLSearchParams({
       To: `+91${mobile}`,
       Body: `${otp} is your NGF FINCORP verification code. It is valid for ${minutes} minutes. Tell it only to the NGF staff member you are speaking with.`,
     })
-    if (process.env.TWILIO_MESSAGING_SERVICE_SID) form.set('MessagingServiceSid', process.env.TWILIO_MESSAGING_SERVICE_SID)
-    else form.set('From', process.env.TWILIO_FROM!)
+    const svc = await getConfig('TWILIO_MESSAGING_SERVICE_SID')
+    if (svc) form.set('MessagingServiceSid', svc)
+    else form.set('From', await getConfig('TWILIO_FROM'))
     const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
       method: 'POST',
       headers: { authorization: `Basic ${Buffer.from(`${sid}:${token}`).toString('base64')}`, 'content-type': 'application/x-www-form-urlencoded' },
@@ -67,7 +69,7 @@ async function viaTwilio(mobile: string, otp: string, minutes: number): Promise<
 
 /** Real provider only (ignores the testing mailbox). */
 async function sendViaProvider(mobile: string, otp: string, minutes: number): Promise<SmsResult> {
-  const provider = configuredProvider()
+  const provider = await configuredProvider()
   if (provider === 'msg91') return viaMsg91(mobile, otp, minutes)
   if (provider === 'twilio') return viaTwilio(mobile, otp, minutes)
   return { status: 'not_configured' }
@@ -87,14 +89,12 @@ export async function sendCustomerOtp(mobile: string, otp: string, minutes: numb
 
 /** What the admin screen may show: which provider, whether it is complete, which env NAMES are missing. Never values. */
 export async function smsStatus() {
-  const wanted = (process.env.SMS_PROVIDER || '').toLowerCase()
-  const need: Record<string, string[]> = {
-    msg91: ['MSG91_AUTH_KEY', 'MSG91_OTP_TEMPLATE_ID'],
-    twilio: ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN'],
-  }
-  const missing = wanted in need ? need[wanted].filter(k => !process.env[k]) : []
-  if (wanted === 'twilio' && !process.env.TWILIO_FROM && !process.env.TWILIO_MESSAGING_SERVICE_SID) missing.push('TWILIO_FROM or TWILIO_MESSAGING_SERVICE_SID')
-  return { chosen: wanted || '', provider: configuredProvider(), missing, testMailboxActive: !!(await activeTestMailbox()) }
+  const wanted = (await getConfig('SMS_PROVIDER')).toLowerCase()
+  const need: Record<string, string[]> = { msg91: ['MSG91_AUTH_KEY', 'MSG91_OTP_TEMPLATE_ID'], twilio: ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN'] }
+  const missing: string[] = []
+  for (const k of need[wanted] || []) if (!(await getConfig(k))) missing.push(k)
+  if (wanted === 'twilio' && !(await getConfig('TWILIO_FROM')) && !(await getConfig('TWILIO_MESSAGING_SERVICE_SID'))) missing.push('TWILIO_FROM or TWILIO_MESSAGING_SERVICE_SID')
+  return { chosen: wanted || '', provider: await configuredProvider(), missing, testMailboxActive: !!(await activeTestMailbox()) }
 }
 
 /** Sends a real test message through the configured provider only (the testing mailbox is ignored on purpose). Never throws. */

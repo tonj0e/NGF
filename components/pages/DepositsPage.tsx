@@ -21,7 +21,7 @@ export default function DepositsPage({ session }: { session: Session }) {
 
   function load() {
     fetch('/api/deposits', { headers: { Authorization: `Bearer ${session.token}` } })
-      .then(r => r.json()).then(j => { if (j.success) setData(j.data) }).finally(() => setLoading(false))
+      .then(r => r.json()).then(j => { if (j.success) setData(j.data) }).catch(() => {}).finally(() => setLoading(false))
   }
   useEffect(() => { load() }, [])
 

@@ -89,8 +89,12 @@ export function getNextSaturday(): string {
  * Add days to a date (dateStr in YYYY-MM-DD format)
  * Returns new date in YYYY-MM-DD
  */
+// A calendar date as UTC midnight: getUTC* then reads the same day as the string. (parseDateIST is IST midnight = the previous
+// day 18:30 UTC, so using it with setUTCDate/getUTCDay/toISOString was one day early.)
+const calDate = (dateStr: string): Date => new Date(`${dateStr}T00:00:00.000Z`)
+
 export function addDaysIST(dateStr: string, days: number): string {
-  const d = parseDateIST(dateStr)
+  const d = calDate(dateStr)
   d.setUTCDate(d.getUTCDate() + days)
   return d.toISOString().slice(0, 10)
 }
@@ -99,7 +103,7 @@ export function addDaysIST(dateStr: string, days: number): string {
  * Get start of week (Monday) in IST for a given date
  */
 export function getWeekStartIST(dateStr: string): string {
-  const d = parseDateIST(dateStr)
+  const d = calDate(dateStr)
   const day = d.getUTCDay() // 0=Sun, 1=Mon...
   const diff = day === 0 ? -6 : (1 - day) // Monday = 1
   d.setUTCDate(d.getUTCDate() + diff)
@@ -110,7 +114,7 @@ export function getWeekStartIST(dateStr: string): string {
  * Get end of week (Sunday) in IST for a given date
  */
 export function getWeekEndIST(dateStr: string): string {
-  const d = parseDateIST(dateStr)
+  const d = calDate(dateStr)
   const day = d.getUTCDay()
   const diff = day === 0 ? 0 : (7 - day) // Sunday = 0
   d.setUTCDate(d.getUTCDate() + diff)
@@ -149,7 +153,7 @@ export function isNextSaturdayIST(dateStr: string): boolean {
  * Format a date for display (DD/MM/YYYY)
  */
 export function formatDisplayIST(dateStr: string): string {
-  const d = parseDateIST(dateStr)
+  const d = calDate(dateStr)
   const day = String(d.getUTCDate()).padStart(2, '0')
   const month = String(d.getUTCMonth() + 1).padStart(2, '0')
   const year = d.getUTCFullYear()
@@ -178,7 +182,7 @@ export function nowISTForDB(): string {
  * (used for weekly collection scheduling)
  */
 export function dueDateToSaturday(dueDateStr: string): string {
-  const d = parseDateIST(dueDateStr)
+  const d = calDate(dueDateStr)
   const day = d.getUTCDay()
   const diff = day === 6 ? 0 : (6 - day)
   d.setUTCDate(d.getUTCDate() + diff)

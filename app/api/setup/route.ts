@@ -1,3 +1,4 @@
+import { devOnlyGuard } from '@/lib/devOnly'
 import { NextRequest } from 'next/server'
 import { getSheetsClient, getDriveClient } from '@/lib/google'
 import { ok, err } from '@/lib/api'
@@ -8,6 +9,7 @@ import { makeId, nowIso } from '@/lib/supabase-db'
 // One-time setup — idempotent, safe to retry
 // POST /api/setup  with header  x-setup-secret: <SETUP_SECRET>
 export async function POST(req: NextRequest) {
+  const blocked = devOnlyGuard(); if (blocked) return blocked   // one-time developer utility: 404 on the live site
   const secret = req.headers.get('x-setup-secret')
   if (!secret || secret !== process.env.SETUP_SECRET) {
     return err('Unauthorized', 401)

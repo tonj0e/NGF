@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { devOnlyGuard } from '@/lib/devOnly'
 import { apiHandler, requireRole, ok, err } from '@/lib/api'
 import { readTable as readFromSheets } from '@/lib/sheets'
 import { getSupabase } from '@/lib/supabase-db'
@@ -193,6 +194,7 @@ function getPrimaryKey(table: TableName): string {
 }
 
 export const GET = apiHandler(async (req: NextRequest) => {
+  const blocked = devOnlyGuard(); if (blocked) return blocked
   await requireRole(req, ['Admin'])
   const { searchParams } = new URL(req.url)
   const dryRun = searchParams.get('dryRun') === 'true'
@@ -223,6 +225,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
 })
 
 export const POST = apiHandler(async (req: NextRequest) => {
+  const blocked = devOnlyGuard(); if (blocked) return blocked
   await requireRole(req, ['Admin'])
   const body = await req.json()
 

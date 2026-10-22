@@ -12,6 +12,8 @@ export default function AgentLocationPage({ session }: { session: Session }) {
   const watchIdRef = useRef<number | null>(null)
   const sendIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const isVisibleRef = useRef(true)
+  const positionRef = useRef<typeof position>(null) // latest fix, read by the send interval (state would be stale inside it)
+  const sendingRef = useRef(false)
   const lastPositionRef = useRef<{ latitude: number; longitude: number; timestamp: number } | null>(null)
 
   // Check geolocation permission on mount
@@ -21,6 +23,7 @@ export default function AgentLocationPage({ session }: { session: Session }) {
       setError('Geolocation is not supported by this browser')
       return
     }
+    if (!navigator.permissions?.query) { setPermission('prompt'); return }
     navigator.permissions.query({ name: 'geolocation' as PermissionName }).then(result => {
       setPermission(result.state)
       result.onchange = () => setPermission(result.state)
@@ -74,14 +77,16 @@ export default function AgentLocationPage({ session }: { session: Session }) {
 
         lastPositionRef.current = { latitude: coords.latitude, longitude: coords.longitude, timestamp: now }
 
-        setPosition({
+        const fix = {
           latitude: coords.latitude,
           longitude: coords.longitude,
           accuracy: coords.accuracy,
           speed,
           heading,
           timestamp: now,
-        })
+        }
+        positionRef.current = fix
+        setPosition(fix)
         setPermission('granted')
         setError(null)
       },
@@ -110,7 +115,9 @@ export default function AgentLocationPage({ session }: { session: Session }) {
 
   // Send location to server
   const sendLocation = async () => {
-    if (!position || loading) return
+    const position = positionRef.current
+    if (!position || sendingRef.current) return
+    sendingRef.current = true
     setLoading(true)
     setError(null)
     try {
@@ -135,6 +142,7 @@ export default function AgentLocationPage({ session }: { session: Session }) {
     } catch {
       setError('Network error sending location')
     } finally {
+      sendingRef.current = false
       setLoading(false)
     }
   }
@@ -149,12 +157,13 @@ export default function AgentLocationPage({ session }: { session: Session }) {
     setError(null)
     startWatch()
 
-    // Send immediately
-    await sendLocation()
+    // Send as soon as the first GPS fix arrives, then on the interval
+    setTimeout(() => { if (sendIntervalRef.current) sendLocation() }, 2500)
 
     // Then send every 10 seconds when tab visible (more real-time like Zomato)
+    if (sendIntervalRef.current) clearInterval(sendIntervalRef.current)
     sendIntervalRef.current = setInterval(() => {
-      if (isVisibleRef.current && position) sendLocation()
+      if (isVisibleRef.current) sendLocation()
     }, 10000)
   }
 

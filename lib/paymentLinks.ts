@@ -12,6 +12,7 @@ import { normalizeIndianMobile } from './phone'
 import { payCodeFromLoanId } from './payCode'
 import { getBranchAccess, branchOfGuarantor, canApproveIn } from './branchAccess'
 import { rateLimitKey } from './rate-limiter'
+import { sendWhatsApp, whatsappProvider, whatsappUsageToday, logOutbound } from './whatsapp'
 import type { Session } from '../types'
 
 export const LINK_TTL_MS = 48 * 3600_000
@@ -52,6 +53,7 @@ type LinkRow = {
   base_amount: number; fee_percent: number; fee_amount: number; total_amount: number; closure_mode: 'hold' | 'permanent' | null; closure_reason: string | null
   status: string; provider: string; provider_ref: string | null; short_url: string | null; gateway_payment_id: string | null; payment_method: string | null
   expires_at: string; paid_at: string | null; error_text: string | null; created_by: string; created_by_name: string | null; created_at: string
+  whatsapp_status: string | null; whatsapp_sent_at: string | null; whatsapp_sends: number
 }
 
 async function expireOld() {
@@ -138,6 +140,7 @@ async function view(row: LinkRow) {
     linkId: row.link_id, kind: row.kind, status: row.status === 'Created' && Date.parse(row.expires_at) < Date.now() ? 'Expired' : row.status,
     loanId: row.loan_id, payCode: payCodeFromLoanId(row.loan_id), customerName: name, base: Number(row.base_amount), feePercent: Number(row.fee_percent), fee: Number(row.fee_amount), total: Number(row.total_amount),
     url: row.short_url || '', expiresAt: row.expires_at, paidAt: row.paid_at, method: row.payment_method, closureMode: row.closure_mode, provider: row.provider,
+    whatsappReady: (await whatsappProvider()) !== 'none', whatsappStatus: row.whatsapp_status, whatsappSentAt: row.whatsapp_sent_at, whatsappSends: row.whatsapp_sends || 0,
     weeks, message: text, whatsappUrl: mobile ? `https://wa.me/91${mobile}?text=${encodeURIComponent(text)}` : '',
     qr: row.short_url ? await QRCode.toDataURL(row.short_url, { margin: 1, width: 320 }) : '',
   }
@@ -145,7 +148,7 @@ async function view(row: LinkRow) {
 
 // ---------- create ----------
 export async function createLink(session: Session, input: { loanId: string; kind: 'weeks' | 'closure'; repaymentIds?: string[]; closureMode?: 'hold' | 'permanent'; reason?: string }) {
-  const gateway = getGateway()
+  const gateway = await getGateway()
   if (!gateway) throw new LinkError('Online payment is not connected yet. It starts working once the bank gateway is set up.')
   const rl = rateLimitKey(`plink:${session.userId}`, 40, 3600_000)
   if (!rl.success) throw new LinkError(`Too many links created. Try again in ${Math.ceil(rl.retryAfterSec / 60)} minutes.`)
@@ -250,7 +253,7 @@ export async function settleFromEvent(ev: GatewayEvent): Promise<{ status: numbe
   }
   // Claim it so a repeated webhook cannot credit twice. A late payment on an expired link is still credited: the money is in.
   const { data: claimed } = await sb.from('payment_links').update({ status: 'Paid', gateway_payment_id: ev.gatewayPaymentId, payment_method: ev.method, paid_at: ev.paidAt || nowIso() })
-    .eq('link_id', row.link_id).in('status', ['Created', 'Expired']).select('link_id')
+    .eq('link_id', row.link_id).in('status', ['Created', 'Expired', 'Cancelled']).select('link_id')   // Cancelled: replaced by a newer link but the customer still paid this one
   if (!claimed || claimed.length === 0) return { status: 200, message: 'Already processed' }
 
   let recorded = false
@@ -273,7 +276,7 @@ export async function settleFromEvent(ev: GatewayEvent): Promise<{ status: numbe
     const msg = e instanceof Error ? e.message : 'failed'
     if (!recorded) {
       // Nothing was credited: release the claim and let the gateway retry
-      await sb.from('payment_links').update({ status: 'Created', gateway_payment_id: null, payment_method: null, paid_at: null, error_text: msg.slice(0, 300) }).eq('link_id', row.link_id)
+      await sb.from('payment_links').update({ status: row.status === 'Cancelled' ? 'Cancelled' : 'Created', gateway_payment_id: null, payment_method: null, paid_at: null, error_text: msg.slice(0, 300) }).eq('link_id', row.link_id)
       await notifyRole('Admin', 'Online payment could not be applied', `Link ${row.link_id}: ${money(ev.amount)} was paid but could not be credited (${msg}). The gateway will retry; if it keeps failing, credit it by hand.`, 'PaymentLink', row.link_id)
       return { status: 500, message: 'Could not apply the payment' }
     }
@@ -281,4 +284,32 @@ export async function settleFromEvent(ev: GatewayEvent): Promise<{ status: numbe
     await notifyRole('Admin', 'Online payment credited, closure incomplete', `Link ${row.link_id}: the weeks were credited but the account closure failed (${msg}). Finish it from the customer page.`, 'PaymentLink', row.link_id)
     return { status: 200, message: 'Credited; closure needs attention' }
   }
+}
+
+/** Sends the link to the customer on WhatsApp from the server (needs WhatsApp connected in Dev > WhatsApp). Limited per link, per user and per day. */
+export async function sendLinkWhatsApp(session: Session, linkId: string) {
+  const sb = getSupabase()
+  await getLink(session, linkId)   // same access rule as seeing the link
+  const { data: row0 } = await sb.from('payment_links').select('*').eq('link_id', linkId).single()
+  const row = row0 as LinkRow
+  if (row.status !== 'Created' || Date.parse(row.expires_at) < Date.now()) throw new LinkError('This link is no longer open')
+  if ((await whatsappProvider()) === 'none') throw new LinkError('WhatsApp is not connected yet. Use the manual button, or connect it in Dev > WhatsApp.')
+  if ((row.whatsapp_sends || 0) >= 3) throw new LinkError('This link was already sent 3 times. Ask the customer to check WhatsApp, or copy the message.')
+  const rl = rateLimitKey(`wa-send:${session.userId}`, 60, 3600_000)
+  if (!rl.success) throw new LinkError(`Too many WhatsApp messages from your login. Try again in ${Math.ceil(rl.retryAfterSec / 60)} minutes.`)
+  const usage = await whatsappUsageToday()
+  if (usage.today >= usage.cap) throw new LinkError('The daily WhatsApp limit has been reached. Use the manual button or ask the admin to raise the limit.')
+  const cust = (await sb.from('customers').select('name, phone').eq('customer_id', row.customer_id).maybeSingle()).data
+  const mobile = normalizeIndianMobile(cust?.phone)
+  if (!mobile) throw new LinkError('This customer has no valid mobile number')
+  const v = await view(row)
+  const validUntil = new Date(row.expires_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' })
+  const r = await sendWhatsApp(mobile, v.message, [cust?.name || 'Customer', row.loan_id, money(row.total_amount), row.short_url || '', validUntil])
+  await logOutbound({ purpose: 'payment_link', subjectId: linkId, mobile, status: r.status, provider: 'provider' in r ? r.provider : undefined, ref: 'ref' in r ? r.ref : undefined, error: r.status === 'failed' ? r.error : undefined, by: session.userId })
+  if (r.status !== 'sent') {
+    await sb.from('payment_links').update({ whatsapp_status: r.status === 'failed' ? 'failed' : 'not_configured' }).eq('link_id', linkId)
+    throw new LinkError(r.status === 'failed' ? `WhatsApp could not deliver it (${r.error}). Use the manual button.` : 'WhatsApp is not connected yet.')
+  }
+  await sb.from('payment_links').update({ whatsapp_status: 'sent', whatsapp_sent_at: nowIso(), whatsapp_sends: (row.whatsapp_sends || 0) + 1 }).eq('link_id', linkId)
+  return { sent: true, to: `91${mobile.slice(0, 2)}••••••${mobile.slice(-2)}` }
 }

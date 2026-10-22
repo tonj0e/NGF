@@ -112,6 +112,7 @@ export function evaluateWeek(w: WeekInput, nowMs: number): WeekResult {
 
 export function bandOf(value: number, hasLoans: boolean): string {
   if (!hasLoans) return 'New'
+  if (value < 1) return 'Building'
   return SCORE_RULES.bands.find(b => value >= b.min)?.label || 'Building'
 }
 

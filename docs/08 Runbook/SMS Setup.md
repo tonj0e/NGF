@@ -1,3 +1,5 @@
+> Update: keys are now entered in Dev > SMS (encrypted), not as Hostinger env variables; env still works as a fallback. See [[Integrations Admin Panel]].
+
 ---
 title: SMS Setup
 section: Runbook
