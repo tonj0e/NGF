@@ -55,12 +55,13 @@ function decodePath(enc: string): Pt[] {
   return out
 }
 
-export default function RouteMap({ start, startLabel, stops, nextId, onPick, roads }: {
+export default function RouteMap({ start, startLabel, stops, nextId, onPick, roads, bare }: {
   start: Pt | null
   startLabel: string
   stops: SketchStop[]
   nextId?: string
   onPick?: (id: string) => void
+  bare?: boolean // map and legend only; the page supplies its own header card
   roads?: (string | null)[] | null // road shape for each leg (start -> stop 1 -> stop 2 ...), straight line where missing
 }) {
   const box = useRef<HTMLDivElement>(null)
@@ -162,22 +163,24 @@ export default function RouteMap({ start, startLabel, stops, nextId, onPick, roa
     return () => cancelAnimationFrame(raf.current)
   }, [ready, start, startLabel, stops, nextId, roads])
 
-  if (failed) return <RouteSketch start={start} startLabel={startLabel} stops={stops} nextId={nextId} onPick={onPick} />
+  if (failed) return <RouteSketch bare={bare} start={start} startLabel={startLabel} stops={stops} nextId={nextId} onPick={onPick} />
   if (stops.length === 0) return null
 
   const done = stops.filter(s => s.done).length
   return (
-    <div className="mx-auto w-full overflow-hidden rounded-[1.75rem] bg-white shadow-panel ring-1 ring-black/5">
+    <div className={bare ? 'w-full' : 'mx-auto w-full overflow-hidden rounded-[1.75rem] bg-white shadow-panel ring-1 ring-black/5'}>
       <style>{`.rm-label{background:rgba(255,255,255,.94);padding:2px 8px;border-radius:999px;box-shadow:0 1px 4px rgba(0,0,0,.22);white-space:nowrap}`}</style>
-      <div className="flex items-end justify-between gap-3 bg-gradient-to-br from-[#1a1a2e] via-[#20204a] to-[#2b2461] px-4 py-3 text-white">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/55">Today at a glance</p>
-          <p className="mt-0.5 text-lg font-bold leading-tight">{done} of {stops.length} done</p>
+      {!bare && (
+        <div className="flex items-end justify-between gap-3 bg-gradient-to-br from-[#1a1a2e] via-[#20204a] to-[#2b2461] px-4 py-3 text-white">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/55">Today at a glance</p>
+            <p className="mt-0.5 text-lg font-bold leading-tight">{done} of {stops.length} done</p>
+          </div>
+          <div className="h-1.5 w-24 overflow-hidden rounded-full bg-white/15">
+            <div className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-lime-300 transition-all" style={{ width: `${(done / stops.length) * 100}%` }} />
+          </div>
         </div>
-        <div className="h-1.5 w-24 overflow-hidden rounded-full bg-white/15">
-          <div className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-lime-300 transition-all" style={{ width: `${(done / stops.length) * 100}%` }} />
-        </div>
-      </div>
+      )}
       <div ref={box} className="h-[420px] w-full bg-[#e8eaf0]" aria-label="Map of today's visits" />
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-2 text-[11px] text-[#697586]">
         <span className="inline-flex items-center gap-3">

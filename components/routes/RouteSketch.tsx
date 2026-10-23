@@ -20,12 +20,13 @@ function bearing(a: { lat: number; lng: number }, b: { lat: number; lng: number 
 const short = (s: string, n = 15) => (s.length > n ? s.slice(0, n - 1) + '…' : s)
 const chipW = (s: string) => Math.round(s.length * 7.1 + 22)
 
-export default function RouteSketch({ start, startLabel, stops, nextId, onPick }: {
+export default function RouteSketch({ start, startLabel, stops, nextId, onPick, bare }: {
   start: { lat: number; lng: number } | null
   startLabel: string
   stops: SketchStop[]
   nextId?: string
   onPick?: (id: string) => void
+  bare?: boolean // no own card or heading (the page has one)
 }) {
   const g = useMemo(() => {
     // node 0 is the start (when known), then the stops; they zig-zag upwards, the start sits at the bottom
@@ -41,7 +42,8 @@ export default function RouteSketch({ start, startLabel, stops, nextId, onPick }
   const done = stops.filter(s => s.done).length
 
   return (
-    <div className="mx-auto w-full max-w-[520px] overflow-hidden rounded-[1.75rem] bg-gradient-to-br from-[#1a1a2e] via-[#20204a] to-[#2b2461] p-4 text-white shadow-panel">
+    <div className={`mx-auto w-full overflow-hidden bg-gradient-to-br from-[#1a1a2e] via-[#20204a] to-[#2b2461] p-4 text-white ${bare ? '' : 'max-w-[520px] rounded-[1.75rem] shadow-panel'}`}>
+      {!bare && (
       <div className="mb-1 flex items-end justify-between gap-3">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/55">Today at a glance</p>
@@ -51,7 +53,7 @@ export default function RouteSketch({ start, startLabel, stops, nextId, onPick }
           <div className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-lime-300 transition-all" style={{ width: `${(done / stops.length) * 100}%` }} />
         </div>
       </div>
-
+      )}
       <svg viewBox={`0 0 ${W} ${H}`} className="mx-auto w-full max-w-[420px]" role="img" aria-label="Sketch of today's visits, from the start at the bottom upwards">
         <defs>
           <style>{`

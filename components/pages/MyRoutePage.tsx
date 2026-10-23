@@ -86,6 +86,7 @@ export default function MyRoutePage({ session, onOpenVerification }: { session: 
   if (error && !data) return <div className={card}><p className="text-sm text-red-600">{error}</p></div>
   const stops = data?.stops || []
   const next = stops.find(s => !s.done)
+  const doneCount = stops.filter(s => s.done).length
   const sketchStops = stops.flatMap((s, i) => s.hasLocation && s.visitLat != null && s.visitLng != null
     ? [{ id: s.leadId, n: i + 1, label: s.visitPlace || s.place || s.customerName, lat: s.visitLat, lng: s.visitLng, done: s.done, absent: s.visitStatus === 'Absent', legKm: s.legKm }]
     : [])
@@ -94,28 +95,61 @@ export default function MyRoutePage({ session, onOpenVerification }: { session: 
 
   return (
     <div className="space-y-4">
-      <div className={`${card} flex flex-wrap items-center justify-between gap-3`}>
-        <div className="flex items-center gap-1">
-          <button className="rounded-xl border border-[#e5e7eb] px-3 py-2.5 text-sm" onClick={() => setDate(shift(date, -1))}>‹</button>
-          <input type="date" value={date} onChange={e => e.target.value && setDate(e.target.value)} className="rounded-2xl border border-[#e5e7eb] px-3 py-2.5 text-sm font-medium" />
-          <button className="rounded-xl border border-[#e5e7eb] px-3 py-2.5 text-sm" onClick={() => setDate(shift(date, 1))}>›</button>
+      <div className="overflow-hidden rounded-[2rem] bg-white shadow-panel ring-1 ring-black/5">
+        <div className="relative overflow-hidden bg-gradient-to-br from-[#14142b] via-[#1f1d4d] to-[#35286e] px-5 pb-5 pt-5 text-white">
+          <div className="pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full bg-[#f0b429]/20 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-16 -left-10 h-40 w-40 rounded-full bg-indigo-400/20 blur-3xl" />
+          <div className="relative flex flex-col gap-3">
+            <p className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.14em] text-white/60">Today at a glance</p>
+            <div className="flex items-center justify-between gap-1 rounded-full bg-white/10 p-1 ring-1 ring-white/15 backdrop-blur">
+              <button aria-label="Previous day" className="grid h-8 w-8 place-items-center rounded-full text-base hover:bg-white/15" onClick={() => setDate(shift(date, -1))}>‹</button>
+              <input type="date" value={date} onChange={e => e.target.value && setDate(e.target.value)} className="min-w-0 flex-1 bg-transparent text-center text-sm font-semibold text-white [color-scheme:dark] focus:outline-none" />
+              <button aria-label="Next day" className="grid h-8 w-8 place-items-center rounded-full text-base hover:bg-white/15" onClick={() => setDate(shift(date, 1))}>›</button>
+            </div>
+          </div>
+
+          <div className="relative mt-5 flex items-center justify-between gap-4">
+            <div>
+              <p className="text-4xl font-extrabold leading-none tracking-tight">{doneCount}<span className="text-2xl font-bold text-white/45"> / {stops.length}</span></p>
+              <p className="mt-1.5 text-sm text-white/65">{stops.length === 0 ? 'No visits planned' : doneCount === stops.length ? 'All visits done 🎉' : `${stops.length - doneCount} to go`}</p>
+            </div>
+            <svg width="76" height="76" viewBox="0 0 76 76" className="shrink-0" aria-hidden>
+              <circle cx="38" cy="38" r="31" fill="none" stroke="rgba(255,255,255,.14)" strokeWidth="8" />
+              <circle cx="38" cy="38" r="31" fill="none" stroke="url(#ringg)" strokeWidth="8" strokeLinecap="round" strokeDasharray={`${(stops.length ? doneCount / stops.length : 0) * 194.8} 194.8`} transform="rotate(-90 38 38)" className="transition-all duration-700" />
+              <defs><linearGradient id="ringg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#34d399" /><stop offset="1" stopColor="#bef264" /></linearGradient></defs>
+              <text x="38" y="43" textAnchor="middle" fontSize="15" fontWeight="800" fill="#fff">{stops.length ? Math.round(doneCount / stops.length * 100) : 0}%</text>
+            </svg>
+          </div>
+
+          <div className="relative mt-5 grid grid-cols-3 gap-2">
+            {[
+              ['Visits', String(stops.length)],
+              ['Distance', data?.plan?.totalKm != null && stops.length > 0 ? `${data.plan.totalKm} km` : '—'],
+              ['Drive time', data?.plan?.totalMin != null && stops.length > 0 ? hm(data.plan.totalMin) : '—'],
+            ].map(([k, v]) => (
+              <div key={k} className="rounded-2xl bg-white/10 px-3 py-2.5 ring-1 ring-white/10 backdrop-blur">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-white/55">{k}</p>
+                <p className="mt-0.5 text-base font-bold leading-tight">{v}</p>
+              </div>
+            ))}
+          </div>
+
+          {data?.plan?.startSource && (
+            <p className="relative mt-3 flex items-center gap-2 text-xs text-white/65"><span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_0_4px_rgba(52,211,153,.22)]" />Starting from: {data.plan.startSource}</p>
+          )}
+
+          {stops.some(s => !s.done) && date === today() && (
+            <button onClick={replan} disabled={busy === 'replan'} className="relative mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#f0b429] px-4 py-3 text-sm font-bold text-[#1a1a2e] shadow-lg shadow-black/20 transition active:scale-[.98] disabled:opacity-50">
+              <RefreshCw className={`h-4 w-4 ${busy === 'replan' ? 'animate-spin' : ''}`} />{busy === 'replan' ? 'Working…' : 'Re-plan from where I am now'}
+            </button>
+          )}
         </div>
-        <div className="text-right text-xs text-[#697586]">
-          <p className="text-sm font-semibold text-[#1a1a2e]">{stops.length} {stops.length === 1 ? 'visit' : 'visits'}{data?.plan?.totalKm != null && stops.length > 0 && <> · {data.plan.totalKm} km · {hm(data.plan.totalMin)}</>}</p>
-          {data?.plan?.startSource && <p>Starting from: {data.plan.startSource}</p>}
-        </div>
+
+        {sketchStops.length > 0 && (
+          <RouteMap bare start={startPt} startLabel="START"
+            stops={sketchStops} nextId={next?.leadId} onPick={pickStop} roads={roads} />
+        )}
       </div>
-
-      {stops.some(s => !s.done) && date === today() && (
-        <button onClick={replan} disabled={busy === 'replan'} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-[#1a1a2e] bg-white px-4 py-3 text-sm font-semibold disabled:opacity-40">
-          <RefreshCw className="h-4 w-4" />{busy === 'replan' ? 'Working…' : 'Re-plan from where I am now'}
-        </button>
-      )}
-
-      {sketchStops.length > 0 && (
-        <RouteMap start={startPt} startLabel="START"
-          stops={sketchStops} nextId={next?.leadId} onPick={pickStop} roads={roads} />
-      )}
 
       {loading && <p className="p-8 text-center text-sm text-[#697586]">Loading…</p>}
       {!loading && !stops.length && <p className="p-8 text-center text-sm text-[#697586]">No visits planned for this day.</p>}
