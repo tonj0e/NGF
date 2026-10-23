@@ -153,8 +153,10 @@ export default function AgentTrackingPage({ session }: { session: Session }) {
     return marker
   }, [createInfoWindow])
 
+  // Frame the agents once, the first time some are online. After that the map stays where the viewer put it; only the markers move.
+  const fittedRef = useRef(false)
   const fitBoundsToOnlineAgents = useCallback((locs: Map<string, AgentLocation>) => {
-    if (!mapInstanceRef.current || !window.google) return
+    if (!mapInstanceRef.current || !window.google || fittedRef.current) return
 
     const onlineMarkers = Array.from(markersRef.current.entries())
       .filter(([agentId]) => {
@@ -164,6 +166,7 @@ export default function AgentTrackingPage({ session }: { session: Session }) {
       .map(([, marker]) => marker)
 
     if (onlineMarkers.length > 0) {
+      fittedRef.current = true
       const bounds = new window.google.maps.LatLngBounds()
       onlineMarkers.forEach(marker => bounds.extend(marker.getPosition()!))
       mapInstanceRef.current.fitBounds(bounds, { top: 50, right: 50, bottom: 50, left: 50 })
