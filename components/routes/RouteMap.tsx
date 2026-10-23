@@ -39,12 +39,29 @@ const MAP_STYLE = [
   { featureType: 'road', elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
 ]
 
-export default function RouteMap({ start, startLabel, stops, nextId, onPick }: {
+// Google's encoded-polyline format -> points
+function decodePath(enc: string): Pt[] {
+  const out: Pt[] = []
+  let i = 0, lat = 0, lng = 0
+  while (i < enc.length) {
+    for (const axis of [0, 1]) {
+      let shift = 0, result = 0, b: number
+      do { b = enc.charCodeAt(i++) - 63; result |= (b & 0x1f) << shift; shift += 5 } while (b >= 0x20 && i < enc.length)
+      const d = result & 1 ? ~(result >> 1) : result >> 1
+      if (axis === 0) lat += d; else lng += d
+    }
+    out.push({ lat: lat / 1e5, lng: lng / 1e5 })
+  }
+  return out
+}
+
+export default function RouteMap({ start, startLabel, stops, nextId, onPick, roads }: {
   start: Pt | null
   startLabel: string
   stops: SketchStop[]
   nextId?: string
   onPick?: (id: string) => void
+  roads?: (string | null)[] | null // road shape for each leg (start -> stop 1 -> stop 2 ...), straight line where missing
 }) {
   const box = useRef<HTMLDivElement>(null)
   const mapRef = useRef<google.maps.Map | null>(null)
@@ -87,7 +104,8 @@ export default function RouteMap({ start, startLabel, stops, nextId, onPick }: {
     const nextLegs: { line: google.maps.Polyline; dashed: google.maps.IconSequence }[] = []
     for (let i = 1; i < nodes.length; i++) {
       const s = nodes[i].stop!
-      const path = [nodes[i - 1].p, nodes[i].p]
+      const road = roads?.[i - 1]
+      const path = (road ? decodePath(road) : []).length > 1 ? decodePath(road!) : [nodes[i - 1].p, nodes[i].p]
       const isNext = s.id === nextId
       if (s.done) {
         add(new gm.Polyline({ map, path, strokeColor: GREEN, strokeOpacity: 0.95, strokeWeight: 4, geodesic: true }))
@@ -142,7 +160,7 @@ export default function RouteMap({ start, startLabel, stops, nextId, onPick }: {
     if (nodes.length === 1) { map.setCenter(nodes[0].p); map.setZoom(14) }
     else map.fitBounds(bounds, { top: 56, right: 48, bottom: 64, left: 48 })
     return () => cancelAnimationFrame(raf.current)
-  }, [ready, start, startLabel, stops, nextId])
+  }, [ready, start, startLabel, stops, nextId, roads])
 
   if (failed) return <RouteSketch start={start} startLabel={startLabel} stops={stops} nextId={nextId} onPick={onPick} />
   if (stops.length === 0) return null
@@ -167,7 +185,7 @@ export default function RouteMap({ start, startLabel, stops, nextId, onPick }: {
           <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-[#f0b429]" />Next</span>
           <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-green-600" />Done</span>
         </span>
-        <span>Straight lines show the order, not the road</span>
+        <span>{roads?.some(Boolean) ? 'Lines follow the roads' : 'Straight lines show the order, not the road'}</span>
       </div>
     </div>
   )

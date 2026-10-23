@@ -37,6 +37,7 @@ export default function MyRoutePage({ session, onOpenVerification }: { session: 
   const [error, setError] = useState('')
   const [toast, setToast] = useState('')
   const [busy, setBusy] = useState('')
+  const [roads, setRoads] = useState<(string | null)[] | null>(null)
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(''), 3500) }
 
   const load = useCallback(async (quiet = false) => {
@@ -65,6 +66,22 @@ export default function MyRoutePage({ session, onOpenVerification }: { session: 
       setBusy('')
     }, () => { flash('Allow location access to re-plan'); setBusy('') }, { enableHighAccuracy: true, timeout: 15000 })
   }
+
+  // road shape for the map (display only; falls back to straight lines if it cannot be fetched)
+  const roadPts = (() => {
+    const st = (data?.stops || []).filter(s => s.hasLocation && s.visitLat != null && s.visitLng != null).map(s => ({ lat: s.visitLat as number, lng: s.visitLng as number }))
+    const a = data?.plan?.startLat, b = data?.plan?.startLng
+    return [...(a != null && b != null ? [{ lat: a, lng: b }] : []), ...st]
+  })()
+  const roadKey = roadPts.map(p => `${p.lat.toFixed(4)},${p.lng.toFixed(4)}`).join('|')
+  useEffect(() => {
+    let dead = false
+    setRoads(null)
+    if (roadPts.length < 2 || roadPts.length > 26) return
+    api(session, '/api/routes/path', { points: roadPts }).then(r => { if (!dead) setRoads(r.legs) }).catch(() => {})
+    return () => { dead = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, roadKey])
 
   if (error && !data) return <div className={card}><p className="text-sm text-red-600">{error}</p></div>
   const stops = data?.stops || []
@@ -97,7 +114,7 @@ export default function MyRoutePage({ session, onOpenVerification }: { session: 
 
       {sketchStops.length > 0 && (
         <RouteMap start={startPt} startLabel="START"
-          stops={sketchStops} nextId={next?.leadId} onPick={pickStop} />
+          stops={sketchStops} nextId={next?.leadId} onPick={pickStop} roads={roads} />
       )}
 
       {loading && <p className="p-8 text-center text-sm text-[#697586]">Loading…</p>}
