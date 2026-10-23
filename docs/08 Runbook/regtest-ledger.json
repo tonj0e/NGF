@@ -1,0 +1,177 @@
+{
+ "note": "REGTEST rows rebuilt from the DB 2026-10-23. ids only. Delete children before parents.",
+ "baseline": {
+  "leads": 2,
+  "customers": 2,
+  "loans": 2,
+  "repayments": 20,
+  "collections": 2,
+  "payment_groups": 0,
+  "payment_links": 0,
+  "customer_otps": 0,
+  "loan_closures": 0,
+  "deposits": 0,
+  "users": 10
+ },
+ "users": [
+  "USRC3NG13U8",
+  "USRGZBM48BS",
+  "USR522NNSA4",
+  "USRGM8H5UZP",
+  "USRAK16VYEB",
+  "USRKT3H68XY",
+  "USRGKN23OZJ",
+  "(usernames regtest_mgrA, regtest_accA, regtest_mgrB, regtest_gA, regtest_gB, regtest_agA, regtest_agB)"
+ ],
+ "branches": [
+  "BRUL5BIWLZ",
+  "BRYCVQL7BI"
+ ],
+ "branch_staff_roles": [
+  "39ccf356-5443-4caa-9ed7-f36dac0fb23a",
+  "43e8828f-b247-4b6c-9e95-e29b6de5e733",
+  "240bd043-94b3-458b-9834-39bdeeee90f4"
+ ],
+ "staff_access_user_ids": [
+  "USRC3NG13U8",
+  "USRGZBM48BS",
+  "USR522NNSA4"
+ ],
+ "guarantors": [
+  "GRTBW5FUDYT",
+  "GRTGN8HJ2X8"
+ ],
+ "guarantor_branches": [
+  "2a8ad63a-cdea-4f93-88ba-7344442a9e9f",
+  "f4b35c03-9730-4933-b94a-74b76fca0011"
+ ],
+ "agents": [
+  "AGTNH1AGPBM",
+  "AGTZ4PKAJWM"
+ ],
+ "leads": [
+  "LEAD1EA7X3IC",
+  "LEADN8PQ3JNW",
+  "LEADKAOW5LDK",
+  "LEADAKLMJ8DJ",
+  "LEADBOIXA1NE",
+  "LEADOX18RI8P",
+  "LEADF734BK8K",
+  "LEADUNI8T9UT"
+ ],
+ "customers": [
+  "CUSTMHXI9VZJ",
+  "CUSTKR5O1JH0",
+  "CUST119KAUSS",
+  "CUSTQE5S1UVJ",
+  "CUSTP8IEHIOI"
+ ],
+ "loans": [
+  "RTA-2784",
+  "RTA-1494",
+  "RTA-9347",
+  "RTA-3825",
+  "RTB-3021",
+  "RTA-2131"
+ ],
+ "repayments": "60 rows WHERE loan_id IN (the 6 loans above)",
+ "collections": "47 rows WHERE customer_id IN (the 5 customers)  [collection ids: query by customer_id]",
+ "payment_lines": "14 rows WHERE group_id IN payment_groups",
+ "payment_events": "9 rows WHERE group_id IN payment_groups",
+ "bank_transactions_utr": [
+  "REGTESTUTR0002",
+  "REGTESTBANK04"
+ ],
+ "customer_otps": "8 rows WHERE subject_id IN (the 8 leads)",
+ "drive_folders": [
+  "1G0NhlmZiOmkQQ28eWz7cPpND-iDzFhtg",
+  "1vJ5aY4gcs7uHaXyDXyle4s23fsc0sA0S",
+  "1sGXbuZUiOah3ScPJQwW7lDdtELvThzGO",
+  "17sstTfwBEw2sRyAlUT1plsAkUE-E9PEq",
+  "16vDQt6YI7Jwiw-XRkgXFgT-ANLKuVuIG"
+ ],
+ "notifications_where": "entity_id IN (ids of leads, customers, loans, payment_groups, users, branches above) OR user_id IN (REGTEST users) -- 55 rows at rebuild time (includes ones sent to real admins/staff about REGTEST leads)",
+ "logs_where": "entity_id IN (same ids) OR user_id IN (REGTEST users) -- 75 rows at rebuild time",
+ "also_check_not_mine": "payout_requests 2, settlements 2, route_plans 1, agent_attendance 1 existed before; not created by this test",
+ "supabase_storage": "no proof files uploaded",
+ "login_logs_for_demo_users": "LOGIN rows of demo_admin/demo_agent/BINDHU/REVATHY in logs are not tagged; optional cleanup by owner decision",
+ "payment_groups": [
+  "PAYMV14YJ8R",
+  "PAYPSVX1XKZ",
+  "PAYUQXXPZF7",
+  "PAY8S9RRKTB",
+  "PAYXWV9V0TT"
+ ],
+ "payment_links": [
+  "PLKP9D6AZA7",
+  "PLKEXF33PHC",
+  "PLK0TWWH7VW"
+ ],
+ "loan_closures": "3 rows WHERE loan_id IN ('RTA-1494','RTA-9347','RTB-3021')",
+ "settlements": [
+  "STL4K3EX99S",
+  "STLBUMYQX4L"
+ ],
+ "settlements_do_not_delete": [
+  "STLXYI3T3PQ",
+  "STLI81OAFYB"
+ ],
+ "agent_attendance": [
+  "ATTTC3KF9LS",
+  "ATTTXRXSCL2"
+ ],
+ "agent_trips": [
+  "TRIPZ9WD32R1",
+  "TRIPVY15JC4K",
+  "TRIPDT1CTOWC"
+ ],
+ "profiles_user_ids": [
+  "USRC3NG13U8",
+  "USRGZBM48BS",
+  "USR522NNSA4",
+  "USRGM8H5UZP",
+  "USRAK16VYEB",
+  "USRKT3H68XY"
+ ],
+ "settings_changed": "gateway:feePercent was set to 1 then back to 0; check it reads 0 (it did). Leave as is.",
+ "live_counts_2026-10-23_17h": {
+  "leads": 10,
+  "customers": 7,
+  "loans": 8,
+  "repayments": 80,
+  "collections": 49,
+  "payment_groups": 5,
+  "payment_links": 3,
+  "customer_otps": 8,
+  "loan_closures": 3,
+  "deposits": 0,
+  "users": 17
+ },
+ "delete_order": [
+  "payment_events",
+  "payment_lines",
+  "payment_groups",
+  "bank_transactions(utr in list)",
+  "loan_closures",
+  "payment_links",
+  "collections",
+  "repayments",
+  "loans",
+  "customers (also removes via cascade where set)",
+  "customer_otps",
+  "leads",
+  "settlements(2 ids)",
+  "agent_attendance",
+  "agent_trips",
+  "profiles",
+  "notifications(rule)",
+  "logs(rule)",
+  "staff_access",
+  "branch_staff_roles",
+  "guarantor_branches",
+  "guarantors",
+  "agents",
+  "users",
+  "branches"
+ ]
+}

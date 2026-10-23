@@ -4,6 +4,7 @@ import { readTable, updateById, deleteById, findRecord, nowIso, invalidateCache 
 import { getLeadDocFolder, uploadLeadPhoto } from '@/lib/drive'
 import { getTodayIST } from '@/lib/dateUtils'
 import { bulkScores } from '@/lib/customerHistory'
+import { getBranchAccess, canSeeGuarantor, guarantorBranchMap, customerGuarantorId } from '@/lib/branchAccess'
 
 export const maxDuration = 30
 
@@ -41,6 +42,10 @@ export const GET = apiHandler(async (req: NextRequest) => {
     const a = agents.find(a => a['User ID'] === session.userId)
     const agentLoanIds = a ? new Set(loans.filter(l => l['Assigned Agent ID'] === a['Agent ID']).map(l => l['Customer ID'])) : new Set()
     filtered = customers.filter(c => agentLoanIds.has(c['Customer ID']))
+  } else if (session.role === 'Staff') {
+    // Staff see only customers whose guarantor belongs to one of their branches
+    const [access, gMap] = await Promise.all([getBranchAccess(session), guarantorBranchMap()])
+    filtered = customers.filter(c => canSeeGuarantor(access, gMap, customerGuarantorId(c, loans)))
   }
 
   const scores = await bulkScores(filtered.map(c => c['Customer ID']))
@@ -87,13 +92,17 @@ export const GET = apiHandler(async (req: NextRequest) => {
 })
 
 export const PATCH = apiHandler(async (req: NextRequest) => {
-  await requireRole(req, ['Admin', 'Staff'])
+  const session = await requireRole(req, ['Admin', 'Staff'])
   const body = await req.json()
   const { customerId } = body
   if (!customerId) return err('customerId required')
   const customers = await readTable('Customers')
   const customer = findRecord(customers, 'Customer ID', customerId)
   if (!customer) return err('Customer not found')
+  if (session.role === 'Staff') {
+    const [access, gMap, allLoans] = await Promise.all([getBranchAccess(session), guarantorBranchMap(), readTable('Loans', { forceFresh: true })])
+    if (!canSeeGuarantor(access, gMap, customerGuarantorId(customer, allLoans))) return err('This customer belongs to another branch', 403)
+  }
 
   await updateById('Customers', customerId, {
     'Name': body.name || customer['Name'],
@@ -152,7 +161,7 @@ export const PATCH = apiHandler(async (req: NextRequest) => {
 })
 
 export const DELETE = apiHandler(async (req: NextRequest) => {
-  await requireRole(req, ['Admin', 'Staff'])
+  await requireRole(req, ['Admin'])
   const { customerId } = await req.json()
   if (!customerId) return err('customerId required')
 

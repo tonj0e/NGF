@@ -1,9 +1,10 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, requireRole, ok } from '@/lib/api'
+import { getBranchAccess, canSeeGuarantor, guarantorBranchMap } from '@/lib/branchAccess'
 import { readTable } from '@/lib/supabase-db'
 
 export const GET = apiHandler(async (req: NextRequest) => {
-  await requireRole(req, ['Admin', 'Staff'])
+  const session = await requireRole(req, ['Admin', 'Staff'])
   const { searchParams } = new URL(req.url)
   const saturday = searchParams.get('saturday') || ''
   const all = searchParams.get('all') === 'true'
@@ -54,6 +55,13 @@ export const GET = apiHandler(async (req: NextRequest) => {
     })
   } else {
     due = []
+  }
+
+  // Staff: only weeks of loans whose guarantor belongs to their branches
+  if (session.role === 'Staff') {
+    const [access, gMap] = await Promise.all([getBranchAccess(session), guarantorBranchMap()])
+    const okLoans = new Set(loans.filter(l => canSeeGuarantor(access, gMap, l['Guarantor ID'])).map(l => l['Loan ID']))
+    due = due.filter(r => okLoans.has(r['Loan ID']))
   }
 
   const rows = due.map(r => {

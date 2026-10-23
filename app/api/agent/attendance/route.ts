@@ -6,6 +6,7 @@ import { createAuditLogger, AUDIT_ACTIONS } from '@/lib/audit'
 import { csrfProtection } from '@/lib/csrf'
 import { onAttendance } from '@/lib/routes'
 import { getTodayIST } from '@/lib/dateUtils'
+import { getBranchAccess, canSeeBranch } from '@/lib/branchAccess'
 
 export const POST = apiHandler(async (req: NextRequest) => {
   const session = await getSession(req)
@@ -77,6 +78,11 @@ export const GET = apiHandler(async (req: NextRequest) => {
   // An agent sees only their own history; Admin and Staff may ask for any agent
   const targetAgentId = session.role === 'NGF AGENT' ? agent?.['Agent ID'] : (agentId || agent?.['Agent ID'])
   if (!targetAgentId) return err('Agent ID required')
+  if (session.role === 'Staff') {
+    // Staff: only agents of their own branches
+    const target = agents.find(a => a['Agent ID'] === targetAgentId)
+    if (!canSeeBranch(await getBranchAccess(session), String(target?.['Branch ID'] || ''))) return err('This agent belongs to another branch', 403)
+  }
 
   let records = await readTable('AgentAttendance')
   records = records.filter(r => r['Agent ID'] === targetAgentId)

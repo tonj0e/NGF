@@ -2,9 +2,20 @@ import { NextRequest } from 'next/server'
 import { apiHandler, requireRole, ok, err } from '@/lib/api'
 import { readTable, appendRow, updateById, findRecord, makeId, nowIso, invalidateCache } from '@/lib/supabase-db'
 import { getTodayIST } from '@/lib/dateUtils'
+import { getBranchAccess, canSeeBranch, guarantorBranchMap, type BranchAccess } from '@/lib/branchAccess'
+
+// Staff may only handle settlements of guarantors and agents in their own branches. Returns null for Admin (no limit).
+async function staffEntityScope(session: { userId: string; role: string }): Promise<{ access: BranchAccess; ids: Set<string> } | null> {
+  if (session.role !== 'Staff') return null
+  const [access, gMap, agents] = await Promise.all([getBranchAccess(session as any), guarantorBranchMap(), readTable('Agents', { forceFresh: true })])
+  const ids = new Set<string>()
+  for (const [gid, b] of gMap) if (canSeeBranch(access, b)) ids.add(gid)
+  for (const a of agents) if (canSeeBranch(access, String(a['Branch ID'] || ''))) ids.add(a['Agent ID'])
+  return { access, ids }
+}
 
 export const GET = apiHandler(async (req: NextRequest) => {
-  await requireRole(req, ['Admin', 'Staff'])
+  const session = await requireRole(req, ['Admin', 'Staff'])
   const { searchParams } = new URL(req.url)
   const saturday = searchParams.get('saturday') || ''
 
@@ -14,6 +25,8 @@ export const GET = apiHandler(async (req: NextRequest) => {
 
   let rows = settlements
   if (saturday) rows = rows.filter(s => s['Saturday Date'] === saturday)
+  const scope = await staffEntityScope(session)
+  if (scope) rows = rows.filter(s => scope.ids.has(s['Entity ID']))
 
   const enriched = rows.map(s => {
     const g = s['Entity Type'] === 'Guarantor'
@@ -37,6 +50,8 @@ export const POST = apiHandler(async (req: NextRequest) => {
   const recordedBy = session.userId
 
   if (!entityId || !saturdayDate) return err('entityId and saturdayDate required')
+  const scope = await staffEntityScope(session)
+  if (scope && !scope.ids.has(entityId)) return err('This settlement belongs to another branch', 403)
 
   // Prevent duplicate QR payout settlements for the same payout ID
   if (notes && notes.includes('QR Payout')) {
@@ -81,13 +96,15 @@ export const POST = apiHandler(async (req: NextRequest) => {
 })
 
 export const PATCH = apiHandler(async (req: NextRequest) => {
-  await requireRole(req, ['Admin', 'Staff'])
+  const session = await requireRole(req, ['Admin', 'Staff'])
   const { settlementId, amountSubmitted, notes } = await req.json()
   if (!settlementId) return err('settlementId required')
 
   const settlements = await readTable('Settlements', { forceFresh: true })
   const s = findRecord(settlements, 'Settlement ID', settlementId)
   if (!s) return err('Settlement not found')
+  const scope = await staffEntityScope(session)
+  if (scope && !scope.ids.has(s['Entity ID'])) return err('This settlement belongs to another branch', 403)
 
   const submitted = Number(amountSubmitted ?? 0)
   if (!Number.isFinite(submitted) || submitted < 0 || submitted >= 1e9) return err('Amount must be a valid number')

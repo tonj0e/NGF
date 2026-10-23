@@ -3,6 +3,7 @@ import { apiHandler, getSession, requireRole, ok, err } from '@/lib/api'
 import { readTable, updateById, findRecord, formatDateYmd, addDays, nowIso, invalidateCache } from '@/lib/supabase-db'
 import { getTodayIST } from '@/lib/dateUtils'
 import { guarantorCanSeeCommissions } from '@/lib/commissions'
+import { getBranchAccess, canSeeGuarantor, guarantorBranchMap } from '@/lib/branchAccess'
 
 export const GET = apiHandler(async (req: NextRequest) => {
   const session = await getSession(req)
@@ -34,6 +35,10 @@ export const GET = apiHandler(async (req: NextRequest) => {
   } else if (session.role === 'NGF AGENT') {
     const a = agents.find(a => a['User ID'] === session.userId)
     filtered = a ? loans.filter(l => l['Assigned Agent ID'] === a['Agent ID']) : []
+  } else if (session.role === 'Staff') {
+    // Staff see only loans of guarantors in their own branches
+    const [access, gMap] = await Promise.all([getBranchAccess(session), guarantorBranchMap()])
+    filtered = loans.filter(l => canSeeGuarantor(access, gMap, l['Guarantor ID']))
   }
 
   if (filter === 'active') filtered = filtered.filter(l => l['Status'] === 'Active')

@@ -28,6 +28,7 @@ tags: [ngf, runbook,brain]
 | [[MCP Plan]] | The `ngf-crm` MCP server: what Claude can read and change, safeguards, setup | Connecting Claude to the CRM |
 | [[SMS Setup]] | MSG91 / Twilio env variables, testing mailbox, costs | Choosing or changing the SMS provider |
 | [[Integrations Admin Panel]] | Keys and API settings managed from the Dev page (encrypted), WhatsApp auto-send, migration 20261021300000 | Adding or changing any API key |
+| [[Full Regression Report 2026-10-23]] | Full end-to-end test on dummy data: what passed, 14 bugs, leaks, cleanup list | Before the next release or when planning fixes |
 | [[Bug Sweep 2026-10-21]] | Bugs found and fixed in the five-way review, plus open owner decisions | Before the next security or finance work |
 
 ## Related

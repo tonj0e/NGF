@@ -4,6 +4,7 @@ import { readTable, updateById, appendRow, makeId, nowIso, paginate, invalidateC
 import { APP_CONFIG } from '@/lib/config'
 import { saveFileSupabase } from '@/lib/drive'
 import { getTodayIST, getThisSaturday, getNextSaturday } from '@/lib/dateUtils'
+import { getBranchAccess, canSeeGuarantor, guarantorBranchMap } from '@/lib/branchAccess'
 
 export const GET = apiHandler(async (req: NextRequest) => {
   const session = await getSession(req)
@@ -31,6 +32,9 @@ export const GET = apiHandler(async (req: NextRequest) => {
   } else if (session.role === 'Guarantor') {
     const g = guarantors.find(g => g['User ID'] === session.userId)
     allowedLoanIds = new Set(loans.filter(l => l['Guarantor ID'] === g?.['Guarantor ID']).map(l => l['Loan ID']))
+  } else if (session.role === 'Staff') {
+    const [access, gMap] = await Promise.all([getBranchAccess(session), guarantorBranchMap()])
+    allowedLoanIds = new Set(loans.filter(l => canSeeGuarantor(access, gMap, l['Guarantor ID'])).map(l => l['Loan ID']))
   }
 
   let filtered = repayments.map(r => {
@@ -119,13 +123,15 @@ export const POST = apiHandler(async (req: NextRequest) => {
 
   const [repayments, loans] = await Promise.all([readTable('Repayments', { forceFresh: true }), readTable('Loans', { forceFresh: true })])
   const r = repayments.find(r => r['Repayment ID'] === repaymentId)
-  if (!r) return ok({ success: false, error: 'Repayment not found' })
+  if (!r) return err('Repayment not found', 404)
 
-  // Same scope as the list above: Admin and Staff any loan, Guarantor own loans, agent assigned loans
-  if (session.role !== 'Admin' && session.role !== 'Staff') {
+  // Same scope as the list above: Admin any loan, Staff loans of their branches, Guarantor own loans, agent assigned loans
+  if (session.role !== 'Admin') {
     const loan = loans.find(l => l['Loan ID'] === r['Loan ID'])
     let mine = false
-    if (session.role === 'NGF AGENT') {
+    if (session.role === 'Staff') {
+      mine = canSeeGuarantor(await getBranchAccess(session), await guarantorBranchMap(), loan?.['Guarantor ID'] || '')
+    } else if (session.role === 'NGF AGENT') {
       const agents = await readTable('Agents')
       const agent = agents.find(a => a['User ID'] === session.userId)
       mine = !!agent && loan?.['Assigned Agent ID'] === agent['Agent ID']

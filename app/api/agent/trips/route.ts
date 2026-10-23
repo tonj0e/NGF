@@ -49,7 +49,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
   await appendRow('AgentTrips', {
     'Trip ID': tripId,
     'Agent ID': agent['Agent ID'],
-    'Lead ID': leadId || '',
+    'Lead ID': (leadId || null) as any,   // empty text breaks the leads foreign key
     'Start Latitude': String(startLatitude),
     'Start Longitude': String(startLongitude),
     'End Latitude': String(endLatitude),
@@ -92,5 +92,11 @@ export const GET = apiHandler(async (req: NextRequest) => {
   }
   trips.sort((a, b) => new Date(b['Created At']).getTime() - new Date(a['Created At']).getTime())
 
-  return ok({ trips })
+  // The Trip Details page expects camelCase fields (it crashed on the raw column names)
+  return ok({ trips: trips.map(t => ({
+    tripId: t['Trip ID'], agentId: t['Agent ID'], leadId: t['Lead ID'] || '',
+    startLatitude: Number(t['Start Latitude']), startLongitude: Number(t['Start Longitude']),
+    endLatitude: Number(t['End Latitude']), endLongitude: Number(t['End Longitude']),
+    distanceKm: Number(t['Distance Km']) || 0, tripDate: t['Trip Date'], weekStart: t['Week Start'], createdAt: t['Created At'],
+  })) })
 })

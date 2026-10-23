@@ -5,6 +5,7 @@ import { getSupabase, readTable, makeId, invalidateCache } from './supabase-db'
 import { payCodeFromLoanId } from './payCode'
 import { getTodayIST, getThisSaturday } from './dateUtils'
 import { saveFileSupabase } from './drive'
+import { getBranchAccess, canSeeGuarantor, guarantorBranchMap, type BranchAccess } from './branchAccess'
 import type { Session } from '../types'
 
 export const PERM_USE = 'upiPayments'
@@ -19,6 +20,7 @@ export type Access = {
   canBank: boolean
   canOverride: boolean
   canView: boolean
+  branch?: BranchAccess   // Staff only: the branches they hold a role in; payments are limited to guarantors of those branches
 }
 
 export class PaymentError extends Error {}
@@ -63,7 +65,18 @@ export async function getAccess(session: Session): Promise<Access> {
   const canMark = perms.includes(PERM_USE)
   const canBank = perms.includes(PERM_BANK)
   const canOverride = perms.includes(PERM_OVERRIDE)
-  return { isAdmin: false, isGuarantor: false, guarantorId: '', canMark, canBank, canOverride, canView: canMark || canBank || canOverride }
+  return { isAdmin: false, isGuarantor: false, guarantorId: '', canMark, canBank, canOverride, canView: canMark || canBank || canOverride, branch: await getBranchAccess(session) }
+}
+
+// Staff: ids of guarantors in their own branches. null = no limit (Admin, Guarantor).
+async function visibleGuarantors(access: Access): Promise<Set<string> | null> {
+  if (!access.branch) return null
+  const gMap = await guarantorBranchMap()
+  return new Set(Array.from(gMap.keys()).filter(g => canSeeGuarantor(access.branch!, gMap, g)))
+}
+async function needGuarantor(access: Access, guarantorId: string | null) {
+  const v = await visibleGuarantors(access)
+  if (v && !v.has(guarantorId || '')) throw new PaymentError('This payment belongs to a guarantor of another branch')
 }
 
 export function need(ok: boolean) {
@@ -145,12 +158,13 @@ async function hydrate(groups: GroupRow[], viewer: Access): Promise<PublicGroup[
     const { data } = await sb.from('customers').select('customer_id, name, guarantor_id').in('customer_id', customerIds)
     for (const c of data || []) custMap.set(c.customer_id, c as any)
   }
+  const visibleG = await visibleGuarantors(viewer)
   const gName = (id: string | null) => guarantors.find(g => g['Guarantor ID'] === id)?.['Name'] || ''
 
   const toLine = (l: LineRow): PublicLine => {
     const c = l.customer_id ? custMap.get(l.customer_id) : undefined
     // A guarantor may only see their own customers; others are masked
-    const hidden = viewer.isGuarantor && (l.guarantor_id || c?.guarantor_id) !== viewer.guarantorId
+    const hidden = (viewer.isGuarantor && (l.guarantor_id || c?.guarantor_id) !== viewer.guarantorId) || (!!visibleG && !visibleG.has(l.guarantor_id || c?.guarantor_id || ''))
     return {
       lineId: l.line_id, customerId: hidden ? '' : (l.customer_id || ''), name: hidden ? "Another guarantor's customer" : (c?.name || ''),
       payCode: hidden ? '' : payCodeFromLoanId(l.loan_id), amount: Number(l.amount), weekNo: l.week_no, dueDate: l.due_date, applied: l.applied, hidden,
@@ -190,14 +204,16 @@ async function getGroupRow(groupId: string): Promise<GroupRow> {
 
 // ─── Collect sheet ────────────────────────────────────────────────────────────
 
-export async function listGuarantors(): Promise<{ guarantorId: string; name: string; code: string }[]> {
+export async function listGuarantors(access?: Access): Promise<{ guarantorId: string; name: string; code: string }[]> {
   const guarantors = await readTable('Guarantors', { forceFresh: true })
-  return guarantors.filter(g => g['Status'] !== 'Inactive').map(g => ({ guarantorId: g['Guarantor ID'], name: g['Name'], code: g['Code'] || '' }))
+  const v = access ? await visibleGuarantors(access) : null
+  return guarantors.filter(g => g['Status'] !== 'Inactive' && (!v || v.has(g['Guarantor ID']))).map(g => ({ guarantorId: g['Guarantor ID'], name: g['Name'], code: g['Code'] || '' }))
     .sort((a, b) => a.name.localeCompare(b.name))
 }
 
-export async function collectSheet(guarantorId: string, date: string) {
+export async function collectSheet(guarantorId: string, date: string, access?: Access) {
   if (!guarantorId) throw new PaymentError('Choose a guarantor')
+  if (access) await needGuarantor(access, guarantorId)
   if (!isDate(date)) throw new PaymentError('Invalid date')
   const sb = getSupabase()
   const { data: loans } = await sb.from('loans').select('loan_id, customer_id').eq('guarantor_id', guarantorId)
@@ -307,6 +323,7 @@ export async function markPayment(session: Session, access: Access, input: MarkI
   if (repaymentIds.length > 25) throw new PaymentError('Too many customers in one payment')
   if (access.isGuarantor) input = { ...input, guarantorId: access.guarantorId }   // a guarantor can only ever act for themselves
   if (!input.guarantorId) throw new PaymentError('Choose a guarantor')
+  await needGuarantor(access, input.guarantorId)
 
   const sb = getSupabase()
   const { data: reps } = await sb.from('repayments').select('repayment_id, loan_id, customer_id, due_date, week_no, amount, status').in('repayment_id', repaymentIds)
@@ -405,6 +422,7 @@ export async function editUtr(session: Session, access: Access, groupId: string,
   need(access.canMark)
   const group = await getGroupRow(groupId)
   if (access.isGuarantor && group.guarantor_id !== access.guarantorId) throw new Error('No permission')
+  await needGuarantor(access, group.guarantor_id)
   if (!group.utr && !UTR_MODES.has(group.mode)) throw new PaymentError('This payment has no UTR')
   const ownFlagged = group.status === 'Flagged'
   const mine = group.marked_by === session.userId
@@ -454,6 +472,7 @@ export async function overrideGroup(session: Session, access: Access, groupId: s
   const why = String(reason || '').trim()
   if (why.length < 5) throw new PaymentError('Write the reason for the override (at least 5 characters)')
   const group = await getGroupRow(groupId)
+  await needGuarantor(access, group.guarantor_id)
   if (group.status !== 'Flagged') throw new PaymentError('Only flagged payments can be overridden')
   const sb = getSupabase()
   const { error } = await sb.from('payment_groups').update({ status: 'Overridden', flag_reason: why.slice(0, 300), updated_at: new Date().toISOString() }).eq('group_id', groupId)
@@ -467,6 +486,7 @@ export async function discardGroup(session: Session, access: Access, groupId: st
   need(access.canMark)
   const group = await getGroupRow(groupId)
   if (access.isGuarantor && group.guarantor_id !== access.guarantorId) throw new Error('No permission')
+  await needGuarantor(access, group.guarantor_id)
   if (group.status !== 'Flagged') throw new PaymentError('Only flagged payments can be discarded')
   if (!(access.canOverride || group.marked_by === session.userId)) throw new Error('No permission')
   await logEvent(groupId, 'discarded', session, { oldUtr: group.utr, reason: `Discarded flagged payment of ${group.total_amount}` })
@@ -482,9 +502,12 @@ export async function records(access: Access, guarantorId: string, date: string)
   const scopeG = access.isGuarantor ? access.guarantorId : guarantorId
   if (access.isGuarantor && !scopeG) throw new Error('No permission')
   if (!isDate(date)) throw new PaymentError('Invalid date')
+  if (scopeG) await needGuarantor(access, scopeG)
+  const vis = await visibleGuarantors(access)
   const sb = getSupabase()
   let q = sb.from('payment_groups').select('*').eq('saturday_date', date).order('created_at', { ascending: false })
   if (scopeG) q = q.eq('guarantor_id', scopeG)
+  else if (vis) q = q.in('guarantor_id', Array.from(vis))
   const { data } = await q
   const groups = await hydrate((data || []) as GroupRow[], access)
 
@@ -492,6 +515,7 @@ export async function records(access: Access, guarantorId: string, date: string)
   if (!access.isGuarantor || scopeG) {
     let fq = sb.from('payment_groups').select('*').eq('status', 'Flagged').order('created_at', { ascending: false }).limit(100)
     if (scopeG) fq = fq.eq('guarantor_id', scopeG)
+    else if (vis) fq = fq.in('guarantor_id', Array.from(vis))
     const { data: fd } = await fq
     flagged = await hydrate((fd || []) as GroupRow[], access)
   }
@@ -546,7 +570,8 @@ export async function bankReport(access: Access) {
     sb.from('payment_groups').select('*').in('mode', ['UPI', 'Bank']).order('created_at', { ascending: false }).limit(300),
     sb.from('bank_transactions').select('*').order('created_at', { ascending: false }).limit(2000),
   ])
-  const pub = await hydrate((groups || []) as GroupRow[], access)
+  const vis = await visibleGuarantors(access)
+  const pub = await hydrate(((groups || []) as GroupRow[]).filter(g => !vis || vis.has(g.guarantor_id || '')), access)
   const claimedUtrs = new Set((groups || []).map((g: any) => g.utr))
   const { data: allUtrs } = await sb.from('payment_groups').select('utr').not('utr', 'is', null)
   for (const u of allUtrs || []) claimedUtrs.add(u.utr)

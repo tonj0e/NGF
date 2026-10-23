@@ -3,6 +3,7 @@ import { apiHandler, getSession, requireRole, ok, err } from '@/lib/api'
 import { readTable, appendRow, updateById, invalidateCache, deleteById } from '@/lib/supabase-db'
 import { computeSummary, guarantorCanSeeCommissions } from '@/lib/commissions'
 import { randomInt } from 'crypto'
+import { getBranchAccess, canSeeGuarantor, canApproveIn, guarantorBranchMap } from '@/lib/branchAccess'
 
 export const GET = apiHandler(async (req: NextRequest) => {
   const session = await getSession(req)
@@ -29,6 +30,12 @@ export const GET = apiHandler(async (req: NextRequest) => {
       const gl = loans.filter(l => l['Guarantor ID'] === g['Guarantor ID'])
       return ok(computeSummary(gl, mine))
     }
+  }
+
+  if (showAll && session.role === 'Staff') {
+    // Staff see only payout requests of guarantors in their own branches
+    const [access, gMap] = await Promise.all([getBranchAccess(session), guarantorBranchMap()])
+    mine = mine.filter((p: any) => canSeeGuarantor(access, gMap, p['Guarantor ID']))
   }
 
   const enriched = mine
@@ -120,6 +127,10 @@ export const PATCH = apiHandler(async (req: NextRequest) => {
   if (!payout) return err('Payout request not found', 404)
 
   // Only a request that is still waiting can be decided; a paid or rejected one is final
+  if (session.role === 'Staff') {
+    const [access, gMap] = await Promise.all([getBranchAccess(session), guarantorBranchMap()])
+    if (!canApproveIn(access, gMap.get(payout['Guarantor ID']) || '')) return err('This payout belongs to another branch', 403)
+  }
   if (payout['Status'] !== 'Pending') return err(`This payout is already ${String(payout['Status']).toLowerCase()}`)
   if (action !== 'approve' && action !== 'reject') return err('action must be approve or reject')
 

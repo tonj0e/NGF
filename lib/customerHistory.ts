@@ -3,12 +3,18 @@
 import { getSupabase } from './supabase-db'
 import { computeScore, type LoanInput } from './creditScore'
 import { parseReview } from './reviews'
+import { getBranchAccess, canSeeBranch, branchOfGuarantor } from './branchAccess'
 import type { Session } from '../types'
 
 export class HistoryError extends Error {}
 
-async function allowed(session: Session, customer: { guarantor_id: string | null; customer_id: string }, loanAgentIds: (string | null)[]): Promise<boolean> {
-  if (session.role === 'Admin' || session.role === 'Staff') return true
+async function allowed(session: Session, customer: { guarantor_id: string | null; customer_id: string }, loanAgentIds: (string | null)[], loanGuarantorIds: (string | null)[]): Promise<boolean> {
+  if (session.role === 'Admin') return true
+  if (session.role === 'Staff') {
+    // Staff: only customers whose guarantor belongs to one of their branches
+    const gid = customer.guarantor_id || loanGuarantorIds.find(Boolean) || ''
+    return !!gid && canSeeBranch(await getBranchAccess(session), await branchOfGuarantor(gid))
+  }
   const sb = getSupabase()
   if (session.role === 'Guarantor') {
     const { data } = await sb.from('guarantors').select('guarantor_id').eq('user_id', session.userId).maybeSingle()
@@ -29,10 +35,10 @@ export async function customerHistory(session: Session, customerId: string) {
   if (!customer) throw new HistoryError('Customer not found')
 
   const { data: loans, error: le } = await sb.from('loans')
-    .select('loan_id, loan_account_no, status, principal_amount, weekly_collection_amount, duration_weeks, start_date, end_date, assigned_agent_id, created_at')
+    .select('loan_id, loan_account_no, status, principal_amount, weekly_collection_amount, duration_weeks, start_date, end_date, assigned_agent_id, guarantor_id, created_at')
     .eq('customer_id', customerId)
   if (le) throw new Error(le.message)
-  if (!(await allowed(session, customer, (loans || []).map(l => l.assigned_agent_id)))) throw new Error('No permission')
+  if (!(await allowed(session, customer, (loans || []).map(l => l.assigned_agent_id), (loans || []).map(l => l.guarantor_id)))) throw new Error('No permission')
 
   const loanIds = (loans || []).map(l => l.loan_id)
   const { data: reps, error: re } = loanIds.length

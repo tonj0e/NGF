@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { apiHandler, getSession, ok, err } from '@/lib/api'
 import { readTable } from '@/lib/supabase-db'
 import { earnedForGuarantor } from '@/lib/guarantorEarned'
+import { getBranchAccess, canSeeGuarantor, guarantorBranchMap } from '@/lib/branchAccess'
 import { getTodayIST, getThisSaturday, getNextSaturday, addDaysIST } from '@/lib/dateUtils'
 
 export const maxDuration = 30
@@ -29,34 +30,41 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const today = getTodayIST()
   const thisMonth = today.slice(0, 7)
 
+  // Everything on the dashboard is limited to the viewer's own scope: Admin all, Guarantor own, agent assigned, Staff their branches
+  const allLoans = loans
+  const meG = session.role === 'Guarantor' ? guarantors.find(g => g['User ID'] === session.userId) : null
+  const meA = session.role === 'NGF AGENT' ? agents.find(a => a['User ID'] === session.userId) : null
+  let staffSees: (guarantorId: string) => boolean = () => false
+  if (session.role === 'Staff') {
+    const [access, gMap] = await Promise.all([getBranchAccess(session), guarantorBranchMap()])
+    staffSees = gid => canSeeGuarantor(access, gMap, gid)
+  }
+  if (session.role !== 'Admin') {
+    loans = allLoans.filter(l => session.role === 'Guarantor' ? !!meG && l['Guarantor ID'] === meG['Guarantor ID']
+      : session.role === 'NGF AGENT' ? !!meA && l['Assigned Agent ID'] === meA['Agent ID']
+      : session.role === 'Staff' ? staffSees(l['Guarantor ID']) : false)
+    const scopedIds = new Set(loans.map(l => l['Loan ID']))
+    repayments = repayments.filter(r => scopedIds.has(r['Loan ID']))
+    const scopedCustomers = new Set(loans.map(l => l['Customer ID']))
+    customers = customers.filter(c => scopedCustomers.has(c['Customer ID']) || (!!meG && c['Guarantor ID'] === meG['Guarantor ID']))
+    leads = leads.filter(l => session.role === 'Guarantor' ? !!meG && l['Guarantor ID'] === meG['Guarantor ID']
+      : session.role === 'NGF AGENT' ? !!meA && l['Assigned Agent ID'] === meA['Agent ID']
+      : staffSees(l['Guarantor ID']))
+  }
+  // a customer with an active loan anywhere is not renewal-eligible
+  const activeCustomerIds = new Set(allLoans.filter(l => l['Status'] === 'Active').map(l => l['Customer ID']))
+
   const overdueSet = new Set(
     repayments.filter(r => r['Status'] === 'Pending' && r['Due Date'] < today).map(r => r['Loan ID'])
   )
   const activeLoans = loans.filter(l => l['Status'] === 'Active')
   const completedLoans = loans.filter(l => l['Status'] === 'Completed')
 
-  // role-scoped loans
-  const myLoans = session.role === 'Admin' ? activeLoans
-    : session.role === 'Guarantor'
-      ? activeLoans.filter(l => {
-          const g = guarantors.find(g => g['User ID'] === session.userId)
-          return g && l['Guarantor ID'] === g['Guarantor ID']
-        })
-      : activeLoans.filter(l => {
-          const a = agents.find(a => a['User ID'] === session.userId)
-          return a && l['Assigned Agent ID'] === a['Agent ID']
-        })
-
-  const myCompletedLoans = session.role === 'Admin' ? completedLoans
-    : session.role === 'Guarantor'
-      ? completedLoans.filter(l => {
-          const g = guarantors.find(g => g['User ID'] === session.userId)
-          return g && l['Guarantor ID'] === g['Guarantor ID']
-        })
-      : completedLoans
+  // loans, repayments, customers and leads are already limited to the viewer's scope above
+  const myLoans = activeLoans
+  const myCompletedLoans = completedLoans
 
   // renewal eligible = completed loans where customer has no active loan
-  const activeCustomerIds = new Set(activeLoans.map(l => l['Customer ID']))
   const renewalEligible = myCompletedLoans.filter(l => !activeCustomerIds.has(l['Customer ID'])).length
 
   // guarantor-specific
@@ -102,7 +110,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
     !inactiveLoanIds.has(r['Loan ID'])
   )
   const myLoanIds = new Set(myLoans.map(l => l['Loan ID']))
-  const scopedSaturdayDue = session.role === 'Admin' ? saturdayDue : saturdayDue.filter(r => myLoanIds.has(r['Loan ID']))
+  const scopedSaturdayDue = saturdayDue.filter(r => myLoanIds.has(r['Loan ID']))
   const thisWeekCollection = scopedSaturdayDue.reduce((s, r) => s + Number(r['Amount'] || 0), 0)
   const weekCollected = repayments
     .filter(r => r['Status'] === 'Paid' && (r['Paid Date'] || '') >= weekAgoStr)
@@ -161,8 +169,8 @@ export const GET = apiHandler(async (req: NextRequest) => {
       assignedVerifications,
       todayDue,
       weekCollected,
-      // Capital, investor and interest totals are for Admin and Staff only
-      ...(session.role === 'Admin' || session.role === 'Staff' ? { totalCapital, investorMoney, totalInterest, availableCapital } : {}),
+      // Capital, investor and interest totals are company-wide, so Admin only (Staff see their branches' figures above)
+      ...(session.role === 'Admin' ? { totalCapital, investorMoney, totalInterest, availableCapital } : {}),
       recollectionRate,
       collectedCount,
       pendingCount,

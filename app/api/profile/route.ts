@@ -3,6 +3,14 @@ import { apiHandler, getSession, requireRole, ok, err } from '@/lib/api'
 import { readTable, appendRow, updateById, nowIso, invalidateCache } from '@/lib/supabase-db'
 import { APP_CONFIG } from '@/lib/config'
 import { saveFileSupabase } from '@/lib/drive'
+import { getBranchAccess, canSeeBranch, branchesOfUser } from '@/lib/branchAccess'
+
+// Admin: any user. Staff: only people of their own branches (agents, guarantors, branch staff).
+async function mayOpenProfile(session: { userId: string; role: string }, target: string): Promise<boolean> {
+  if (session.role === 'Admin') return true
+  const access = await getBranchAccess(session as any)
+  return Array.from(await branchesOfUser(target)).some(b => canSeeBranch(access, b))
+}
 
 function makeCardNumber(prefix: string, used: Set<string>): string {
   let num = ''
@@ -17,7 +25,11 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const { searchParams } = new URL(req.url)
   const target = searchParams.get('userId')
   let userId = session.userId
-  if (target && target !== session.userId) { await requireRole(req, ['Admin', 'Staff']); userId = target }
+  if (target && target !== session.userId) {
+    await requireRole(req, ['Admin', 'Staff'])
+    if (!(await mayOpenProfile(session, target))) return err('This user belongs to another branch', 403)
+    userId = target
+  }
 
   const [profiles, users, guarantors] = await Promise.all([
     readTable('Profiles'), readTable('Users'), readTable('Guarantors'),
@@ -58,7 +70,11 @@ export const POST = apiHandler(async (req: NextRequest) => {
   const session = await getSession(req)
   const body = await req.json()
   let userId = session.userId
-  if (body.userId && body.userId !== session.userId) { await requireRole(req, ['Admin', 'Staff']); userId = body.userId }
+  if (body.userId && body.userId !== session.userId) {
+    await requireRole(req, ['Admin', 'Staff'])
+    if (!(await mayOpenProfile(session, body.userId))) return err('This user belongs to another branch', 403)
+    userId = body.userId
+  }
 
   const [profiles, guarantors] = await Promise.all([readTable('Profiles'), readTable('Guarantors')])
   const guar = guarantors.find(g => g['User ID'] === userId)

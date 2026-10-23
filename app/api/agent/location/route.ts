@@ -136,16 +136,21 @@ export const GET = apiHandler(async (req: NextRequest) => {
 
 // SSE endpoint for real-time updates
 export const PATCH = apiHandler(async (req: NextRequest) => {
-  await requireRole(req, ['Admin', 'Staff'])
+  const session = await requireRole(req, ['Admin', 'Staff'])
+  const access = await getBranchAccess(session)
 
   const url = new URL(req.url)
   const agentId = url.searchParams.get('agentId') // optional: specific agent
+  // Staff may only listen to agents of their own branches
+  const allAgents = await readTable('Agents', { forceFresh: true })
+  const visible = new Set(allAgents.filter(a => canSeeBranch(access, String(a['Branch ID'] || ''))).map(a => a['Agent ID']))
+  if (agentId && !access.admin && !visible.has(agentId)) return err('This agent belongs to another branch', 403)
   const eventStream = new ReadableStream({
     start(controller) {
       // Send initial connection message
       controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ type: 'connected' })}\n\n`))
 
-      const agentIds = agentId ? [agentId] : Array.from(connections.keys())
+      const agentIds = agentId ? [agentId] : Array.from(connections.keys()).filter(id => visible.has(id))
       agentIds.forEach(id => addConnection(id, controller))
 
       // Heartbeat every 30s
