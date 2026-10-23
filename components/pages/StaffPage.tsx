@@ -196,6 +196,24 @@ export default function StaffPage({ session }: { session: Session }) {
       const json = await res.json()
       if (!json.success) throw new Error(json.error || (isEditing ? 'Failed to update user' : 'Failed to create user'))
 
+      // PATCH /api/staff only saves name/username/email: branch role and permissions live in other tables
+      if (isEditing && userData.branchId) {
+        const post = async (payload: Record<string, unknown>, failMsg: string) => {
+          const r = await fetch('/api/branches', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          })
+          const j = await r.json()
+          if (!j.success) throw new Error(j.error || failMsg)
+        }
+        if (userData.branchRole && userData.branchRole !== editingUser.branchRole) {
+          await post({ action: 'setStaffRole', userId: editingUser.userId, branchId: editingUser.branchId, roleInBranch: editingUser.branchRole, isActive: false }, 'Could not change the branch role')
+          await post({ action: 'setStaffRole', userId: editingUser.userId, branchId: userData.branchId, roleInBranch: userData.branchRole, isActive: true }, 'Could not change the branch role')
+        }
+        await post({ action: 'setAccess', userId: editingUser.userId, branchId: userData.branchId, permissions: userData.permissions || [] }, 'Could not save permissions')
+      }
+
       showToast(isEditing ? 'User updated successfully' : 'User created successfully')
       setEditingUser(null)
       await loadData()
