@@ -36,6 +36,7 @@ import GuarantorPage from './pages/GuarantorPage'
 import MyIdCardPage from './pages/MyIdCardPage'
 import DepositsPage from './pages/DepositsPage'
 import AgentLocationPage from './pages/AgentLocationPage'
+import AgentTracker from './agent/AgentTracker'
 import AgentTrackingPage from './pages/AgentTrackingPage'
 import BranchTownPage from './pages/BranchTownPage'
 import PaymentLinksPage from './pages/PaymentLinksPage'
@@ -280,6 +281,7 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
 
   return (
     <div className="flex h-screen w-full bg-[#f4f5f7]">
+      {session.role === 'NGF AGENT' && <AgentTracker session={session} />}
 {/* Mobile Sheet */}
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
         <SheetContent side="left" hideClose className="h-dvh w-[80vw] max-w-[320px] p-0 lg:hidden">

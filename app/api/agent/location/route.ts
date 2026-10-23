@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { getBranchAccess, canSeeBranch } from '@/lib/branchAccess'
 import { apiHandler, requireRole, ok, err } from '@/lib/api'
-import { readTable, updateById, getRowById } from '@/lib/supabase-db'
+import { readTable, updateById, getRowById, formatDateYmd } from '@/lib/supabase-db'
 
 // In-memory connections for SSE (in production, use Redis or similar)
 const connections = new Map<string, Set<ReadableStreamDefaultController>>()
@@ -56,6 +56,11 @@ export const POST = apiHandler(async (req: NextRequest) => {
   const agent = agents.find(a => a['User ID'] === session.userId)
   if (!agent) return err('Agent not found')
 
+  // Tracking runs from marking attendance until punch-out
+  const today = (await readTable('AgentAttendance')).find(r => r['Agent ID'] === agent['Agent ID'] && r['Date'] === formatDateYmd(new Date()))
+  if (!today) return err('Mark attendance to start tracking', 409)
+  if (today['Punched Out At']) return err('You have punched out for today', 409)
+
   // Update agent with location
   await updateById('Agents', agent['Agent ID'], {
     'Latitude': String(latitude),
@@ -107,7 +112,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
       const lng = a['Longitude'] ? Number(a['Longitude']) : null
       const accuracy = a['Location Accuracy'] ? Number(a['Location Accuracy']) : null
       const locationUpdatedAt = a['Location Updated At'] ? new Date(a['Location Updated At']).getTime() : null
-      const isTracking = a['Is Tracking'] === 'true'
+      const isTracking = String(a['Is Tracking']).toLowerCase() === 'true' // the column is a boolean, so compare as text
       const ageMs = locationUpdatedAt ? now - locationUpdatedAt : null
       const isRecent = locationUpdatedAt && ageMs !== null && ageMs <= maxAgeMs
 

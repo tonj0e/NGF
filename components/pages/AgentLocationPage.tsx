@@ -1,196 +1,19 @@
 'use client'
-import { useEffect, useState, useRef } from 'react'
+import { useState } from 'react'
 import { Session } from '@/types'
+import { punchOut, useAgentTracker } from '@/lib/agentTracker'
 
-export default function AgentLocationPage({ session }: { session: Session }) {
-  const [tracking, setTracking] = useState(false)
-  const [permission, setPermission] = useState<'granted' | 'denied' | 'prompt' | 'checking'>('checking')
-  const [position, setPosition] = useState<{ latitude: number; longitude: number; accuracy: number; speed: number | null; heading: number | null; timestamp: number } | null>(null)
-  const [lastSent, setLastSent] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
-  const watchIdRef = useRef<number | null>(null)
-  const sendIntervalRef = useRef<NodeJS.Timeout | null>(null)
-  const isVisibleRef = useRef(true)
-  const positionRef = useRef<typeof position>(null) // latest fix, read by the send interval (state would be stale inside it)
-  const sendingRef = useRef(false)
-  const lastPositionRef = useRef<{ latitude: number; longitude: number; timestamp: number } | null>(null)
-
-  // Check geolocation permission on mount
-  useEffect(() => {
-    if (!navigator.geolocation) {
-      setPermission('denied')
-      setError('Geolocation is not supported by this browser')
-      return
-    }
-    if (!navigator.permissions?.query) { setPermission('prompt'); return }
-    navigator.permissions.query({ name: 'geolocation' as PermissionName }).then(result => {
-      setPermission(result.state)
-      result.onchange = () => setPermission(result.state)
-    }).catch(() => setPermission('prompt'))
-  }, [])
-
-  // Page visibility - pause tracking when tab hidden
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      isVisibleRef.current = !document.hidden
-      if (document.hidden && tracking) {
-        setError('Tab hidden — location updates paused')
-      } else if (!document.hidden && tracking && !error) {
-        setError(null)
-      }
-    }
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
-  }, [tracking, error])
-
-  // Start watching position
-  const startWatch = () => {
-    if (!navigator.geolocation) return
-    watchIdRef.current = navigator.geolocation.watchPosition(
-      pos => {
-        const now = Date.now()
-        const coords = pos.coords
-        let speed: number | null = coords.speed
-        let heading: number | null = coords.heading
-
-        // Calculate speed/heading from previous position if not available
-        if ((speed === null || speed === 0) && lastPositionRef.current) {
-          const prev = lastPositionRef.current
-          const dt = (now - prev.timestamp) / 1000 // seconds
-          if (dt > 0) {
-            const R = 6371000 // Earth radius in meters
-            const lat1 = prev.latitude * Math.PI / 180
-            const lat2 = coords.latitude * Math.PI / 180
-            const dLat = (coords.latitude - prev.latitude) * Math.PI / 180
-            const dLon = (coords.longitude - prev.longitude) * Math.PI / 180
-            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-              Math.cos(lat1) * Math.cos(lat2) *
-              Math.sin(dLon/2) * Math.sin(dLon/2)
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
-            const distance = R * c
-            speed = distance / dt // m/s
-            heading = Math.atan2(dLon * Math.cos(lat2), dLat) * 180 / Math.PI
-            if (heading < 0) heading += 360
-          }
-        }
-
-        lastPositionRef.current = { latitude: coords.latitude, longitude: coords.longitude, timestamp: now }
-
-        const fix = {
-          latitude: coords.latitude,
-          longitude: coords.longitude,
-          accuracy: coords.accuracy,
-          speed,
-          heading,
-          timestamp: now,
-        }
-        positionRef.current = fix
-        setPosition(fix)
-        setPermission('granted')
-        setError(null)
-      },
-      err => {
-        if (err.code === err.PERMISSION_DENIED) {
-          setPermission('denied')
-          setError('Location permission denied. Enable in browser settings.')
-          stopTracking()
-        } else if (err.code === err.POSITION_UNAVAILABLE) {
-          setError('Location unavailable. Check GPS signal.')
-        } else if (err.code === err.TIMEOUT) {
-          setError('Location request timed out.')
-        }
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
-    )
-  }
-
-  // Stop watching position
-  const stopWatch = () => {
-    if (watchIdRef.current !== null) {
-      navigator.geolocation.clearWatch(watchIdRef.current)
-      watchIdRef.current = null
-    }
-  }
-
-  // Send location to server
-  const sendLocation = async () => {
-    const position = positionRef.current
-    if (!position || sendingRef.current) return
-    sendingRef.current = true
-    setLoading(true)
-    setError(null)
-    try {
-      const res = await fetch('/api/agent/location', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          latitude: position.latitude,
-          longitude: position.longitude,
-          accuracy: position.accuracy,
-          speed: position.speed,
-          heading: position.heading,
-          timestamp: position.timestamp,
-        }),
-      })
-      const json = await res.json()
-      if (json.success) {
-        setLastSent(new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }))
-      } else {
-        setError(json.error || 'Failed to send location')
-      }
-    } catch {
-      setError('Network error sending location')
-    } finally {
-      sendingRef.current = false
-      setLoading(false)
-    }
-  }
-
-  // Start/stop tracking
-  const startTracking = async () => {
-    if (permission === 'denied') {
-      setError('Please enable location permission in browser settings')
-      return
-    }
-    setTracking(true)
-    setError(null)
-    startWatch()
-
-    // Send as soon as the first GPS fix arrives, then on the interval
-    setTimeout(() => { if (sendIntervalRef.current) sendLocation() }, 2500)
-
-    // Then send every 10 seconds when tab visible (more real-time like Zomato)
-    if (sendIntervalRef.current) clearInterval(sendIntervalRef.current)
-    sendIntervalRef.current = setInterval(() => {
-      if (isVisibleRef.current) sendLocation()
-    }, 10000)
-  }
-
-  const stopTracking = async () => {
-    setTracking(false)
-    stopWatch()
-    if (sendIntervalRef.current) {
-      clearInterval(sendIntervalRef.current)
-      sendIntervalRef.current = null
-    }
-    setLoading(false)
-    try {
-      await fetch('/api/agent/location/toggle', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isTracking: false }),
-      })
-    } catch {}
-  }
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      stopWatch()
-      if (sendIntervalRef.current) clearInterval(sendIntervalRef.current)
-    }
-  }, [])
+// Status page for the agent. Sharing itself is run by lib/agentTracker.ts (started once in the app shell), so it keeps
+// going when the agent opens other pages. It starts when attendance is marked and stops at punch-out.
+export default function AgentLocationPage({ session: _session }: { session: Session }) {
+  const t = useAgentTracker()
+  const position = t.position
+  const tracking = t.phase === 'tracking'
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+  const lastSent = t.lastSent ? new Date(t.lastSent).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : null
+  const error = msg || t.error
+  const permission = t.permission
 
   // Format coordinates
   const formatCoords = (lat: number, lng: number) => {
@@ -217,38 +40,26 @@ export default function AgentLocationPage({ session }: { session: Session }) {
             <p className="mt-1 text-xs text-[#697586]">Share your GPS position with admin & staff</p>
           </div>
           <span className={`rounded-full px-3 py-1 text-xs font-semibold ${tracking ? 'bg-green-100 text-green-700' : permission === 'denied' ? 'bg-red-100 text-red-700' : 'bg-[#f4f5f7] text-[#697586]'}`}>
-            {tracking ? 'TRACKING ACTIVE' : permission === 'denied' ? 'PERMISSION DENIED' : 'STANDBY'}
+            {tracking ? 'TRACKING ACTIVE' : permission === 'denied' ? 'PERMISSION DENIED' : t.phase === 'punchedOut' ? 'PUNCHED OUT' : 'STANDBY'}
           </span>
         </div>
 
         {permission === 'denied' && (
           <div className="mt-4 p-4 rounded-xl bg-red-50 border border-red-200">
             <p className="text-sm font-medium text-red-700 mb-1">Location Access Blocked</p>
-            <p className="text-xs text-red-600 mb-3">Enable location permission in your browser settings to use tracking.</p>
-            <button onClick={() => startTracking()} className="rounded-xl bg-red-600 px-3 py-2 text-xs font-semibold text-white">Retry Permission</button>
+            <p className="text-xs text-red-600">Allow location for this site in your browser settings, then come back. Sharing starts again by itself.</p>
           </div>
         )}
 
-        {tracking && permission === 'granted' && (
-          <button onClick={stopTracking} className="mt-4 w-full rounded-2xl bg-red-600 px-4 py-3 text-sm font-semibold text-white flex items-center justify-center gap-2">
-            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
-            Stop Tracking
-          </button>
-        )}
+        {t.phase === 'noAttendance' && <p className="mt-4 rounded-xl bg-[#f4f5f7] px-4 py-3 text-xs text-[#697586]">Tracking starts when you mark attendance. Sign in again to mark it.</p>}
+        {t.phase === 'punchedOut' && <p className="mt-4 rounded-xl bg-[#f4f5f7] px-4 py-3 text-xs text-[#697586]">You punched out for today. Tracking is off.</p>}
 
-        {!tracking && permission !== 'denied' && (
-          <button onClick={startTracking} disabled={loading} className="mt-4 w-full rounded-2xl bg-[#1a1a2e] px-4 py-3 text-sm font-semibold text-white disabled:opacity-50 flex items-center justify-center gap-2">
-            {loading ? (
-              <>
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                Starting...
-              </>
-            ) : (
-              <>
-                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
-                Start Tracking
-              </>
-            )}
+        {tracking && (
+          <button disabled={busy} onClick={async () => {
+            if (!confirm('Punch out for today? Location sharing will stop.')) return
+            setBusy(true); setMsg(''); const e = await punchOut(); setBusy(false); if (e) setMsg(e)
+          }} className="mt-4 w-full rounded-2xl bg-[#1a1a2e] px-4 py-3 text-sm font-semibold text-white flex items-center justify-center gap-2 disabled:opacity-50">
+            {busy ? 'Saving…' : 'Punch out'}
           </button>
         )}
       </div>
@@ -291,7 +102,7 @@ export default function AgentLocationPage({ session }: { session: Session }) {
           </div>
         ) : (
           <div className="flex h-32 items-center justify-center rounded-xl border border-dashed border-[#e5e7eb] bg-[#f9fafb] text-xs text-[#697586]">
-            {permission === 'prompt' ? 'Requesting location permission...' : permission === 'checking' ? 'Checking permission...' : 'Start tracking to get position'}
+            {tracking ? 'Waiting for the first GPS fix…' : 'Tracking is off'}
           </div>
         )}
       </div>
@@ -301,8 +112,8 @@ export default function AgentLocationPage({ session }: { session: Session }) {
         <p className="text-sm font-semibold text-[#1a1a2e]">How it works</p>
         <div className="space-y-2 text-xs text-[#697586]">
           <p className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-[#1a1a2e] shrink-0"></span>GPS position captured via browser Geolocation API</p>
-          <p className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-[#1a1a2e] shrink-0"></span>Sent to server every 30 seconds while tracking is ON</p>
-          <p className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-[#1a1a2e] shrink-0"></span>Pauses automatically when browser tab is hidden (battery saving)</p>
+          <p className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-[#1a1a2e] shrink-0"></span>Starts when you mark attendance and stops when you punch out. It keeps going on every page</p>
+          <p className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-[#1a1a2e] shrink-0"></span>Sent to the server every 10 seconds. Keep this page open; your phone may pause it if the screen is locked or you switch apps</p>
           <p className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-[#1a1a2e] shrink-0"></span>Admin & Staff can view your location on map in real-time</p>
           <p className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-[#1a1a2e] shrink-0"></span>Accuracy shown so you know GPS quality (green ≤10m, yellow ≤50m)</p>
         </div>
@@ -311,7 +122,7 @@ export default function AgentLocationPage({ session }: { session: Session }) {
       {error && (
         <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-center justify-between gap-3">
           <span>{error}</span>
-          <button onClick={() => setError(null)} className="text-red-600 hover:text-red-800 font-semibold">✕</button>
+          <button onClick={() => setMsg('')} className="text-red-600 hover:text-red-800 font-semibold">✕</button>
         </div>
       )}
     </div>
