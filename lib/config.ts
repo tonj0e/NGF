@@ -22,28 +22,29 @@ export const APP_CONFIG = {
     { key: 'reports',     label: 'Reports',               view: 'reports' },
     { key: 'agentTracking', label: 'Agent Tracking',      view: 'agentTracking' },
     { key: 'verificationPlanning', label: 'Verification Routes (call customers, plan agent visits)', view: 'routes' },
-    { key: 'upiPayments', label: 'Payment Matching (mark UTR payments)', view: 'payments' },
-    { key: 'paymentChat', label: 'Payment Chat (see guarantor screenshots, reply, confirm)', view: 'paymentChat' },
+    // One Payments module (menu item added in AppShell when any of these is ticked)
+    { key: 'payChat', label: 'Payments: chat (see guarantor screenshots, reply, confirm)', view: '' },
+    { key: 'payHistory', label: 'Payments: payment history', view: '' },
+    { key: 'payMark', label: 'Payments: mark by UTR manually', view: '' },
+    { key: 'payBank', label: 'Payments: bank statement check', view: '' },
+    { key: 'payOverride', label: 'Payments: override duplicate UTR', view: '' },
     { key: 'paymentLinks', label: 'Payment Links (send links and QR, close loans by payment)', view: 'payLinks' },
-    { key: 'upiPaymentsBank', label: 'Payment Matching: bank statement', view: '' },
-    { key: 'upiPaymentsOverride', label: 'Payment Matching: override duplicate UTR', view: '' },
   ] as { key: string; label: string; view: string }[],
   // What a Guarantor can see, switched on or off in NGF Branches → edit guarantor. `gp:` keys are the pages in the
   // guarantor's own menu (all on until an Admin saves a custom list, which adds the `pages:custom` marker).
-  // `upiPayments` lets them mark UTR payments for their own customers. Notifications is always on. Bank-statement
+  // `payChat` lets them send payment screenshots, `payHistory` shows their recorded payments. Notifications is always on. Bank-statement
   // access and the duplicate-UTR override are never offered to guarantors.
   GUARANTOR_FEATURES: [
     { key: 'gp:dashboard',   label: 'Dashboard',          view: 'dashboard' },
     { key: 'gp:leads',       label: 'Leads',              view: 'leads' },
     { key: 'gp:collection',  label: 'Collection',         view: 'collection' },
-    { key: 'gp:payments',    label: 'UPI Payments (view)', view: 'payments' },
-    { key: 'gp:paymentChat', label: 'Payment Chat (send payment screenshots)', view: 'paymentChat' },
+    { key: 'payHistory',     label: 'Payments: payment history', view: '' },
+    { key: 'payChat',        label: 'Payments: send payment screenshots in the chat', view: '' },
     { key: 'gp:payLinks',    label: 'Send Payment Link',  view: 'payLinks' },
     { key: 'gp:commissions', label: 'Commissions',        view: 'commissions' },
     { key: 'gp:deposits',    label: 'Deposits',           view: 'deposits' },
     { key: 'gp:myCustomers', label: 'My Customers',       view: 'myCustomers' },
     { key: 'gp:myIdCard',    label: 'My ID Card',         view: 'myIdCard' },
-    { key: 'upiPayments',    label: 'Payment Matching: mark UTR payments (own customers)', view: '' },
   ] as { key: string; label: string; view: string }[],
   // Branch roles with suggested permissions (editable suggestions, not auto-granted)
   BRANCH_ROLES: [

@@ -8,15 +8,20 @@ import { saveFileSupabase } from './drive'
 import { getBranchAccess, canSeeGuarantor, guarantorBranchMap, type BranchAccess } from './branchAccess'
 import type { Session } from '../types'
 
-export const PERM_USE = 'upiPayments'
-export const PERM_BANK = 'upiPaymentsBank'
-export const PERM_OVERRIDE = 'upiPaymentsOverride'
+// The five assignable parts of the Payments module (stored in staff_access.permissions)
+export const PERM_CHAT = 'payChat'          // send / see payment screenshots in the chat
+export const PERM_HISTORY = 'payHistory'    // recorded payments
+export const PERM_USE = 'payMark'           // mark payments by UTR by hand (staff)
+export const PERM_BANK = 'payBank'          // bank statement check
+export const PERM_OVERRIDE = 'payOverride'  // approve a duplicate UTR
 
 export type Access = {
   isAdmin: boolean
   isGuarantor: boolean
   guarantorId: string
-  canMark: boolean
+  canMark: boolean      // mark by UTR by hand (office staff only)
+  canChat: boolean      // the payment chat
+  canHistory: boolean   // recorded payments
   canBank: boolean
   canOverride: boolean
   canView: boolean
@@ -47,25 +52,26 @@ function permsOf(raw: unknown): string[] {
 
 export async function getAccess(session: Session): Promise<Access> {
   if (session.role === 'Admin') {
-    return { isAdmin: true, isGuarantor: false, guarantorId: '', canMark: true, canBank: true, canOverride: true, canView: true }
+    return { isAdmin: true, isGuarantor: false, guarantorId: '', canMark: true, canChat: true, canHistory: true, canBank: true, canOverride: true, canView: true }
   }
   if (session.role === 'Guarantor') {
     const guarantors = await readTable('Guarantors', { forceFresh: true })
     const g = guarantors.find(x => x['User ID'] === session.userId)
-    // A guarantor can mark UTR payments for their own customers only when an Admin has switched that on for them;
-    // bank-statement access and duplicate-UTR override are never available to guarantors.
+    // A guarantor sends screenshots only when an Admin switched the chat on for them. They always see their own payments
+    // until an Admin saves a custom page list, after which payHistory must be ticked. Manual marking, bank check and
+    // duplicate override are never available to guarantors.
     const acc = await readTable('StaffAccess', { forceFresh: true })
-    const mineAcc = acc.find(a => a['User ID'] === session.userId)
-    const canMark = !!g && permsOf(mineAcc?.['Permissions']).includes(PERM_USE)
-    return { isAdmin: false, isGuarantor: true, guarantorId: g?.['Guarantor ID'] || '', canMark, canBank: false, canOverride: false, canView: !!g }
+    const perms = permsOf(acc.find(a => a['User ID'] === session.userId)?.['Permissions'])
+    const canChat = !!g && perms.includes(PERM_CHAT)
+    const canHistory = !!g && (!perms.includes('pages:custom') || perms.includes(PERM_HISTORY))
+    return { isAdmin: false, isGuarantor: true, guarantorId: g?.['Guarantor ID'] || '', canMark: false, canChat, canHistory, canBank: false, canOverride: false, canView: canChat || canHistory }
   }
   const access = await readTable('StaffAccess', { forceFresh: true })
   const mine = access.find(a => a['User ID'] === session.userId)
   const perms = permsOf(mine?.['Permissions'])
-  const canMark = perms.includes(PERM_USE)
-  const canBank = perms.includes(PERM_BANK)
-  const canOverride = perms.includes(PERM_OVERRIDE)
-  return { isAdmin: false, isGuarantor: false, guarantorId: '', canMark, canBank, canOverride, canView: canMark || canBank || canOverride || perms.includes('paymentChat'), branch: await getBranchAccess(session) }
+  const canMark = perms.includes(PERM_USE), canChat = perms.includes(PERM_CHAT), canHistory = perms.includes(PERM_HISTORY)
+  const canBank = perms.includes(PERM_BANK), canOverride = perms.includes(PERM_OVERRIDE)
+  return { isAdmin: false, isGuarantor: false, guarantorId: '', canMark, canChat, canHistory, canBank, canOverride, canView: canMark || canChat || canHistory || canBank || canOverride, branch: await getBranchAccess(session) }
 }
 
 // Staff: ids of guarantors in their own branches. null = no limit (Admin, Guarantor).

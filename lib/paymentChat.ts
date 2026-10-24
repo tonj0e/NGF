@@ -4,7 +4,7 @@
 // until it is fixed. Access is decided here from the session, never from the request body.
 import { createHash } from 'crypto'
 import { getSupabase, readTable, makeId } from './supabase-db'
-import { getTodayIST } from './dateUtils'
+import { getTodayIST, nowIST } from './dateUtils'
 import { getOrCreateFolder, saveFile, driveUrl } from './drive'
 import { APP_CONFIG } from './config'
 import { getAccess, markPayment, lookupUtr, normalizeUtr, validUtr, needGuarantor, PaymentError, type Access } from './payments'
@@ -62,6 +62,34 @@ export async function slipUsage(access: Access) {
   return { today: sum(istStart(0)), week: sum(istStart(6)), month: sum(istStart(29)) }
 }
 
+// ─── Collection day, counters and the wrong-screenshot allowance ─────────────
+
+// The Saturday the guarantor is collecting for: today when it is Saturday, otherwise the last Saturday.
+export function collectionDay(): string {
+  const d = nowIST()
+  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 1) % 7))
+  return d.toISOString().slice(0, 10)
+}
+const WRONG_SHARE = 0.25   // wrong screenshots allowed, as a share of that Saturday's collections
+const WRONG_MIN = 5        // but never fewer than this
+
+export async function chatStats(guarantorId: string) {
+  const sb = getSupabase()
+  const day = collectionDay()
+  const { data: loans } = await sb.from('loans').select('loan_id').eq('guarantor_id', guarantorId)
+  const ids = (loans || []).map(l => l.loan_id)
+  let due = 0, recorded = 0
+  if (ids.length) {
+    const { data: reps } = await sb.from('repayments').select('status').in('loan_id', ids).eq('due_date', day)
+    due = (reps || []).length
+    recorded = (reps || []).filter(r => r.status === 'Paid').length
+  }
+  const { data: tries } = await sb.from('payment_chat').select('wrong_count').eq('guarantor_id', guarantorId).eq('collection_day', day)
+  const wrongUsed = (tries || []).reduce((n, r) => n + Number(r.wrong_count || 0), 0)
+  const wrongAllowed = Math.max(WRONG_MIN, Math.ceil(due * WRONG_SHARE))
+  return { collectionDay: day, due, recorded, remaining: Math.max(0, due - recorded), wrongUsed, wrongAllowed, wrongLeft: Math.max(0, wrongAllowed - wrongUsed), manualMode: wrongUsed >= wrongAllowed }
+}
+
 // ─── Messages ────────────────────────────────────────────────────────────────
 
 const visibleSet = async (access: Access): Promise<Set<string> | null> => {
@@ -76,13 +104,13 @@ function publicMsg(m: Row) {
     lines: (m.lines || []) as ChatLine[], note: m.note || '', utr: m.utr || '', amountRead: m.amount_read == null ? null : Number(m.amount_read),
     txnDate: m.txn_date || '', txnTime: m.txn_time || '', payee: m.payee || '', payApp: m.pay_app || '', confidence: m.confidence || '',
     imageUrl: m.image_url || '', groupId: m.group_id || '', createdByName: m.created_by_name || '', createdBy: m.created_by || '', createdAt: m.created_at,
-    needsFix: m.kind === 'slip' && FIX_STATUSES.includes(m.status),
+    needsFix: m.kind === 'slip' && FIX_STATUSES.includes(m.status), manual: !!m.manual,
   }
 }
 export type ChatMessage = ReturnType<typeof publicMsg>
 
 export async function listMessages(session: Session, access: Access, guarantorId: string) {
-  if (!access.canView && !access.canMark) throw new PaymentError('No permission')
+  if (!access.canChat) throw new PaymentError('The chat is not switched on for you. Ask an Admin.')
   const gid = access.isGuarantor ? access.guarantorId : guarantorId
   const vis = await visibleSet(access)
   const sb = getSupabase()
@@ -92,7 +120,7 @@ export async function listMessages(session: Session, access: Access, guarantorId
   const { data, error } = await q
   if (error) throw new Error(error.message)
   const msgs = (data || []).reverse().map(publicMsg)
-  return { messages: msgs, openIssue: msgs.some(m => m.needsFix) }
+  return { messages: msgs, openIssue: msgs.some(m => m.needsFix), stats: gid ? await chatStats(gid) : null }
 }
 
 // ─── Submit a screenshot ─────────────────────────────────────────────────────
@@ -100,6 +128,7 @@ export async function listMessages(session: Session, access: Access, guarantorId
 export type SubmitInput = {
   guarantorId?: string; mode?: string; repaymentIds?: string[]; messageId?: string
   image?: { mimeType: string; base64Data: string } | null
+  manualUtr?: string   // only used once the guarantor has used up the wrong-screenshot allowance
 }
 
 async function lineDetails(guarantorId: string, repaymentIds: string[]): Promise<ChatLine[]> {
@@ -139,11 +168,19 @@ async function storeProof(guarantorId: string, lines: ChatLine[], media: string,
 const money = (n: number) => `₹${Number(n).toLocaleString('en-IN')}`
 
 export async function submitSlip(session: Session, access: Access, input: SubmitInput) {
-  if (!access.canMark) throw new PaymentError('Payment Chat is not switched on for you. Ask an Admin.')
+  if (!access.canChat) throw new PaymentError('The chat is not switched on for you. Ask an Admin.')
+  const act: Access = { ...access, canMark: true }   // chat payments are recorded through markPayment, which needs this
   const guarantorId = access.isGuarantor ? access.guarantorId : String(input.guarantorId || '')
   if (!guarantorId) throw new PaymentError('Choose a guarantor')
   await needGuarantor(access, guarantorId)
   const sb = getSupabase()
+  // A guarantor has a limited number of wrong screenshots per collection Saturday; after that they type the ID themselves
+  const stats = access.isGuarantor ? await chatStats(guarantorId) : null
+  const manualMode = !!stats?.manualMode
+  const typedUtr = manualMode ? normalizeUtr(input.manualUtr) : ''
+  if (manualMode && !validUtr(typedUtr)) {
+    throw new PaymentError(`You have used all ${stats!.wrongAllowed} wrong-screenshot tries for this Saturday. Send the screenshot and type its transaction ID below it (8 to 30 letters or digits).`)
+  }
 
   // Fixing an earlier message, or sending a new one
   let existing: Row | null = null
@@ -187,7 +224,11 @@ export async function submitSlip(session: Session, access: Access, input: Submit
     created_by: session.userId, created_by_name: session.name, updated_at: new Date().toISOString(),
   }
   const finish = async (status: string, problem: string, extra: Row = {}) => {
-    const row = { ...base, status, problem: problem || null, ...extra }
+    const wrong = access.isGuarantor && FIX_STATUSES.includes(status) ? 1 : 0
+    const row = {
+      ...base, status, problem: problem || null, ...extra,
+      collection_day: existing?.collection_day || collectionDay(), wrong_count: Number(existing?.wrong_count || 0) + wrong, manual: manualMode,
+    }
     const { error } = existing
       ? await sb.from('payment_chat').update(row).eq('message_id', messageId)
       : await sb.from('payment_chat').insert(row)
@@ -203,6 +244,24 @@ export async function submitSlip(session: Session, access: Access, input: Submit
     if (same && same.length) {
       const who = ((same[0].lines || []) as ChatLine[]).map(l => `${l.name} (${l.payCode})`).join(', ')
       return finish('Duplicate', `This exact screenshot was already used for ${who || 'another payment'}. Send the correct screenshot for this customer.`, { ...reset, duplicate_group_id: same[0].group_id })
+    }
+  }
+
+  // Allowance used up: no reading. The guarantor typed the transaction ID, so check it is unused and record it.
+  if (manualMode) {
+    const found = await lookupUtr(typedUtr, access)
+    const holder = found.groups.find(g => g.status === 'Verified' || g.status === 'Overridden')
+    if (holder) {
+      const who = holder.lines.map(l => (l.hidden ? 'a customer of another guarantor' : `${l.name} (${l.payCode})`)).join(', ')
+      return finish('Duplicate', `This transaction ID is already recorded for ${who}. Check the ID you typed.`, { ...reset, utr: typedUtr, duplicate_group_id: holder.groupId })
+    }
+    try {
+      const res = await markPayment(session, act, { guarantorId, mode: 'UPI', utr: typedUtr, repaymentIds, screenshotUrl: imageUrl, notes: 'Payment Chat. Transaction ID typed by the guarantor (not read from the screenshot).' })
+      if (res.flagged) return finish('Duplicate', 'This transaction ID was just recorded by someone else. Check the ID you typed.', { ...reset, utr: typedUtr, duplicate_group_id: res.group.conflicts?.[0]?.groupId || null })
+      return finish('Recorded', '', { ...reset, utr: typedUtr, group_id: res.group.groupId })
+    } catch (e) {
+      if (e instanceof PaymentError) return finish('Needs Retake', e.message, { ...reset, utr: typedUtr })
+      throw e
     }
   }
 
@@ -256,7 +315,7 @@ export async function submitSlip(session: Session, access: Access, input: Submit
 
   // All good: record it exactly like a staff-marked UPI payment
   try {
-    const res = await markPayment(session, access, {
+    const res = await markPayment(session, act, {
       guarantorId, mode: 'UPI', utr, repaymentIds, screenshotUrl: imageUrl,
       notes: `Payment Chat. Read from screenshot: ${reading.date || ''} ${reading.time || ''} ${reading.app || ''}`.trim().slice(0, 480),
     })
@@ -271,7 +330,7 @@ export async function submitSlip(session: Session, access: Access, input: Submit
 // ─── Office actions ──────────────────────────────────────────────────────────
 
 export async function postNote(session: Session, access: Access, guarantorId: string, text: string, parentId?: string) {
-  if (!access.canView && !access.canMark) throw new PaymentError('No permission')
+  if (!access.canChat) throw new PaymentError('No permission')
   const gid = access.isGuarantor ? access.guarantorId : guarantorId
   if (!gid) throw new PaymentError('Choose a guarantor')
   await needGuarantor(access, gid)
@@ -286,7 +345,8 @@ export async function postNote(session: Session, access: Access, guarantorId: st
 
 // Office confirms a message that was sent to them (reading off, doubtful, or limit reached). They type the UTR from the picture.
 export async function approveMessage(session: Session, access: Access, messageId: string, utrRaw: string) {
-  if (access.isGuarantor || !access.canMark) throw new PaymentError('Only office staff can do this')
+  if (access.isGuarantor || !access.canChat) throw new PaymentError('Only office staff can do this')
+  const act: Access = { ...access, canMark: true }
   const sb = getSupabase()
   const { data: m } = await sb.from('payment_chat').select('*').eq('message_id', messageId).maybeSingle()
   if (!m || m.kind !== 'slip') throw new PaymentError('Message not found')
@@ -295,7 +355,7 @@ export async function approveMessage(session: Session, access: Access, messageId
   const utr = normalizeUtr(utrRaw || m.utr)
   if (!validUtr(utr)) throw new PaymentError('Enter the transaction ID from the screenshot')
   const lines = (m.lines || []) as ChatLine[]
-  const res = await markPayment(session, access, { guarantorId: m.guarantor_id, mode: 'UPI', utr, repaymentIds: lines.map(l => l.repaymentId), screenshotUrl: m.image_url, notes: 'Payment Chat. Confirmed by office.' })
+  const res = await markPayment(session, act, { guarantorId: m.guarantor_id, mode: 'UPI', utr, repaymentIds: lines.map(l => l.repaymentId), screenshotUrl: m.image_url, notes: 'Payment Chat. Confirmed by office.' })
   const status = res.flagged ? 'Duplicate' : 'Recorded'
   await sb.from('payment_chat').update({
     status, utr, group_id: res.group.groupId, updated_at: new Date().toISOString(),

@@ -1071,7 +1071,7 @@ export default function DevPage({ session }: { session: Session }) {
                         </select>
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        {APP_CONFIG.STAFF_FEATURES.filter(f => u.role !== 'NGF AGENT' || f.key.startsWith('upiPayments')).map(f => {
+                        {APP_CONFIG.STAFF_FEATURES.filter(f => u.role !== 'NGF AGENT' || (f.key.startsWith('pay') && f.key !== 'paymentLinks')).map(f => {
                           const on = a.permissions.includes(f.key)
                           return (
                             <button key={f.key} type="button" onClick={() => togglePerm(u.userId, f.key)}

@@ -28,7 +28,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
   try {
     switch (body.action) {
       case 'submit': {
-        const msg = await submitSlip(session, access, { guarantorId: body.guarantorId, mode: body.mode, repaymentIds: body.repaymentIds, messageId: body.messageId, image: body.image })
+        const msg = await submitSlip(session, access, { guarantorId: body.guarantorId, mode: body.mode, repaymentIds: body.repaymentIds, messageId: body.messageId, image: body.image, manualUtr: body.manualUtr })
         await audit.log('PAYMENT_CHAT_SUBMIT', 'PaymentChat', msg.messageId, { status: msg.status, amount: msg.amountRead, utr: msg.utr, customers: msg.lines.length })
         return ok({ message: msg })
       }

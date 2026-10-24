@@ -2,16 +2,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Session } from '@/types'
 
+type Stats = { collectionDay: string; due: number; recorded: number; remaining: number; wrongUsed: number; wrongAllowed: number; wrongLeft: number; manualMode: boolean }
 type Me = {
   today: string; saturday: string
-  access: { canMark: boolean; canBank: boolean; canOverride: boolean; isGuarantor: boolean; isAdmin: boolean; guarantorId: string }
+  access: { canMark: boolean; canChat: boolean; canHistory: boolean; canBank: boolean; canOverride: boolean; isGuarantor: boolean; isAdmin: boolean; guarantorId: string }
   guarantors: { guarantorId: string; name: string; code: string }[]
 }
 type Line = { repaymentId: string; customerId: string; name: string; payCode: string; amount: number }
 type Msg = {
   messageId: string; guarantorId: string; kind: 'slip' | 'note'; mode: string; status: string; problem: string; lines: Line[]; note: string
   utr: string; amountRead: number | null; txnDate: string; txnTime: string; payee: string; payApp: string; imageUrl: string
-  createdByName: string; createdBy: string; createdAt: string; needsFix: boolean
+  createdByName: string; createdBy: string; createdAt: string; needsFix: boolean; manual: boolean
 }
 type SheetRow = { repaymentId: string; customerId: string; name: string; phone: string; payCode: string; weekNo: number | null; dueDate: string; amount: number; status: string; overdue: boolean; payment: unknown | null }
 type Settings = { enabled: boolean; dailyCap: number; guarantorCap: number; payee: string; keyPresent: boolean; model: string }
@@ -50,6 +51,28 @@ const TONE: Record<string, string> = {
   'Wrong Payee': 'bg-red-50 text-red-700 ring-red-200', 'Not Successful': 'bg-red-50 text-red-700 ring-red-200',
 }
 const LABEL: Record<string, string> = { Recorded: 'Recorded ✓', 'Pending Staff': 'With the office', 'Needs Retake': 'Send a clearer screenshot', Duplicate: 'Already used', 'Amount Mismatch': 'Amount does not match', 'Wrong Payee': 'Wrong receiver', 'Not Successful': 'Payment not successful' }
+
+function StatsStrip({ stats, onOpenHistory }: { stats: Stats; onOpenHistory?: () => void }) {
+  const pct = stats.due ? Math.round(stats.recorded / stats.due * 100) : 0
+  const day = new Date(`${stats.collectionDay}T00:00:00Z`).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', timeZone: 'UTC' })
+  const tone = stats.manualMode ? 'bg-red-500/20 text-red-100 ring-red-300/30' : stats.wrongLeft <= 3 ? 'bg-amber-400/20 text-amber-100 ring-amber-300/30' : 'bg-white/10 text-white/80 ring-white/15'
+  return (
+    <div className="relative overflow-hidden rounded-[1.75rem] bg-gradient-to-br from-[#14142b] via-[#1f1d4d] to-[#35286e] p-4 text-white">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/55">Collection Saturday {day}</p>
+          <p className="mt-1 text-3xl font-extrabold leading-none">{stats.recorded}<span className="text-xl font-bold text-white/45"> / {stats.due}</span></p>
+          <p className="mt-1 text-xs text-white/65">{stats.due === 0 ? 'No collections due that day' : `recorded · ${stats.remaining} remaining`}</p>
+        </div>
+        {onOpenHistory && <button onClick={onOpenHistory} className="shrink-0 rounded-full bg-white/10 px-3.5 py-2 text-xs font-semibold ring-1 ring-white/20 hover:bg-white/20">Payment history →</button>}
+      </div>
+      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/15"><div className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-lime-300 transition-all" style={{ width: `${pct}%` }} /></div>
+      <p className={`mt-3 inline-flex rounded-full px-3 py-1 text-[11px] font-semibold ring-1 ${tone}`}>
+        {stats.manualMode ? `All ${stats.wrongAllowed} wrong tries used. Type the transaction ID with each screenshot` : `Wrong screenshots left: ${stats.wrongLeft} of ${stats.wrongAllowed}`}
+      </p>
+    </div>
+  )
+}
 
 function Thumb({ session, url }: { session: Session; url: string }) {
   const [src, setSrc] = useState('')
@@ -110,7 +133,7 @@ function Bubble({ m, session, me, onFix, onApprove, busy }: { m: Msg; session: S
         </div>
         {(m.utr || m.amountRead != null) && (
           <p className="text-xs text-[#697586]">
-            Read from screenshot: {m.amountRead != null && <b className="text-[#1a1a2e]">{money(m.amountRead)}</b>}{m.utr && <> · UTR <b className="font-mono text-[#1a1a2e]">{m.utr}</b></>}{m.txnDate && <> · {m.txnDate}{m.txnTime ? ` ${m.txnTime}` : ''}</>}{m.payApp && <> · {m.payApp}</>}
+            {m.manual ? 'Typed by the guarantor' : m.amountRead != null ? 'Read from screenshot' : 'Confirmed by the office'}: {m.amountRead != null && <b className="text-[#1a1a2e]">{money(m.amountRead)}</b>}{m.utr && <> · UTR <b className="font-mono text-[#1a1a2e]">{m.utr}</b></>}{m.txnDate && <> · {m.txnDate}{m.txnTime ? ` ${m.txnTime}` : ''}</>}{m.payApp && <> · {m.payApp}</>}
           </p>
         )}
         {m.problem && <p className={`rounded-xl px-3 py-2 text-sm ${m.needsFix ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-800'}`}>{m.problem}</p>}
@@ -120,7 +143,7 @@ function Bubble({ m, session, me, onFix, onApprove, busy }: { m: Msg; session: S
             <button onClick={() => onFix(m, 'customer')} className="rounded-xl border border-[#e5e7eb] px-3 py-2 text-xs font-semibold">Change customer</button>
           </div>
         )}
-        {m.status === 'Pending Staff' && staffView && me.access.canMark && (
+        {m.status === 'Pending Staff' && staffView && me.access.canChat && (
           <div className="flex gap-2">
             <input value={utr} onChange={e => setUtr(e.target.value)} placeholder="Transaction ID from the screenshot" className="min-w-0 flex-1 rounded-xl border border-[#e5e7eb] px-3 py-2 text-xs font-mono" />
             <button disabled={busy || !utr.trim()} onClick={() => onApprove(m, utr)} className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Record</button>
@@ -131,11 +154,13 @@ function Bubble({ m, session, me, onFix, onApprove, busy }: { m: Msg; session: S
   )
 }
 
-export default function PaymentChatPage({ session }: { session: Session }) {
+export default function PaymentChatPage({ session, onOpenHistory }: { session: Session; onOpenHistory?: () => void }) {
   const [me, setMe] = useState<Me | null>(null)
   const [gid, setGid] = useState('')
   const [msgs, setMsgs] = useState<Msg[]>([])
   const [openIssue, setOpenIssue] = useState(false)
+  const [stats, setStats] = useState<Stats | null>(null)
+  const [manualUtr, setManualUtr] = useState('')
   const [error, setError] = useState('')
   const [toast, setToast] = useState('')
   const [busy, setBusy] = useState(false)
@@ -165,7 +190,7 @@ export default function PaymentChatPage({ session }: { session: Session }) {
     inFlight.current = true
     try {
       const d = await api(session, `/api/payment-chat?view=messages&guarantorId=${encodeURIComponent(gid)}`)
-      setMsgs(d.messages); setOpenIssue(d.openIssue); setError('')
+      setMsgs(d.messages); setOpenIssue(d.openIssue); setStats(d.stats || null); setError('')
     } catch (e) { setError(e instanceof Error ? e.message : 'Failed to load') }
     inFlight.current = false
   }, [session, me, gid])
@@ -180,11 +205,11 @@ export default function PaymentChatPage({ session }: { session: Session }) {
     try { const d = await api(session, `/api/payments?view=collect&guarantorId=${encodeURIComponent(g)}`); setSheet(d.rows) } catch (e) { flash(e instanceof Error ? e.message : 'Could not load customers') }
   }
   function startNew(m: 'single' | 'multi') {
-    setMode(m); setFixId(''); setFixKind(''); setPicked([]); setImg(null); setQ(''); setOpen(true)
+    setMode(m); setFixId(''); setFixKind(''); setPicked([]); setImg(null); setQ(''); setManualUtr(''); setOpen(true)
     if (activeGid) loadSheet(activeGid)
   }
   function startFix(msg: Msg, kind: 'image' | 'customer') {
-    setMode(msg.mode === 'multi' ? 'multi' : 'single'); setFixId(msg.messageId); setFixKind(kind); setImg(null); setQ(''); setOpen(true)
+    setMode(msg.mode === 'multi' ? 'multi' : 'single'); setFixId(msg.messageId); setFixKind(kind); setImg(null); setQ(''); setManualUtr(''); setOpen(true)
     setPicked(msg.lines.map(l => ({ repaymentId: l.repaymentId, customerId: l.customerId, name: l.name, phone: '', payCode: l.payCode, weekNo: null, dueDate: '', amount: l.amount, status: 'Pending', overdue: false, payment: null })))
     loadSheet(msg.guarantorId)
   }
@@ -211,10 +236,10 @@ export default function PaymentChatPage({ session }: { session: Session }) {
     try {
       const d = await api(session, '/api/payment-chat', {
         action: 'submit', guarantorId: activeGid, mode, repaymentIds: picked.map(p => p.repaymentId), messageId: fixId || undefined,
-        image: img ? { mimeType: img.mimeType, base64Data: img.base64Data } : undefined,
+        image: img ? { mimeType: img.mimeType, base64Data: img.base64Data } : undefined, manualUtr: stats?.manualMode ? manualUtr : undefined,
       })
       setOpen(false); await load()
-      flash(d.message.status === 'Recorded' ? 'Payment recorded ✓' : d.message.problem || 'Sent')
+      flash(d.message.status === 'Recorded' ? 'Payment recorded ✓' : d.message.problem || 'Sent'); setManualUtr('')
     } catch (e) { flash(e instanceof Error ? e.message : 'Failed to send') }
     setSending(false)
   }
@@ -234,8 +259,11 @@ export default function PaymentChatPage({ session }: { session: Session }) {
   if (!me) return <div className="p-8 text-center text-sm text-[#697586]">{error || 'Loading…'}</div>
 
   return (
-    <div className="mx-auto flex h-[calc(100dvh-8.5rem)] max-w-3xl flex-col gap-3">
-      {me.access.isAdmin && <AdminPanel session={session} />}
+    <div className="mx-auto flex h-[calc(100dvh-10rem)] min-h-[30rem] max-w-3xl flex-col gap-3">
+      {stats && <StatsStrip stats={stats} onOpenHistory={onOpenHistory} />}
+      {!stats && onOpenHistory && (
+        <div className="flex justify-end"><button onClick={onOpenHistory} className="rounded-full bg-white px-4 py-2 text-xs font-semibold ring-1 ring-black/10">Payment history →</button></div>
+      )}
       {!isG && (
         <select value={gid} onChange={e => setGid(e.target.value)} className="rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2.5 text-sm">
           <option value="">All guarantors</option>
@@ -253,13 +281,13 @@ export default function PaymentChatPage({ session }: { session: Session }) {
       {openIssue && isG && <p className="rounded-2xl bg-red-50 px-4 py-2 text-sm font-medium text-red-700">Fix the red message above first. Then you can send the next screenshot.</p>}
 
       <div className="space-y-2">
-        {me.access.canMark && (isG || gid) && (
+        {me.access.canChat && (isG || gid) && (
           <div className="grid grid-cols-2 gap-2">
             <button disabled={openIssue && isG} onClick={() => startNew('single')} className="rounded-2xl bg-[#1a1a2e] px-4 py-3 text-sm font-semibold text-white disabled:opacity-40">Single payment</button>
             <button disabled={openIssue && isG} onClick={() => startNew('multi')} className="rounded-2xl bg-[#f0b429] px-4 py-3 text-sm font-semibold text-[#1a1a2e] disabled:opacity-40">Multi payment</button>
           </div>
         )}
-        {me.access.canMark === false && isG && <p className="rounded-2xl bg-amber-50 px-4 py-2 text-sm text-amber-800">Payment Chat is not switched on for you yet. Ask an Admin to switch it on.</p>}
+        {me.access.canChat === false && isG && <p className="rounded-2xl bg-amber-50 px-4 py-2 text-sm text-amber-800">The chat is not switched on for you yet. Ask an Admin to switch it on.</p>}
         {(isG || gid) && (
           <div className="flex gap-2">
             <input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendNote()} placeholder="Write a message…" className="min-w-0 flex-1 rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2.5 text-sm" />
@@ -320,8 +348,14 @@ export default function PaymentChatPage({ session }: { session: Session }) {
               </div>
             )}
 
-            <button disabled={sending || !picked.length || (fixKind !== 'customer' && !img)} onClick={send} className="w-full rounded-2xl bg-[#1a1a2e] px-4 py-3 text-sm font-semibold text-white disabled:opacity-40">
-              {sending ? 'Reading the screenshot…' : 'Send'}
+            {stats?.manualMode && picked.length > 0 && (
+              <div className="space-y-2 rounded-2xl bg-amber-50 p-3">
+                <p className="text-sm text-amber-900">You have used all {stats.wrongAllowed} wrong-screenshot tries for this Saturday. Send the screenshot and type its transaction ID.</p>
+                <input value={manualUtr} onChange={e => setManualUtr(e.target.value.toUpperCase())} placeholder="Transaction ID (UTR) from the screenshot" className="w-full rounded-xl border border-amber-200 bg-white px-3 py-2.5 font-mono text-sm" />
+              </div>
+            )}
+            <button disabled={sending || !picked.length || (fixKind !== 'customer' && !img) || (!!stats?.manualMode && manualUtr.trim().length < 8)} onClick={send} className="w-full rounded-2xl bg-[#1a1a2e] px-4 py-3 text-sm font-semibold text-white disabled:opacity-40">
+              {sending ? (stats?.manualMode ? 'Recording…' : 'Reading the screenshot…') : 'Send'}
             </button>
           </div>
         </div>
@@ -332,8 +366,8 @@ export default function PaymentChatPage({ session }: { session: Session }) {
   )
 }
 
-function AdminPanel({ session }: { session: Session }) {
-  const [open, setOpen] = useState(false)
+export function ChatSettings({ session }: { session: Session }) {
+  const [open, setOpen] = useState(true)
   const [d, setD] = useState<{ settings: Settings; usage: Usage } | null>(null)
   const [msg, setMsg] = useState('')
   const load = useCallback(() => api(session, '/api/payment-chat?view=settings').then(setD).catch(e => setMsg(e.message)), [session])

@@ -1,7 +1,7 @@
 ---
 title: Payment Chat
 section: Money
-status: built, waiting for the Claude API key
+status: built as one Payments module, waiting for the Claude API key
 last_verified: 2026-10-25
 tags: [ngf, money, payments, utr, ai]
 ---
@@ -37,3 +37,20 @@ Table `payment_chat` (migration `20261024200000_payment_chat.sql`, applied 2026-
 - Needs `ANTHROPIC_API_KEY` in `.env.local` and in the live host's environment; the AI reading path is untested until then.
 - Saving the training data for a future own reader: every message already stores the picture, the reading and (when staff confirm) the answer.
 - A race where two people record the same UTR at once can leave a Flagged payment holding the week; the guarantor then cannot resend (staff discard it in Payment Matching).
+
+
+## Payments module (restructured 2026-10-25)
+One menu item **Payments** (`components/pages/PaymentsPage.tsx`) with parts, shown per permission: **Chat**, **Payment history** (the old UPI Payments / Records), **Mark manually** (old Collect), **Bank check**, **Settings** (Admin: reading on/off, limits, payee, cost meter). Permissions (staff_access.permissions), assigned in the guarantor and staff edit dialogs:
+
+| Key | Meaning | Guarantor | Staff |
+|---|---|---|---|
+| `payChat` | send / see screenshots, reply, confirm held items | yes | yes |
+| `payHistory` | recorded payments | yes (default on until a custom page list is saved) | yes |
+| `payMark` | mark by UTR by hand | never | yes |
+| `payBank` | bank statement check | never | yes |
+| `payOverride` | approve a duplicate UTR | never | yes |
+
+Old keys (`upiPayments`, `upiPaymentsBank`, `upiPaymentsOverride`, `paymentChat`, `gp:payments`, `gp:paymentChat`) were converted once by `20261025100000_payments_module_permissions.sql` and no longer exist.
+
+## Wrong-screenshot allowance
+Per guarantor and **collection Saturday** (today if Saturday, else the last Saturday): collections due that Saturday only (older unpaid weeks do not count). Allowance = max(5, 25% of due). Wrong = Needs Retake, Not Successful, Amount Mismatch, Wrong Payee, Duplicate (`payment_chat.wrong_count`). The top strip shows recorded / due, remaining and wrong tries left. When used up (manual mode) no reading happens: the guarantor sends the screenshot and types the transaction ID, which is checked for duplicates and recorded straight away (marked "Typed by the guarantor"; the bank check catches typos). The count starts fresh each Saturday. Staff uploading for a guarantor are not limited.

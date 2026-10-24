@@ -2,10 +2,11 @@
 title: Payment Matching
 section: Money
 status: current
-last_verified: 2026-10-18
+last_verified: 2026-10-25
 tags: [ngf, money, payments, utr]
 ---
 # Payment Matching
+> **2026-10-25:** now part of the single **Payments** module (see [[Payment Chat]]). Its Collect, Records and Bank check parts are the tabs *Mark manually*, *Payment history* and *Bank check*. Permission keys are now `payMark`, `payHistory`, `payBank`, `payOverride`; mentions of `upiPayments*` below are the old names.
 **Collection-day marking of UPI/cash payments by UTR, with duplicate-UTR flagging, guarantor view and a bank-statement cross-check.**
 
 Purpose: stop one screenshot or UTR being used for the wrong customers. Staff mark each payment on collection day; the server refuses to treat the same UTR as two payments.

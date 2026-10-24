@@ -497,10 +497,11 @@ function BankTab({ session, me }: { session: Session; me: Me }) {
 
 // ─── Page ────────────────────────────────────────────────────────────────────
 
-export default function PaymentMatchingPage({ session }: { session: Session }) {
+// The manual-marking, history and bank-check parts of the Payments module. `fixedTab` shows just one of them (the module has its own tab bar).
+export default function PaymentMatchingPage({ session, fixedTab }: { session: Session; fixedTab?: 'collect' | 'records' | 'bank' }) {
   const [me, setMe] = useState<Me | null>(null)
   const [error, setError] = useState('')
-  const [tab, setTab] = useState<'collect' | 'records' | 'bank'>('collect')
+  const [tab, setTab] = useState<'collect' | 'records' | 'bank'>(fixedTab || 'collect')
   const [guarantorId, setGuarantorId] = useState('')
   const [date, setDate] = useState('')
   const [tick, setTick] = useState(0)
@@ -508,10 +509,10 @@ export default function PaymentMatchingPage({ session }: { session: Session }) {
   useEffect(() => {
     api(session, '/api/payments?view=me').then((d: Me) => {
       setMe(d); setDate(d.saturday)
-      setTab(d.access.canMark ? 'collect' : 'records')
+      if (!fixedTab) setTab(d.access.canMark ? 'collect' : 'records')
       if (d.access.isGuarantor) setGuarantorId(d.access.guarantorId)
     }).catch(e => setError(e instanceof Error ? e.message : 'Could not load'))
-  }, [session])
+  }, [session, fixedTab])
 
   if (error) return <div className={card}><p className="text-sm text-red-600">{error}</p></div>
   if (!me) return <div className={card}><p className="text-sm text-[#697586]">Loading…</p></div>
@@ -525,9 +526,10 @@ export default function PaymentMatchingPage({ session }: { session: Session }) {
 
   return (
     <div className="space-y-4">
-      <div className={`${card} space-y-3`}>
+      <div className={fixedTab && tab === 'bank' ? '' : `${card} space-y-3`}>
+        {!fixedTab && (<>
         <div>
-          <h2 className="text-lg font-bold">{me.access.isGuarantor ? 'UPI Payments' : 'Payment Matching'}</h2>
+          <h2 className="text-lg font-bold">{me.access.isGuarantor ? 'Payment history' : 'Payments'}</h2>
           <p className="text-xs text-[#697586]">{me.access.isGuarantor ? (me.access.canMark ? 'Mark your customers’ UPI and cash payments by UTR, and see how each payment was received.' : 'See how each of your customers’ payments was received. View only.') : 'Mark UPI and cash payments by UTR. Each UTR can be used only once.'}</p>
         </div>
         <div className="flex gap-2 overflow-x-auto">
@@ -536,6 +538,7 @@ export default function PaymentMatchingPage({ session }: { session: Session }) {
               className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold transition ${tab === k ? 'bg-[#1a1a2e] text-white' : 'bg-[#f4f5f7] text-[#4b5563]'}`}>{label}</button>
           ))}
         </div>
+        </>)}
         {tab !== 'bank' && (
           <div className="grid gap-3 sm:grid-cols-2">
             {needsGuarantor && (

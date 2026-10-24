@@ -20,11 +20,11 @@ export const GET = apiHandler(async (req: NextRequest) => {
     if (view === 'me') {
       return ok({
         today: getTodayIST(), saturday: getThisSaturday(),
-        access: { canMark: access.canMark, canBank: access.canBank, canOverride: access.canOverride, isGuarantor: access.isGuarantor, isAdmin: access.isAdmin, guarantorId: access.guarantorId },
+        access: { canMark: access.canMark, canChat: access.canChat, canHistory: access.canHistory, canBank: access.canBank, canOverride: access.canOverride, isGuarantor: access.isGuarantor, isAdmin: access.isAdmin, guarantorId: access.guarantorId },
         guarantors: access.isGuarantor ? [] : await listGuarantors(access),
       })
     }
-    if (view === 'collect') { need(access.canMark); return ok(await collectSheet(access.isGuarantor ? access.guarantorId : (sp.get('guarantorId') || ''), date, access)) }
+    if (view === 'collect') { need(access.canMark || access.canChat); return ok(await collectSheet(access.isGuarantor ? access.guarantorId : (sp.get('guarantorId') || ''), date, access)) }
     if (view === 'utr') { need(access.canMark); return ok(await lookupUtr(sp.get('utr') || '', access)) }
     if (view === 'records') return ok(await records(access, sp.get('guarantorId') || '', date))
     if (view === 'bank') return ok(await bankReport(access))
