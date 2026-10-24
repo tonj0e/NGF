@@ -65,7 +65,7 @@ export async function getAccess(session: Session): Promise<Access> {
   const canMark = perms.includes(PERM_USE)
   const canBank = perms.includes(PERM_BANK)
   const canOverride = perms.includes(PERM_OVERRIDE)
-  return { isAdmin: false, isGuarantor: false, guarantorId: '', canMark, canBank, canOverride, canView: canMark || canBank || canOverride, branch: await getBranchAccess(session) }
+  return { isAdmin: false, isGuarantor: false, guarantorId: '', canMark, canBank, canOverride, canView: canMark || canBank || canOverride || perms.includes('paymentChat'), branch: await getBranchAccess(session) }
 }
 
 // Staff: ids of guarantors in their own branches. null = no limit (Admin, Guarantor).
@@ -74,7 +74,7 @@ async function visibleGuarantors(access: Access): Promise<Set<string> | null> {
   const gMap = await guarantorBranchMap()
   return new Set(Array.from(gMap.keys()).filter(g => canSeeGuarantor(access.branch!, gMap, g)))
 }
-async function needGuarantor(access: Access, guarantorId: string | null) {
+export async function needGuarantor(access: Access, guarantorId: string | null) {
   const v = await visibleGuarantors(access)
   if (v && !v.has(guarantorId || '')) throw new PaymentError('This payment belongs to a guarantor of another branch')
 }
@@ -307,6 +307,7 @@ export type MarkInput = {
   guarantorId: string; date?: string; mode: string; utr?: string
   repaymentIds: string[]; notes?: string
   screenshot?: { fileName: string; mimeType: string; base64Data: string } | null
+  screenshotUrl?: string   // an already-stored proof (Payment Chat saves the image once, before reading it)
 }
 
 export async function markPayment(session: Session, access: Access, input: MarkInput) {
@@ -337,8 +338,8 @@ export async function markPayment(session: Session, access: Access, input: MarkI
   const { data: existing } = await sb.from('payment_lines').select('repayment_id').in('repayment_id', repaymentIds)
   if (existing && existing.length) throw new PaymentError('A selected customer already has a payment recorded for that week. Edit or discard it first.')
 
-  let screenshot = ''
-  if (input.screenshot?.base64Data) {
+  let screenshot = input.screenshotUrl || ''
+  if (!screenshot && input.screenshot?.base64Data) {
     const ts = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, 14)
     const safe = String(input.screenshot.fileName || 'proof').replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 80)
     screenshot = await saveFileSupabase('payment-proofs', `utr/${input.guarantorId}/${ts}_${safe}`, input.screenshot.mimeType || 'image/jpeg', input.screenshot.base64Data)

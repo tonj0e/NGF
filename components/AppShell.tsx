@@ -37,6 +37,7 @@ import MyIdCardPage from './pages/MyIdCardPage'
 import DepositsPage from './pages/DepositsPage'
 import AgentLocationPage from './pages/AgentLocationPage'
 import AgentTracker from './agent/AgentTracker'
+import PaymentChatPage from './pages/PaymentChatPage'
 import AgentTrackingPage from './pages/AgentTrackingPage'
 import BranchTownPage from './pages/BranchTownPage'
 import PaymentLinksPage from './pages/PaymentLinksPage'
@@ -87,6 +88,7 @@ const MENUS: Record<string, { key: string; label: string }[]> = {
     { key: 'financialAnalytics', label: 'Financial Analytics' },
     { key: 'settlements',    label: 'Settlements' },
     { key: 'payments',       label: 'Payment Matching' },
+    { key: 'paymentChat',    label: 'Payment Chat' },
     { key: 'payLinks',       label: 'Payment Links' },
     { key: 'importCustomer', label: 'Import Customer' },
     { key: 'payoutRequests', label: 'Payout Requests' },
@@ -103,6 +105,7 @@ const MENUS: Record<string, { key: string; label: string }[]> = {
     { key: 'leads',         label: 'Leads' },
     { key: 'collection',    label: 'Collection' },
     { key: 'payments',      label: 'UPI Payments' },
+    { key: 'paymentChat',   label: 'Payment Chat' },
     { key: 'payLinks',      label: 'Send Payment Link' },
     { key: 'commissions',   label: 'Commissions' },
     { key: 'deposits',      label: 'Deposits' },
@@ -132,6 +135,7 @@ function roleViews(role: string): Set<string> {
     ...(MENUS[role] || []).map(m => m.key),
     ...(role === 'Staff' ? APP_CONFIG.STAFF_FEATURES.map(f => f.view).filter(Boolean) : []),
     ...(role === 'NGF AGENT' || role === 'Guarantor' ? ['payments'] : []),
+    ...(role === 'Guarantor' ? ['paymentChat'] : []),
     ...(role === 'Guarantor' ? ['myIdCard', 'myCustomers'] : []),
     'notifications',
   ] as string[])
@@ -185,7 +189,7 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
         if (session.role === 'Guarantor') {
           // pages an Admin switched off for this guarantor; the first allowed page opens
           if (perms.includes('pages:custom')) {
-            const first = (MENUS.Guarantor || []).find(m => m.key === 'notifications' || perms.includes(`gp:${m.key}`) || (m.key === 'payments' && perms.includes('upiPayments')))
+            const first = (MENUS.Guarantor || []).find(m => m.key === 'notifications' || perms.includes(`gp:${m.key}`) || ((m.key === 'payments' || m.key === 'paymentChat') && perms.includes('upiPayments')))
             if (first && !restoredView.current && !(MENUS.Guarantor || []).some(m => m.key === 'dashboard' && perms.includes('gp:dashboard'))) setView(first.key, true)
           }
           return
@@ -220,7 +224,7 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
     ...(staffPerms.includes('upiPayments') ? [{ key: 'payments', label: 'Payment Matching' }] : []),
   ]
   const guarantorMenu = (MENUS.Guarantor || []).filter(m =>
-    !staffPerms.includes('pages:custom') || m.key === 'notifications' || staffPerms.includes(`gp:${m.key}`) || (m.key === 'payments' && staffPerms.includes('upiPayments')))
+    !staffPerms.includes('pages:custom') || m.key === 'notifications' || staffPerms.includes(`gp:${m.key}`) || ((m.key === 'payments' || m.key === 'paymentChat') && staffPerms.includes('upiPayments')))
   const menu = session.role === 'Staff' ? staffMenu : session.role === 'NGF AGENT' ? agentMenu : session.role === 'Guarantor' ? guarantorMenu : (MENUS[session.role] || [])
   const pageTitle = menu.find(m => m.key === view)?.label || view
   const PageIcon = MenuIcon
@@ -248,6 +252,7 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
       case 'collection':   return <CollectionPage session={session} />
       case 'settlements':  return <SettlementsPage session={session} />
       case 'payments':     return <PaymentMatchingPage session={session} />
+      case 'paymentChat':  return <PaymentChatPage session={session} />
       case 'routes':       return <VisitRoutesPage session={session} />
       case 'myRoute':      return <MyRoutePage session={session} onOpenVerification={() => setView('verifications')} />
       case 'reviewOptions': return <ReviewOptionsPage session={session} />

@@ -1,0 +1,13 @@
+import { chromium } from '/Users/tonjo6/Downloads/projects/ngf-crm-main/node_modules/playwright-core/index.mjs'
+const b = await chromium.launch({channel:'chrome'})
+const p = await (await b.newContext({ viewport:{width:390,height:844}, deviceScaleFactor:2 })).newPage()
+await p.goto('http://localhost:3000/'); await p.waitForSelector('input')
+const ins = await p.$$('input'); await ins[0].fill('BINDHU@NGFGBN'); await ins[1].fill(process.env.PW); await p.keyboard.press('Enter')
+await p.waitForTimeout(5000)
+await p.mouse.click(32,30); await p.waitForTimeout(600)
+await p.getByRole('button',{name:'Payment Chat'}).first().click(); await p.waitForTimeout(3500)
+await p.screenshot({path:'c1.png'})
+await p.getByRole('button',{name:'Multi payment'}).click(); await p.waitForTimeout(1500)
+await p.getByPlaceholder('Search the 4-digit ID or name').fill('7425'); await p.waitForTimeout(500)
+await p.screenshot({path:'c2.png'})
+await b.close()

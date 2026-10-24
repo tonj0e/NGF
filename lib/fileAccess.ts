@@ -1,4 +1,4 @@
-import { readTable } from './supabase-db'
+import { readTable, getSupabase } from './supabase-db'
 import { Session } from '../types'
 
 // Who may read a stored file through /api/drive/[fileId].
@@ -29,6 +29,9 @@ export async function canReadFile(session: Session, fileId: string): Promise<boo
   if (session.role === 'Guarantor') {
     const g = guarantors.find(g => g['User ID'] === session.userId)
     if (!g) return false
+    // a screenshot this guarantor sent in Payment Chat
+    const { data: chat } = await getSupabase().from('payment_chat').select('message_id').eq('guarantor_id', g['Guarantor ID']).like('image_url', `%${fileId}%`).limit(1)
+    if (chat && chat.length) return true
     myLeads = leads.filter(l => l['Guarantor ID'] === g['Guarantor ID'])
     myLoans = loans.filter(l => l['Guarantor ID'] === g['Guarantor ID'])
     customers.filter(c => c['Guarantor ID'] === g['Guarantor ID']).forEach(c => myCustomerIds.add(c['Customer ID']))
