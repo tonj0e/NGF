@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { Session } from '@/types'
+import Pager from '@/components/ui/Pager'
 
 function currency(n: number) {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n)
@@ -19,15 +20,44 @@ function statusColor(s: string) {
 
 type Tab = 'summary' | 'transactions' | 'customers' | 'guarantors'
 
+// A debounced copy of a value (used for the search boxes: the server is asked after a short pause)
+function useDebounced<T>(value: T, ms = 300): T {
+  const [v, setV] = useState(value)
+  useEffect(() => { const t = setTimeout(() => setV(value), ms); return () => clearTimeout(t) }, [value, ms])
+  return v
+}
+
+// The customers a guarantor's settlement covered that week: loaded only when "Show customers" is pressed
+function SubmissionCustomers({ session, settlement, guarantorUserId }: { session: Session; settlement: any; guarantorUserId: string | null }) {
+  const [rows, setRows] = useState<any[] | null>(null)
+  const [busy, setBusy] = useState(false)
+  async function load() {
+    setBusy(true)
+    const j = await fetch(`/api/settlements/due?saturday=${settlement['Saturday Date']}&guarantorId=${encodeURIComponent(settlement['Entity ID'])}`, { headers: { Authorization: `Bearer ${session.token}` } }).then(r => r.json()).catch(() => null)
+    // only the weeks the guarantor collected themselves (or nobody recorded)
+    setRows(j?.success ? (j.data || []).filter((x: any) => !x.collectorUserId || x.collectorUserId === guarantorUserId) : [])
+    setBusy(false)
+  }
+  if (!rows) return <button onClick={load} disabled={busy} className="mt-1.5 ml-3 text-[10px] font-semibold text-green-700 underline disabled:opacity-50">{busy ? 'Loading…' : 'Show customers'}</button>
+  return (
+    <div className="mt-1.5 ml-3 border-l-2 border-green-100 pl-3 space-y-1">
+      {rows.length === 0 && <p className="text-[10px] text-[#697586]">No customer lines.</p>}
+      {rows.map((r: any) => (
+        <div key={r.repaymentId} className="flex items-center justify-between text-[10px]">
+          <span className="text-[#697586]">{r.customerName} · <span className="font-mono">{r.loanId}</span> · Due: {r.dueDate}{r.status === 'Paid' && <span className="ml-1 text-green-600">✓</span>}</span>
+          <span className="text-green-700 font-semibold shrink-0">+{currency(Number(r.amount))}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function ReportsPage({ session }: { session: Session }) {
+  const auth = { headers: { Authorization: `Bearer ${session.token}` } }
   const [tab, setTab] = useState<Tab>('summary')
   const [loading, setLoading] = useState(true)
-  const [loans, setLoans] = useState<any[]>([])
-  const [repayments, setRepayments] = useState<any[]>([])
-  const [settlements, setSettlements] = useState<any[]>([])
-  const [customers, setCustomers] = useState<any[]>([])
-  const [guarantors, setGuarantors] = useState<any[]>([])
   const [summaryData, setSummaryData] = useState<any>(null)
+  const [months, setMonths] = useState<{ ym: string; credit: number; txCount: number; debit: number }[]>([])
 
   // Drill-down states
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null)
@@ -38,40 +68,144 @@ export default function ReportsPage({ session }: { session: Session }) {
   const [gSearch, setGSearch] = useState('')
   const [custTab, setCustTab] = useState<'chart' | 'transactions' | 'history'>('chart')
 
+  // One month: totals from the database, then each list one page at a time
+  const [monthTotals, setMonthTotals] = useState<any>(null)
+  const [monthLoans, setMonthLoans] = useState<{ rows: any[]; total: number; page: number }>({ rows: [], total: 0, page: 1 })
+  const [monthComm, setMonthComm] = useState<{ rows: any[]; total: number; page: number }>({ rows: [], total: 0, page: 1 })   // commission settlements (debit)
+  const [monthSubs, setMonthSubs] = useState<{ rows: any[]; total: number; page: number }>({ rows: [], total: 0, page: 1 })   // guarantor collection submissions (credit)
+  const [monthStaff, setMonthStaff] = useState<{ rows: any[]; total: number; page: number }>({ rows: [], total: 0, page: 1 })  // collected by admin / staff / agents (credit)
+  const [guarantorUsers, setGuarantorUsers] = useState<Record<string, string>>({})   // guarantor id -> user id, for the weeks they collected themselves
+  const PAGE = 100
+
+  // Customers and guarantors: one searched page at a time, with their small stat blocks
+  const custQ = useDebounced(txSearch), gQ = useDebounced(gSearch)
+  const [custPage, setCustPage] = useState(1)
+  const [custList, setCustList] = useState<{ rows: any[]; total: number; totalPages: number; cards: Record<string, any> }>({ rows: [], total: 0, totalPages: 1, cards: {} })
+  const [gPage, setGPage] = useState(1)
+  const [gList, setGList] = useState<{ rows: any[]; total: number; totalPages: number; cards: Record<string, any> }>({ rows: [], total: 0, totalPages: 1, cards: {} })
+  const [custLoans, setCustLoans] = useState<any[]>([])
+  const [custReps, setCustReps] = useState<any[]>([])
+  const [gDetail, setGDetail] = useState<{ loans: any[]; loanTotal: number; loanPage: number; settlements: any[]; card: any }>({ loans: [], loanTotal: 0, loanPage: 1, settlements: [], card: null })
+  const [detailLoading, setDetailLoading] = useState(false)
+
+  // Summary and the month list load first
   useEffect(() => {
     Promise.all([
-      fetch('/api/loans?filter=all', { headers: { Authorization: `Bearer ${session.token}` } }).then(r => r.json()),
-      fetch('/api/repayments?mode=all&pageSize=5000', { headers: { Authorization: `Bearer ${session.token}` } }).then(r => r.json()),
-      fetch('/api/settlements', { headers: { Authorization: `Bearer ${session.token}` } }).then(r => r.json()),
-      fetch('/api/customers', { headers: { Authorization: `Bearer ${session.token}` } }).then(r => r.json()),
-      fetch('/api/staff', { headers: { Authorization: `Bearer ${session.token}` } }).then(r => r.json()),
-    ]).then(([lR, rR, sR, cR, stR]) => {
-      const l = lR.data?.loans || []
-      const r = rR.data?.rows || []
-      const s = sR.data?.settlements || []
-      const c = cR.data?.customers || []
-      const g = stR.data?.guarantors || []
-      setLoans(l); setRepayments(r); setSettlements(s); setCustomers(c); setGuarantors(g)
-
-      const today = new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10) // IST date
-      const thisMonth = today.slice(0, 7)
-      const lastMonth = (() => { const y = Number(today.slice(0, 4)), m = Number(today.slice(5, 7)); return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}` })()
-      const paid = r.filter((x: any) => x['Status'] === 'Paid')
-      setSummaryData({
-        totalPortfolio: l.filter((x: any) => x.status === 'Active').reduce((s: number, x: any) => s + Number(x.principal || 0), 0),
-        activeLoans: l.filter((x: any) => x.status === 'Active').length,
-        completedLoans: l.filter((x: any) => x.status === 'Completed').length,
-        overdueLoans: l.filter((x: any) => x.isOverdue).length,
-        activeCustomers: c.filter((x: any) => x.loanStatus === 'Active').length,
-        thisMonthCollected: paid.filter((x: any) => (x['Paid Date'] || '').startsWith(thisMonth)).reduce((s: number, x: any) => s + Number(x['Amount'] || 0), 0),
-        lastMonthCollected: paid.filter((x: any) => (x['Paid Date'] || '').startsWith(lastMonth)).reduce((s: number, x: any) => s + Number(x['Amount'] || 0), 0),
-        totalCollected: paid.reduce((s: number, x: any) => s + Number(x['Amount'] || 0), 0),
-        pendingAmount: r.filter((x: any) => (x['Status'] === 'Pending' || x['Status'] === 'Overdue') && x['Due Date'] < today).reduce((s: number, x: any) => s + Number(x['Amount'] || 0), 0),
-      })
-      // Set default year to current year
-      setYearFilter(today.slice(0, 4))
+      fetch('/api/reports?view=summary', auth).then(r => r.json()),
+      fetch('/api/reports?view=months', auth).then(r => r.json()),
+    ]).then(([sR, mR]) => {
+      if (sR.success) setSummaryData(sR.data)
+      if (mR.success) {
+        setMonths(mR.data.months)
+        setYearFilter(prev => prev || (mR.data.months[0]?.ym || '').slice(0, 4) || new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 4))
+      }
     }).catch(() => {}).finally(() => setLoading(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // A month opens: its totals and the first page of each list
+  useEffect(() => {
+    if (!selectedMonth) return
+    const [y, m] = selectedMonth.split('-').map(Number)
+    const from = `${selectedMonth}-01`, to = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10)
+    setMonthTotals(null)
+    const get = (url: string) => fetch(url, auth).then(r => r.json()).catch(() => null)
+    Promise.all([
+      get(`/api/reports?view=month&month=${selectedMonth}`),
+      get(`/api/loans?filter=all&startFrom=${from}&startTo=${to}&page=1&pageSize=${PAGE}`),
+      get(`/api/settlements?entityType=GuarantorCommission&settledFrom=${from}&settledTo=${to}&page=1&pageSize=${PAGE}`),
+      get(`/api/settlements?entityType=Guarantor&settledFrom=${from}&settledTo=${to}&page=1&pageSize=${PAGE}`),
+      get(`/api/repayments?mode=staffpaid&month=${selectedMonth}&page=1&pageSize=${PAGE}`),
+    ]).then(([t, l, c, sb, st]) => {
+      if (t?.success) setMonthTotals(t.data)
+      setMonthLoans({ rows: l?.success ? l.data.loans : [], total: l?.success ? l.data.total : 0, page: 1 })
+      setMonthComm({ rows: c?.success ? c.data.settlements : [], total: c?.success ? c.data.total : 0, page: 1 })
+      setMonthSubs({ rows: sb?.success ? sb.data.settlements : [], total: sb?.success ? sb.data.total : 0, page: 1 })
+      setMonthStaff({ rows: st?.success ? st.data.rows : [], total: st?.success ? st.data.pagination.total : 0, page: 1 })
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedMonth])
+
+  async function moreOfMonth(kind: 'loans' | 'comm' | 'subs' | 'staff') {
+    if (!selectedMonth) return
+    const [y, m] = selectedMonth.split('-').map(Number)
+    const from = `${selectedMonth}-01`, to = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10)
+    const cur = kind === 'loans' ? monthLoans : kind === 'comm' ? monthComm : kind === 'subs' ? monthSubs : monthStaff
+    const page = cur.page + 1
+    const url = kind === 'loans' ? `/api/loans?filter=all&startFrom=${from}&startTo=${to}&page=${page}&pageSize=${PAGE}`
+      : kind === 'staff' ? `/api/repayments?mode=staffpaid&month=${selectedMonth}&page=${page}&pageSize=${PAGE}`
+      : `/api/settlements?entityType=${kind === 'comm' ? 'GuarantorCommission' : 'Guarantor'}&settledFrom=${from}&settledTo=${to}&page=${page}&pageSize=${PAGE}`
+    const j = await fetch(url, auth).then(r => r.json()).catch(() => null)
+    if (!j?.success) return
+    const rows = kind === 'loans' ? j.data.loans : kind === 'staff' ? j.data.rows : j.data.settlements
+    const next = { rows: [...cur.rows, ...rows], total: cur.total, page }
+    if (kind === 'loans') setMonthLoans(next); else if (kind === 'comm') setMonthComm(next); else if (kind === 'subs') setMonthSubs(next); else setMonthStaff(next)
+  }
+  // who collected which week: guarantor user ids for the submissions on screen
+  useEffect(() => {
+    const need = Array.from(new Set(monthSubs.rows.map(s => s['Entity ID']).filter((id: string) => id && !(id in guarantorUsers))))
+    if (!need.length) return
+    fetch(`/api/staff`, auth).then(r => r.json()).then(j => {
+      if (!j.success) return
+      setGuarantorUsers(prev => ({ ...prev, ...Object.fromEntries((j.data.guarantors || []).map((g: any) => [g.guarantorId, g.userId])) }))
+    }).catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [monthSubs.rows.length])
+
+  // Customer cards: a page of customers, then their stat blocks
+  useEffect(() => { setCustPage(1) }, [custQ])
+  useEffect(() => {
+    if (tab !== 'customers') return
+    fetch(`/api/customers?page=${custPage}&pageSize=24&q=${encodeURIComponent(custQ.trim())}`, auth).then(r => r.json()).then(async j => {
+      if (!j.success) return
+      const rows = j.data.customers
+      const cj = rows.length ? await fetch(`/api/reports?view=customerCards&ids=${rows.map((c: any) => c.customerId).join(',')}`, auth).then(r => r.json()).catch(() => null) : null
+      setCustList({ rows, total: j.data.total, totalPages: j.data.totalPages, cards: Object.fromEntries((cj?.success ? cj.data.cards : []).map((c: any) => [c.customerId, c])) })
+    }).catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, custPage, custQ])
+  // One customer opens: their loans and every week
+  useEffect(() => {
+    if (!selectedCustomer) return
+    setDetailLoading(true)
+    Promise.all([
+      fetch(`/api/loans?filter=all&customerId=${encodeURIComponent(selectedCustomer.customerId)}&page=1&pageSize=200`, auth).then(r => r.json()),
+      fetch(`/api/repayments?customerId=${encodeURIComponent(selectedCustomer.customerId)}`, auth).then(r => r.json()),
+    ]).then(([l, rp]) => { setCustLoans(l.success ? l.data.loans : []); setCustReps(rp.success ? rp.data.rows : []) })
+      .catch(() => {}).finally(() => setDetailLoading(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCustomer?.customerId])
+
+  // Guarantor cards, and one guarantor's detail
+  useEffect(() => { setGPage(1) }, [gQ])
+  useEffect(() => {
+    if (tab !== 'guarantors') return
+    fetch(`/api/settlements?guarantorList=1&page=${gPage}&pageSize=24&q=${encodeURIComponent(gQ.trim())}`, auth).then(r => r.json()).then(async j => {
+      if (!j.success) return
+      const rows = j.data.guarantors
+      const cj = rows.length ? await fetch(`/api/reports?view=guarantorCards&ids=${rows.map((g: any) => g.guarantorId).join(',')}`, auth).then(r => r.json()).catch(() => null) : null
+      setGList({ rows, total: j.data.total, totalPages: j.data.totalPages, cards: Object.fromEntries((cj?.success ? cj.data.cards : []).map((c: any) => [c.guarantorId, c])) })
+    }).catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, gPage, gQ])
+  useEffect(() => {
+    if (!selectedGuarantor) return
+    setDetailLoading(true)
+    const gid = encodeURIComponent(selectedGuarantor.guarantorId)
+    Promise.all([
+      fetch(`/api/loans?filter=all&guarantorId=${gid}&page=1&pageSize=${PAGE}`, auth).then(r => r.json()),
+      fetch(`/api/settlements?entityId=${gid}&entityType=GuarantorCommission&pageSize=200`, auth).then(r => r.json()),
+      fetch(`/api/reports?view=guarantorCards&ids=${gid}`, auth).then(r => r.json()),
+    ]).then(([l, st, c]) => setGDetail({ loans: l.success ? l.data.loans : [], loanTotal: l.success ? l.data.total : 0, loanPage: 1, settlements: st.success ? st.data.settlements : [], card: c.success ? c.data.cards[0] : null }))
+      .catch(() => {}).finally(() => setDetailLoading(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedGuarantor?.guarantorId])
+  async function moreGuarantorLoans() {
+    const gid = encodeURIComponent(selectedGuarantor.guarantorId)
+    const page = gDetail.loanPage + 1
+    const j = await fetch(`/api/loans?filter=all&guarantorId=${gid}&page=${page}&pageSize=${PAGE}`, auth).then(r => r.json()).catch(() => null)
+    if (j?.success) setGDetail(prev => ({ ...prev, loans: [...prev.loans, ...j.data.loans], loanPage: page }))
+  }
 
   if (loading) return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" /></div>
 
@@ -123,23 +257,15 @@ export default function ReportsPage({ session }: { session: Session }) {
 
   // ── TRANSACTIONS — month detail ──
   if (tab === 'transactions' && selectedMonth) {
-    const monthLoans = loans.filter(l => (l.startDate || '').startsWith(selectedMonth))
-    const monthSettlements = settlements.filter(s => (s['Settlement Date'] || '').startsWith(selectedMonth) && s['Entity Type'] === 'GuarantorCommission')
-    const monthCollections = settlements.filter(s => (s['Settlement Date'] || '').startsWith(selectedMonth) && s['Entity Type'] === 'Guarantor')
-    // Only collections by non-guarantors (admin / NGF agents)
-    const guarantorUserIds = new Set(guarantors.map((g: any) => g.userId).filter(Boolean))
-    const staffReps = repayments.filter(r =>
-      r['Status'] === 'Paid' &&
-      (r['Paid Date'] || '').startsWith(selectedMonth) &&
-      r['NGF Agent ID'] &&
-      !guarantorUserIds.has(r['NGF Agent ID'])
-    )
-    // totalCredit = guarantor-submitted settlements + admin/staff direct collections + commissions earned
-    const totalCredit = monthCollections.reduce((s, s2) => s + Number(s2['Amount Submitted'] || 0), 0)
-      + staffReps.reduce((s, r) => s + Number(r['Amount'] || 0), 0)
-      + monthLoans.reduce((s, l) => s + Number(l.guarantorCommission || 0), 0)
-    const totalDebit = monthLoans.reduce((s, l) => s + Number(l.netDisbursed || 0), 0)
-      + monthSettlements.reduce((s, s2) => s + Number(s2['Amount Submitted'] || 0), 0)
+    // totals come from the database (exact for the whole month); the lists below show a page at a time
+    const totalCredit = monthTotals?.totalCredit ?? 0
+    const totalDebit = monthTotals?.totalDebit ?? 0
+    const monthCollections = monthSubs.rows
+    const monthSettlements = monthComm.rows
+    const staffReps = monthStaff.rows
+    const moreBtn = (kind: 'loans' | 'comm' | 'subs' | 'staff', shown: number, total: number) => shown < total ? (
+      <button onClick={() => moreOfMonth(kind)} className="m-3 rounded-xl border border-[#e5e7eb] px-3 py-1.5 text-xs font-semibold hover:bg-[#f4f5f7]">Show more ({shown} of {total})</button>
+    ) : null
 
     return (
       <div className="space-y-5">
@@ -174,17 +300,6 @@ export default function ReportsPage({ session }: { session: Session }) {
                 <p className="px-5 py-2 text-[10px] font-semibold uppercase tracking-wider text-[#697586] bg-[#fafafa] border-b border-black/5">Guarantor Collection Submissions</p>
                 <div className="divide-y divide-black/5">
                   {monthCollections.map((s: any) => {
-                    const satDate = s['Saturday Date'] || ''
-                    const weekStart = satDate ? new Date(new Date(satDate).getTime() - 6 * 86400000).toISOString().slice(0, 10) : ''
-                    const guarantorG = guarantors.find((g: any) => g.guarantorId === s['Entity ID'])
-                    const guarantorUserId = guarantorG?.userId || null
-                    const guarantorLoanIds = new Set(loans.filter(l => l.guarantorName === s['Entity Name']).map(l => l.loanId))
-                    const weekReps = satDate ? repayments.filter(r =>
-                      guarantorLoanIds.has(r['Loan ID']) &&
-                      r['Due Date'] >= weekStart &&
-                      r['Due Date'] <= satDate &&
-                      (!r['NGF Agent ID'] || r['NGF Agent ID'] === guarantorUserId)
-                    ) : []
                     return (
                       <div key={s['Settlement ID']} className="px-5 py-2.5 text-xs">
                         <div className="flex items-start justify-between gap-2">
@@ -195,33 +310,22 @@ export default function ReportsPage({ session }: { session: Session }) {
                           </div>
                           <span className="font-semibold text-green-700 shrink-0">+{currency(Number(s['Amount Submitted'] || 0))}</span>
                         </div>
-                        {weekReps.length > 0 && (
-                          <div className="mt-1.5 ml-3 border-l-2 border-green-100 pl-3 space-y-1">
-                            {weekReps.map((r: any) => (
-                              <div key={r['Repayment ID']} className="flex items-center justify-between text-[10px]">
-                                <span className="text-[#697586]">
-                                  {r.customerName} · <span className="font-mono">{r['Loan ID']}</span> · Wk {r['Week No']} · Due: {r['Due Date']}
-                                  {r['Status'] === 'Paid' && <span className="ml-1 text-green-600">✓</span>}
-                                </span>
-                                <span className="text-green-700 font-semibold shrink-0">+{currency(Number(r['Amount']))}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                        <SubmissionCustomers session={session} settlement={s} guarantorUserId={guarantorUsers[s['Entity ID']] || null} />
                       </div>
                     )
                   })}
+                  {moreBtn('subs', monthCollections.length, monthSubs.total)}
                 </div>
               </div>
             )}
 
 
             {/* Guarantor Commissions Earned */}
-            {monthLoans.length > 0 && (
+            {monthLoans.rows.length > 0 && (
               <div>
                 <p className="px-5 py-2 text-[10px] font-semibold uppercase tracking-wider text-[#697586] bg-[#fafafa] border-b border-black/5 border-t border-black/5">Guarantor Commissions Earned</p>
                 <div className="divide-y divide-black/5">
-                  {monthLoans.map(l => (
+                  {monthLoans.rows.map(l => (
                     <div key={l.loanId} className="flex items-center justify-between px-5 py-2.5 text-xs">
                       <div>
                         <p className="font-medium">{l.customerName}</p>
@@ -230,6 +334,7 @@ export default function ReportsPage({ session }: { session: Session }) {
                       <span className="font-semibold text-green-700 shrink-0">+{currency(Number(l.guarantorCommission || 0))}</span>
                     </div>
                   ))}
+                  {moreBtn('loans', monthLoans.rows.length, monthLoans.total)}
                 </div>
               </div>
             )}
@@ -240,8 +345,7 @@ export default function ReportsPage({ session }: { session: Session }) {
                 <p className="px-5 py-2 text-[10px] font-semibold uppercase tracking-wider text-[#697586] bg-[#fafafa] border-b border-black/5 border-t border-black/5">Staff / Agent Collections</p>
                 <div className="divide-y divide-black/5">
                   {staffReps.map((r: any) => {
-                    const collectorG = guarantors.find((g: any) => g.userId === r['NGF Agent ID'])
-                    const collectorLabel = collectorG ? collectorG.name : 'Admin/Staff'
+                    const collectorLabel = 'Admin/Staff'   // this list is only weeks collected by someone who is not a guarantor
                     return (
                       <div key={r['Repayment ID']} className="flex items-center justify-between px-5 py-2.5 text-xs">
                         <div>
@@ -253,11 +357,12 @@ export default function ReportsPage({ session }: { session: Session }) {
                       </div>
                     )
                   })}
+                  {moreBtn('staff', staffReps.length, monthStaff.total)}
                 </div>
               </div>
             )}
 
-            {staffReps.length === 0 && monthLoans.length === 0 && monthCollections.length === 0 && <p className="p-5 text-sm text-[#697586]">No credit entries.</p>}
+            {staffReps.length === 0 && monthLoans.rows.length === 0 && monthCollections.length === 0 && <p className="p-5 text-sm text-[#697586]">No credit entries.</p>}
           </div>
 
           {/* DEBIT */}
@@ -267,11 +372,11 @@ export default function ReportsPage({ session }: { session: Session }) {
               <p className="text-sm font-semibold">Debit</p>
               <span className="ml-auto text-sm font-bold text-red-700">-{currency(totalDebit)}</span>
             </div>
-            {monthLoans.length > 0 && (
+            {monthLoans.rows.length > 0 && (
               <div>
                 <p className="px-5 py-2 text-[10px] font-semibold uppercase tracking-wider text-[#697586] bg-[#fafafa] border-b border-black/5">Loan Disbursements</p>
                 <div className="divide-y divide-black/5">
-                  {monthLoans.map(l => (
+                  {monthLoans.rows.map(l => (
                     <div key={l.loanId} className="flex items-center justify-between px-5 py-2.5 text-xs">
                       <div>
                         <p className="font-medium">{l.customerName}</p>
@@ -296,10 +401,11 @@ export default function ReportsPage({ session }: { session: Session }) {
                       <span className="font-semibold text-red-700 shrink-0">-{currency(Number(s['Amount Submitted'] || 0))}</span>
                     </div>
                   ))}
+                  {moreBtn('comm', monthSettlements.length, monthComm.total)}
                 </div>
               </div>
             )}
-            {monthLoans.length === 0 && monthSettlements.length === 0 && <p className="p-5 text-sm text-[#697586]">No debit entries.</p>}
+            {monthLoans.rows.length === 0 && monthSettlements.length === 0 && <p className="p-5 text-sm text-[#697586]">No debit entries.</p>}
           </div>
         </div>
       </div>
@@ -308,15 +414,8 @@ export default function ReportsPage({ session }: { session: Session }) {
 
   // ── TRANSACTIONS — month cards ──
   if (tab === 'transactions') {
-    const allMonths = new Set<string>()
-    repayments.filter(r => r['Status'] === 'Paid' && r['Paid Date']).forEach(r => allMonths.add(r['Paid Date'].slice(0, 7)))
-    loans.filter(l => l.startDate).forEach(l => allMonths.add(l.startDate.slice(0, 7)))
-    settlements.filter(s => s['Settlement Date']).forEach(s => allMonths.add(s['Settlement Date'].slice(0, 7)))
-
-    const years = [...new Set([...allMonths].map(m => m.slice(0, 4)))].sort().reverse()
-    if (!yearFilter && years.length) setYearFilter(years[0])
-
-    const filteredMonths = [...allMonths].filter(m => m.startsWith(yearFilter)).sort().reverse()
+    const years = [...new Set(months.map(m => m.ym.slice(0, 4)))].sort().reverse()
+    const filteredMonths = months.filter(m => m.ym.startsWith(yearFilter))   // newest first, from the database
 
     return (
       <div className="space-y-5">
@@ -329,10 +428,7 @@ export default function ReportsPage({ session }: { session: Session }) {
           <span className="text-sm text-[#697586]">{filteredMonths.length} months</span>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {filteredMonths.map(ym => {
-            const credit = repayments.filter(r => r['Status'] === 'Paid' && (r['Paid Date'] || '').startsWith(ym)).reduce((s, r) => s + Number(r['Amount'] || 0), 0)
-            const debit = loans.filter(l => (l.startDate || '').startsWith(ym)).reduce((s, l) => s + Number(l.netDisbursed || 0), 0)
-            const txCount = repayments.filter(r => r['Status'] === 'Paid' && (r['Paid Date'] || '').startsWith(ym)).length
+          {filteredMonths.map(({ ym, credit, debit, txCount }) => {
             return (
               <div key={ym} className="rounded-[1.75rem] border border-white/70 bg-white p-5 shadow-panel space-y-3">
                 <p className="font-semibold">{monthLabel(ym)}</p>
@@ -363,8 +459,6 @@ export default function ReportsPage({ session }: { session: Session }) {
 
   // ── CUSTOMER TRANSACTIONS — detail ──
   if (tab === 'customers' && selectedCustomer) {
-    const custLoans = loans.filter(l => l.customerId === selectedCustomer.customerId)
-    const custReps = repayments.filter(r => r['Customer ID'] === selectedCustomer.customerId)
     const paidReps = custReps.filter(r => r['Status'] === 'Paid').sort((a, b) => (a['Paid Date'] || '').localeCompare(b['Paid Date'] || ''))
     const totalPaid = paidReps.reduce((s, r) => s + Number(r['Amount'] || 0), 0)
     const totalDisbursed = custLoans.reduce((s, l) => s + Number(l.netDisbursed || 0), 0)
@@ -600,22 +694,15 @@ export default function ReportsPage({ session }: { session: Session }) {
 
   // ── CUSTOMER TRANSACTIONS — cards ──
   if (tab === 'customers') {
-    const filtered = customers.filter(c => {
-      if (!txSearch) return true
-      const q = txSearch.toLowerCase()
-      return c.name.toLowerCase().includes(q) || c.phone.includes(txSearch) || c.activeLoanId?.toLowerCase().includes(q)
-    })
     return (
       <div className="space-y-4">
         {tabBar}
         <input value={txSearch} onChange={e => setTxSearch(e.target.value)} placeholder="Search name, phone, loan ID…"
           data-no-upper className="w-full max-w-sm rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2.5 text-sm outline-none focus:border-[#1a1a2e]" />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {filtered.map(c => {
-            const custReps = repayments.filter(r => r['Customer ID'] === c.customerId)
-            const totalPaid = custReps.filter(r => r['Status'] === 'Paid').reduce((s, r) => s + Number(r['Amount'] || 0), 0)
-            const lateCount = custReps.filter(r => r['Status'] === 'Delayed').length
-            const loanCount = loans.filter(l => l.customerId === c.customerId).length
+          {custList.rows.map(c => {
+            const card = custList.cards[c.customerId] || { loanCount: 0, collected: 0, lateCount: 0 }
+            const totalPaid = card.collected, lateCount = card.lateCount, loanCount = card.loanCount
             return (
               <div key={c.customerId} className="rounded-[1.75rem] border border-white/70 bg-white p-5 shadow-panel space-y-3">
                 <div className="flex items-start justify-between gap-2">
@@ -624,28 +711,31 @@ export default function ReportsPage({ session }: { session: Session }) {
                     <p className="text-xs text-[#697586]">{c.phone}</p>
                     {c.activeLoanId && <p className="font-mono text-[11px] text-[#697586]">{c.activeLoanId}</p>}
                   </div>
-                  <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${c.loanStatus === 'Active' ? 'bg-green-100 text-green-700' : 'bg-[#f4f5f7] text-[#697586]'}`}>{c.loanStatus || 'Inactive'}</span>
+                  <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${c.loanStatus === 'Active' ? 'bg-green-100 text-green-700' : 'bg-[#f4f5f7] text-[#697586]'}`}>{c.loanStatus === 'Active' ? 'Active' : 'Inactive'}</span>
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-xs">
                   <div className="rounded-xl bg-[#f4f5f7] p-2 text-center"><p className="text-[#697586]">Loans</p><p className="font-bold">{loanCount}</p></div>
                   <div className="rounded-xl bg-green-50 p-2 text-center"><p className="text-[#697586]">Collected</p><p className="font-bold text-green-700">{currency(totalPaid)}</p></div>
-                  <div className={`rounded-xl p-2 text-center ${lateCount > 0 ? 'bg-amber-50' : 'bg-[#f4f5f7]'}`}><p className="text-[#697586]">Late</p><p className={`font-bold ${lateCount > 0 ? 'text-amber-700' : ''}`}>{lateCount}</p></div>
+                  <div className={`rounded-xl p-2 text-center ${lateCount > 0 ? 'bg-amber-50' : 'bg-[#f4f5f7]'}`}><p className="text-[#697586]">Late</p><p className={`font-bold ${lateCount > 0 ? 'text-amber-600' : ''}`}>{lateCount}</p></div>
                 </div>
                 <button onClick={() => setSelectedCustomer(c)} className="w-full rounded-xl border border-[#e5e7eb] px-3 py-2 text-xs font-semibold hover:bg-[#f4f5f7] transition">View Transactions</button>
               </div>
             )
           })}
         </div>
+        {custList.rows.length === 0 && <p className="py-10 text-center text-sm text-[#697586]">No customers found.</p>}
+        <Pager page={custPage} totalPages={custList.totalPages} total={custList.total} noun="customers" pageSize={24} onPage={setCustPage} />
       </div>
     )
   }
 
   // ── GUARANTOR TRANSACTIONS — detail ──
   if (tab === 'guarantors' && selectedGuarantor) {
-    const gLoans = loans.filter(l => l.guarantorName === selectedGuarantor.name || l.guarantorCode === selectedGuarantor.code)
-    const gSettlements = settlements.filter(s => s['Entity ID'] === selectedGuarantor.guarantorId && s['Entity Type'] === 'GuarantorCommission')
-    const totalEarned = gLoans.reduce((s, l) => s + Number(l.guarantorCommission || 0), 0)
-    const totalSettled = gSettlements.reduce((s, s2) => s + Number(s2['Amount Submitted'] || 0), 0)
+    const gLoans = gDetail.loans
+    const gSettlements = gDetail.settlements
+    // the totals are for the guarantor's whole history (from the database); the list shows a page at a time
+    const totalEarned = gDetail.card?.earned ?? 0
+    const totalSettled = gDetail.card?.settled ?? 0
     const balance = totalEarned - totalSettled
     return (
       <div className="space-y-5">
@@ -690,7 +780,8 @@ export default function ReportsPage({ session }: { session: Session }) {
                   <span className="font-semibold text-green-700 shrink-0">+{currency(Number(l.guarantorCommission || 0))}</span>
                 </div>
               ))}
-              {gLoans.length === 0 && <p className="p-5 text-sm text-[#697586]">No commissions.</p>}
+              {gLoans.length === 0 && <p className="p-5 text-sm text-[#697586]">{detailLoading ? 'Loading…' : 'No commissions.'}</p>}
+              {gLoans.length < gDetail.loanTotal && <button onClick={moreGuarantorLoans} className="m-3 rounded-xl border border-[#e5e7eb] px-3 py-1.5 text-xs font-semibold hover:bg-[#f4f5f7]">Show more ({gLoans.length} of {gDetail.loanTotal})</button>}
             </div>
           </div>
 
@@ -727,22 +818,15 @@ export default function ReportsPage({ session }: { session: Session }) {
 
   // ── GUARANTOR TRANSACTIONS — cards ──
   if (tab === 'guarantors') {
-    const filtered = guarantors.filter(g => {
-      if (!gSearch) return true
-      const q = gSearch.toLowerCase()
-      return g.name?.toLowerCase().includes(q) || g.code?.toLowerCase().includes(q)
-    })
     return (
       <div className="space-y-4">
         {tabBar}
         <input value={gSearch} onChange={e => setGSearch(e.target.value)} placeholder="Search guarantor name or code…"
           data-no-upper className="w-full max-w-sm rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2.5 text-sm outline-none focus:border-[#1a1a2e]" />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {filtered.map(g => {
-            const gLoans = loans.filter(l => l.guarantorName === g.name || l.guarantorCode === g.code)
-            const gStl = settlements.filter(s => s['Entity ID'] === g.guarantorId && s['Entity Type'] === 'GuarantorCommission')
-            const earned = gLoans.reduce((s, l) => s + Number(l.guarantorCommission || 0), 0)
-            const settled = gStl.reduce((s, s2) => s + Number(s2['Amount Submitted'] || 0), 0)
+          {gList.rows.map(g => {
+            const card = gList.cards[g.guarantorId] || { loanCount: 0, earned: 0, settled: 0 }
+            const earned = card.earned, settled = card.settled
             return (
               <div key={g.guarantorId} className="rounded-[1.75rem] border border-white/70 bg-white p-5 shadow-panel space-y-3">
                 <div>
@@ -750,7 +834,7 @@ export default function ReportsPage({ session }: { session: Session }) {
                   <p className="text-xs font-mono text-[#697586]">{g.code}</p>
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-xs">
-                  <div className="rounded-xl bg-[#f4f5f7] p-2 text-center"><p className="text-[#697586]">Loans</p><p className="font-bold">{gLoans.length}</p></div>
+                  <div className="rounded-xl bg-[#f4f5f7] p-2 text-center"><p className="text-[#697586]">Loans</p><p className="font-bold">{card.loanCount}</p></div>
                   <div className="rounded-xl bg-green-50 p-2 text-center"><p className="text-[#697586]">Earned</p><p className="font-bold text-green-700">{currency(earned)}</p></div>
                   <div className={`rounded-xl p-2 text-center ${earned - settled > 0 ? 'bg-amber-50' : 'bg-[#f4f5f7]'}`}><p className="text-[#697586]">Balance</p><p className={`font-bold ${earned - settled > 0 ? 'text-amber-700' : ''}`}>{currency(earned - settled)}</p></div>
                 </div>
@@ -758,8 +842,9 @@ export default function ReportsPage({ session }: { session: Session }) {
               </div>
             )
           })}
-          {filtered.length === 0 && <p className="py-10 text-center text-sm text-[#697586]">No guarantors found.</p>}
+          {gList.rows.length === 0 && <p className="py-10 text-center text-sm text-[#697586]">No guarantors found.</p>}
         </div>
+        <Pager page={gPage} totalPages={gList.totalPages} total={gList.total} noun="guarantors" pageSize={24} onPage={setGPage} />
       </div>
     )
   }

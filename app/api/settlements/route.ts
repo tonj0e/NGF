@@ -25,6 +25,9 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const sp = new URL(req.url).searchParams
   const saturday = sp.get('saturday') || ''
   const entityId = sp.get('entityId') || ''
+  const entityType = sp.get('entityType') || ''
+  const settledFrom = /^\d{4}-\d{2}-\d{2}$/.test(sp.get('settledFrom') || '') ? sp.get('settledFrom')! : ''   // settlement_date range (Reports, by month)
+  const settledTo = /^\d{4}-\d{2}-\d{2}$/.test(sp.get('settledTo') || '') ? sp.get('settledTo')! : ''
   const scope = await staffEntityScope(session)
 
   if (sp.get('guarantorList') === '1') {
@@ -42,13 +45,18 @@ export const GET = apiHandler(async (req: NextRequest) => {
   }
 
   // a Staff user only reads settlements of people in their own branches
-  // Staff read one guarantor or agent at a time (the summary endpoint serves the per-Saturday overview)
-  if (scope && (!entityId || !scope.ids.has(entityId))) return ok({ settlements: [], total: 0, page: 1, pageSize: 0, totalPages: 1 })
+  // Staff read one guarantor or agent at a time, or a month of their branches' settlements for Reports (the summary endpoint serves the per-Saturday overview)
+  const staffMonth = !!scope && !entityId && !!settledFrom
+  if (scope && !staffMonth && (!entityId || !scope.ids.has(entityId))) return ok({ settlements: [], total: 0, page: 1, pageSize: 0, totalPages: 1 })
   const r = await pageQuery('Settlements', {
     filters: qb => {
       let q = qb
       if (saturday) q = q.eq('saturday_date', saturday)
       if (entityId) q = q.eq('entity_id', entityId)
+      else if (staffMonth) q = q.in('entity_id', Array.from(scope!.ids).slice(0, 400).concat('__none__'))   // a branch's guarantors and agents (first 400)
+      if (entityType) q = q.eq('entity_type', entityType)
+      if (settledFrom) q = q.gte('settlement_date', settledFrom)
+      if (settledTo) q = q.lte('settlement_date', settledTo)
       return q
     },
     order: [{ column: 'saturday_date', ascending: false }, { column: 'settlement_id' }],

@@ -36,11 +36,20 @@ export const GET = apiHandler(async (req: NextRequest) => {
   }
   const source: TableName = filter === 'overdue' ? 'LoansOverdue' : filter === 'renewal' ? 'LoansRenewalEligible' : 'Loans'
   // optional: only loans created in a date range (the Disbursements weeks)
+  // more filters used by the Reports page: one customer, one guarantor, loans that started in a date range
+  const onlyCustomer = sp.get('customerId') || ''
+  const onlyGuarantor = sp.get('guarantorId') || ''
+  const startFrom = /^\d{4}-\d{2}-\d{2}$/.test(sp.get('startFrom') || '') ? sp.get('startFrom')! : ''
+  const startTo = /^\d{4}-\d{2}-\d{2}$/.test(sp.get('startTo') || '') ? sp.get('startTo')! : ''
   const createdFrom = /^\d{4}-\d{2}-\d{2}$/.test(sp.get('createdFrom') || '') ? sp.get('createdFrom')! : ''
   const createdTo = /^\d{4}-\d{2}-\d{2}$/.test(sp.get('createdTo') || '') ? sp.get('createdTo')! : ''
   const filters = (qb: any) => {
     let q = withScope(qb, scope)
     if (agentId) q = q.eq('assigned_agent_id', agentId)
+    if (onlyCustomer) q = q.eq('customer_id', onlyCustomer)
+    if (onlyGuarantor) q = q.eq('guarantor_id', onlyGuarantor)
+    if (startFrom) q = q.gte('start_date', startFrom)
+    if (startTo) q = q.lte('start_date', startTo)
     if (createdFrom) q = q.gte('created_at', `${createdFrom}T00:00:00Z`)
     if (createdTo) q = q.lt('created_at', `${addDaysIST(createdTo, 1)}T00:00:00Z`)
     if (filter === 'active') q = q.eq('status', 'Active')

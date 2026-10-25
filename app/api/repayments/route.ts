@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { apiHandler, getSession, ok, err } from '@/lib/api'
 import { needFeature } from '@/lib/access'
 import { coll } from '@/lib/features'
+import type { TableName } from '@/lib/supabase-db'
 import { readTable, selectRows, countRows, getRowById, updateById, appendRow, makeId, nowIso, invalidateCache, getSupabase } from '@/lib/supabase-db'
 import { APP_CONFIG } from '@/lib/config'
 import { saveFileSupabase } from '@/lib/drive'
@@ -51,6 +52,9 @@ export const GET = apiHandler(async (req: NextRequest) => {
       q = q.eq('status', 'Paid')
       if (month) { const [y, m] = month.split('-').map(Number); q = q.gte('paid_date', `${month}-01`).lt('paid_date', m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`) }
     }
+    else if (mode === 'staffpaid') {
+      if (month) { const [y, m] = month.split('-').map(Number); q = q.gte('paid_date', `${month}-01`).lt('paid_date', m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`) }
+    }
     else if (mode !== 'all') q = q.neq('status', 'Paid')
     if (search) {
       // a guarantor finds a customer by the last 4 digits of the loan id or by phone; others by loan id or phone
@@ -59,9 +63,10 @@ export const GET = apiHandler(async (req: NextRequest) => {
     }
     return q
   }
+  const source: TableName = mode === 'staffpaid' ? 'ReportStaffCollections' : 'RepaymentsEnriched'   // Reports: paid weeks collected by admin / staff / field agents
   const order = customerId || loanId
     ? [{ column: 'week_no' }, { column: 'repayment_id' }]
-    : mode === 'history' ? [{ column: 'paid_date', ascending: false }, { column: 'repayment_id' }]
+    : mode === 'history' || mode === 'staffpaid' ? [{ column: 'paid_date', ascending: false }, { column: 'repayment_id' }]
     : [{ column: 'due_date' }, { column: 'customer_name' }, { column: 'repayment_id' }]
 
   // One customer's or loan's weeks: all of them, no paging
@@ -69,15 +74,15 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const rows: Record<string, string>[] = []
   let total = 0
   if (wantAll) {
-    const r = await pageQuery('RepaymentsEnriched', { filters, order, page: 1, pageSize: 200 })
+    const r = await pageQuery(source, { filters, order, page: 1, pageSize: 200 })
     rows.push(...r.rows); total = r.total
-    for (let pg = 2; pg <= r.totalPages; pg++) rows.push(...(await pageQuery('RepaymentsEnriched', { filters, order, page: pg, pageSize: 200 })).rows)
+    for (let pg = 2; pg <= r.totalPages; pg++) rows.push(...(await pageQuery(source, { filters, order, page: pg, pageSize: 200 })).rows)
   } else {
     // pages bigger than 200 (used by Reports for now) are read in several chunks of 200
     const start = (page - 1) * pageSize
     const firstPg = Math.floor(start / 200) + 1
     for (let pg = firstPg; rows.length < pageSize; pg++) {
-      const r = await pageQuery('RepaymentsEnriched', { filters, order, page: pg, pageSize: 200 })
+      const r = await pageQuery(source, { filters, order, page: pg, pageSize: 200 })
       total = r.total
       const skip = pg === firstPg ? start - (firstPg - 1) * 200 : 0
       rows.push(...r.rows.slice(skip, skip + (pageSize - rows.length)))
