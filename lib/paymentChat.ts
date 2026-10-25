@@ -8,7 +8,7 @@ import { getTodayIST, nowIST } from './dateUtils'
 import { getOrCreateFolder, saveFile, driveUrl } from './drive'
 import { APP_CONFIG } from './config'
 import { getAccess, markPayment, lookupUtr, normalizeUtr, validUtr, needGuarantor, PaymentError, type Access } from './payments'
-import { readSlip, slipReaderConfigured, SLIP_MODEL, type SlipReading } from './slipReader'
+import { readSlip, slipReaderConfigured, providerKeys, pickProvider, nvidiaModel, SLIP_MODEL, type SlipReading, type Provider } from './slipReader'
 import { payCodeFromLoanId } from './payCode'
 import { canSeeGuarantor, guarantorBranchMap } from './branchAccess'
 import type { Session } from '../types'
@@ -23,7 +23,7 @@ export type ChatLine = { repaymentId: string; customerId: string; name: string; 
 
 // ─── Settings (Admin) ────────────────────────────────────────────────────────
 
-const KEYS = { enabled: 'slip:enabled', dayCap: 'slip:daily_cap', guarantorCap: 'slip:guarantor_cap', payee: 'slip:payee' }
+const KEYS = { enabled: 'slip:enabled', dayCap: 'slip:daily_cap', guarantorCap: 'slip:guarantor_cap', payee: 'slip:payee', provider: 'slip:provider' }
 export async function slipSettings() {
   const { data } = await getSupabase().from('settings').select('key, value').in('key', Object.values(KEYS))
   const v = (k: string) => (data || []).find(r => r.key === k)?.value
@@ -32,17 +32,20 @@ export async function slipSettings() {
     dailyCap: Math.max(0, Number(v(KEYS.dayCap) ?? 3000) || 0),
     guarantorCap: Math.max(0, Number(v(KEYS.guarantorCap) ?? 300) || 0),
     payee: String(v(KEYS.payee) ?? ''),
+    provider: ['claude', 'nvidia'].includes(String(v(KEYS.provider))) ? String(v(KEYS.provider)) : 'auto',
+    keys: providerKeys(),
     keyPresent: slipReaderConfigured(),
-    model: SLIP_MODEL,
+    model: SLIP_MODEL, nvidiaModel: nvidiaModel(),
   }
 }
-export async function saveSlipSettings(access: Access, input: { enabled?: boolean; dailyCap?: number; guarantorCap?: number; payee?: string }) {
+export async function saveSlipSettings(access: Access, input: { enabled?: boolean; dailyCap?: number; guarantorCap?: number; payee?: string; provider?: string }) {
   if (!access.isAdmin) throw new PaymentError('Only an Admin can change this')
   const rows: { key: string; value: string }[] = []
   if (input.enabled !== undefined) rows.push({ key: KEYS.enabled, value: input.enabled ? '1' : '0' })
   if (input.dailyCap !== undefined) rows.push({ key: KEYS.dayCap, value: String(Math.min(50000, Math.max(0, Math.floor(Number(input.dailyCap) || 0)))) })
   if (input.guarantorCap !== undefined) rows.push({ key: KEYS.guarantorCap, value: String(Math.min(5000, Math.max(0, Math.floor(Number(input.guarantorCap) || 0)))) })
   if (input.payee !== undefined) rows.push({ key: KEYS.payee, value: String(input.payee).slice(0, 200) })
+  if (input.provider !== undefined && ['auto', 'claude', 'nvidia'].includes(input.provider)) rows.push({ key: KEYS.provider, value: input.provider })
   if (rows.length) { const { error } = await getSupabase().from('settings').upsert(rows, { onConflict: 'key' }); if (error) throw new Error(error.message) }
   return slipSettings()
 }
@@ -104,7 +107,7 @@ function publicMsg(m: Row) {
     lines: (m.lines || []) as ChatLine[], note: m.note || '', utr: m.utr || '', amountRead: m.amount_read == null ? null : Number(m.amount_read),
     txnDate: m.txn_date || '', txnTime: m.txn_time || '', payee: m.payee || '', payApp: m.pay_app || '', confidence: m.confidence || '',
     imageUrl: m.image_url || '', groupId: m.group_id || '', createdByName: m.created_by_name || '', createdBy: m.created_by || '', createdAt: m.created_at,
-    needsFix: m.kind === 'slip' && FIX_STATUSES.includes(m.status), manual: !!m.manual,
+    needsFix: m.kind === 'slip' && FIX_STATUSES.includes(m.status), manual: !!m.manual, reader: m.reader || '',
   }
 }
 export type ChatMessage = ReturnType<typeof publicMsg>
@@ -269,7 +272,8 @@ export async function submitSlip(session: Session, access: Access, input: Submit
   const cfg = await slipSettings()
   const toOffice = (why: string) => finish('Pending Staff', `${why} Sent to the office to check.`, reset)
   if (!imageHash || !media) return toOffice('A new picture is needed to read it.')
-  if (!cfg.keyPresent || !cfg.enabled) return toOffice('Automatic reading is switched off.')
+  const prov: Provider | null = pickProvider(cfg.provider)
+  if (!prov || !cfg.enabled) return toOffice('Automatic reading is switched off.')
   const dayStart = istStart(0)
   const { count: today } = await sb.from('payment_chat').select('message_id', { count: 'exact', head: true }).gt('in_tokens', 0).gte('created_at', dayStart)
   if ((today || 0) >= cfg.dailyCap) return toOffice('Automatic reading has reached its limit for today.')
@@ -277,11 +281,11 @@ export async function submitSlip(session: Session, access: Access, input: Submit
   if ((mine || 0) >= cfg.guarantorCap) return toOffice('You have sent many screenshots today.')
 
   // Read it
-  let reading: SlipReading, inT = 0, outT = 0, cost = 0
-  try { ({ reading, inTokens: inT, outTokens: outT, costUsd: cost } = await readSlip(b64, media)) }
+  let reading: SlipReading, inT = 0, outT = 0, cost = 0, readerName = ''
+  try { const r = await readSlip(b64, media, prov); ({ reading, inTokens: inT, outTokens: outT, costUsd: cost } = r); readerName = `${r.provider}:${r.model}` }
   catch (e) { console.error('Slip read failed:', e instanceof Error ? e.message : e); return toOffice('The screenshot could not be read just now.') }
   const utr = normalizeUtr(reading.utr)
-  const usage = { in_tokens: inT, out_tokens: outT, cost_usd: cost }
+  const usage = { in_tokens: Math.max(1, inT), out_tokens: outT, cost_usd: cost, reader: readerName }
   const read = { utr: utr || null, amount_read: reading.amount, txn_date: reading.date, txn_time: reading.time, payee: reading.payee, pay_app: reading.app, confidence: reading.confidence, group_id: null, duplicate_group_id: null, ...usage }
 
   if (!reading.isPaymentScreenshot) return finish('Needs Retake', 'This does not look like a payment confirmation screenshot. Send the payment success screen.', read)
@@ -364,3 +368,22 @@ export async function approveMessage(session: Session, access: Access, messageId
 }
 
 export { getAccess }
+
+
+// Admin test: read one screenshot with a chosen reader and show the result. Nothing is saved or recorded.
+export async function testRead(access: Access, provider: string, image: { mimeType: string; base64Data: string } | null | undefined) {
+  if (!access.isAdmin) throw new PaymentError('Only an Admin can test the reader')
+  const prov = provider === 'nvidia' ? 'nvidia' : 'claude'
+  if (!providerKeys()[prov]) throw new PaymentError(prov === 'nvidia' ? 'No NVIDIA key is set (NVIDIA_API_KEY)' : 'No Claude key is set (ANTHROPIC_API_KEY)')
+  const media = MEDIA[String(image?.mimeType || '').toLowerCase()]
+  if (!media || !image?.base64Data) throw new PaymentError('Send a JPG, PNG or WebP picture')
+  const b64 = image.base64Data.replace(/^data:[^,]+,/, '')
+  if (Buffer.from(b64, 'base64').length > MAX_IMAGE_BYTES) throw new PaymentError('The picture is too big')
+  const t0 = Date.now()
+  try {
+    const r = await readSlip(b64, media, prov)
+    return { ok: true, provider: r.provider, model: r.model, ms: Date.now() - t0, reading: r.reading, inTokens: r.inTokens, outTokens: r.outTokens, costUsd: r.costUsd, error: '' }
+  } catch (e) {
+    return { ok: false, provider: prov, model: prov === 'nvidia' ? nvidiaModel() : SLIP_MODEL, ms: Date.now() - t0, reading: null, inTokens: 0, outTokens: 0, costUsd: 0, error: e instanceof Error ? e.message.slice(0, 300) : 'Failed' }
+  }
+}

@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, getSession, ok, err } from '@/lib/api'
 import { getAccess, PaymentError } from '@/lib/payments'
-import { listMessages, submitSlip, postNote, approveMessage, slipSettings, saveSlipSettings, slipUsage } from '@/lib/paymentChat'
+import { listMessages, submitSlip, postNote, approveMessage, slipSettings, saveSlipSettings, slipUsage, testRead } from '@/lib/paymentChat'
 import { createAuditLogger } from '@/lib/audit'
 
 // Payment Chat (screenshots sent by guarantors). The customer list for the search box comes from /api/payments?view=collect.
@@ -38,8 +38,9 @@ export const POST = apiHandler(async (req: NextRequest) => {
         await audit.log('PAYMENT_CHAT_APPROVE', 'PaymentChat', String(body.messageId), {})
         return ok({ success: true })
       }
+      case 'testRead': return ok(await testRead(access, String(body.provider || ''), body.image))
       case 'settings': {
-        const settings = await saveSlipSettings(access, { enabled: body.enabled, dailyCap: body.dailyCap, guarantorCap: body.guarantorCap, payee: body.payee })
+        const settings = await saveSlipSettings(access, { enabled: body.enabled, dailyCap: body.dailyCap, guarantorCap: body.guarantorCap, payee: body.payee, provider: body.provider })
         await audit.log('PAYMENT_CHAT_SETTINGS', 'PaymentChat', 'settings', { enabled: settings.enabled, dailyCap: settings.dailyCap, guarantorCap: settings.guarantorCap })
         return ok({ settings })
       }

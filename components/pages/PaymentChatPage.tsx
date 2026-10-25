@@ -12,10 +12,11 @@ type Line = { repaymentId: string; customerId: string; name: string; payCode: st
 type Msg = {
   messageId: string; guarantorId: string; kind: 'slip' | 'note'; mode: string; status: string; problem: string; lines: Line[]; note: string
   utr: string; amountRead: number | null; txnDate: string; txnTime: string; payee: string; payApp: string; imageUrl: string
-  createdByName: string; createdBy: string; createdAt: string; needsFix: boolean; manual: boolean
+  createdByName: string; createdBy: string; createdAt: string; needsFix: boolean; manual: boolean; reader: string
 }
 type SheetRow = { repaymentId: string; customerId: string; name: string; phone: string; payCode: string; weekNo: number | null; dueDate: string; amount: number; status: string; overdue: boolean; payment: unknown | null }
-type Settings = { enabled: boolean; dailyCap: number; guarantorCap: number; payee: string; keyPresent: boolean; model: string }
+type Settings = { enabled: boolean; dailyCap: number; guarantorCap: number; payee: string; keyPresent: boolean; model: string; provider: string; keys: { claude: boolean; nvidia: boolean }; nvidiaModel: string }
+type TestResult = { ok: boolean; provider: string; model: string; ms: number; reading: Record<string, unknown> | null; inTokens: number; outTokens: number; costUsd: number; error: string }
 type Usage = { today: { reads: number; usd: number }; week: { reads: number; usd: number }; month: { reads: number; usd: number } }
 
 const money = (n: number) => `₹${Number(n).toLocaleString('en-IN')}`
@@ -386,7 +387,18 @@ export function ChatSettings({ session }: { session: Session }) {
               <div key={k} className="rounded-xl bg-[#f4f5f7] p-2"><p className="text-[10px] font-semibold uppercase text-[#697586]">{k}</p><p className="font-bold">{inr(u.usd)}</p><p className="text-xs text-[#697586]">{u.reads} read</p></div>
             ))}
           </div>
-          <p className="text-xs text-[#697586]">Estimated from Claude&apos;s published prices ({d.settings.model}). The real bill is in your Anthropic account, where you should also set a monthly spending limit. {d.settings.keyPresent ? '' : 'No API key is set yet, so reading is off and every screenshot goes to the office.'}</p>
+          <p className="text-xs text-[#697586]">Estimated from Claude&apos;s published prices ({d.settings.model}). The real bill is in your Anthropic account, where you should also set a monthly spending limit. {d.settings.keyPresent ? '' : 'No reader key is set yet, so reading is off and every screenshot goes to the office.'}</p>
+          <div className="space-y-2 rounded-xl bg-[#f4f5f7] p-3">
+            <p className="text-xs font-semibold uppercase tracking-wider text-[#697586]">Reader</p>
+            <select value={d.settings.provider} onChange={e => save({ provider: e.target.value })} className="w-full rounded-xl border border-[#e5e7eb] bg-white px-3 py-2 text-sm">
+              <option value="auto">Automatic (Claude if its key is set, otherwise NVIDIA)</option>
+              <option value="claude">Claude (paid, most accurate)</option>
+              <option value="nvidia">NVIDIA Nemotron (free, for testing)</option>
+            </select>
+            <p className="text-xs text-[#697586]">Claude key: <b>{d.settings.keys.claude ? 'set' : 'not set'}</b> · NVIDIA key: <b>{d.settings.keys.nvidia ? 'set' : 'not set'}</b> · NVIDIA model: <span className="font-mono">{d.settings.nvidiaModel}</span></p>
+            <p className="text-xs text-[#697586]">The NVIDIA free service is meant for trying things out and has its own speed limits. The picture is sent to NVIDIA for reading. Use it to test, then switch to Claude for real use.</p>
+            <ReaderTest session={session} keys={d.settings.keys} />
+          </div>
           <label className="flex items-center gap-2"><input type="checkbox" checked={d.settings.enabled} onChange={e => save({ enabled: e.target.checked })} /> Automatic reading is on</label>
           <div className="grid grid-cols-2 gap-2">
             <label className="text-xs">Daily limit (all)<input type="number" defaultValue={d.settings.dailyCap} onBlur={e => save({ dailyCap: Number(e.target.value) })} className="mt-1 w-full rounded-xl border border-[#e5e7eb] px-3 py-2 text-sm" /></label>
@@ -398,6 +410,54 @@ export function ChatSettings({ session }: { session: Session }) {
         </div>
       )}
       {open && !d && <p className="mt-2 text-xs text-[#697586]">{msg || 'Loading…'}</p>}
+    </div>
+  )
+}
+
+// Try a reader on one screenshot without recording anything. Run both readers on the same picture to compare.
+function ReaderTest({ session, keys }: { session: Session; keys: { claude: boolean; nvidia: boolean } }) {
+  const [img, setImg] = useState<{ mimeType: string; base64Data: string; preview: string } | null>(null)
+  const [busy, setBusy] = useState('')
+  const [res, setRes] = useState<TestResult[]>([])
+  const [err, setErr] = useState('')
+  async function run(providers: string[]) {
+    if (!img) return
+    setBusy(providers.join('+')); setErr(''); setRes([])
+    try {
+      const out: TestResult[] = []
+      for (const p of providers) out.push(await api(session, '/api/payment-chat', { action: 'testRead', provider: p, image: { mimeType: img.mimeType, base64Data: img.base64Data } }))
+      setRes(out)
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Failed') }
+    setBusy('')
+  }
+  return (
+    <div className="space-y-2 border-t border-[#e5e7eb] pt-2">
+      <p className="text-xs font-semibold uppercase tracking-wider text-[#697586]">Test a screenshot (nothing is recorded)</p>
+      <label className="flex cursor-pointer items-center justify-center rounded-xl border-2 border-dashed border-[#d6d9e0] bg-white px-3 py-3 text-sm font-semibold">
+        {img ? 'Change screenshot' : 'Choose a payment screenshot'}
+        <input type="file" accept="image/*" className="hidden" onChange={async e => { const f = e.target.files?.[0]; if (f) { try { setImg(await prepareImage(f)); setRes([]) } catch { setErr('Could not open that picture') } } }} />
+      </label>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      {img && <img src={img.preview} alt="Test screenshot" className="mx-auto max-h-40 rounded-lg border border-[#e5e7eb]" />}
+      {img && (
+        <div className="flex flex-wrap gap-2">
+          <button disabled={!!busy || !keys.nvidia} onClick={() => run(['nvidia'])} className="rounded-xl bg-[#1a1a2e] px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">Read with NVIDIA</button>
+          <button disabled={!!busy || !keys.claude} onClick={() => run(['claude'])} className="rounded-xl bg-[#1a1a2e] px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">Read with Claude</button>
+          <button disabled={!!busy || !keys.claude || !keys.nvidia} onClick={() => run(['nvidia', 'claude'])} className="rounded-xl border border-[#1a1a2e] px-3 py-2 text-xs font-semibold disabled:opacity-40">Compare both</button>
+        </div>
+      )}
+      {busy && <p className="text-xs text-[#697586]">Reading…</p>}
+      {err && <p className="text-xs text-red-600">{err}</p>}
+      {res.map(r => (
+        <div key={r.provider} className="rounded-xl bg-white p-3 text-xs ring-1 ring-black/5">
+          <p className="font-semibold">{r.provider === 'nvidia' ? 'NVIDIA' : 'Claude'} <span className="font-mono font-normal text-[#697586]">{r.model}</span> · {(r.ms / 1000).toFixed(1)} s{r.costUsd ? ` · about ₹${(r.costUsd * INR_PER_USD).toFixed(2)}` : ' · free'}</p>
+          {r.ok && r.reading ? (
+            <dl className="mt-1 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
+              {Object.entries(r.reading).map(([k, v]) => (<><dt key={k + 'k'} className="text-[#697586]">{k}</dt><dd key={k + 'v'} className="font-mono break-all">{v === null ? '—' : String(v)}</dd></>))}
+            </dl>
+          ) : <p className="mt-1 text-red-600">{r.error}</p>}
+        </div>
+      ))}
     </div>
   )
 }
