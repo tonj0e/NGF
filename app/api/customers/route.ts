@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { apiHandler, getSession, requireRole, ok, err } from '@/lib/api'
 import { needFeature } from '@/lib/access'
 import { requireFeature } from '@/lib/access'
+import { customer as customerKeys } from '@/lib/features'
 import { readTable, updateById, deleteById, findRecord, nowIso, invalidateCache } from '@/lib/supabase-db'
 import { getLeadDocFolder, uploadLeadPhoto } from '@/lib/drive'
 import { getTodayIST } from '@/lib/dateUtils'
@@ -95,7 +96,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
 })
 
 export const PATCH = apiHandler(async (req: NextRequest) => {
-  const session = await requireFeature(req, ['customers'])
+  const session = await requireFeature(req, customerKeys('customersEdit'))
   const body = await req.json()
   const { customerId } = body
   if (!customerId) return err('customerId required')
@@ -164,7 +165,7 @@ export const PATCH = apiHandler(async (req: NextRequest) => {
 })
 
 export const DELETE = apiHandler(async (req: NextRequest) => {
-  await requireRole(req, ['Admin'])
+  await requireFeature(req, customerKeys('customersDelete'))
   const { customerId } = await req.json()
   if (!customerId) return err('customerId required')
 

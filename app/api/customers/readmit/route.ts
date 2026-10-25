@@ -1,12 +1,13 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, requireRole, ok, err } from '@/lib/api'
+import { requireFeature } from '@/lib/access'
 import { readTable, updateById, nowIso, invalidateCache, getSupabase } from '@/lib/supabase-db'
 import { csrfProtection } from '@/lib/csrf'
 import { createAuditLogger } from '@/lib/audit'
 
 // Re-admit a permanently closed customer. Admin only, with a written note of the verification done (several checks).
 export const POST = apiHandler(async (req: NextRequest) => {
-  const session = await requireRole(req, ['Admin'])
+  const session = await requireFeature(req, ['customersReadmit'])
   const csrfError = csrfProtection(req, session.userId)
   if (csrfError) return csrfError
   const { customerId, reason } = await req.json().catch(() => ({})) as { customerId?: string; reason?: string }

@@ -456,7 +456,11 @@ function LoansTab({ rows, loading }: { rows: any[]; loading: boolean }) {
   )
 }
 
-export default function CustomersPage({ session }: { session: Session }) {
+// `perms`: what a Staff user may do. Admin and other roles are not limited here; the server checks every action too.
+const hasPart = (perms: string[] | undefined, part: string) => !perms || perms.includes(part) || ((part === 'customersView' || part === 'customersHistory') && perms.includes('customers'))
+
+export default function CustomersPage({ session, perms }: { session: Session; perms?: string[] }) {
+  const can = (part: string) => session.role === 'Admin' || (session.role === 'Staff' && hasPart(perms, part))
   const [tab, setTab] = useState<Tab>('customers')
   const [customers, setCustomers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -615,7 +619,7 @@ export default function CustomersPage({ session }: { session: Session }) {
             <p className="text-sm font-bold uppercase tracking-wide text-red-700">Closed permanently — no more loans</p>
             {detail.blockReason && <p className="text-xs text-red-600">Reason: {detail.blockReason}</p>}
           </div>
-          {session.role === 'Admin' && <button onClick={() => readmit(detail.customerId)} className="rounded-xl border border-red-300 bg-white px-3 py-2 text-xs font-semibold text-red-700">Re-admit after verification</button>}
+          {can('customersReadmit') && <button onClick={() => readmit(detail.customerId)} className="rounded-xl border border-red-300 bg-white px-3 py-2 text-xs font-semibold text-red-700">Re-admit after verification</button>}
         </div>
       )}
       {!detail.permanentBlock && detail.holdUntil && (
@@ -644,7 +648,7 @@ export default function CustomersPage({ session }: { session: Session }) {
 
       {/* Detail sub-tabs */}
       <div className="flex gap-2 flex-wrap">
-        {([['details', 'Customer Details'], ['transaction', 'Transaction'], ['reviews', 'Reviews'], ['loans', 'Loans & Payments'], ['history', 'History & Score']] as const).map(([k, label]) => (
+        {([['details', 'Customer Details'], ['transaction', 'Transaction'], ['reviews', 'Reviews'], ['loans', 'Loans & Payments'], ['history', 'History & Score']] as const).filter(([k]) => k !== 'history' || can('customersHistory')).map(([k, label]) => (
           <button key={k} type="button" onClick={() => setDetailTab(k)}
             className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${detailTab === k ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
             {label}
@@ -661,7 +665,7 @@ export default function CustomersPage({ session }: { session: Session }) {
       <form onSubmit={saveEdit} className="space-y-4">
           <div className="rounded-[1.75rem] border border-white/70 bg-white shadow-panel flex items-center justify-between px-6 py-4">
             <p className="text-sm font-semibold">Customer Details</p>
-            {session.role === 'Admin' && !editing && (
+            {can('customersEdit') && !editing && (
               <button type="button" onClick={() => setEditing(true)} className="rounded-xl bg-[#f4f5f7] px-3 py-2 text-xs font-semibold">Edit</button>
             )}
             {editing && (
@@ -823,7 +827,7 @@ export default function CustomersPage({ session }: { session: Session }) {
       <div className="flex items-center gap-3 flex-wrap">
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name, phone, place…"
           data-no-upper className="flex-1 min-w-0 max-w-sm rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2.5 text-sm outline-none focus:border-[#1a1a2e]" />
-        {session.role === 'Admin' && !deleteMode && (
+        {can('customersDelete') && !deleteMode && (
           <button onClick={() => { setDeleteMode(true); setSelected(new Set()) }}
             className="rounded-2xl border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-600">
             Delete
@@ -886,7 +890,7 @@ export default function CustomersPage({ session }: { session: Session }) {
             {!deleteMode && (
               <div className="flex gap-2 pt-1">
                 <button onClick={() => { setDetail(c); setEditing(false) }} className="rounded-xl border border-[#e5e7eb] px-3 py-1.5 text-xs font-semibold">View</button>
-                {session.role === 'Admin' && <button onClick={() => { setDetail(c); setEditing(true) }} className="rounded-xl bg-[#f4f5f7] px-3 py-1.5 text-xs font-semibold">Edit</button>}
+                {can('customersEdit') && <button onClick={() => { setDetail(c); setEditing(true) }} className="rounded-xl bg-[#f4f5f7] px-3 py-1.5 text-xs font-semibold">Edit</button>}
               </div>
             )}
           </div>

@@ -6,7 +6,12 @@ export type Holder = 'staff' | 'agent' | 'guarantor'
 export interface Feature { key: string; label: string; group: string; holders: Holder[]; view: string }
 
 export const FEATURES: Feature[] = [
-  { key: 'customers',   label: 'Customers',             group: 'Customers',  holders: ['staff'], view: 'customers' },
+  { key: 'customers',   label: 'Customers: view and repayment history (old switch)', group: 'Customers', holders: ['staff'], view: 'customers' },
+  { key: 'customersView',    label: 'Customers: view customers, loans and payments', group: 'Customers', holders: ['staff'], view: '' },
+  { key: 'customersHistory', label: 'Customers: repayment history and score',        group: 'Customers', holders: ['staff'], view: '' },
+  { key: 'customersEdit',    label: 'Customers: edit details (phone, address, bank, PAN)', group: 'Customers', holders: ['staff'], view: '' },
+  { key: 'customersReadmit', label: 'Customers: re-admit a permanently closed customer',   group: 'Customers', holders: ['staff'], view: '' },
+  { key: 'customersDelete',  label: 'Customers: delete customers',                   group: 'Customers', holders: ['staff'], view: '' },
   { key: 'leads',       label: 'Leads: all parts (everything below)', group: 'Leads', holders: ['staff'], view: 'leads' },
   { key: 'leadsView',     label: 'Leads: view leads and history',   group: 'Leads', holders: ['staff'], view: '' },
   { key: 'leadsEdit',     label: 'Leads: edit details, scan Drive folder, add a lead', group: 'Leads', holders: ['staff'], view: '' },
@@ -47,6 +52,11 @@ export const FEATURES: Feature[] = [
 export const LEAD_PARTS = ['leadsView', 'leadsEdit', 'leadsAssign', 'leadsApprove', 'leadsDisburse', 'leadsRenew', 'leadsClose', 'leadsDelete']
 /** Keys that allow one part: the part itself or the all-parts key */
 export const lead = (part: string) => [part, 'leads']
+/** Customers parts. The old `customers` key = view + history only (editing needs customersEdit; re-admit and delete were Admin-only and stay so until given). */
+export const CUSTOMER_PARTS = ['customersView', 'customersHistory', 'customersEdit', 'customersReadmit', 'customersDelete']
+export const customer = (part: string) => (part === 'customersView' || part === 'customersHistory') ? [part, 'customers'] : [part]
+export const hasAnyCustomer = (perms: string[]) => perms.includes('customers') || CUSTOMER_PARTS.some(k => perms.includes(k))
+
 /** Does this person get the Leads menu item? Any lead key. */
 export const hasAnyLead = (perms: string[]) => perms.includes('leads') || LEAD_PARTS.some(k => perms.includes(k))
 
@@ -55,9 +65,9 @@ export const FEATURE_KEYS = new Set(FEATURES.map(f => f.key))
 // Starting defaults per branch role (editable by the Admin: settings key `role_defaults`). Same sets that were
 // only "suggestions" before, so nothing changes until the Admin edits them.
 export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
-  manager:           ['customers', ...LEAD_PARTS, 'collection', 'settlements', 'reports', 'guarantors', 'agentTracking', 'verificationPlanning'],
-  assistant_manager: ['customers', 'leadsView', 'leadsEdit', 'leadsAssign', 'leadsApprove', 'leadsDisburse', 'leadsRenew', 'leadsClose', 'collection', 'reports', 'guarantors', 'agentTracking', 'verificationPlanning'],
-  accountant:        ['customers', 'leadsView', 'leadsApprove', 'leadsDisburse', 'reports', 'settlements', 'agentTracking', 'verificationPlanning'],
+  manager:           [...CUSTOMER_PARTS, ...LEAD_PARTS, 'collection', 'settlements', 'reports', 'guarantors', 'agentTracking', 'verificationPlanning'],
+  assistant_manager: ['customersView', 'customersHistory', 'customersEdit', 'leadsView', 'leadsEdit', 'leadsAssign', 'leadsApprove', 'leadsDisburse', 'leadsRenew', 'leadsClose', 'collection', 'reports', 'guarantors', 'agentTracking', 'verificationPlanning'],
+  accountant:        ['customersView', 'customersHistory', 'leadsView', 'leadsApprove', 'leadsDisburse', 'reports', 'settlements', 'agentTracking', 'verificationPlanning'],
   cashier:           ['collection', 'settlements', 'leadsView', 'leadsDisburse'],
   agent:             [],
   // pages a guarantor sees until the Admin customises that one guarantor (everything they always had; chat is off by default)
