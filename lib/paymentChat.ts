@@ -8,7 +8,7 @@ import { getTodayIST, nowIST } from './dateUtils'
 import { getOrCreateFolder, saveFile, driveUrl } from './drive'
 import { APP_CONFIG } from './config'
 import { getAccess, markPayment, lookupUtr, normalizeUtr, validUtr, needGuarantor, PaymentError, type Access } from './payments'
-import { readSlip, slipReaderConfigured, providerKeys, pickProvider, nvidiaModel, SLIP_MODEL, type SlipReading, type Provider } from './slipReader'
+import { readSlip, slipReaderConfigured, providerKeys, pickProvider, nvidiaModel, nvidiaModelList, SLIP_MODEL, type SlipReading, type Provider } from './slipReader'
 import { payCodeFromLoanId } from './payCode'
 import { canSeeGuarantor, guarantorBranchMap } from './branchAccess'
 import type { Session } from '../types'
@@ -371,7 +371,7 @@ export { getAccess }
 
 
 // Admin test: read one screenshot with a chosen reader and show the result. Nothing is saved or recorded.
-export async function testRead(access: Access, provider: string, image: { mimeType: string; base64Data: string } | null | undefined) {
+export async function testRead(access: Access, provider: string, image: { mimeType: string; base64Data: string } | null | undefined, model?: string) {
   if (!access.isAdmin) throw new PaymentError('Only an Admin can test the reader')
   const prov = provider === 'nvidia' ? 'nvidia' : 'claude'
   if (!(await providerKeys())[prov]) throw new PaymentError(prov === 'nvidia' ? 'No NVIDIA key is set (NVIDIA_API_KEY)' : 'No Claude key is set (ANTHROPIC_API_KEY)')
@@ -381,9 +381,16 @@ export async function testRead(access: Access, provider: string, image: { mimeTy
   if (Buffer.from(b64, 'base64').length > MAX_IMAGE_BYTES) throw new PaymentError('The picture is too big')
   const t0 = Date.now()
   try {
-    const r = await readSlip(b64, media, prov)
+    const m = prov === 'nvidia' && model && /^[\w.\-/]{3,120}$/.test(model) ? model : undefined
+    const r = await readSlip(b64, media, prov, m)
     return { ok: true, provider: r.provider, model: r.model, ms: Date.now() - t0, reading: r.reading, inTokens: r.inTokens, outTokens: r.outTokens, costUsd: r.costUsd, error: '' }
   } catch (e) {
-    return { ok: false, provider: prov, model: prov === 'nvidia' ? await nvidiaModel() : SLIP_MODEL, ms: Date.now() - t0, reading: null, inTokens: 0, outTokens: 0, costUsd: 0, error: e instanceof Error ? e.message.slice(0, 300) : 'Failed' }
+    let hint = ''
+    if (prov === 'nvidia') {
+      const all = await nvidiaModelList()
+      const vis = all.filter(id => /vl|vision|vila|neva|omni|paligemma|phi-.*vision|llama-3\.2-\d+b-vision|gemma-3|kosmos|fuyu/i.test(id))
+      hint = all.length ? ` Models this key can use that look like vision models: ${(vis.length ? vis : all).slice(0, 12).join(', ')}` : ' (Could not list the models for this key.)'
+    }
+    return { ok: false, provider: prov, model: prov === 'nvidia' ? await nvidiaModel() : SLIP_MODEL, ms: Date.now() - t0, reading: null, inTokens: 0, outTokens: 0, costUsd: 0, error: (e instanceof Error ? e.message.slice(0, 300) : 'Failed') + hint }
   }
 }

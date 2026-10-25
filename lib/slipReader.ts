@@ -79,8 +79,8 @@ export async function pickProvider(setting: string): Promise<Provider | null> {
 type ReadResult = { reading: SlipReading; inTokens: number; outTokens: number; costUsd: number; provider: Provider; model: string }
 type Media = 'image/jpeg' | 'image/png' | 'image/webp'
 
-export async function readSlip(base64: string, mediaType: Media, provider: Provider = 'claude'): Promise<ReadResult> {
-  return provider === 'nvidia' ? readWithNvidia(base64, mediaType) : readWithClaude(base64, mediaType)
+export async function readSlip(base64: string, mediaType: Media, provider: Provider = 'claude', modelOverride?: string): Promise<ReadResult> {
+  return provider === 'nvidia' ? readWithNvidia(base64, mediaType, modelOverride) : readWithClaude(base64, mediaType)
 }
 
 async function readWithClaude(base64: string, mediaType: Media): Promise<ReadResult> {
@@ -136,15 +136,15 @@ async function nvidiaCall(model: string, userContent: unknown): Promise<{ text: 
     body: JSON.stringify({ model, messages: [{ role: 'system', content: SYSTEM + ' ' + JSON_SHAPE }, { role: 'user', content: userContent }], max_tokens: 600, temperature: 0, stream: false }),
     signal: AbortSignal.timeout(45_000),
   })
-  if (!res.ok) throw new Error(`NVIDIA ${res.status}: ${(await res.text().catch(() => '')).slice(0, 200)}`)
+  if (!res.ok) throw new Error(`NVIDIA ${res.status} at ${base}/chat/completions with model "${model}": ${(await res.text().catch(() => '')).trim().slice(0, 200)}`)
   const j = await res.json() as { choices?: { message?: { content?: string } }[]; usage?: { prompt_tokens?: number; completion_tokens?: number } }
   const text = j.choices?.[0]?.message?.content
   if (!text) throw new Error('NVIDIA gave no answer')
   return { text, inT: j.usage?.prompt_tokens || 0, outT: j.usage?.completion_tokens || 0 }
 }
 
-async function readWithNvidia(base64: string, mediaType: Media): Promise<ReadResult> {
-  const model = await nvidiaModel()
+async function readWithNvidia(base64: string, mediaType: Media, modelOverride?: string): Promise<ReadResult> {
+  const model = modelOverride || await nvidiaModel()
   let out: { text: string; inT: number; outT: number }
   try {
     // OpenAI style image part
@@ -155,4 +155,15 @@ async function readWithNvidia(base64: string, mediaType: Media): Promise<ReadRes
     out = await nvidiaCall(model, `Extract the payment details from this screenshot. <img src="data:${mediaType};base64,${base64}" />`)
   }
   return { reading: parseLoose(out.text), inTokens: out.inT, outTokens: out.outT, costUsd: 0, provider: 'nvidia', model }
+}
+
+// Models this NVIDIA key can call (to help pick a vision model). Empty list when it cannot be fetched.
+export async function nvidiaModelList(): Promise<string[]> {
+  try {
+    const base = (process.env.NVIDIA_BASE_URL || 'https://integrate.api.nvidia.com/v1').replace(/\/$/, '')
+    const res = await fetch(`${base}/models`, { headers: { Authorization: `Bearer ${await getConfig('NVIDIA_API_KEY')}` }, signal: AbortSignal.timeout(15_000) })
+    if (!res.ok) return []
+    const j = await res.json() as { data?: { id?: string }[] }
+    return (j.data || []).map(m => String(m.id || '')).filter(Boolean)
+  } catch { return [] }
 }

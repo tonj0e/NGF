@@ -421,12 +421,13 @@ function ReaderTest({ session, keys }: { session: Session; keys: { claude: boole
   const [busy, setBusy] = useState('')
   const [res, setRes] = useState<TestResult[]>([])
   const [err, setErr] = useState('')
+  const [model, setModel] = useState('')
   async function run(providers: string[]) {
     if (!img) return
     setBusy(providers.join('+')); setErr(''); setRes([])
     try {
       const out: TestResult[] = []
-      for (const p of providers) out.push(await api(session, '/api/payment-chat', { action: 'testRead', provider: p, image: { mimeType: img.mimeType, base64Data: img.base64Data } }))
+      for (const p of providers) out.push(await api(session, '/api/payment-chat', { action: 'testRead', provider: p, model: p === 'nvidia' ? model.trim() : undefined, image: { mimeType: img.mimeType, base64Data: img.base64Data } }))
       setRes(out)
     } catch (e) { setErr(e instanceof Error ? e.message : 'Failed') }
     setBusy('')
@@ -440,6 +441,7 @@ function ReaderTest({ session, keys }: { session: Session; keys: { claude: boole
       </label>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       {img && <img src={img.preview} alt="Test screenshot" className="mx-auto max-h-40 rounded-lg border border-[#e5e7eb]" />}
+      {img && keys.nvidia && <input value={model} onChange={e => setModel(e.target.value)} placeholder="NVIDIA model to try (empty = the saved one)" className="w-full rounded-xl border border-[#e5e7eb] bg-white px-3 py-2 font-mono text-xs" />}
       {img && (
         <div className="flex flex-wrap gap-2">
           <button disabled={!!busy || !keys.nvidia} onClick={() => run(['nvidia'])} className="rounded-xl bg-[#1a1a2e] px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">Read with NVIDIA</button>

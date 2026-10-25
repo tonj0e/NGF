@@ -38,7 +38,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
         await audit.log('PAYMENT_CHAT_APPROVE', 'PaymentChat', String(body.messageId), {})
         return ok({ success: true })
       }
-      case 'testRead': return ok(await testRead(access, String(body.provider || ''), body.image))
+      case 'testRead': return ok(await testRead(access, String(body.provider || ''), body.image, body.model ? String(body.model) : undefined))
       case 'settings': {
         const settings = await saveSlipSettings(access, { enabled: body.enabled, dailyCap: body.dailyCap, guarantorCap: body.guarantorCap, payee: body.payee, provider: body.provider })
         await audit.log('PAYMENT_CHAT_SETTINGS', 'PaymentChat', 'settings', { enabled: settings.enabled, dailyCap: settings.dailyCap, guarantorCap: settings.guarantorCap })
