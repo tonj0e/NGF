@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, getSession, requireRole, ok, err } from '@/lib/api'
 import { needFeature } from '@/lib/access'
-import { readTable, appendRow, updateById, invalidateCache, deleteById } from '@/lib/supabase-db'
+import { selectRows, selectAll, getRowById, appendRow, updateById, invalidateCache, deleteById } from '@/lib/supabase-db'
+import { byIds, scopeOf } from '@/lib/db'
 import { computeSummary, guarantorCanSeeCommissions } from '@/lib/commissions'
 import { randomInt } from 'crypto'
 import { getBranchAccess, canSeeGuarantor, canApproveIn, guarantorBranchMap } from '@/lib/branchAccess'
@@ -17,28 +18,25 @@ export const GET = apiHandler(async (req: NextRequest) => {
 
   if (!showAll && !(await guarantorCanSeeCommissions(session))) return err('You do not have access to commissions', 403)
 
-  const [guarantors, payouts] = await Promise.all([
-    readTable('Guarantors'), readTable('PayoutRequests', { forceFresh: true }),
-  ])
-
-  let mine = payouts
+  let mine: Record<string, string>[]
   if (!showAll) {
-    const g = guarantors.find((g: any) => g['User ID'] === session.userId)
+    // a guarantor: only their own requests and loans are read
+    const g = (await selectRows('Guarantors', qb => qb.eq('user_id', session.userId).limit(1))).rows[0]
     if (!g) return err('Guarantor not found', 404)
-    mine = payouts.filter((p: any) => p['Guarantor ID'] === g['Guarantor ID'])
+    mine = await selectAll('PayoutRequests', qb => qb.eq('guarantor_id', g['Guarantor ID']))
 
     if (searchParams.get('summary') === '1') {
-      const loans = await readTable('Loans', { forceFresh: true })
-      const gl = loans.filter(l => l['Guarantor ID'] === g['Guarantor ID'])
+      const gl = await selectAll('Loans', qb => qb.eq('guarantor_id', g['Guarantor ID']))
       return ok(computeSummary(gl, mine))
     }
-  }
-
-  if (showAll && session.role === 'Staff') {
+  } else if (session.role === 'Staff') {
     // Staff see only payout requests of guarantors in their own branches
-    const [access, gMap] = await Promise.all([getBranchAccess(session), guarantorBranchMap()])
-    mine = mine.filter((p: any) => canSeeGuarantor(access, gMap, p['Guarantor ID']))
+    const sc = await scopeOf(session)
+    mine = sc.kind === 'guarantors' ? await byIds('PayoutRequests', 'guarantor_id', sc.ids) : []
+  } else {
+    mine = await selectAll('PayoutRequests', qb => qb)
   }
+  const guarantors = await byIds('Guarantors', 'guarantor_id', mine.map(p => p['Guarantor ID']))
 
   const enriched = mine
     .sort((a: any, b: any) => b['Requested At'].localeCompare(a['Requested At']))
@@ -70,12 +68,12 @@ export const POST = apiHandler(async (req: NextRequest) => {
     const amount = Math.round(Number(body?.amount) * 100) / 100
     if (!Number.isFinite(amount) || amount <= 0) return err('Invalid amount')
 
-    const [guarantors, payouts, loans] = await Promise.all([
-      readTable('Guarantors'), readTable('PayoutRequests', { forceFresh: true }), readTable('Loans', { forceFresh: true }),
-    ])
-    const g = guarantors.find((g: any) => g['User ID'] === session.userId)
+    const g = (await selectRows('Guarantors', qb => qb.eq('user_id', session.userId).limit(1))).rows[0]
     if (!g) return err('Guarantor not found', 404)
     const gid = g['Guarantor ID']
+    const [payouts, loans] = await Promise.all([
+      selectAll('PayoutRequests', qb => qb.eq('guarantor_id', gid)), selectAll('Loans', qb => qb.eq('guarantor_id', gid)),
+    ])
 
     const isPending = (p: any) => p['Guarantor ID'] === gid && p['Status'] === 'Pending'
     if (payouts.some(isPending)) return err('You already have a pending payout request')
@@ -98,7 +96,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
     invalidateCache('PayoutRequests')
 
     // Race guard: if another Pending row for this guarantor slipped in, the newer one (by id) withdraws itself
-    const after = await readTable('PayoutRequests', { forceFresh: true })
+    const after = await selectAll('PayoutRequests', qb => qb.eq('guarantor_id', gid))
     const dupes = after.filter(isPending).map((p: any) => p['Payout ID']).sort()
     if (dupes.length > 1 && dupes[0] !== payoutId) {
       await deleteById('PayoutRequests', payoutId)
@@ -125,8 +123,7 @@ export const PATCH = apiHandler(async (req: NextRequest) => {
   const { payoutId, action } = body // action: 'approve' | 'reject'
   if (!payoutId || !action) return err('payoutId and action required')
 
-  const payouts = await readTable('PayoutRequests')
-  const payout = payouts.find((p: any) => p['Payout ID'] === payoutId)
+  const payout = await getRowById('PayoutRequests', String(payoutId))
   if (!payout) return err('Payout request not found', 404)
 
   // Only a request that is still waiting can be decided; a paid or rejected one is final

@@ -5,14 +5,14 @@ import { readTable, appendRow, updateRow, findRecord, makeId, nowIso, deleteById
 import { hashPassword } from '@/lib/auth'
 import { validatePasswordPolicy } from '@/lib/passwordPolicy'
 import { randomUUID } from 'crypto'
-import { buildGuarantorEarnedMap } from '@/lib/guarantorEarned'
+import { companyTotals } from '@/lib/db'
 
 export const GET = apiHandler(async (req: NextRequest) => {
   await requireFeature(req, [])
-  const [users, agents, guarantors, loans] = await Promise.all([
-    readTable('Users', { forceFresh: true }), readTable('Agents', { forceFresh: true }), readTable('Guarantors', { forceFresh: true }), readTable('Loans', { forceFresh: true }),
+  const [users, agents, guarantors, totals] = await Promise.all([
+    readTable('Users', { forceFresh: true }), readTable('Agents', { forceFresh: true }), readTable('Guarantors', { forceFresh: true }), companyTotals(),
   ])
-  const earnedMap = buildGuarantorEarnedMap(loans)
+  const earnedMap = new Map(Object.entries(totals.commissionByGuarantor))   // commission per guarantor, added up by the database
   return ok({
     staff: users.map(u => ({ userId: u['User ID'], username: u['Username'], role: u['Role'], name: u['Name'], email: u['Email'], phone: u['Phone'] || '', status: u['Status'], createdAt: u['Created At'] })),
     agents: agents.map(a => ({ agentId: a['Agent ID'], userId: a['User ID'], name: a['Name'], phone: a['Phone'], agentType: a['Agent Type'], status: a['Status'] })),

@@ -2,7 +2,8 @@
 // close the loan), show it as WhatsApp text / QR, and settle it when the gateway's webhook confirms the money.
 // All amounts are computed here on the server; the browser never sends an amount.
 import QRCode from 'qrcode'
-import { getSupabase, readTable, makeId, nowIso, invalidateCache } from './supabase-db'
+import { getSupabase, readTable, selectRows, makeId, nowIso, invalidateCache } from './supabase-db'
+import { byIds } from './db'
 import { getGateway, type GatewayEvent } from './gateway'
 import { recordGatewayPayment } from './payments'
 import { finalizeClosure } from './loanClosure'
@@ -36,7 +37,7 @@ export function withFee(base: number, pct: number) {
 async function loanAccess(session: Session, loan: { guarantor_id: string | null }) {
   if (session.role === 'Admin') return { allowed: true, canClose: true }
   if (session.role === 'Guarantor') {
-    const g = (await readTable('Guarantors', { forceFresh: true })).find(x => x['User ID'] === session.userId)
+    const g = (await selectRows('Guarantors', qb => qb.eq('user_id', session.userId).limit(1))).rows[0]
     return { allowed: !!g && loan.guarantor_id === g['Guarantor ID'], canClose: false }   // guarantors send weekly links only
   }
   if (session.role === 'Staff') {
@@ -66,30 +67,38 @@ export async function searchForLinks(session: Session, qRaw: string) {
   if (q.length < 3) throw new LinkError('Type the 4-digit code (or at least 3 letters of the name)')
   await expireOld()
   const sb = getSupabase()
-  const [loansRes, customers, guarantors] = await Promise.all([
-    sb.from('loans').select('loan_id, customer_id, guarantor_id, status, end_date, weekly_collection_amount').eq('status', 'Active'),
-    readTable('Customers', { forceFresh: true }), readTable('Guarantors'),
-  ])
-  const loans = (loansRes.data || []) as LoanRow[]
+  // Find the active loans in the database: by the 4-digit code (end of the loan id), or by customer name / phone / loan id
   const byCode = /^\d{4}$/.test(q)
+  const LOAN_COLS = 'loan_id, customer_id, guarantor_id, status, end_date, weekly_collection_amount'
+  const clean = q.replace(/[,()%*\\"'`;:]/g, ' ').trim()
+  let candidates: LoanRow[] = []
+  if (byCode) {
+    candidates = ((await sb.from('loans').select(LOAN_COLS).eq('status', 'Active').ilike('loan_id', `%${q}`).limit(50)).data || []) as LoanRow[]
+  } else if (clean) {
+    const named = (await sb.from('customers').select('customer_id').or(`name.ilike.%${clean}%,phone.ilike.%${clean}%`).limit(100)).data || []
+    const ors = [`loan_id.ilike.%${clean}%`, ...(named.length ? [`customer_id.in.(${named.map(n => n.customer_id).join(',')})`] : [])].join(',')
+    candidates = ((await sb.from('loans').select(LOAN_COLS).eq('status', 'Active').or(ors).limit(100)).data || []) as LoanRow[]
+  }
   const matched: LoanRow[] = []
-  for (const l of loans) {
-    const c = customers.find(x => x['Customer ID'] === l.customer_id)
-    const hit = byCode ? payCodeFromLoanId(l.loan_id) === q : (c?.['Name'] || '').toLowerCase().includes(q) || String(c?.['Phone'] || '').includes(q) || l.loan_id.toLowerCase().includes(q)
-    if (!hit) continue
+  for (const l of candidates) {
+    if (byCode && payCodeFromLoanId(l.loan_id) !== q) continue
     if (!(await loanAccess(session, l)).allowed) continue
     matched.push(l)
     if (matched.length >= 10) break
   }
   if (!matched.length) return { items: [], feePercent: await getFeePercent() }
   const ids = matched.map(l => l.loan_id)
-  const [repsRes, linesRes, linksRes, feePercent] = await Promise.all([
+  const [customers, guarantors] = await Promise.all([
+    byIds('Customers', 'customer_id', matched.map(l => l.customer_id)), byIds('Guarantors', 'guarantor_id', matched.map(l => l.guarantor_id || '')),
+  ])
+  const [repsRes, linksRes, feePercent] = await Promise.all([
     sb.from('repayments').select('repayment_id, loan_id, week_no, due_date, amount, status').in('loan_id', ids),
-    sb.from('payment_lines').select('repayment_id'),
     sb.from('payment_links').select('*').in('loan_id', ids).eq('status', 'Created'),
     getFeePercent(),
   ])
   const reps = (repsRes.data || []) as RepRow[]
+  // weeks already marked paid by a bank payment: only for these loans' weeks
+  const linesRes = reps.length ? await sb.from('payment_lines').select('repayment_id').in('repayment_id', reps.map(r => r.repayment_id)) : { data: [] as { repayment_id: string }[] }
   const marked = new Set((linesRes.data || []).map(x => x.repayment_id as string))
   const saturday = getThisSaturday()
   const items = []
