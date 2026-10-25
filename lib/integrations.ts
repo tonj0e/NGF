@@ -1,4 +1,4 @@
-// Integration settings managed from the admin panel (Dev > SMS / WhatsApp / Payments / AI Access).
+// Integration settings managed from the admin panel (Dev > SMS / WhatsApp / Payments / AI Reader).
 //  - Keys and tokens ("secrets") are stored ENCRYPTED (AES-256-GCM) in integration_secrets. The encryption key lives on the server
 //    (SETTINGS_ENCRYPTION_KEY, or JWT_SECRET if that is not set), never in the database. The screen can never read a secret back:
 //    it only learns "set" and the last 4 characters.
@@ -7,7 +7,7 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto'
 import { getSupabase, readTable, updateById, appendRow, invalidateCache, nowIso } from './supabase-db'
 
-export type Group = 'sms' | 'whatsapp' | 'gateway'
+export type Group = 'sms' | 'whatsapp' | 'gateway' | 'ai'
 export interface Field { name: string; group: Group; label: string; secret: boolean; hint?: string; options?: string[]; placeholder?: string }
 
 export const FIELDS: Field[] = [
@@ -29,6 +29,10 @@ export const FIELDS: Field[] = [
   { name: 'WHATSAPP_META_TEMPLATE', group: 'whatsapp', label: 'Meta template name', secret: false, placeholder: 'payment_link', hint: 'Must be approved by Meta. Body: see the WhatsApp note in the docs' },
   { name: 'WHATSAPP_META_LANG', group: 'whatsapp', label: 'Meta template language', secret: false, placeholder: 'en' },
   { name: 'WHATSAPP_DAILY_CAP', group: 'whatsapp', label: 'Daily limit of automatic WhatsApp messages', secret: false, placeholder: '300', hint: 'Protects your WhatsApp bill' },
+  // AI reader for payment screenshots (Payments > Chat)
+  { name: 'ANTHROPIC_API_KEY', group: 'ai', label: 'Claude API key', secret: true, hint: 'console.anthropic.com > API keys. Paid, most accurate. Set a monthly spending limit there' },
+  { name: 'NVIDIA_API_KEY', group: 'ai', label: 'NVIDIA API key', secret: true, hint: 'build.nvidia.com > your API key. Free, for testing' },
+  { name: 'NVIDIA_MODEL', group: 'ai', label: 'NVIDIA model', secret: false, placeholder: 'nvidia/nemotron-nano-12b-v2-vl', hint: 'Must be a vision model (one that can read images). Empty = the default shown here' },
   // Payment gateway
   { name: 'GATEWAY_PROVIDER', group: 'gateway', label: 'Gateway', secret: false, options: ['bank', 'simulator'], hint: 'bank = the bank\'s real gateway. simulator = practice only, never works on the live site' },
   { name: 'GATEWAY_MERCHANT_ID', group: 'gateway', label: 'Merchant ID', secret: false },

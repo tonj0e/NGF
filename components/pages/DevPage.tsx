@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import SmsPanel from './SmsPanel'
 import GatewayPanel from './GatewayPanel'
+import IntegrationFields from './IntegrationFields'
 import WhatsAppPanel from './WhatsAppPanel'
 import { Session } from '../../types'
 import { PAYMENT_UNLOCK_KEY } from './CollectionPage'
@@ -558,6 +559,10 @@ export default function DevPage({ session }: { session: Session }) {
           className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${subTab === 'payments' ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
           Payments
         </button>
+        <button onClick={() => setSubTab('aiReader')}
+          className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${subTab === 'aiReader' ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
+          AI Reader
+        </button>
         <button onClick={() => setSubTab('note')}
           className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${subTab === 'note' ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
           Promissory Note
@@ -979,6 +984,12 @@ export default function DevPage({ session }: { session: Session }) {
       {subTab === 'sms' && <SmsPanel session={session} />}
       {subTab === 'whatsapp' && <WhatsAppPanel session={session} />}
       {subTab === 'payments' && <GatewayPanel session={session} />}
+      {subTab === 'aiReader' && (
+        <div className="rounded-[1.75rem] border border-white/70 bg-white p-6 shadow-panel space-y-3">
+          <div><p className="text-sm font-semibold">AI screenshot reader</p><p className="text-xs text-[#697586]">Keys for reading payment screenshots in Payments. Saved encrypted; the keys are never shown again. To choose which one is used, and to test a screenshot, open Payments &gt; Settings.</p></div>
+          <IntegrationFields session={session} group="ai" />
+        </div>
+      )}
 
       {subTab === 'note' && (
         <div className="rounded-[1.75rem] border border-white/70 bg-white shadow-panel p-6 space-y-4">

@@ -33,9 +33,9 @@ export async function slipSettings() {
     guarantorCap: Math.max(0, Number(v(KEYS.guarantorCap) ?? 300) || 0),
     payee: String(v(KEYS.payee) ?? ''),
     provider: ['claude', 'nvidia'].includes(String(v(KEYS.provider))) ? String(v(KEYS.provider)) : 'auto',
-    keys: providerKeys(),
-    keyPresent: slipReaderConfigured(),
-    model: SLIP_MODEL, nvidiaModel: nvidiaModel(),
+    keys: await providerKeys(),
+    keyPresent: await slipReaderConfigured(),
+    model: SLIP_MODEL, nvidiaModel: await nvidiaModel(),
   }
 }
 export async function saveSlipSettings(access: Access, input: { enabled?: boolean; dailyCap?: number; guarantorCap?: number; payee?: string; provider?: string }) {
@@ -272,7 +272,7 @@ export async function submitSlip(session: Session, access: Access, input: Submit
   const cfg = await slipSettings()
   const toOffice = (why: string) => finish('Pending Staff', `${why} Sent to the office to check.`, reset)
   if (!imageHash || !media) return toOffice('A new picture is needed to read it.')
-  const prov: Provider | null = pickProvider(cfg.provider)
+  const prov: Provider | null = await pickProvider(cfg.provider)
   if (!prov || !cfg.enabled) return toOffice('Automatic reading is switched off.')
   const dayStart = istStart(0)
   const { count: today } = await sb.from('payment_chat').select('message_id', { count: 'exact', head: true }).gt('in_tokens', 0).gte('created_at', dayStart)
@@ -374,7 +374,7 @@ export { getAccess }
 export async function testRead(access: Access, provider: string, image: { mimeType: string; base64Data: string } | null | undefined) {
   if (!access.isAdmin) throw new PaymentError('Only an Admin can test the reader')
   const prov = provider === 'nvidia' ? 'nvidia' : 'claude'
-  if (!providerKeys()[prov]) throw new PaymentError(prov === 'nvidia' ? 'No NVIDIA key is set (NVIDIA_API_KEY)' : 'No Claude key is set (ANTHROPIC_API_KEY)')
+  if (!(await providerKeys())[prov]) throw new PaymentError(prov === 'nvidia' ? 'No NVIDIA key is set (NVIDIA_API_KEY)' : 'No Claude key is set (ANTHROPIC_API_KEY)')
   const media = MEDIA[String(image?.mimeType || '').toLowerCase()]
   if (!media || !image?.base64Data) throw new PaymentError('Send a JPG, PNG or WebP picture')
   const b64 = image.base64Data.replace(/^data:[^,]+,/, '')
@@ -384,6 +384,6 @@ export async function testRead(access: Access, provider: string, image: { mimeTy
     const r = await readSlip(b64, media, prov)
     return { ok: true, provider: r.provider, model: r.model, ms: Date.now() - t0, reading: r.reading, inTokens: r.inTokens, outTokens: r.outTokens, costUsd: r.costUsd, error: '' }
   } catch (e) {
-    return { ok: false, provider: prov, model: prov === 'nvidia' ? nvidiaModel() : SLIP_MODEL, ms: Date.now() - t0, reading: null, inTokens: 0, outTokens: 0, costUsd: 0, error: e instanceof Error ? e.message.slice(0, 300) : 'Failed' }
+    return { ok: false, provider: prov, model: prov === 'nvidia' ? await nvidiaModel() : SLIP_MODEL, ms: Date.now() - t0, reading: null, inTokens: 0, outTokens: 0, costUsd: 0, error: e instanceof Error ? e.message.slice(0, 300) : 'Failed' }
   }
 }

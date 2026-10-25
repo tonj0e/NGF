@@ -396,6 +396,7 @@ export function ChatSettings({ session }: { session: Session }) {
               <option value="nvidia">NVIDIA Nemotron (free, for testing)</option>
             </select>
             <p className="text-xs text-[#697586]">Claude key: <b>{d.settings.keys.claude ? 'set' : 'not set'}</b> · NVIDIA key: <b>{d.settings.keys.nvidia ? 'set' : 'not set'}</b> · NVIDIA model: <span className="font-mono">{d.settings.nvidiaModel}</span></p>
+            <p className="text-xs text-[#697586]">Keys and the NVIDIA model are entered in Dev &gt; AI Reader.</p>
             <p className="text-xs text-[#697586]">The NVIDIA free service is meant for trying things out and has its own speed limits. The picture is sent to NVIDIA for reading. Use it to test, then switch to Claude for real use.</p>
             <ReaderTest session={session} keys={d.settings.keys} />
           </div>
