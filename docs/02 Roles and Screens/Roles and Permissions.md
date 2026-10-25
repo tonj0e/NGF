@@ -6,7 +6,7 @@ last_verified: 2026-10-17
 tags: [ngf, roles-screens, permissions, security]
 ---
 # Roles and Permissions
-**One line: four roles, checked on the server by role name only; Staff menu permissions are cosmetic.**
+**One line: four roles; Staff features are checked on the server by feature key (since 2026-10-25), and the Admin sets role defaults plus per-person extras.**
 
 ## Key facts
 | Role | Who | By design |
@@ -17,6 +17,14 @@ tags: [ngf, roles-screens, permissions, security]
 | `Staff` | Branch employee | Whatever the Admin grants in Dev, Branches (menu only) |
 
 Types: `Role` in `types/index.ts:1`. Role list: `lib/config.ts:13`.
+
+**Feature access (2026-10-25)** — design `docs/superpowers/specs/2026-10-25-feature-access-design.md`.
+- One registry `lib/features.ts` (`FEATURES`, `effectivePermissions`, `canUse`); `APP_CONFIG.STAFF_FEATURES` is generated from it.
+- Server: `lib/access.ts` `requireFeature(req, keys, roles)` and `needFeature(session, keys)`; `loadPermissions(session)` = branch-role defaults + the person's `staff_access.permissions` extras minus `-key` removals. Admin always passes. Empty `keys` = any feature.
+- Role defaults live in `settings` key `role_defaults` (JSON role -> keys), edited in NGF Branches → "Role defaults" (`POST /api/branches` `saveRoleDefaults`). **Until saved, nobody gets defaults**: only per-person ticks count, so nothing changed when this shipped. `GET /api/branches?self=1` returns `effective`; menus read it.
+- Person dialog (AddUserDialog) shows Default / Extra / Removed once defaults are saved.
+- Routes now checked: customers (+PATCH), leads, leads/[leadId], disbursements, loans/close, settlements, settlements/due, deposits, deposits/request, agent/location|attendance|trips (agentTracking or verificationPlanning), collection-sheet (collection), repayments POST (collection, settlements or payMark), financial-analytics, import-customer, review-options (POST/PATCH/DELETE), commissions/payout (payoutRequests); shared reads (customers, loans, repayments, leads GET, profile, staff list) need any feature. New keys: deposits, financialAnalytics, importCustomer, payoutRequests, reviewOptions.
+- Not done yet: agent pages as features, guarantor page keys in the registry, splitting Leads/Collection into parts (stage 3).
 
 **Staff detail**: `staff_access.permissions` is a list of keys from `APP_CONFIG.STAFF_FEATURES`: customers, leads, collection, settlements, guarantors, reports, agentTracking, plus the payment-matching keys `upiPayments`, `upiPaymentsBank`, `upiPaymentsOverride` (`lib/config.ts`; entries with `view: ''` add no menu item). Agents can also be given the payment-matching keys (Dev → Branches → Staff Access lists Staff and Agents); see [[Payment Matching]]. Admin sets them via `POST /api/branches`. `GET /api/branches?self=1` returns the caller's own list; `AppShell` builds the menu from it (`AppShell.tsx:125-155`).
 **Branch roles** `manager, accountant, cashier, collection_agent` live in `branch_staff_roles` (`role_in_branch`). `BRANCH_ROLES` only gives suggested permission sets (`lib/config.ts:26-31`). **Exception since 2026-10-21:** approving a lead or renewal, marking it disbursed and closing a loan early check the branch role (manager, assistant manager, accountant of the lead's branch, or Admin), and Staff see only their branch's leads; overriding a failed OTP on a renewal is manager, assistant manager or Admin (`lib/branchAccess.ts`, [[Customer OTP and Disbursement]]). **Branch scope extended 2026-10-23** (regression bugs 3-5; helpers `guarantorBranchMap`, `canSeeGuarantor`, `customerGuarantorId`, `branchesOfUser` in `lib/branchAccess.ts`): a Staff user now sees and acts only on data of guarantors/agents in their own branches in these routes: `customers` GET/PATCH, `customers/history`, `loans` GET, `repayments` GET/POST, `settlements` GET/POST/PATCH and `settlements/due`, `commissions/payout` list and approve (approver roles only), `payments` (Payment Matching: guarantor list, collect sheet, mark, edit UTR, override, discard, records, bank report), `profile` of another user, `agent/attendance` GET, `agent/location` stream. `DELETE /api/customers` is Admin only. Dashboard totals are scoped per role (Admin all, Guarantor own, agent assigned, Staff their branches; capital figures Admin only). Admin is unchanged. A Staff user with no branch role sees nothing there. See [[Branches and Staff]].
@@ -62,9 +70,8 @@ Types: `Role` in `types/index.ts:1`. Role list: `lib/config.ts:13`.
 | `/api/setup` | POST | header secret, no session |
 
 ## Rules and gotchas
-- **Hidden only, not enforced**: the Staff menu (what the Admin ticks in Dev) and branch roles. A menu hides a screen; it does not block the API behind it.
+- **Enforced since 2026-10-25**: Staff feature keys (see Feature access above). Branch roles still matter for approve/disburse/OTP override.
 - **Enforced**: the Admin-only routes above, and Guarantor/Agent row scoping on list routes.
-- Known issue: Staff permission keys are never read by an API route (grep of `app/api` shows `permissions` only in `branches` and `staff`). Any active Staff user has Admin-equivalent read/write on `Admin, Staff` routes.
 - Known issue: `POST /api/repayments` has no role check (`app/api/repayments/route.ts:103-105`). A Guarantor token can mark any repayment paid by id.
 - Known issue: `GET /api/review-options` is open to unauthenticated callers (`review-options/route.ts:5`). Low risk (labels only).
 - Known issue: `GET /api/dev/migrate-db` has `requireRole` commented out (`dev/migrate-db/route.ts:195-197`). See [[Open Security Leads]].
