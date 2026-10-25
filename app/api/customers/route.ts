@@ -1,5 +1,7 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, getSession, requireRole, ok, err } from '@/lib/api'
+import { needFeature } from '@/lib/access'
+import { requireFeature } from '@/lib/access'
 import { readTable, updateById, deleteById, findRecord, nowIso, invalidateCache } from '@/lib/supabase-db'
 import { getLeadDocFolder, uploadLeadPhoto } from '@/lib/drive'
 import { getTodayIST } from '@/lib/dateUtils'
@@ -10,6 +12,7 @@ export const maxDuration = 30
 
 export const GET = apiHandler(async (req: NextRequest) => {
   const session = await getSession(req)
+  await needFeature(session, [])
   const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 25000))
   const [customers, loans, guarantors, agents, repayments, leads] = await Promise.race([
     Promise.all([
@@ -92,7 +95,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
 })
 
 export const PATCH = apiHandler(async (req: NextRequest) => {
-  const session = await requireRole(req, ['Admin', 'Staff'])
+  const session = await requireFeature(req, ['customers'])
   const body = await req.json()
   const { customerId } = body
   if (!customerId) return err('customerId required')

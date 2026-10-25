@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, requireRole, ok, err } from '@/lib/api'
+import { requireFeature } from '@/lib/access'
 import { readTable, updateById, appendRow, makeId, nowIso, invalidateCache, getSupabase } from '@/lib/supabase-db'
 import { getTodayIST } from '@/lib/dateUtils'
 import { csrfProtection } from '@/lib/csrf'
@@ -16,7 +17,7 @@ import { finalizeClosure } from '@/lib/loanClosure'
 const MODES: Record<string, string> = { Cash: 'Cash', UPI: 'UPI', Bank: 'Bank', Cheque: 'Cheque', Other: 'Other' }
 
 async function load(req: NextRequest, loanId: string) {
-  const session = await requireRole(req, ['Admin', 'Staff'])
+  const session = await requireFeature(req, ['leads'])
   const [loans, repayments, customers] = await Promise.all([readTable('Loans', { forceFresh: true }), readTable('Repayments', { forceFresh: true }), readTable('Customers', { forceFresh: true })])
   const loan = loans.find(l => l['Loan ID'] === loanId)
   if (!loan) return { error: err('Loan not found', 404) }

@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, requireRole, ok, err } from '@/lib/api'
+import { requireFeature } from '@/lib/access'
 import { readTable, appendRow, updateRow, findRecord, makeId, nowIso, deleteById, updateById, getRowsByField, getSupabase } from '@/lib/supabase-db'
 import { hashPassword } from '@/lib/auth'
 import { validatePasswordPolicy } from '@/lib/passwordPolicy'
@@ -7,7 +8,7 @@ import { randomUUID } from 'crypto'
 import { buildGuarantorEarnedMap } from '@/lib/guarantorEarned'
 
 export const GET = apiHandler(async (req: NextRequest) => {
-  await requireRole(req, ['Admin', 'Staff'])
+  await requireFeature(req, [])
   const [users, agents, guarantors, loans] = await Promise.all([
     readTable('Users', { forceFresh: true }), readTable('Agents', { forceFresh: true }), readTable('Guarantors', { forceFresh: true }), readTable('Loans', { forceFresh: true }),
   ])

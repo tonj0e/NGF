@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, requireRole, ok, err } from '@/lib/api'
+import { requireFeature } from '@/lib/access'
 import { readTable, appendRow, updateById, findRecord, makeId, nowIso, invalidateCache } from '@/lib/supabase-db'
 import { getTodayIST } from '@/lib/dateUtils'
 import { getBranchAccess, canSeeBranch, guarantorBranchMap, type BranchAccess } from '@/lib/branchAccess'
@@ -15,7 +16,7 @@ async function staffEntityScope(session: { userId: string; role: string }): Prom
 }
 
 export const GET = apiHandler(async (req: NextRequest) => {
-  const session = await requireRole(req, ['Admin', 'Staff'])
+  const session = await requireFeature(req, ['settlements'])
   const { searchParams } = new URL(req.url)
   const saturday = searchParams.get('saturday') || ''
 
@@ -39,10 +40,10 @@ export const GET = apiHandler(async (req: NextRequest) => {
 })
 
 export const POST = apiHandler(async (req: NextRequest) => {
-  await requireRole(req, ['Admin', 'Staff'])
+  await requireFeature(req, ['settlements'])
   const body = await req.json()
   const { entityType, entityId, entityName, saturdayDate, notes } = body
-  const session = await requireRole(req, ['Admin', 'Staff'])
+  const session = await requireFeature(req, ['settlements'])
   // Amounts must be real, non-negative numbers; the recorder is always the signed-in user
   const money = (v: unknown) => { const n = Number(v ?? 0); return Number.isFinite(n) && n >= 0 && n < 1e9 ? n : NaN }
   const totalCashDue = money(body.totalCashDue), totalUpiDue = money(body.totalUpiDue), amountSubmitted = money(body.amountSubmitted)
@@ -96,7 +97,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
 })
 
 export const PATCH = apiHandler(async (req: NextRequest) => {
-  const session = await requireRole(req, ['Admin', 'Staff'])
+  const session = await requireFeature(req, ['settlements'])
   const { settlementId, amountSubmitted, notes } = await req.json()
   if (!settlementId) return err('settlementId required')
 

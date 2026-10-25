@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, getSession, requireRole, ok, err } from '@/lib/api'
+import { needFeature } from '@/lib/access'
 import { readTable, updateById, findRecord, formatDateYmd, addDays, nowIso, invalidateCache } from '@/lib/supabase-db'
 import { getTodayIST } from '@/lib/dateUtils'
 import { guarantorCanSeeCommissions } from '@/lib/commissions'
@@ -7,6 +8,7 @@ import { getBranchAccess, canSeeGuarantor, guarantorBranchMap } from '@/lib/bran
 
 export const GET = apiHandler(async (req: NextRequest) => {
   const session = await getSession(req)
+  await needFeature(session, [])
   const { searchParams } = new URL(req.url)
   const filter = searchParams.get('filter') || 'all'
 

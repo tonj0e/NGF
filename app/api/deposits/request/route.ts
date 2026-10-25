@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, getSession, requireRole, ok, err } from '@/lib/api'
+import { requireFeature } from '@/lib/access'
 import { readTable, appendRow, updateById, findRecord, makeId, nowIso, invalidateCache, getSupabase } from '@/lib/supabase-db'
 import { computeDepositAccount, getDepositSettings, DepositTxn, TXN_INTEREST_PAYOUT, TXN_PRINCIPAL_WITHDRAWAL } from '@/lib/deposits'
 import { getTodayIST } from '@/lib/dateUtils'
@@ -19,7 +20,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
       .sort((a, b) => String(b.requestedAt).localeCompare(String(a.requestedAt)))
     return ok({ requests: mine })
   }
-  await requireRole(req, ['Admin', 'Staff'])
+  await requireFeature(req, ['deposits'])
   const pending = requests.filter(r => r['Status'] === 'Pending')
     .map(r => {
       const g = guarantors.find(x => x['Guarantor ID'] === r['Guarantor ID'])
@@ -69,7 +70,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
 
 // PATCH → admin/staff approves a request: records the ledger entry, marks it Paid
 export const PATCH = apiHandler(async (req: NextRequest) => {
-  const session = await requireRole(req, ['Admin', 'Staff'])
+  const session = await requireFeature(req, ['deposits'])
   const { requestId } = await req.json()
   if (!requestId) return err('requestId required')
 

@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, requireRole, ok, err, getSession } from '@/lib/api'
+import { requireFeature } from '@/lib/access'
 import { readTable, appendRow, makeId, nowIso, formatDateYmd, addDays, getNextSaturday, invalidateCache, queryTable } from '@/lib/supabase-db'
 import { validateBody, tripSchema } from '@/lib/validation'
 import { createAuditLogger, AUDIT_ACTIONS } from '@/lib/audit'
@@ -72,7 +73,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
 })
 
 export const GET = apiHandler(async (req: NextRequest) => {
-  const session = await requireRole(req, ['NGF AGENT', 'Admin', 'Staff'])
+  const session = await requireFeature(req, ['agentTracking', 'verificationPlanning'], ['NGF AGENT', 'Admin', 'Staff'])
   const { searchParams } = new URL(req.url)
   const weekStart = searchParams.get('weekStart') || ''
   const agentId = searchParams.get('agentId') || ''

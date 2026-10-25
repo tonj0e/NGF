@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, getSession, requireRole, ok, err } from '@/lib/api'
+import { needFeature } from '@/lib/access'
 import { readTable, appendRow, findRecord, makeId, nowIso, paginate } from '@/lib/supabase-db'
 import { getLeadDocFolder, uploadLeadPhoto, docLabel } from '@/lib/drive'
 import { notifyRole, notifyUser } from '@/lib/notifications'
@@ -12,6 +13,7 @@ import { checkRenewalEligibility, customerForRenewalLead, isPermanentlyBlockedAa
 
 export const GET = apiHandler(async (req: NextRequest) => {
   const session = await getSession(req)
+  await needFeature(session, [])
   const { searchParams } = new URL(req.url)
   const status = searchParams.get('status') || ''
   const page = Number(searchParams.get('page') || 1)
@@ -90,6 +92,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
 
 export const POST = apiHandler(async (req: NextRequest) => {
   const session = await getSession(req)
+  await needFeature(session, ['leads', 'verificationPlanning'])
 
   const csrfError = csrfProtection(req, session.userId)
   if (csrfError) return csrfError

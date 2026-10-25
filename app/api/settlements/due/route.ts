@@ -1,10 +1,11 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, requireRole, ok } from '@/lib/api'
+import { requireFeature } from '@/lib/access'
 import { getBranchAccess, canSeeGuarantor, guarantorBranchMap } from '@/lib/branchAccess'
 import { readTable } from '@/lib/supabase-db'
 
 export const GET = apiHandler(async (req: NextRequest) => {
-  const session = await requireRole(req, ['Admin', 'Staff'])
+  const session = await requireFeature(req, ['settlements'])
   const { searchParams } = new URL(req.url)
   const saturday = searchParams.get('saturday') || ''
   const all = searchParams.get('all') === 'true'

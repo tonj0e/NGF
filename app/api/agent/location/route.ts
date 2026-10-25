@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { getBranchAccess, canSeeBranch } from '@/lib/branchAccess'
 import { apiHandler, requireRole, ok, err } from '@/lib/api'
+import { requireFeature } from '@/lib/access'
 import { readTable, updateById, getRowById, formatDateYmd } from '@/lib/supabase-db'
 
 // In-memory connections for SSE (in production, use Redis or similar)
@@ -91,7 +92,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
 
 // GET - Admin/Staff fetch all agent locations (initial load)
 export const GET = apiHandler(async (req: NextRequest) => {
-  const session = await requireRole(req, ['Admin', 'Staff'])
+  const session = await requireFeature(req, ['agentTracking', 'verificationPlanning'])
   const access = await getBranchAccess(session)   // Admin: every branch; Staff: only the branches where they hold a role
 
   const url = new URL(req.url)
@@ -141,7 +142,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
 
 // SSE endpoint for real-time updates
 export const PATCH = apiHandler(async (req: NextRequest) => {
-  const session = await requireRole(req, ['Admin', 'Staff'])
+  const session = await requireFeature(req, ['agentTracking', 'verificationPlanning'])
   const access = await getBranchAccess(session)
 
   const url = new URL(req.url)

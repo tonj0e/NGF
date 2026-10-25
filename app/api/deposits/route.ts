@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, getSession, requireRole, ok, err } from '@/lib/api'
+import { requireFeature } from '@/lib/access'
 import { readTable, appendRow, makeId, nowIso } from '@/lib/supabase-db'
 import { computeDepositAccount, getDepositSettings, DepositTxn, TXN_DEPOSIT, TXN_INTEREST_PAYOUT, TXN_PRINCIPAL_WITHDRAWAL } from '@/lib/deposits'
 import { getTodayIST } from '@/lib/dateUtils'
@@ -40,7 +41,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
   }
 
   // Admin / Staff
-  await requireRole(req, ['Admin', 'Staff'])
+  await requireFeature(req, ['deposits'])
   if (param) {
     const g = guarantors.find(g => g['Guarantor ID'] === param)
     if (!g) return err('Guarantor not found', 404)
@@ -60,7 +61,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
 
 // POST → admin/staff records a ledger transaction (deposit / principal withdrawal / interest payout)
 export const POST = apiHandler(async (req: NextRequest) => {
-  const session = await requireRole(req, ['Admin', 'Staff'])
+  const session = await requireFeature(req, ['deposits'])
   const body = await req.json()
   const { guarantorId, type } = body
   const amount = Number(body.amount || 0)

@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, getSession, ok, err } from '@/lib/api'
+import { needFeature } from '@/lib/access'
 import { readTable, updateById, appendRow, makeId, nowIso, paginate, invalidateCache, getSupabase } from '@/lib/supabase-db'
 import { APP_CONFIG } from '@/lib/config'
 import { saveFileSupabase } from '@/lib/drive'
@@ -8,6 +9,7 @@ import { getBranchAccess, canSeeGuarantor, guarantorBranchMap } from '@/lib/bran
 
 export const GET = apiHandler(async (req: NextRequest) => {
   const session = await getSession(req)
+  await needFeature(session, [])
   const { searchParams } = new URL(req.url)
   const mode = searchParams.get('mode') || ''
   const search = (searchParams.get('search') || '').toLowerCase().trim()
@@ -106,6 +108,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
 
 export const POST = apiHandler(async (req: NextRequest) => {
   const session = await getSession(req)
+  await needFeature(session, ['collection', 'settlements', 'payMark'])
   const body = await req.json()
   const { repaymentId, paymentMode, notes, paymentProof, status, reviewLabel } = body
 

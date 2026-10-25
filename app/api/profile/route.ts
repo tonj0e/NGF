@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, getSession, requireRole, ok, err } from '@/lib/api'
+import { requireFeature } from '@/lib/access'
 import { readTable, appendRow, updateById, nowIso, invalidateCache } from '@/lib/supabase-db'
 import { APP_CONFIG } from '@/lib/config'
 import { saveFileSupabase } from '@/lib/drive'
@@ -26,7 +27,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const target = searchParams.get('userId')
   let userId = session.userId
   if (target && target !== session.userId) {
-    await requireRole(req, ['Admin', 'Staff'])
+    await requireFeature(req, [])
     if (!(await mayOpenProfile(session, target))) return err('This user belongs to another branch', 403)
     userId = target
   }
@@ -71,7 +72,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
   const body = await req.json()
   let userId = session.userId
   if (body.userId && body.userId !== session.userId) {
-    await requireRole(req, ['Admin', 'Staff'])
+    await requireFeature(req, [])
     if (!(await mayOpenProfile(session, body.userId))) return err('This user belongs to another branch', 403)
     userId = body.userId
   }

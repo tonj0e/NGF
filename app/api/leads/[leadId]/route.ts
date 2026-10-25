@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, requireRole, ok, err, getSession } from '@/lib/api'
+import { requireFeature } from '@/lib/access'
 import { readTable, updateById, appendRow, deleteRow, findRecord, makeId, nowIso, formatDateYmd, addDays, deleteById, invalidateCache, getSupabase } from '@/lib/supabase-db'
 import { uploadLeadPhoto, listFolderFiles, driveUrl, getLeadDocFolder, docLabel, renameLeadDocs } from '@/lib/drive'
 import { notifyUser, notifyRole } from '@/lib/notifications'
@@ -47,7 +48,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
     }
     const body = validation.data
 
-    const session = await requireRole(req, ['Admin', 'Staff'])
+    const session = await requireFeature(req, ['leads'])
     const leads = await readTable('Leads', { forceFresh: true })
     const lead = findRecord(leads, 'Lead ID', leadId)
     if (!lead) return err('Lead not found')
@@ -82,7 +83,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
     }
     const body = validation.data
 
-    const session = await requireRole(req, ['Admin', 'Staff'])
+    const session = await requireFeature(req, ['leads'])
     const [leads, agents, users] = await Promise.all([readTable('Leads'), readTable('Agents'), readTable('Users')])
     const lead = findRecord(leads, 'Lead ID', leadId)
     if (!lead) return err('Lead not found')
@@ -203,7 +204,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
     }
     const body = validation.data
 
-    const session = await requireRole(req, ['Admin', 'Staff'])
+    const session = await requireFeature(req, ['leads'])
     const [leads, guarantors] = await Promise.all([readTable('Leads', { forceFresh: true }), readTable('Guarantors')])
     const lead = findRecord(leads, 'Lead ID', leadId)
     if (!lead) return err('Lead not found')
@@ -255,7 +256,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
   }
 
   if (action === 'disburse') {
-    const session = await requireRole(req, ['Admin', 'Staff'])
+    const session = await requireFeature(req, ['leads'])
     const [leads, guarantors, agents] = await Promise.all([readTable('Leads', { forceFresh: true }), readTable('Guarantors'), readTable('Agents')])
     const lead = findRecord(leads, 'Lead ID', leadId)
     if (!lead) return err('Lead not found')
@@ -291,7 +292,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
   }
 
   if (action === 'scanFolder') {
-    const scanSession = await requireRole(req, ['Admin', 'Staff'])
+    const scanSession = await requireFeature(req, ['leads'])
     const leads = await readTable('Leads')
     const lead = findRecord(leads, 'Lead ID', leadId)
     if (!lead) return err('Lead not found')
@@ -343,7 +344,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
 
 export const DELETE = apiHandler(async (req: NextRequest, { params }: any) => {
   const { leadId } = await params
-  const delSession = await requireRole(req, ['Admin', 'Staff'])
+  const delSession = await requireFeature(req, ['leads'])
 
   // First, find and delete any customers that reference this lead
   const [leads, customers, loans, repayments] = await Promise.all([

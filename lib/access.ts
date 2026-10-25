@@ -41,3 +41,9 @@ export async function requireFeature(req: NextRequest, keys: string[], roles: st
   if (!canUse(await loadPermissions(session), keys, false)) throw new Error('No permission')
   return session
 }
+
+/** For routes shared by several roles: a Staff session must hold one of `keys` (empty = any feature); other roles pass. */
+export async function needFeature(session: Session, keys: string[]): Promise<void> {
+  if (session.role !== 'Staff') return
+  if (!canUse(await loadPermissions(session), keys, false)) throw new Error('No permission')
+}
