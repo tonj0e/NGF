@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { apiHandler, getSession, requireRole, ok, err } from '@/lib/api'
 import { needFeature } from '@/lib/access'
 import { readTable, selectRows, selectAll, getRowById, updateById, findRecord, formatDateYmd, addDays, nowIso, invalidateCache } from '@/lib/supabase-db'
-import { getTodayIST } from '@/lib/dateUtils'
+import { getTodayIST, addDaysIST } from '@/lib/dateUtils'
 import { guarantorCanSeeCommissions } from '@/lib/commissions'
 import { getBranchAccess, canSeeGuarantor, guarantorBranchMap } from '@/lib/branchAccess'
 import { pageQuery, byIds, chunk, cleanSearch, scopeOf, withScope } from '@/lib/db'
@@ -35,9 +35,14 @@ export const GET = apiHandler(async (req: NextRequest) => {
     matchCustomerIds = found.rows.map(c => c['Customer ID'])
   }
   const source: TableName = filter === 'overdue' ? 'LoansOverdue' : filter === 'renewal' ? 'LoansRenewalEligible' : 'Loans'
+  // optional: only loans created in a date range (the Disbursements weeks)
+  const createdFrom = /^\d{4}-\d{2}-\d{2}$/.test(sp.get('createdFrom') || '') ? sp.get('createdFrom')! : ''
+  const createdTo = /^\d{4}-\d{2}-\d{2}$/.test(sp.get('createdTo') || '') ? sp.get('createdTo')! : ''
   const filters = (qb: any) => {
     let q = withScope(qb, scope)
     if (agentId) q = q.eq('assigned_agent_id', agentId)
+    if (createdFrom) q = q.gte('created_at', `${createdFrom}T00:00:00Z`)
+    if (createdTo) q = q.lt('created_at', `${addDaysIST(createdTo, 1)}T00:00:00Z`)
     if (filter === 'active') q = q.eq('status', 'Active')
     else if (filter === 'completed') q = q.eq('status', 'Completed')
     if (text) q = q.or([`loan_id.ilike.%${text}%`, `loan_account_no.ilike.%${text}%`, ...(matchCustomerIds.length ? [`customer_id.in.(${matchCustomerIds.join(',')})`] : [])].join(','))

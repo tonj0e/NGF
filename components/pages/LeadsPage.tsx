@@ -651,32 +651,33 @@ function DisbursementsView({ session }: { session: Session }) {
   const [subTab, setSubTab] = useState<'queue' | 'current' | 'history'>('queue')
   const [historyWeek, setHistoryWeek] = useState('')
 
-  useEffect(() => {
-    fetch('/api/loans?filter=all', { headers: { Authorization: `Bearer ${session.token}` } })
-      .then(r => r.json())
-      .then(j => { if (j.success) setLoans(j.data.loans || []) })
-      .catch(() => {})
-      .finally(() => setLoading(false))
-  }, [session.token])
-
-  const disbursed = loans
-    .map(l => ({ ...l, _date: (l.createdAt || l.startDate || '').slice(0, 10) }))
-    .filter(l => l._date)
-
+  // Only the weeks on screen are loaded: this week and the one picked in History
   const currentWeek = weekStartIso(ymdLocal(new Date()))
   const lastWeek = addDaysIso(currentWeek, -7)
-
-  // History = every past week from the earliest disbursement (or 8 weeks back,
-  // whichever is older) up to last week — including weeks with no disbursements.
-  const dates = disbursed.map(l => l._date)
-  const earliestWeek = dates.length ? weekStartIso(dates.reduce((a, b) => (a < b ? a : b))) : currentWeek
-  const minWindow = addDaysIso(lastWeek, -49)
-  const historyStart = earliestWeek < minWindow ? earliestWeek : minWindow
   const historyWeeks: string[] = []
-  for (let w = lastWeek; w >= historyStart; w = addDaysIso(w, -7)) historyWeeks.push(w)
+  for (let w = lastWeek; w >= addDaysIso(lastWeek, -7 * 51); w = addDaysIso(w, -7)) historyWeeks.push(w)   // the last year of weeks
   const selectedHistory = historyWeek || historyWeeks[0] || lastWeek
 
-  const weekLoans = (ws: string) => disbursed.filter(l => weekStartIso(l._date) === ws)
+  const [byWeek, setByWeek] = useState<Record<string, any[]>>({})
+  async function loadWeek(ws: string) {
+    if (byWeek[ws]) return
+    const rows: any[] = []
+    for (let pg = 1; pg < 50; pg++) {
+      const j = await fetch(`/api/loans?filter=all&createdFrom=${ws}&createdTo=${addDaysIso(ws, 6)}&page=${pg}&pageSize=200`, { headers: { Authorization: `Bearer ${session.token}` } }).then(r => r.json()).catch(() => null)
+      if (!j?.success) break
+      rows.push(...(j.data.loans || []))
+      if (pg >= j.data.totalPages) break
+    }
+    setByWeek(prev => ({ ...prev, [ws]: rows }))
+  }
+  useEffect(() => {
+    if (subTab === 'queue') { setLoading(false); return }   // the queue has its own list
+    setLoading(true)
+    loadWeek(subTab === 'history' ? selectedHistory : currentWeek).finally(() => setLoading(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subTab, selectedHistory])
+
+  const weekLoans = (ws: string) => (byWeek[ws] || []).map(l => ({ ...l, _date: (l.createdAt || l.startDate || '').slice(0, 10) }))
 
   if (loading) return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" /></div>
 
