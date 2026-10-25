@@ -2,7 +2,8 @@ import { NextRequest } from 'next/server'
 import { apiHandler, getSession, ok, err } from '@/lib/api'
 import { needFeature } from '@/lib/access'
 import { coll } from '@/lib/features'
-import { readTable } from '@/lib/supabase-db'
+import { readTable, selectAll } from '@/lib/supabase-db'
+import { pageQuery, cleanSearch, scopeOf, withScope } from '@/lib/db'
 
 // Collection sheet for guarantors: one row per active customer showing the week
 // they are due to pay next, their outstanding balance, and contact details.
@@ -27,21 +28,17 @@ export const GET = apiHandler(async (req: NextRequest) => {
     return err('Collection sheet can be downloaded only from Friday 5pm through Saturday.')
   }
 
-  const [customers, loans, repayments, guarantors] = await Promise.all([
-    readTable('Customers', { forceFresh: true }), readTable('Loans', { forceFresh: true }), readTable('Repayments', { forceFresh: true }), readTable('Guarantors', { forceFresh: true }),
-  ])
-
   // Resolve which guarantor this sheet is for (drives title + filtering)
   let guarantorId = ''
   let guarantorName = ''
   let guarantorCode = ''
   if (session.role === 'Guarantor') {
-    const g = guarantors.find(g => g['User ID'] === session.userId)
+    const g = (await readTable('Guarantors')).find(g => g['User ID'] === session.userId)
     guarantorId = g?.['Guarantor ID'] || ''
     guarantorName = g?.['Name'] || ''
     guarantorCode = g?.['Code'] || ''
   } else if (guarantorIdParam) {
-    const g = guarantors.find(g => g['Guarantor ID'] === guarantorIdParam)
+    const g = (await readTable('Guarantors')).find(g => g['Guarantor ID'] === guarantorIdParam)
     guarantorId = g?.['Guarantor ID'] || ''
     guarantorName = g?.['Name'] || ''
     guarantorCode = g?.['Code'] || ''
@@ -53,72 +50,58 @@ export const GET = apiHandler(async (req: NextRequest) => {
     d.setUTCDate(d.getUTCDate() + (dy === 6 ? 0 : 6 - dy)); return d.toISOString().slice(0, 10)
   })()
 
-  // Customers in scope
-  let scoped = customers
-  // A guarantor with no guarantor record must never fall through to the unfiltered list
-  if (session.role === 'Guarantor' && !guarantorId) scoped = []
-  else if (guarantorId) {
-    scoped = customers.filter(c => {
-      if (c['Guarantor ID'] === guarantorId) return true
-      const loan = loans.find(l => l['Loan ID'] === c['Active Loan ID'] && l['Guarantor ID'] === guarantorId)
-        || loans.find(l => l['Customer ID'] === c['Customer ID'] && l['Guarantor ID'] === guarantorId)
-      return !!loan
-    })
-  }
-
-  // A field agent sees only customers whose loan is assigned to them
+  // Who may see which customers: a field agent only their assigned loans, Staff their branches' guarantors, a guarantor only their own
+  let scope = await scopeOf(session)
+  let agentId = ''
   if (session.role === 'NGF AGENT') {
     const agent = (await readTable('Agents')).find(a => a['User ID'] === session.userId)
-    const mine = new Set(loans.filter(l => agent && l['Assigned Agent ID'] === agent['Agent ID']).map(l => l['Customer ID']))
-    scoped = scoped.filter(c => mine.has(c['Customer ID']))
+    agentId = agent?.['Agent ID'] || '__none__'
+    scope = { kind: 'all' }
   }
+  const text = cleanSearch(searchParams.get('q'))
+  const filters = (qb: any) => {
+    let q = withScope(qb, scope)
+    if (agentId) q = q.eq('assigned_agent_id', agentId)
+    // A guarantor with no guarantor record must never fall through to the unfiltered list
+    if (session.role === 'Guarantor' && !guarantorId) q = q.eq('guarantor_id', '__none__')
+    else if (guarantorId) q = q.eq('guarantor_id', guarantorId)
+    if (text) q = q.or(`name.ilike.%${text}%,phone.ilike.%${text}%,place.ilike.%${text}%,loan_id.ilike.%${text}`)
+    return q
+  }
+  // Group by guarantor (name) then closest to completion first within each group (lowest balance = furthest along), matching the manual sheet
+  const order = [{ column: 'guarantor_name' }, { column: 'balance' }, { column: 'name' }, { column: 'loan_id' }]
 
-  // Quick lookup for guarantor name/code by Guarantor ID (for grouping in the
-  // all-customers sheet)
-  const gById = new Map(guarantors.map(g => [g['Guarantor ID'], g]))
-
-  const rows = scoped.flatMap(c => {
-    const loan = loans.find(l => l['Customer ID'] === c['Customer ID'] && l['Status'] === 'Active')
-      || loans.find(l => l['Loan ID'] === c['Active Loan ID'] && l['Status'] === 'Active')
-    if (!loan) return []
-
-    const loanReps = repayments.filter(r => r['Loan ID'] === loan['Loan ID'])
-    const unpaid = loanReps.filter(r => r['Status'] !== 'Paid' && r['Status'] !== 'Waived')
-    if (unpaid.length === 0) return []
-
-    const nextWeek = Math.min(...unpaid.map(r => Number(r['Week No']) || 0))
-    const balance = unpaid.reduce((s, r) => s + (Number(r['Amount']) || 0), 0)
-
-    const gid = loan['Guarantor ID'] || c['Guarantor ID'] || ''
-    const g = gById.get(gid)
-
-    return [{
-      name: (c['Name'] || '').trim(),
-      balance,
-      rp: nextWeek,
-      // Customer's display reference is the Loan ID (e.g. NGFGBN-5779) — last 4 digits
-      code: (loan['Loan ID'] || '').slice(-4),
-      number: c['Phone'] || '',
-      place: c['Place'] || '',
-      guarantorId: gid,
-      guarantorName: g?.['Name'] || 'Unassigned',
-      guarantorCode: g?.['Code'] || '',
-    }]
+  const shape = (r: Record<string, string>) => ({
+    name: String(r['Name'] || '').trim(),
+    balance: Number(r['Balance']) || 0,
+    rp: Number(r['Next Week']) || 0,
+    // Customer's display reference is the Loan ID (e.g. NGFGBN-5779): last 4 digits
+    code: String(r['Loan ID'] || '').slice(-4),
+    number: r['Phone'] || '',
+    place: r['Place'] || '',
+    guarantorId: r['Guarantor ID'] || '',
+    guarantorName: r['Guarantor Name'] || 'Unassigned',
+    guarantorCode: r['Guarantor Code'] || '',
   })
 
-  // Group by guarantor (name) then closest to completion first within each group
-  // (lowest balance = furthest along), matching the manual sheet
-  rows.sort((a, b) =>
-    a.guarantorName.localeCompare(b.guarantorName) ||
-    a.balance - b.balance ||
-    a.name.localeCompare(b.name))
+  const paged = searchParams.has('page')
+  let rows: ReturnType<typeof shape>[]
+  let total = 0, page = 1, pageSize = 0, totalPages = 1
+  if (paged) {
+    const r = await pageQuery('CollectionSheetRows', { filters, order, page: searchParams.get('page'), pageSize: searchParams.get('pageSize') })
+    rows = r.rows.map(shape); total = r.total; page = r.page; pageSize = r.pageSize; totalPages = r.totalPages
+  } else {
+    rows = (await selectAll('CollectionSheetRows', qb => filters(qb).order('guarantor_name').order('balance').order('name'))).map(shape)   // the sheet download: the whole scope, read page by page
+    total = rows.length
+  }
 
   return ok({
     guarantorName,
     guarantorCode,
     saturday,
     generatedAt: nowIst.toISOString().slice(0, 16).replace('T', ' '),
-    count: rows.length,
+    count: total,
     rows,
+    ...(paged ? { total, page, pageSize, totalPages } : {}),
   })
 })

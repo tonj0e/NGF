@@ -499,23 +499,26 @@ function CollectionListTab({ session }: { session: Session }) {
   const [rows, setRows] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [q, setQ] = useState('')
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
+  const LIST_PAGE = 100
 
+  // the server searches and sends one page at a time; a new search starts at page 1
+  useEffect(() => { setPage(1) }, [q])
   useEffect(() => {
-    fetch('/api/collection-sheet', { headers: { Authorization: `Bearer ${session.token}` } })
-      .then(r => r.json())
-      .then(j => { if (j.success) setRows(j.data.rows || []) })
-      .catch(() => {})
-      .finally(() => setLoading(false))
-  }, [session.token])
+    let stale = false
+    const t = setTimeout(() => {
+      fetch(`/api/collection-sheet?page=${page}&pageSize=${LIST_PAGE}&q=${encodeURIComponent(q.trim())}`, { headers: { Authorization: `Bearer ${session.token}` } })
+        .then(r => r.json())
+        .then(j => { if (!stale && j.success) { setRows(j.data.rows || []); setTotal(j.data.total); setTotalPages(j.data.totalPages) } })
+        .catch(() => {})
+        .finally(() => { if (!stale) setLoading(false) })
+    }, q ? 300 : 0)
+    return () => { stale = true; clearTimeout(t) }
+  }, [session.token, page, q])
 
-  const query = q.toLowerCase().trim()
-  const filtered = query
-    ? rows.filter(r =>
-        r.name.toLowerCase().includes(query) ||
-        String(r.number).includes(query) ||
-        String(r.code).toLowerCase().includes(query) ||
-        (r.place || '').toLowerCase().includes(query))
-    : rows
+  const filtered = rows   // already searched by the server
 
   // Admins/agents see the list grouped by guarantor; guarantors see only their own
   const grouped = session.role !== 'Guarantor'
@@ -561,7 +564,7 @@ function CollectionListTab({ session }: { session: Session }) {
         <input value={q} onChange={e => setQ(e.target.value)} data-no-upper
           placeholder="Search name, code, mobile, place…"
           className="flex-1 min-w-[220px] rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2.5 text-sm outline-none focus:border-[#1a1a2e]" />
-        <span className="text-sm text-[#697586]">{filtered.length} customer{filtered.length !== 1 ? 's' : ''}</span>
+        <span className="text-sm text-[#697586]">{total} customer{total !== 1 ? 's' : ''}</span>
       </div>
 
       {filtered.length === 0 ? (
@@ -602,6 +605,7 @@ function CollectionListTab({ session }: { session: Session }) {
           </table>
         </div>
       )}
+      <Pager page={page} totalPages={totalPages} total={total} noun="customers" pageSize={LIST_PAGE} onPage={setPage} />
     </div>
   )
 }
