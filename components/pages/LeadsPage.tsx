@@ -40,7 +40,11 @@ function weekRangeLabel(weekIso: string): string {
   return `${fmt(start)} – ${fmt(end)} ${end.getFullYear()}`
 }
 
-export default function LeadsPage({ session }: { session: Session }) {
+// `perms`: what a Staff user may do (role defaults + extras). Admin and other roles are not limited here; the server checks every action too.
+const hasPart = (perms: string[] | undefined, part: string) => !perms || perms.includes('leads') || perms.includes(part)
+
+export default function LeadsPage({ session, perms }: { session: Session; perms?: string[] }) {
+  const can = (part: string) => session.role !== 'Staff' || hasPart(perms, part)
   // Staff accounts manage leads/disbursements like an admin
   const isManager = session.role === 'Admin' || session.role === 'Staff'
   const isCollectionAgent = session.role === 'NGF AGENT'
@@ -339,7 +343,7 @@ export default function LeadsPage({ session }: { session: Session }) {
 
           {/* Documents */}
           <DetailCard title="Documents" accent="gray"
-            action={isManager && detail.documentFolderId
+            action={isManager && can('leadsEdit') && detail.documentFolderId
               ? <button onClick={e => scan(detail.leadId, e.currentTarget)} className="rounded-xl bg-[#f4f5f7] px-3 py-2 text-xs font-semibold hover:bg-[#e5e7eb] transition">Scan Drive Folder</button>
               : undefined}>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -352,9 +356,9 @@ export default function LeadsPage({ session }: { session: Session }) {
             </div>
           </DetailCard>
 
-          {isManager && (
+          {isManager && (can('leadsApprove') || can('leadsAssign') || can('leadsDelete')) && (
             <div className="flex flex-wrap items-center gap-2 rounded-[1.75rem] border border-white/70 bg-white px-6 py-4 shadow-panel">
-              {detail.status === 'Verification Submitted' && <span>
+              {can('leadsApprove') && detail.status === 'Verification Submitted' && <span>
                 <label className="flex items-center gap-2 text-sm">
                   <span className="font-semibold text-[#697586]">Loan Product</span>
                   <select value={approveProduct} onChange={e => setApproveProduct(e.target.value)}
@@ -379,7 +383,7 @@ export default function LeadsPage({ session }: { session: Session }) {
                   {busy === detail.leadId + 'Request Reverification' ? <span><span className="h-3 w-3 animate-spin rounded-full border-2 border-[#697586] border-t-transparent" />...</span> : 'Reverify'}
                 </button>
               </span>}
-              {detail.status === 'Pending' && detail.loanProduct === 'RENEWAL' && <span>
+              {can('leadsApprove') && detail.status === 'Pending' && detail.loanProduct === 'RENEWAL' && <span>
                 <button onClick={() => setApproving(detail)} disabled={busy !== null}
                   className="flex items-center justify-center gap-1.5 rounded-2xl bg-green-600 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-60">
                   Approve (customer OTP)
@@ -389,13 +393,13 @@ export default function LeadsPage({ session }: { session: Session }) {
                   {busy === detail.leadId + 'Reject Lead' ? <span><span className="h-3 w-3 animate-spin rounded-full border-2 border-red-400 border-t-transparent" />Rejecting...</span> : 'Reject'}
                 </button>
               </span>}
-              {detail.status === 'Pending' && detail.loanProduct !== 'RENEWAL' && (
+              {can('leadsAssign') && detail.status === 'Pending' && detail.loanProduct !== 'RENEWAL' && (
                 <select onChange={e => { if (e.target.value) assign(detail.leadId, e.target.value) }} className="rounded-2xl border border-[#e5e7eb] px-4 py-2.5 text-sm">
                   <option value="">Assign agent...</option>
                   {agents.map(a => <option key={a.agentId} value={a.agentId}>{a.name}</option>)}
                 </select>
               )}
-              <button onClick={() => deleteLead(detail.leadId)} className="ml-auto rounded-2xl border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50 transition">Delete Lead</button>
+              {can('leadsDelete') && <button onClick={() => deleteLead(detail.leadId)} className="ml-auto rounded-2xl border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50 transition">Delete Lead</button>}
             </div>
           )}
         </div>
@@ -450,13 +454,13 @@ export default function LeadsPage({ session }: { session: Session }) {
             className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${tab === 'history' ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
             History {historyLeads.length > 0 && <span className={`ml-1.5 rounded-full px-2 py-0.5 text-xs font-bold ${tab === 'history' ? 'bg-white/20' : 'bg-[#f4f5f7]'}`}>{historyLeads.length}</span>}
           </button>
-          {isManager && (
+          {isManager && (can('leadsRenew') || can('leadsApprove')) && (
             <button onClick={() => { setTab('renewal'); setDeleteMode(false); setSelected(new Set()) }}
               className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${tab === 'renewal' ? 'bg-green-600 text-white' : 'border border-green-200 bg-white text-green-700 hover:bg-green-50'}`}>
               Renewal Requests {renewalLeads.length > 0 && <span className={`ml-1.5 rounded-full px-2 py-0.5 text-xs font-bold ${tab === 'renewal' ? 'bg-white/20' : 'bg-green-100'}`}>{renewalLeads.length}</span>}
             </button>
           )}
-          {isManager && (
+          {isManager && can('leadsDisburse') && (
             <button onClick={() => { setTab('disbursements'); setDeleteMode(false); setSelected(new Set()) }}
               className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${tab === 'disbursements' ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
               Disbursements {leads.filter(l => l.status === 'Approved').length > 0 && <span className={`ml-1.5 rounded-full px-2 py-0.5 text-xs font-bold ${tab === 'disbursements' ? 'bg-white/20' : 'bg-amber-100 text-amber-700'}`}>{leads.filter(l => l.status === 'Approved').length} to disburse</span>}
@@ -484,7 +488,7 @@ export default function LeadsPage({ session }: { session: Session }) {
             {branchOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
             <option value="none">No branch</option>
           </select>
-          {!deleteMode && (
+          {can('leadsDelete') && !deleteMode && (
             <button onClick={() => { setDeleteMode(true); setSelected(new Set()) }}
               className="rounded-2xl border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-600">
               Delete
@@ -547,7 +551,7 @@ export default function LeadsPage({ session }: { session: Session }) {
               {!deleteMode && <div className="flex flex-wrap items-center justify-end gap-2">
                 {session.role !== 'Guarantor' && <button onClick={() => setDetail(l)} className="rounded-xl border border-[#e5e7eb] px-3 py-1.5 text-xs font-semibold">View</button>}
                 {isManager && <button onClick={() => printNote(l)} className="rounded-xl border border-[#e5e7eb] px-3 py-1.5 text-xs font-semibold">Print Note</button>}
-                {isManager && l.loanProduct === 'RENEWAL' && l.status === 'Pending' && (
+                {isManager && can('leadsApprove') && l.loanProduct === 'RENEWAL' && l.status === 'Pending' && (
                   <span>
                     <button onClick={() => setApproving(l)} disabled={busy !== null}
                       className="flex items-center justify-center gap-1.5 rounded-xl bg-green-600 px-4 py-1.5 text-xs font-semibold text-white disabled:opacity-60">
@@ -557,7 +561,7 @@ export default function LeadsPage({ session }: { session: Session }) {
                       className="rounded-xl border border-[#e5e7eb] px-3 py-1.5 text-xs font-semibold text-red-600 disabled:opacity-60">Reject</button>
                   </span>
                 )}
-                {isManager && l.loanProduct !== 'RENEWAL' && l.status === 'Pending' && (
+                {isManager && can('leadsAssign') && l.loanProduct !== 'RENEWAL' && l.status === 'Pending' && (
                   agents.length > 0 ? (
                     <span>
                       <select key={l.leadId+'-sel'} defaultValue=""
@@ -570,7 +574,7 @@ export default function LeadsPage({ session }: { session: Session }) {
                     </span>
                   ) : <span className="rounded-xl border border-orange-200 bg-orange-50 px-2 py-1 text-[10px] text-orange-600">No agents yet</span>
                 )}
-                {isManager && l.status === 'Agent Assigned' && agents.length > 0 && (
+                {isManager && can('leadsAssign') && l.status === 'Agent Assigned' && agents.length > 0 && (
                   <span>
                     <select key={l.leadId+'-re'} defaultValue=""
                       onChange={e => { const v = e.target.value; if (v) assignFromTable(l.leadId, v) }}
@@ -581,7 +585,7 @@ export default function LeadsPage({ session }: { session: Session }) {
                     <button onClick={() => review(l.leadId, 'Reject Lead')} className="rounded-xl border border-[#e5e7eb] px-3 py-1.5 text-xs font-semibold text-red-600">Reject</button>
                   </span>
                 )}
-                {isManager && l.status === 'Verification Submitted' && (
+                {isManager && can('leadsApprove') && l.status === 'Verification Submitted' && (
                   <span>
                     <button onClick={() => review(l.leadId, 'Approve Loan')} disabled={busy !== null}
                       className="flex w-24 items-center justify-center gap-1.5 rounded-xl bg-[#1a1a2e] px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60">

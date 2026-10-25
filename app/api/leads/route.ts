@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, getSession, requireRole, ok, err } from '@/lib/api'
 import { needFeature } from '@/lib/access'
+import { lead } from '@/lib/features'
 import { readTable, appendRow, findRecord, makeId, nowIso, paginate } from '@/lib/supabase-db'
 import { getLeadDocFolder, uploadLeadPhoto, docLabel } from '@/lib/drive'
 import { notifyRole, notifyUser } from '@/lib/notifications'
@@ -92,7 +93,6 @@ export const GET = apiHandler(async (req: NextRequest) => {
 
 export const POST = apiHandler(async (req: NextRequest) => {
   const session = await getSession(req)
-  await needFeature(session, ['leads', 'verificationPlanning'])
 
   const csrfError = csrfProtection(req, session.userId)
   if (csrfError) return csrfError
@@ -100,6 +100,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
   const validation = await validateBody(createLeadSchema)(req)
   if (!validation.success) return validation.response
   const body = validation.data
+  await needFeature(session, lead(body.loanProduct === 'RENEWAL' ? 'leadsRenew' : 'leadsEdit'))   // Staff: renewals and new leads are separate parts
   if (!['Guarantor', 'Admin', 'Staff'].includes(session.role)) return err('No permission', 403)
 
   const guarantors = await readTable('Guarantors')

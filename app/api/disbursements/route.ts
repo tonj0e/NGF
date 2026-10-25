@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, requireRole, ok } from '@/lib/api'
 import { requireFeature } from '@/lib/access'
+import { lead as leadKeys } from '@/lib/features'
 import { readTable } from '@/lib/supabase-db'
 import { findLoanProduct } from '@/lib/loanProducts'
 import { firstPaymentSaturdayIST } from '@/lib/dateUtils'
@@ -10,7 +11,7 @@ import { customerForRenewalLead } from '@/lib/renewalRules'
 // The disbursement list: leads that are approved and waiting for the money to be handed over.
 // Two sections (renewals, new customers), grouped by guarantor. Branch staff see their own branch only; Admin sees all.
 export const GET = apiHandler(async (req: NextRequest) => {
-  const session = await requireFeature(req, ['leads'])
+  const session = await requireFeature(req, [...leadKeys('leadsDisburse'), 'leadsView'])
   const access = await getBranchAccess(session)
   const [leads, guarantors, guarantorBranches, branches, customers, loans, users] = await Promise.all([
     readTable('Leads', { forceFresh: true }), readTable('Guarantors'), readTable('GuarantorBranches', { forceFresh: true }),

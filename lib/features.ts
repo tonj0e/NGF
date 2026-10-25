@@ -7,7 +7,15 @@ export interface Feature { key: string; label: string; group: string; holders: H
 
 export const FEATURES: Feature[] = [
   { key: 'customers',   label: 'Customers',             group: 'Customers',  holders: ['staff'], view: 'customers' },
-  { key: 'leads',       label: 'Leads & Disbursements', group: 'Leads',      holders: ['staff'], view: 'leads' },
+  { key: 'leads',       label: 'Leads: all parts (everything below)', group: 'Leads', holders: ['staff'], view: 'leads' },
+  { key: 'leadsView',     label: 'Leads: view leads and history',   group: 'Leads', holders: ['staff'], view: '' },
+  { key: 'leadsEdit',     label: 'Leads: edit details, scan Drive folder, add a lead', group: 'Leads', holders: ['staff'], view: '' },
+  { key: 'leadsAssign',   label: 'Leads: assign the verifying agent', group: 'Leads', holders: ['staff'], view: '' },
+  { key: 'leadsApprove',  label: 'Leads: approve, reject, ask re-verification', group: 'Leads', holders: ['staff'], view: '' },
+  { key: 'leadsDisburse', label: 'Leads: disburse approved loans',  group: 'Leads', holders: ['staff'], view: '' },
+  { key: 'leadsRenew',    label: 'Leads: start renewals',           group: 'Leads', holders: ['staff'], view: '' },
+  { key: 'leadsClose',    label: 'Leads: close a loan early',       group: 'Leads', holders: ['staff'], view: '' },
+  { key: 'leadsDelete',   label: 'Leads: delete leads',             group: 'Leads', holders: ['staff'], view: '' },
   { key: 'verificationPlanning', label: 'Verification Routes (call customers, plan agent visits)', group: 'Leads', holders: ['staff'], view: 'routes' },
   { key: 'collection',  label: 'Collection',            group: 'Money',      holders: ['staff'], view: 'collection' },
   { key: 'settlements', label: 'Settlements',           group: 'Money',      holders: ['staff'], view: 'settlements' },
@@ -27,15 +35,22 @@ export const FEATURES: Feature[] = [
   { key: 'reviewOptions',      label: 'Review Options',      group: 'Admin tools', holders: ['staff'], view: 'reviewOptions' },
 ]
 
+/** The Leads parts. The old `leads` key means all of them, so anyone who had it keeps everything. */
+export const LEAD_PARTS = ['leadsView', 'leadsEdit', 'leadsAssign', 'leadsApprove', 'leadsDisburse', 'leadsRenew', 'leadsClose', 'leadsDelete']
+/** Keys that allow one part: the part itself or the all-parts key */
+export const lead = (part: string) => [part, 'leads']
+/** Does this person get the Leads menu item? Any lead key. */
+export const hasAnyLead = (perms: string[]) => perms.includes('leads') || LEAD_PARTS.some(k => perms.includes(k))
+
 export const FEATURE_KEYS = new Set(FEATURES.map(f => f.key))
 
 // Starting defaults per branch role (editable by the Admin: settings key `role_defaults`). Same sets that were
 // only "suggestions" before, so nothing changes until the Admin edits them.
 export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
-  manager:           ['customers', 'leads', 'collection', 'settlements', 'reports', 'guarantors', 'agentTracking', 'verificationPlanning'],
-  assistant_manager: ['customers', 'leads', 'collection', 'reports', 'guarantors', 'agentTracking', 'verificationPlanning'],
-  accountant:        ['customers', 'reports', 'settlements', 'agentTracking', 'verificationPlanning'],
-  cashier:           ['collection', 'settlements'],
+  manager:           ['customers', ...LEAD_PARTS, 'collection', 'settlements', 'reports', 'guarantors', 'agentTracking', 'verificationPlanning'],
+  assistant_manager: ['customers', 'leadsView', 'leadsEdit', 'leadsAssign', 'leadsApprove', 'leadsDisburse', 'leadsRenew', 'leadsClose', 'collection', 'reports', 'guarantors', 'agentTracking', 'verificationPlanning'],
+  accountant:        ['customers', 'leadsView', 'leadsApprove', 'leadsDisburse', 'reports', 'settlements', 'agentTracking', 'verificationPlanning'],
+  cashier:           ['collection', 'settlements', 'leadsView', 'leadsDisburse'],
   collection_agent:  ['collection'],
   agent:             [],
   guarantor:         [],
