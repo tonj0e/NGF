@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, requireRole, ok, err } from '@/lib/api'
 import { readTable, appendRow, deleteRow, findRecord, makeId, nowIso, deleteById } from '@/lib/supabase-db'
+import { companyTotals } from '@/lib/db'
 
 // Capital pool: own capital + other persons' investments.
 // Available = Total Capital − all net disbursed + all collected repayments.
@@ -8,9 +9,7 @@ import { readTable, appendRow, deleteRow, findRecord, makeId, nowIso, deleteById
 export const GET = apiHandler(async (req: NextRequest) => {
   await requireRole(req, ['Admin'])
 
-  const [capital, loans, repayments] = await Promise.all([
-    readTable('Capital', { forceFresh: true }), readTable('Loans', { forceFresh: true }), readTable('Repayments', { forceFresh: true }),
-  ])
+  const [capital, totals] = await Promise.all([readTable('Capital', { forceFresh: true }), companyTotals()])
 
   const totalCapital = capital.reduce((s, c) => s + Number(c['Amount'] || 0), 0)
   const investorMoney = capital.filter(c => c['Type'] === 'Investor').reduce((s, c) => s + Number(c['Amount'] || 0), 0)
@@ -18,11 +17,9 @@ export const GET = apiHandler(async (req: NextRequest) => {
 
   // Interest & commission are deducted UPFRONT at disbursement (all loans/products).
   // Interest (profit) booked upfront = Interest Deduction per loan.
-  const totalInterest = loans.reduce((s, l) => s + Number(l['Interest Deduction'] || 0), 0)
-  const totalPrincipal = loans.reduce((s, l) => s + Number(l['Principal Amount'] || 0), 0)
-  const totalCollected = repayments
-    .filter(r => r['Status'] === 'Paid')
-    .reduce((s, r) => s + Number(r['Amount'] || 0), 0)
+  const totalInterest = totals.totalInterest
+  const totalPrincipal = totals.totalPrincipal
+  const totalCollected = totals.paidTotal
 
   // Available (lendable) = capital − principal lent out + collected back.
   // Profit sits in the Interest bucket, not in Available.

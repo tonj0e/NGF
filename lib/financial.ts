@@ -66,9 +66,19 @@ function getColor(index: number, palette: string[]): string {
   return palette[index % palette.length];
 }
 
+/** Loan and repayment totals added up by the database (function company_totals) */
+export interface LoanTotals {
+  loanCount: number
+  activePrincipal: number
+  activeInterest: number
+  activeCommission: number
+  activeNetDisbursed: number
+  paidTotal: number
+  pendingTotal: number
+}
+
 export function calculateFinancialAnalytics(
-  loans: Loan[],
-  repayments: Repayment[],
+  totals: LoanTotals,
   capital: CapitalRecord[],
   collections: CollectionRecord[],
   deposits: DepositRecord[]
@@ -76,19 +86,12 @@ export function calculateFinancialAnalytics(
   const today = new Date();
   const dataAsOf = today.toISOString().slice(0, 10);
 
-  const activeLoans = loans.filter((l) => l.status === 'Active');
-  const completedLoans = loans.filter((l) => l.status === 'Completed');
-
-  const totalLoanPrincipal = activeLoans.reduce((sum, l) => sum + Number((l as any)['Principal Amount'] || 0), 0);
-  const totalInterestDeduction = activeLoans.reduce((sum, l) => sum + Number((l as any)['Interest Deduction'] || 0), 0);
-  const totalGuarantorCommission = activeLoans.reduce((sum, l) => sum + Number((l as any)['Guarantor Commission'] || 0), 0);
-  const totalNetDisbursed = activeLoans.reduce((sum, l) => sum + Number((l as any)['Net Disbursed'] || 0), 0);
-
-  const paidRepayments = repayments.filter((r) => (r as any)['Status'] === 'Paid');
-  const totalCollected = paidRepayments.reduce((sum, r) => sum + Number((r as any)['Amount'] || 0), 0);
-
-  const pendingRepayments = repayments.filter((r) => (r as any)['Status'] === 'Pending' || (r as any)['Status'] === 'Overdue');
-  const totalOutstanding = pendingRepayments.reduce((sum, r) => sum + Number((r as any)['Amount'] || 0), 0);
+  const totalLoanPrincipal = totals.activePrincipal;
+  const totalInterestDeduction = totals.activeInterest;
+  const totalGuarantorCommission = totals.activeCommission;
+  const totalNetDisbursed = totals.activeNetDisbursed;
+  const totalCollected = totals.paidTotal;
+  const totalOutstanding = totals.pendingTotal;
 
   const capitalInvestments = capital.filter((c) => c.type === 'Investment' || c.type === 'Investor' || c.type === 'Own');
   const capitalWithdrawals = capital.filter((c) => c.type === 'Withdrawal');
@@ -104,7 +107,7 @@ export function calculateFinancialAnalytics(
 
   const cashOnHand = totalCollected - totalNetDisbursed;
 
-  const hasAccountingData = capital.length > 0 || loans.length > 0;
+  const hasAccountingData = capital.length > 0 || totals.loanCount > 0;
 
   if (!hasAccountingData) {
     return {
@@ -221,7 +224,7 @@ export function calculateFinancialAnalytics(
     assetsMovement.push({ category: 'Opening Cash Balance', amount: openingCash, cumulative: cumulativeAssets, type: 'increase' });
   }
 
-  const loanDisbursements = activeLoans.reduce((sum, l) => sum + Number((l as any)['Net Disbursed'] || 0), 0);
+  const loanDisbursements = totals.activeNetDisbursed;
   if (loanDisbursements > 0) {
     cumulativeAssets += loanDisbursements;
     assetsMovement.push({ category: 'Loan Disbursements', amount: loanDisbursements, cumulative: cumulativeAssets, type: 'increase' });
@@ -233,7 +236,7 @@ export function calculateFinancialAnalytics(
     assetsMovement.push({ category: 'Collections Received', amount: collectionsReceived, cumulative: cumulativeAssets, type: 'increase' });
   }
 
-  const principalRepaid = paidRepayments.reduce((sum, r) => sum + Number((r as any)['Amount'] || 0), 0);
+  const principalRepaid = totals.paidTotal;
   if (principalRepaid > 0) {
     cumulativeAssets -= principalRepaid;
     assetsMovement.push({ category: 'Principal Repayments', amount: -principalRepaid, cumulative: cumulativeAssets, type: 'decrease' });

@@ -6,7 +6,7 @@ export type TableName =
   | 'Users' | 'Guarantors' | 'Agents' | 'Notifications' | 'Logs'
   | 'Customers' | 'Loans' | 'Repayments' | 'Collections' | 'Settlements'
   | 'ReviewOptions' | 'Capital' | 'PayoutRequests' | 'Branches' | 'StaffAccess'
-  | 'LoansOverdue' | 'LoansRenewalEligible' | 'RepaymentsEnriched' | 'CollectionSheetRows' | 'SettlementLines' | 'Profiles' | 'Settings' | 'LoanProducts' | 'Deposits' | 'DepositRequests'
+  | 'LoansOverdue' | 'LoansRenewalEligible' | 'RepaymentsEnriched' | 'CollectionSheetRows' | 'SettlementLines' | 'CollectionsEnriched' | 'Profiles' | 'Settings' | 'LoanProducts' | 'Deposits' | 'DepositRequests'
   | 'Leads' | 'MigrationLog' | 'AgentTrips' | 'AgentAttendance'
   | 'BranchStaffRoles' | 'GuarantorBranches'
 
@@ -20,6 +20,7 @@ const TABLE_MAP: Record<TableName, string> = {
   Loans: 'loans',
   LoansOverdue: 'loans_overdue',               // read-only views (migration 20261026100000)
   LoansRenewalEligible: 'loans_renewal_eligible',
+  CollectionsEnriched: 'collections_enriched',     // read-only view (migration 20261026150000)
   SettlementLines: 'settlement_lines',            // read-only view (migration 20261026140000)
   CollectionSheetRows: 'collection_sheet_rows',   // read-only view (migration 20261026130000)
   RepaymentsEnriched: 'repayments_enriched',    // read-only view (migration 20261026110000)
@@ -366,6 +367,7 @@ function getPrimaryKeyColumn(table: TableName): string {
     RepaymentsEnriched: 'repayment_id',
     CollectionSheetRows: 'loan_id',
     SettlementLines: 'repayment_id',
+    CollectionsEnriched: 'collection_id',
     Repayments: 'repayment_id',
     Collections: 'collection_id',
     Settlements: 'settlement_id',
@@ -403,6 +405,7 @@ function getPascalPrimaryKey(table: TableName): string {
     RepaymentsEnriched: 'Repayment ID',
     CollectionSheetRows: 'Loan ID',
     SettlementLines: 'Repayment ID',
+    CollectionsEnriched: 'Collection ID',
     Repayments: 'Repayment ID',
     Collections: 'Collection ID',
     Settlements: 'Settlement ID',

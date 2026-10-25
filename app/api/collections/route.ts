@@ -1,48 +1,23 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, requireRole, ok } from '@/lib/api'
-import { readTable, paginate } from '@/lib/supabase-db'
+import { pageQuery } from '@/lib/db'
 import { addDaysIST } from '@/lib/dateUtils'
 
 export const GET = apiHandler(async (req: NextRequest) => {
   await requireRole(req, ['Admin'])
   const { searchParams } = new URL(req.url)
   const saturday = searchParams.get('saturday') || ''
-  const page = Number(searchParams.get('page') || 1)
-  const pageSize = Number(searchParams.get('pageSize') || 200)
 
-  const [collections, loans, customers, guarantors, agents] = await Promise.all([
-    readTable('Collections'), readTable('Loans'), readTable('Customers'),
-    readTable('Guarantors'), readTable('Agents'),
-  ])
-
-  // Exclude Closed/Completed loans from collection queries (consistent with settlements logic)
-  const inactiveLoanIds = new Set(
-    loans.filter(l => l['Status'] === 'Closed' || l['Status'] === 'Completed').map(l => l['Loan ID'])
-  )
-
-  let rows = collections.filter(c => !inactiveLoanIds.has(c['Loan ID']))
-
-  if (saturday) {
-    // Filter by collections that have payment date within the week ending on that saturday
-    // Use IST-aware date utilities instead of local date methods
-    const monStr = addDaysIST(saturday, -5)
-    rows = rows.filter(c => c['Payment Date'] >= monStr && c['Payment Date'] <= saturday)
-  }
-
-  const enriched = rows.map(c => {
-    const loan = loans.find(l => l['Loan ID'] === c['Loan ID'])
-    const customer = customers.find(cu => cu['Customer ID'] === c['Customer ID'])
-    const guarantor = loan ? guarantors.find(g => g['Guarantor ID'] === loan['Guarantor ID']) : null
-    const agent = agents.find(a => a['Agent ID'] === c['Agent ID'])
-    return {
-      ...c,
-      'Guarantor ID': loan?.['Guarantor ID'] || '',
-      customerName: customer?.['Name'] || '',
-      guarantorName: guarantor?.['Name'] || '',
-      guarantorCode: guarantor?.['Code'] || '',
-      agentName: agent?.['Name'] || '',
-    }
+  // Filtered, counted and paged by the database (view collections_enriched leaves out closed and completed loans)
+  const monStr = saturday ? addDaysIST(saturday, -5) : ''   // the week ending on that Saturday
+  const r = await pageQuery('CollectionsEnriched', {
+    filters: qb => (saturday ? qb.gte('payment_date', monStr).lte('payment_date', saturday) : qb),
+    order: [{ column: 'payment_date', ascending: false }, { column: 'collection_id' }],
+    page: searchParams.get('page') || 1, pageSize: searchParams.get('pageSize') || 200,
   })
-
-  return ok(paginate(enriched, page, pageSize))
+  const rows = r.rows.map(c => {
+    const { 'Customer Name': customerName, 'Guarantor Name': guarantorName, 'Guarantor Code': guarantorCode, 'Agent Name': agentName, ...rest } = c as Record<string, any>
+    return { ...rest, customerName: customerName || '', guarantorName: guarantorName || '', guarantorCode: guarantorCode || '', agentName: agentName || '' }
+  })
+  return ok({ rows, pagination: { page: r.page, pageSize: r.pageSize, total: r.total, totalPages: Math.ceil(r.total / r.pageSize) } })
 })

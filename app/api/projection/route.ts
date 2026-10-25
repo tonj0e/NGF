@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, requireRole, ok } from '@/lib/api'
 import { readTable } from '@/lib/supabase-db'
+import { companyTotals } from '@/lib/db'
 import { project, ProjectionMode } from '@/lib/projection'
 import { APP_CONFIG } from '@/lib/config'
 
@@ -19,12 +20,10 @@ export const GET = apiHandler(async (req: NextRequest) => {
   // Default capital base = live available capital (lendable cash).
   let defCapital = 100000
   if (num('capital') == null) {
-    const [capital, loans, repayments] = await Promise.all([
-      readTable('Capital', { forceFresh: true }), readTable('Loans', { forceFresh: true }), readTable('Repayments', { forceFresh: true }),
-    ])
+    const [capital, totals] = await Promise.all([readTable('Capital', { forceFresh: true }), companyTotals()])
     const totalCapital = capital.reduce((s, c) => s + Number(c['Amount'] || 0), 0)
-    const totalPrincipal = loans.reduce((s, l) => s + Number(l['Principal Amount'] || 0), 0)
-    const totalCollected = repayments.filter(r => r['Status'] === 'Paid').reduce((s, r) => s + Number(r['Amount'] || 0), 0)
+    const totalPrincipal = totals.totalPrincipal
+    const totalCollected = totals.paidTotal
     defCapital = Math.max(0, totalCapital - totalPrincipal + totalCollected)
   }
 

@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { companyTotals } from '@/lib/db'
 import { apiHandler, requireRole, ok, err } from '@/lib/api'
 import { readTable, getRowsByField, getSupabase } from '@/lib/supabase-db'
 import { buildGuarantorEarnedMap } from '@/lib/guarantorEarned'
@@ -48,7 +49,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
     readTable('GuarantorBranches', { forceFresh: true }),
   ])
 
-  const guarantorEarned = buildGuarantorEarnedMap(await readTable('Loans', { forceFresh: true }))
+  const guarantorEarned = new Map(Object.entries((await companyTotals()).commissionByGuarantor))   // commission per guarantor, added up by the database
 
   // Find admin user
   const adminUser = users.find(u => u.Role === 'Admin')

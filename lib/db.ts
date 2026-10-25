@@ -1,6 +1,6 @@
 // Database-side reading for the big tables (customers, loans, repayments, leads): filter, search, order and page in
 // the database and bring back only the rows on screen. Request-time code must not read these tables whole.
-import { selectRows, selectAll, readTable, type TableName } from './supabase-db'
+import { selectRows, selectAll, readTable, getSupabase, type TableName } from './supabase-db'
 import { getBranchAccess, guarantorBranchMap, canSeeGuarantor } from './branchAccess'
 import type { Session } from '@/types'
 
@@ -60,4 +60,23 @@ export function withScope(qb: any, scope: Scope): any {
   if (scope.kind === 'all') return qb
   if (scope.kind === 'guarantors') return qb.in('guarantor_id', scope.ids)
   return qb.in('guarantor_id', ['__none__'])
+}
+
+/** Company-wide loan and repayment totals, added up by the database (function company_totals). */
+export interface CompanyTotals {
+  loanCount: number; activePrincipal: number; activeInterest: number; activeCommission: number; activeNetDisbursed: number
+  totalPrincipal: number; totalInterest: number; paidTotal: number; pendingTotal: number
+  commissionByGuarantor: Record<string, number>
+}
+export async function companyTotals(): Promise<CompanyTotals> {
+  const { data, error } = await getSupabase().rpc('company_totals')
+  if (error) throw new Error(`Totals failed: ${error.message}`)
+  const t = data as any
+  return {
+    loanCount: Number(t.loan_count), activePrincipal: Number(t.active_principal), activeInterest: Number(t.active_interest),
+    activeCommission: Number(t.active_commission), activeNetDisbursed: Number(t.active_net_disbursed),
+    totalPrincipal: Number(t.total_principal), totalInterest: Number(t.total_interest), paidTotal: Number(t.paid_total),
+    pendingTotal: Number(t.pending_total),
+    commissionByGuarantor: Object.fromEntries(Object.entries(t.commission_by_guarantor || {}).map(([k, v]) => [k, Number(v)])),
+  }
 }
