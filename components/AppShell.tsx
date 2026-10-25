@@ -235,7 +235,6 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
   const featureItems = isAdminNav ? menu.filter(m => ![...ADMIN_TOP_BEFORE, ...ADMIN_TOP_AFTER].includes(m.key)) : []
   const [featuresOpen, setFeaturesOpen] = useState(false)
   const inFeatures = featureItems.some(m => m.key === view)
-  useEffect(() => { if (inFeatures) setFeaturesOpen(true) }, [inFeatures])
 
   const navItems = (onPick: (key: string) => void, collapsed: boolean) => {
     const btn = (item: { key: string; label: string }, nested = false) => (
