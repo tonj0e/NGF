@@ -468,6 +468,35 @@ export async function queryTable<T = any>(
   return (data || []).map((row: any) => toPascalCase(row))
 }
 
+/** One database-side query: `build` adds filters, order and range to the query (columns are database snake_case names).
+ *  Returns the rows in the usual Pascal-keyed shape and, when asked, the exact number of matching rows. */
+export async function selectRows(
+  table: TableName,
+  build: (qb: any) => any,
+  opts: { count?: boolean } = {},
+): Promise<{ rows: Record<string, string>[]; total: number }> {
+  const supabase = getSupabase()
+  const qb = supabase.from(TABLE_MAP[table]).select('*', opts.count ? { count: 'exact' } : undefined)
+  const { data, error, count } = await build(qb)
+  if (error) throw new Error(`Query failed on ${table}: ${error.message}`)
+  const rows = (data || []).map((row: any) => toPascalCase(row))
+  return { rows, total: count ?? rows.length }
+}
+
+/** Every row matching the filters in `build`, read page by page in primary-key order (the server stops at 1000 rows per request). */
+export async function selectAll(table: TableName, build: (qb: any) => any): Promise<Record<string, string>[]> {
+  const supabase = getSupabase()
+  const pk = getPrimaryKeyColumn(table)
+  const data = await fetchAllPages<any>(async (from, to) => {
+    let q = build(supabase.from(TABLE_MAP[table]).select('*'))
+    if (pk) q = q.order(pk, { ascending: true })
+    const { data: page, error } = await q.range(from, to)
+    if (error) throw new Error(`Query failed on ${table}: ${error.message}`)
+    return page || []
+  })
+  return data.map((row: any) => toPascalCase(row))
+}
+
 export async function getRowById(table: TableName, id: string): Promise<Record<string, string> | null> {
   const pkColumn = getPrimaryKeyColumn(table)
   const rows = await queryTable(table, qb => qb.eq(pkColumn, id).limit(1))

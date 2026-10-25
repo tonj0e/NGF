@@ -3,63 +3,95 @@ import { apiHandler, getSession, requireRole, ok, err } from '@/lib/api'
 import { needFeature } from '@/lib/access'
 import { requireFeature } from '@/lib/access'
 import { customer as customerKeys } from '@/lib/features'
-import { readTable, updateById, deleteById, findRecord, nowIso, invalidateCache } from '@/lib/supabase-db'
+import { readTable, selectAll, updateById, deleteById, findRecord, nowIso, invalidateCache } from '@/lib/supabase-db'
 import { getLeadDocFolder, uploadLeadPhoto } from '@/lib/drive'
 import { getTodayIST } from '@/lib/dateUtils'
 import { bulkScores } from '@/lib/customerHistory'
+import { pageQuery, byIds, chunk, scopeOf, withScope } from '@/lib/db'
 import { getBranchAccess, canSeeGuarantor, guarantorBranchMap, customerGuarantorId } from '@/lib/branchAccess'
 
 export const maxDuration = 30
 
+// GET /api/customers
+//   ?page=1&pageSize=50&q=text  one page, searched in the database (newest first), with `total` and `totalPages`
+//   ?id=CUSTOMER_ID             one customer (any role that may see them)
+//   (no page)                   every customer in the caller's scope: for a guarantor or agent that is their own few hundred
+// Only the rows on the page are enriched with loan, guarantor, agent and lead details.
 export const GET = apiHandler(async (req: NextRequest) => {
   const session = await getSession(req)
   await needFeature(session, [])
-  const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 25000))
-  const [customers, loans, guarantors, agents, repayments, leads] = await Promise.race([
-    Promise.all([
-      readTable('Customers', { forceFresh: true }), readTable('Loans', { forceFresh: true }), readTable('Guarantors', { forceFresh: true }),
-      readTable('Agents', { forceFresh: true }), readTable('Repayments', { forceFresh: true }), readTable('Leads', { forceFresh: true }),
-    ]),
-    timeout,
-  ])
+  const sp = new URL(req.url).searchParams
+  const id = sp.get('id') || ''
+  const paged = sp.has('page')
 
-  const today = getTodayIST()
-  const overdueSet = new Set(
-    repayments.filter(r => r['Status'] === 'Pending' && r['Due Date'] < today).map(r => r['Loan ID'])
-  )
+  // who may see which customers
+  let agentCustomerIds: string[] | null = null
+  let scope = await scopeOf(session)
+  if (session.role === 'NGF AGENT') {
+    const a = (await readTable('Agents')).find(x => x['User ID'] === session.userId)
+    const mine = a ? await selectAll('Loans', qb => qb.eq('assigned_agent_id', a['Agent ID'])) : []
+    agentCustomerIds = Array.from(new Set(mine.map(l => l['Customer ID']).filter(Boolean)))
+    scope = { kind: 'all' }
+  }
+  const filters = (qb: any) => {
+    let q = withScope(qb, scope)
+    if (agentCustomerIds) q = q.in('customer_id', agentCustomerIds.length ? agentCustomerIds : ['__none__'])
+    if (id) q = q.eq('customer_id', id)
+    return q
+  }
+  const order = [{ column: 'created_at', ascending: false }, { column: 'customer_id' }]
+  const searchCols = ['name', 'phone', 'place', 'active_loan_id']
 
-  let filtered = customers
-  if (session.role === 'Guarantor') {
-    const g = guarantors.find(g => g['User ID'] === session.userId)
-    if (!g) {
-      filtered = []
-    } else {
-      const gid = g['Guarantor ID']
-      filtered = customers.filter(c => {
-        if (c['Guarantor ID'] === gid) return true
-        const loan = loans.find(l => l['Loan ID'] === c['Active Loan ID'])
-          || loans.find(l => l['Customer ID'] === c['Customer ID'])
-        return loan?.['Guarantor ID'] === gid
-      })
+  let customers: Record<string, string>[] = []
+  let total = 0, page = 1, pageSize = 0, totalPages = 1
+  if (paged || id) {
+    const r = await pageQuery('Customers', { filters, search: { columns: searchCols, text: sp.get('q') }, order, page: sp.get('page') || 1, pageSize: sp.get('pageSize') })
+    customers = r.rows; total = r.total; page = r.page; pageSize = r.pageSize; totalPages = r.totalPages
+  } else {
+    for (let pg = 1; ; pg++) {
+      const r = await pageQuery('Customers', { filters, order, page: pg, pageSize: 200 })
+      customers.push(...r.rows)
+      if (pg >= r.totalPages) { total = r.total; break }
     }
-  } else if (session.role === 'NGF AGENT') {
-    const a = agents.find(a => a['User ID'] === session.userId)
-    const agentLoanIds = a ? new Set(loans.filter(l => l['Assigned Agent ID'] === a['Agent ID']).map(l => l['Customer ID'])) : new Set()
-    filtered = customers.filter(c => agentLoanIds.has(c['Customer ID']))
-  } else if (session.role === 'Staff') {
-    // Staff see only customers whose guarantor belongs to one of their branches
-    const [access, gMap] = await Promise.all([getBranchAccess(session), guarantorBranchMap()])
-    filtered = customers.filter(c => canSeeGuarantor(access, gMap, customerGuarantorId(c, loans)))
   }
 
-  const scores = await bulkScores(filtered.map(c => c['Customer ID']))
-  const rows = filtered.map(c => {
-    const loan = loans.find(l => l['Loan ID'] === c['Active Loan ID'])
-      || loans.find(l => l['Customer ID'] === c['Customer ID'])
+  const rows = await enrichCustomers(customers)
+  return ok(paged || id ? { customers: rows, total, page, pageSize, totalPages } : { customers: rows })
+})
+
+async function enrichCustomers(customers: Record<string, string>[]) {
+  if (!customers.length) return []
+  const today = getTodayIST()
+  const cids = customers.map(c => c['Customer ID'])
+  const [loansByCustomer, loansByActive, leads] = await Promise.all([
+    byIds('Loans', 'customer_id', cids),
+    byIds('Loans', 'loan_id', customers.map(c => c['Active Loan ID'])),
+    byIds('Leads', 'lead_id', customers.map(c => c['Lead ID'])),
+  ])
+  const loanById = new Map(loansByActive.map(l => [l['Loan ID'], l]))
+  const firstLoanOf = new Map<string, Record<string, string>>()
+  for (const l of loansByCustomer) if (!firstLoanOf.has(l['Customer ID'])) firstLoanOf.set(l['Customer ID'], l)
+  const loanOf = (c: Record<string, string>) => loanById.get(c['Active Loan ID']) || firstLoanOf.get(c['Customer ID'])
+  const loans = customers.map(loanOf)
+
+  const [guarantors, agents, overdue, scores] = await Promise.all([
+    byIds('Guarantors', 'guarantor_id', customers.map((c, i) => c['Guarantor ID'] || loans[i]?.['Guarantor ID'] || '')),
+    byIds('Agents', 'agent_id', loans.map(l => l?.['Assigned Agent ID'] || '')),
+    Promise.all(chunk(loans.map(l => l?.['Loan ID']).filter(Boolean) as string[]).map(part =>
+      selectAll('Repayments', qb => qb.in('loan_id', part).eq('status', 'Pending').lt('due_date', today)))),
+    bulkScores(cids),
+  ])
+  const overdueSet = new Set(overdue.flat().map(r => r['Loan ID']))
+  const gById = new Map(guarantors.map(g => [g['Guarantor ID'], g]))
+  const aById = new Map(agents.map(a => [a['Agent ID'], a]))
+  const leadById = new Map(leads.map(l => [l['Lead ID'], l]))
+
+  return customers.map((c, i) => {
+    const loan = loans[i]
     const guarantorId = c['Guarantor ID'] || loan?.['Guarantor ID'] || ''
-    const g = guarantors.find(g => g['Guarantor ID'] === guarantorId)
-    const a = loan ? agents.find(ag => ag['Agent ID'] === loan['Assigned Agent ID']) : null
-    const lead = leads.find(l => l['Lead ID'] === c['Lead ID'])
+    const g = gById.get(guarantorId)
+    const a = loan ? aById.get(loan['Assigned Agent ID']) : null
+    const lead = leadById.get(c['Lead ID'])
     return {
       customerId: c['Customer ID'], name: c['Name'], phone: c['Phone'],
       address: c['Address'], houseName: c['House Name'], place: c['Place'],
@@ -91,9 +123,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
       mapsLink: (() => { try { return JSON.parse(lead?.['Verification Notes'] || '{}').mapsLink || '' } catch { return '' } })(),
     }
   })
-
-  return ok({ customers: rows })
-})
+}
 
 export const PATCH = apiHandler(async (req: NextRequest) => {
   const session = await requireFeature(req, customerKeys('customersEdit'))

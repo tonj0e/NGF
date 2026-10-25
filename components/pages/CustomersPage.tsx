@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef } from 'react'
 import CustomerHistory from '@/components/customers/CustomerHistory'
 import { Session } from '@/types'
 import DriveImage from '@/components/ui/DriveImage'
@@ -465,6 +465,11 @@ export default function CustomersPage({ session, perms }: { session: Session; pe
   const [customers, setCustomers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  // The server searches and pages: only the customers on screen are loaded
+  const [page, setPage] = useState(1)
+  const [totalCustomers, setTotalCustomers] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
+  const PAGE_SIZE = 24
   const [detail, setDetail] = useState<any | null>(null)
   const [editing, setEditing] = useState(false)
   const [deleteMode, setDeleteMode] = useState(false)
@@ -517,12 +522,24 @@ export default function CustomersPage({ session, perms }: { session: Session; pe
     load()
   }
 
+  const loadSeq = useRef(0)
   function load() {
-    fetch('/api/customers', { headers: { Authorization: `Bearer ${session.token}` } })
-      .then(r => r.json()).then(j => { if (j.success) setCustomers(j.data.customers) }).finally(() => setLoading(false))
+    const seq = ++loadSeq.current
+    const q = encodeURIComponent(search.trim())
+    fetch(`/api/customers?page=${page}&pageSize=${PAGE_SIZE}&q=${q}`, { headers: { Authorization: `Bearer ${session.token}` } })
+      .then(r => r.json()).then(j => {
+        if (seq !== loadSeq.current || !j.success) return   // a newer search already replaced this one
+        setCustomers(j.data.customers); setTotalCustomers(j.data.total); setTotalPages(j.data.totalPages)
+      }).finally(() => setLoading(false))
   }
 
-  useEffect(() => { load() }, [])
+  // search is sent to the server after a short pause; a new search starts again at page 1
+  useEffect(() => { setPage(1) }, [search])
+  useEffect(() => {
+    const t = setTimeout(load, search ? 300 : 0)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, search])
 
   // Pull this customer's repayment history for the Transaction & Reviews tabs
   useEffect(() => {
@@ -560,14 +577,7 @@ export default function CustomersPage({ session, perms }: { session: Session; pe
     } else showToast(json.error || 'Failed')
   }
 
-  const filtered = customers.filter(c => {
-    if (!search) return true
-    const q = search.toLowerCase()
-    return c.name.toLowerCase().includes(q) ||
-      c.phone.includes(search) ||
-      c.place.toLowerCase().includes(q) ||
-      (c.activeLoanId && c.activeLoanId.toLowerCase().includes(q))
-  })
+  const filtered = customers   // already searched by the server
 
   const TABS: { key: Tab; label: string }[] = session.role === 'Admin'
     ? [
@@ -589,8 +599,11 @@ export default function CustomersPage({ session, perms }: { session: Session; pe
     </div>
   )
 
-  function viewCustomerById(customerId: string) {
-    const customer = customers.find(c => c.customerId === customerId)
+  async function viewCustomerById(customerId: string) {
+    const known = customers.find(c => c.customerId === customerId)
+    if (known) { setDetail(known); setEditing(false); return }
+    const j = await fetch(`/api/customers?id=${encodeURIComponent(customerId)}`, { headers: { Authorization: `Bearer ${session.token}` } }).then(r => r.json()).catch(() => null)
+    const customer = j?.success ? j.data.customers[0] : null
     if (customer) { setDetail(customer); setEditing(false) }
   }
 
@@ -897,6 +910,15 @@ export default function CustomersPage({ session, perms }: { session: Session; pe
         ))}
       </div>
       {filtered.length === 0 && <p className="py-10 text-center text-sm text-[#697586]">No customers found.</p>}
+      {totalCustomers > PAGE_SIZE && (
+        <div className="flex items-center justify-between gap-3 pt-2">
+          <span className="text-xs text-[#697586]">{totalCustomers} customers · page {page} of {totalPages}</span>
+          <div className="flex gap-2">
+            <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-semibold disabled:opacity-40">Previous</button>
+            <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} className="rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-semibold disabled:opacity-40">Next</button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
