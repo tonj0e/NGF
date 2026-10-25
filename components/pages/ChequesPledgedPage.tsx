@@ -16,10 +16,10 @@ export default function ChequesPledgedPage({ session }: { session: Session }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch('/api/leads', { headers: { Authorization: `Bearer ${session.token}` } })
+    fetch('/api/leads?cheque=1&pageSize=200', { headers: { Authorization: `Bearer ${session.token}` } })
       .then(r => r.json()).then(j => {
         if (j.success) {
-          setLeads((j.data.leads || []).filter((l: any) => l.chequeNumber && ['Approved', 'Converted'].includes(l.status)))
+          setLeads(j.data.rows || [])
         }
       }).finally(() => setLoading(false))
   }, [])

@@ -2,7 +2,8 @@ import { NextRequest } from 'next/server'
 import { apiHandler, getSession, requireRole, ok, err } from '@/lib/api'
 import { needFeature } from '@/lib/access'
 import { lead } from '@/lib/features'
-import { readTable, appendRow, findRecord, makeId, nowIso, paginate } from '@/lib/supabase-db'
+import { readTable, appendRow, findRecord, makeId, nowIso, countRows } from '@/lib/supabase-db'
+import { pageQuery, byIds, cleanSearch, scopeOf, withScope } from '@/lib/db'
 import { getLeadDocFolder, uploadLeadPhoto, docLabel } from '@/lib/drive'
 import { notifyRole, notifyUser } from '@/lib/notifications'
 import { validateBody, createLeadSchema } from '@/lib/validation'
@@ -12,56 +13,77 @@ import { notifyBranchOfLead } from '@/lib/routes'
 import { getBranchAccess, canSeeBranch } from '@/lib/branchAccess'
 import { checkRenewalEligibility, customerForRenewalLead, isPermanentlyBlockedAadhaar } from '@/lib/renewalRules'
 
+// GET /api/leads
+//   ?tab=new|history|renewal   which list (new = still in progress, history = Converted or Rejected, renewal = renewal requests)
+//   &status=  &cheque=1  &branch=BRANCH_ID|none  &q=text  &page=  &pageSize=
+// Filtering, searching, counting and paging happen in the database; only the rows on the page are enriched.
+// `counts` (new / history / renewal / approved) feeds the tab badges for the caller's whole scope.
 export const GET = apiHandler(async (req: NextRequest) => {
   const session = await getSession(req)
   await needFeature(session, [])
   const { searchParams } = new URL(req.url)
   const status = searchParams.get('status') || ''
-  const page = Number(searchParams.get('page') || 1)
-  const pageSize = Number(searchParams.get('pageSize') || 20)
+  const tab = searchParams.get('tab') || ''
+  const branch = searchParams.get('branch') || ''
+  const cheque = searchParams.get('cheque') === '1'
+  const text = cleanSearch(searchParams.get('q'))
 
-  const [leads, users, agents, guarantors, branches, guarantorBranches] = await Promise.all([
-    readTable('Leads', { forceFresh: true }),
-    readTable('Users', { forceFresh: true }),
-    readTable('Agents', { forceFresh: true }),
-    readTable('Guarantors', { forceFresh: true }),
-    readTable('Branches'),
-    readTable('GuarantorBranches'),
+  // who may see which leads: a guarantor their own, an agent their assigned, Staff their branches' guarantors
+  let scope = await scopeOf(session)
+  let agentId = ''
+  if (session.role === 'NGF AGENT') {
+    const agent = (await readTable('Agents')).find(a => a['User ID'] === session.userId)
+    agentId = agent?.['Agent ID'] || '__none__'
+    scope = { kind: 'all' }
+  }
+  const [branches, guarantorBranches] = await Promise.all([readTable('Branches'), readTable('GuarantorBranches')])
+  const activeLinks = guarantorBranches.filter(x => String(x['Is Active']) !== 'false')
+  const branchOf = new Map(activeLinks.map(x => [x['Guarantor ID'], x['Branch ID']]))
+
+  const scoped = (qb: any) => {
+    let q = withScope(qb, scope)
+    if (agentId) q = q.eq('assigned_agent_id', agentId)
+    return q
+  }
+  const HISTORY = '(Converted,Rejected)'
+  const inTab = (qb: any, t: string) =>
+    t === 'new' ? qb.not('status', 'in', HISTORY).neq('loan_product', 'RENEWAL')
+    : t === 'history' ? qb.in('status', ['Converted', 'Rejected']).neq('loan_product', 'RENEWAL')
+    : t === 'renewal' ? qb.eq('loan_product', 'RENEWAL') : qb
+  const filters = (qb: any) => {
+    let q = inTab(scoped(qb), tab)
+    if (status) q = q.eq('status', status)
+    if (cheque) q = q.neq('cheque_number', '').not('cheque_number', 'is', null).in('status', ['Approved', 'Converted'])
+    if (branch && branch !== 'none') q = q.in('guarantor_id', activeLinks.filter(x => x['Branch ID'] === branch).map(x => x['Guarantor ID']).concat('__none__'))
+    else if (branch === 'none') q = q.not('guarantor_id', 'in', `(${Array.from(branchOf.keys()).concat('__none__').join(',')})`)
+    if (text) q = q.or(`customer_name.ilike.%${text}%,phone.ilike.%${text}%,aadhaar_no.ilike.%${text}%,lead_id.ilike.%${text}%`)
+    return q
+  }
+
+  const r = await pageQuery('Leads', {
+    filters, order: [{ column: 'submitted_date', ascending: false }, { column: 'lead_id', ascending: false }],
+    page: searchParams.get('page') || 1, pageSize: searchParams.get('pageSize') || 20,
+  })
+
+  const [guarantors, agents, sameAadhaar, counts] = await Promise.all([
+    byIds('Guarantors', 'guarantor_id', r.rows.map(l => l['Guarantor ID'])),
+    byIds('Agents', 'agent_id', r.rows.map(l => l['Assigned Agent ID'])),
+    byIds('Leads', 'aadhaar_no', r.rows.map(l => l['Aadhaar No'])),
+    Promise.all([
+      countRows('Leads', qb => inTab(scoped(qb), 'new')), countRows('Leads', qb => inTab(scoped(qb), 'history')),
+      countRows('Leads', qb => inTab(scoped(qb), 'renewal')), countRows('Leads', qb => scoped(qb).eq('status', 'Approved')),
+    ]),
   ])
-  const branchOf = (guarantorId: string) => guarantorBranches.find(x => x['Guarantor ID'] === guarantorId && String(x['Is Active']) !== 'false')?.['Branch ID'] || ''
+  const gById = new Map(guarantors.map(g => [g['Guarantor ID'], g]))
+  const aById = new Map(agents.map(a => [a['Agent ID'], a]))
+  const aadhaarCount = new Map<string, number>()
+  for (const x of sameAadhaar) aadhaarCount.set(x['Aadhaar No'], (aadhaarCount.get(x['Aadhaar No']) || 0) + 1)
 
-  let filtered = leads
-  if (session.role === 'Guarantor') {
-    // First try to find by code (from session)
-    let g = guarantors.find(g => g['Code'] === session.guarantorCode)
-
-    // If not found by code, try to find by userId (handle data inconsistency)
-    if (!g) {
-      g = guarantors.find(g => g['User ID'] === session.userId)
-    }
-
-    if (g) {
-      filtered = filtered.filter(l => l['Guarantor ID'] === g['Guarantor ID'])
-    } else {
-      // If guarantor not found, show no leads
-      filtered = []
-    }
-  } else if (session.role === 'NGF AGENT') {
-    const agent = agents.find(a => a['User ID'] === session.userId)
-    filtered = filtered.filter(l => l['Assigned Agent ID'] === agent?.['Agent ID'])
-  }
-  else if (session.role === 'Staff') {
-    // Branch staff see only the leads of guarantors in their own branch(es)
-    const access = await getBranchAccess(session)
-    filtered = filtered.filter(l => canSeeBranch(access, branchOf(l['Guarantor ID'])))
-  }
-  if (status) filtered = filtered.filter(l => l['Status'] === status)
-
-  const enriched = filtered.map(l => {
-    const guarantor = guarantors.find(g => g['Guarantor ID'] === l['Guarantor ID'])
-    const agent = agents.find(a => a['Agent ID'] === l['Assigned Agent ID'])
-    const branchId = branchOf(l['Guarantor ID'])
-    const existing = leads.filter(x => x['Aadhaar No'] && x['Aadhaar No'] === l['Aadhaar No'] && x['Lead ID'] !== l['Lead ID'])
+  const enriched = r.rows.map(l => {
+    const guarantor = gById.get(l['Guarantor ID'])
+    const agent = aById.get(l['Assigned Agent ID'])
+    const branchId = branchOf.get(l['Guarantor ID']) || ''
+    const existing = l['Aadhaar No'] ? (aadhaarCount.get(l['Aadhaar No']) || 0) - 1 : 0   // other leads with the same Aadhaar
     return {
       leadId: l['Lead ID'], submittedDate: l['Submitted Date'],
       guarantorId: l['Guarantor ID'], guarantorName: guarantor?.['Name'] || '',
@@ -82,13 +104,23 @@ export const GET = apiHandler(async (req: NextRequest) => {
       aadhaarBackUrl: l['Aadhaar Back URL'], landmarkPhotoUrl: l['Landmark Photo URL'],
       housePhotoUrl: l['House Photo URL'], chequePhotoUrl: l['Cheque Photo URL'],
       documentFolderId: l['Document Folder ID'], notes: l['Notes'],
-      aadhaarStatus: existing.length > 0 ? 'exists' : (l['Aadhaar No'] ? 'new' : ''),
+      aadhaarStatus: existing > 0 ? 'exists' : (l['Aadhaar No'] ? 'new' : ''),
       otpVerifiedAt: l['Otp Verified At'] || null, otpOverrideReason: l['Otp Override Reason'] || '',
       approvedAt: l['Approved At'] || null, disbursedAt: l['Disbursed At'] || null,
     }
   })
 
-  return ok(paginate(enriched, page, pageSize))
+  // branches this viewer can filter by: every branch for Admin, their own for Staff
+  const visibleBranches = branches
+    .filter(b => scope.kind === 'all' || activeLinks.some(x => x['Branch ID'] === b['Branch ID'] && scope.kind === 'guarantors' && scope.ids.includes(x['Guarantor ID'])))
+    .map(b => ({ branchId: b['Branch ID'], name: b['Name'] }))
+
+  return ok({
+    rows: enriched,
+    pagination: { page: r.page, pageSize: r.pageSize, total: r.total, totalPages: Math.ceil(r.total / r.pageSize) },
+    counts: { new: counts[0], history: counts[1], renewal: counts[2], approved: counts[3] },
+    branches: visibleBranches,
+  })
 })
 
 export const POST = apiHandler(async (req: NextRequest) => {

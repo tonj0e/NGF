@@ -509,6 +509,14 @@ export async function selectAll(table: TableName, build: (qb: any) => any): Prom
   return data.map((row: any) => toPascalCase(row))
 }
 
+/** How many rows match, without fetching them (a head request). */
+export async function countRows(table: TableName, build: (qb: any) => any): Promise<number> {
+  const supabase = getSupabase()
+  const { count, error } = await build(supabase.from(TABLE_MAP[table]).select('*', { count: 'exact', head: true }))
+  if (error) throw new Error(`Count failed on ${table}: ${error.message}`)
+  return count ?? 0
+}
+
 export async function getRowById(table: TableName, id: string): Promise<Record<string, string> | null> {
   const pkColumn = getPrimaryKeyColumn(table)
   const rows = await queryTable(table, qb => qb.eq(pkColumn, id).limit(1))

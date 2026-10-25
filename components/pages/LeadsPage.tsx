@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useRef, useState, useMemo } from 'react'
+import Pager from '@/components/ui/Pager'
 import { Session, Lead } from '@/types'
 import StatusPill from '@/components/ui/StatusPill'
 import DriveImage from '@/components/ui/DriveImage'
@@ -65,6 +66,14 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
   const [products, setProducts] = useState<any[]>([])
   const [approveProduct, setApproveProduct] = useState('')
   const [branchFilter, setBranchFilter] = useState('')
+  // The server filters, searches and pages the leads: only the leads on screen are loaded
+  const [page, setPage] = useState(1)
+  const [totalLeads, setTotalLeads] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
+  const [counts, setCounts] = useState({ new: 0, history: 0, renewal: 0, approved: 0 })
+  const [branchList, setBranchList] = useState<{ branchId: string; name: string }[]>([])
+  const [search, setSearch] = useState('')
+  const LEADS_PAGE = 20
 
   function showToast(m: string) { setToast(m); setTimeout(() => setToast(''), 3000) }
 
@@ -97,11 +106,23 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
     load()
   }
 
+  // the current tab, page, search and branch, read at call time so the 15-second refresh never uses stale values
+  const queryRef = useRef({ tab: 'new', page: 1, q: '', branch: '' })
+  const loadSeq = useRef(0)
+  async function loadLeads() {
+    const seq = ++loadSeq.current
+    const { tab: t, page: p, q, branch } = queryRef.current
+    const url = `/api/leads?tab=${t === 'disbursements' ? 'new' : t}&page=${p}&pageSize=${LEADS_PAGE}&q=${encodeURIComponent(q.trim())}&branch=${encodeURIComponent(branch)}`
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${session.token}` } })
+    const json = await res.json()
+    if (seq !== loadSeq.current || !json.success) return   // a newer request replaced this one
+    setLeads(json.data.rows); setTotalLeads(json.data.pagination.total); setTotalPages(json.data.pagination.totalPages)
+    setCounts(json.data.counts); setBranchList(json.data.branches || [])
+  }
+
   async function load(showLoading = true) {
     if (showLoading && !loadedOnce.current) setLoading(true)
-    const res = await fetch('/api/leads', { headers: { Authorization: `Bearer ${session.token}` } })
-    const json = await res.json()
-    if (json.success) setLeads(json.data.rows)
+    await loadLeads()
     if (isManager) {
       const s = await fetch('/api/staff', { headers: { Authorization: `Bearer ${session.token}` } })
       const sj = await s.json()
@@ -115,6 +136,16 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
   }
 
   useEffect(() => { load(true) }, [])
+
+  // a new tab, search or branch starts again at page 1; the search is sent after a short pause
+  useEffect(() => { setPage(1) }, [tab, search, branchFilter])
+  useEffect(() => {
+    queryRef.current = { tab, page, q: search, branch: branchFilter }
+    if (!loadedOnce.current) return   // the first load is done above
+    const t = setTimeout(() => { loadLeads() }, search ? 300 : 0)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, page, search, branchFilter])
 
   // Memoize idle state to avoid dependency array churn
   const isIdle = useMemo(() => !(
@@ -423,13 +454,10 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
     </div>
   )
 
-  const historyStatuses = ['Converted', 'Rejected']
-  const newLeads = [...leads].filter(l => !historyStatuses.includes(l.status) && l.loanProduct !== 'RENEWAL').reverse()
-  const historyLeads = [...leads].filter(l => historyStatuses.includes(l.status) && l.loanProduct !== 'RENEWAL').reverse()
-  const renewalLeads = [...leads].filter(l => l.loanProduct === 'RENEWAL').reverse()
-  const branchOptions = Array.from(new Map(leads.filter(l => l.branchId).map(l => [l.branchId as string, l.branchName || l.branchId as string])).entries())
-  const byBranch = (list: Lead[]) => (branchFilter ? list.filter(l => (l.branchId || '') === (branchFilter === 'none' ? '' : branchFilter)) : list)
-  const visibleLeads = byBranch(tab === 'renewal' ? renewalLeads : tab === 'history' ? historyLeads : newLeads)
+  // the lists are already filtered by the server; the counts feed the tab badges
+  const newLeads = { length: counts.new }, historyLeads = { length: counts.history }, renewalLeads = { length: counts.renewal }
+  const branchOptions: [string, string][] = branchList.map(b => [b.branchId, b.name])
+  const visibleLeads = leads
 
   if (showSubmit) return (
     <SubmitLeadPage session={session} onDone={() => { setShowSubmit(false); load() }} />
@@ -463,7 +491,7 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
           {isManager && can('leadsDisburse') && (
             <button onClick={() => { setTab('disbursements'); setDeleteMode(false); setSelected(new Set()) }}
               className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${tab === 'disbursements' ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
-              Disbursements {leads.filter(l => l.status === 'Approved').length > 0 && <span className={`ml-1.5 rounded-full px-2 py-0.5 text-xs font-bold ${tab === 'disbursements' ? 'bg-white/20' : 'bg-amber-100 text-amber-700'}`}>{leads.filter(l => l.status === 'Approved').length} to disburse</span>}
+              Disbursements {counts.approved > 0 && <span className={`ml-1.5 rounded-full px-2 py-0.5 text-xs font-bold ${tab === 'disbursements' ? 'bg-white/20' : 'bg-amber-100 text-amber-700'}`}>{counts.approved} to disburse</span>}
             </button>
           )}
         </div>
@@ -482,6 +510,8 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
       </div>
       {isManager && tab !== 'disbursements' && (
         <div className="flex items-center gap-3 flex-wrap">
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name, phone, Aadhaar…" data-no-upper
+            className="min-w-[200px] max-w-xs flex-1 rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2.5 text-sm outline-none focus:border-[#1a1a2e]" />
           <select value={branchFilter} onChange={e => setBranchFilter(e.target.value)}
             className="rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2.5 text-sm font-medium">
             <option value="">All branches</option>
@@ -512,6 +542,7 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
       {tab === 'disbursements' ? <DisbursementsView session={session} /> : (
       <>
         {visibleLeads.length === 0 && <p className="p-8 text-center text-sm text-[#697586]">{tab === 'new' ? 'No new leads.' : tab === 'history' ? 'No leads history yet.' : 'No renewal requests yet.'}</p>}
+        <div className="px-5 pb-4"><Pager page={page} totalPages={totalPages} total={totalLeads} noun="leads" pageSize={LEADS_PAGE} onPage={setPage} /></div>
         <div className="overflow-hidden rounded-[1.75rem] border border-white/70 bg-white shadow-panel divide-y divide-black/5">
           <div className="overflow-x-auto">
             {visibleLeads.map((l, i) => (
