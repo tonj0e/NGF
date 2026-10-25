@@ -554,7 +554,7 @@ if (json.success) {
       assistant_manager: 'Assistant Branch Managers',
       accountant: 'Accountants',
       cashier: 'Cashiers',
-      collection_agent: 'Collection Agents',
+      collection_agent: 'Agents',
       guarantor: 'Guarantors',
     }
     setRoleListOpen({

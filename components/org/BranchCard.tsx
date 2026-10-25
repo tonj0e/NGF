@@ -47,7 +47,7 @@ const roleCards: Array<{ key: string; role: BranchRole; label: string; descripti
   { key: 'assistantManagers', role: 'assistant_manager', label: 'Assistant Managers', description: 'Supports the manager', icon: Building2, color: 'bg-sky-100 text-sky-700', countKey: 'assistantManagers' as const },
   { key: 'accountants', role: 'accountant', label: 'Accountants', description: 'Financial records', icon: TrendingUp, color: 'bg-green-100 text-green-700', countKey: 'accountants' as const },
   { key: 'cashiers', role: 'cashier', label: 'Cashiers', description: 'Cash and receipts', icon: DollarSign, color: 'bg-amber-100 text-amber-700', countKey: 'cashiers' as const },
-  { key: 'collectionAgents', role: 'collection_agent', label: 'Collection Agents', description: 'Assigned collections', icon: Users, color: 'bg-purple-100 text-purple-700', countKey: 'collectionAgents' as const },
+  { key: 'collectionAgents', role: 'collection_agent', label: 'Agents', description: 'Field collection and verification', icon: Users, color: 'bg-purple-100 text-purple-700', countKey: 'collectionAgents' as const },
   { key: 'guarantors', role: 'guarantor', label: 'Guarantors', description: 'Associated guarantors', icon: Shield, color: 'bg-indigo-100 text-indigo-700', countKey: 'guarantors' as const },
 ]
 
@@ -151,7 +151,7 @@ export function BranchCard({ branch, onAddUser, onAddBranch, onManageStaff, onOp
                     assistantManagers: 'No assistant branch manager added yet',
                     accountants: 'No accountants added yet',
                     cashiers: 'No cashiers added yet',
-                    collectionAgents: 'No collection agents assigned',
+                    collectionAgents: 'No agents assigned',
                     guarantors: 'No guarantors associated with this branch',
                   }
 

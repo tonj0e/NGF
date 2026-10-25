@@ -36,7 +36,7 @@ const roleConfig: Record<BranchRole, { label: string; description: string; icon:
     color: 'bg-amber-100 text-amber-700',
   },
   collection_agent: {
-    label: 'Collection Agent',
+    label: 'Agent',
     description: 'Assigned collections',
     icon: Users,
     color: 'bg-purple-100 text-purple-700',

@@ -65,7 +65,7 @@ const emptyMessages: Record<UserRole, string> = {
   assistant_manager: 'No assistant branch manager added yet',
   accountant: 'No accountants added yet',
   cashier: 'No cashiers added yet',
-  collection_agent: 'No collection agents assigned yet',
+  collection_agent: 'No agents assigned yet',
   guarantor: 'No guarantors associated with this branch',
 }
 
