@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, getSession, ok, err } from '@/lib/api'
 import { needFeature } from '@/lib/access'
+import { coll } from '@/lib/features'
 import { readTable, updateById, appendRow, makeId, nowIso, paginate, invalidateCache, getSupabase } from '@/lib/supabase-db'
 import { APP_CONFIG } from '@/lib/config'
 import { saveFileSupabase } from '@/lib/drive'
@@ -108,7 +109,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
 
 export const POST = apiHandler(async (req: NextRequest) => {
   const session = await getSession(req)
-  await needFeature(session, ['collection', 'settlements', 'payMark'])
+  await needFeature(session, [...coll('collectionRecord'), 'settlements', 'payMark'])
   const body = await req.json()
   const { repaymentId, paymentMode, notes, paymentProof, status, reviewLabel } = body
 

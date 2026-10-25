@@ -1,7 +1,10 @@
 'use client'
-import { Fragment, useEffect, useRef, useState, useCallback } from 'react'
+import { Fragment, createContext, useContext, useEffect, useRef, useState, useCallback } from 'react'
 import { Session } from '@/types'
 import StatusPill from '@/components/ui/StatusPill'
+
+// Whether this person may record payments (Staff only get it with the Record part; the server checks too)
+const RecordAllowed = createContext(true)
 
 function currency(n: number) {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n)
@@ -171,7 +174,8 @@ function RepaymentCards({ rows, page, search, reviewOptions, session, onSaved, o
   const PAGE_SIZE = 30
   const totalPages = Math.ceil(total / PAGE_SIZE)
   const hint = session.role === 'Guarantor' ? 'Search last 4 digits of Loan ID or mobile' : 'Search Loan ID or mobile'
-  const canRecord = isTodaySaturday || unlocked
+  const mayRecord = useContext(RecordAllowed)
+  const canRecord = mayRecord && (isTodaySaturday || unlocked)
 
   // Pick up Dev-page toggle changes (fires across tabs; re-read on focus too)
   useEffect(() => {
@@ -664,12 +668,17 @@ function buildSheetHtml(data: any) {
   </body></html>`
 }
 
-export default function CollectionPage({ session }: { session: Session }) {
+// `perms`: what a Staff user may do (role defaults + extras). Other roles are not limited here; the server checks every action too.
+const hasPart = (perms: string[] | undefined, part: string) => !perms || perms.includes('collection') || perms.includes(part)
+
+export default function CollectionPage({ session, perms }: { session: Session; perms?: string[] }) {
+  const can = (part: string) => session.role !== 'Staff' || hasPart(perms, part)
   const [tab, setTab] = useState<CollectionTab>(session.role === 'Guarantor' ? 'today' : 'all')
   const [reviewOptions, setReviewOptions] = useState<ReviewOption[]>([])
   const [downloading, setDownloading] = useState(false)
 
   const canDownload = session.role === 'Admin' || session.role === 'Staff' || isSheetWindowOpen()
+  const sheetAllowed = can('collectionSheet')
 
   async function downloadSheet() {
     if (downloading) return
@@ -705,9 +714,16 @@ export default function CollectionPage({ session }: { session: Session }) {
     { key: 'history',   label: 'History',           roles: ['Admin', 'Staff'] },
   ]
 
-  const visibleTabs = TABS.filter(t => !t.roles || t.roles.includes(session.role))
+  const visibleTabs = TABS.filter(t => (!t.roles || t.roles.includes(session.role)) && can(t.key === 'pastMonth' || t.key === 'history' ? 'collectionPast' : 'collectionView'))
+
+  // A person who only holds the Past/History part opens on that tab
+  useEffect(() => {
+    if (visibleTabs.length && !visibleTabs.some(t => t.key === tab)) setTab(visibleTabs[0].key)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [perms])
 
   return (
+    <RecordAllowed.Provider value={can('collectionRecord')}>
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex gap-2 flex-wrap">
@@ -721,6 +737,7 @@ export default function CollectionPage({ session }: { session: Session }) {
         <button
           onClick={downloadSheet}
           disabled={!canDownload || downloading}
+          hidden={!sheetAllowed}
           title={canDownload ? 'Download collection sheet' : 'Available Friday 5pm through Saturday'}
           className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-semibold transition ${
             canDownload
@@ -747,5 +764,6 @@ export default function CollectionPage({ session }: { session: Session }) {
       {tab === 'pastMonth' && <PastMonthTab session={session} />}
       {tab === 'history'   && <HistoryTab session={session} />}
     </div>
+    </RecordAllowed.Provider>
   )
 }

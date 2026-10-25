@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { effectivePermissions, permsOf, canUse, DEFAULT_ROLE_PERMISSIONS, lead, hasAnyLead, LEAD_PARTS } from '../../lib/features.ts'
+import { effectivePermissions, permsOf, canUse, DEFAULT_ROLE_PERMISSIONS, coll, hasAnyCollection, customer, lead, hasAnyLead, LEAD_PARTS } from '../../lib/features.ts'
 
 const acc = DEFAULT_ROLE_PERMISSIONS.accountant
 assert.deepEqual(effectivePermissions(['accountant'], []).sort(), [...acc].sort())
@@ -29,4 +29,13 @@ assert.equal(hasAnyLead(['customers']), false)
 assert.deepEqual(effectivePermissions(['accountant'], []).filter(k => k.startsWith('leads')).sort(), ['leadsApprove', 'leadsDisburse', 'leadsView'])
 assert.ok(!effectivePermissions(['assistant_manager'], []).includes('leadsDelete'))
 assert.equal(LEAD_PARTS.every(k => effectivePermissions(['manager'], []).includes(k)), true)
+// Collection parts and Customers parts
+assert.equal(canUse(['collection'], coll('collectionRecord'), false), true)
+assert.equal(canUse(['collectionView'], coll('collectionRecord'), false), false)
+assert.equal(hasAnyCollection(['collectionPast']), true)
+assert.ok(effectivePermissions(['accountant'], []).includes('collectionRecord'))
+assert.ok(!effectivePermissions(['cashier'], []).includes('collectionPast'))
+assert.equal(canUse(['customers'], customer('customersHistory'), false), true)
+assert.equal(canUse(['customers'], customer('customersDelete'), false), false)   // old key never grants delete
+assert.ok(effectivePermissions(['manager'], []).includes('customersDelete'))
 console.log('ok')

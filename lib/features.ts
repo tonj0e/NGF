@@ -22,7 +22,11 @@ export const FEATURES: Feature[] = [
   { key: 'leadsClose',    label: 'Leads: close a loan early',       group: 'Leads', holders: ['staff'], view: '' },
   { key: 'leadsDelete',   label: 'Leads: delete leads',             group: 'Leads', holders: ['staff'], view: '' },
   { key: 'verificationPlanning', label: 'Verification Routes (call customers, plan agent visits)', group: 'Leads', holders: ['staff'], view: 'routes' },
-  { key: 'collection',  label: 'Collection',            group: 'Money',      holders: ['staff'], view: 'collection' },
+  { key: 'collection',  label: 'Collection: all parts (everything below)', group: 'Money', holders: ['staff'], view: 'collection' },
+  { key: 'collectionView',   label: 'Collection: view pending, today, list, coming Saturday', group: 'Money', holders: ['staff'], view: '' },
+  { key: 'collectionRecord', label: 'Collection: record payments',             group: 'Money', holders: ['staff'], view: '' },
+  { key: 'collectionSheet',  label: 'Collection: download the Saturday sheet', group: 'Money', holders: ['staff'], view: '' },
+  { key: 'collectionPast',   label: 'Collection: past month and history',      group: 'Money', holders: ['staff'], view: '' },
   { key: 'settlements', label: 'Settlements',           group: 'Money',      holders: ['staff'], view: 'settlements' },
   { key: 'deposits',    label: 'Deposits',              group: 'Money',      holders: ['staff'], view: '' },
   { key: 'reports',     label: 'Reports',               group: 'Reports',    holders: ['staff'], view: 'reports' },
@@ -52,6 +56,11 @@ export const FEATURES: Feature[] = [
 export const LEAD_PARTS = ['leadsView', 'leadsEdit', 'leadsAssign', 'leadsApprove', 'leadsDisburse', 'leadsRenew', 'leadsClose', 'leadsDelete']
 /** Keys that allow one part: the part itself or the all-parts key */
 export const lead = (part: string) => [part, 'leads']
+/** Collection parts. The old `collection` key means all of them. */
+export const COLLECTION_PARTS = ['collectionView', 'collectionRecord', 'collectionSheet', 'collectionPast']
+export const coll = (part: string) => [part, 'collection']
+export const hasAnyCollection = (perms: string[]) => perms.includes('collection') || COLLECTION_PARTS.some(k => perms.includes(k))
+
 /** Customers parts. The old `customers` key = view + history only (editing needs customersEdit; re-admit and delete were Admin-only and stay so until given). */
 export const CUSTOMER_PARTS = ['customersView', 'customersHistory', 'customersEdit', 'customersReadmit', 'customersDelete']
 export const customer = (part: string) => (part === 'customersView' || part === 'customersHistory') ? [part, 'customers'] : [part]
@@ -65,10 +74,10 @@ export const FEATURE_KEYS = new Set(FEATURES.map(f => f.key))
 // Starting defaults per branch role (editable by the Admin: settings key `role_defaults`). Same sets that were
 // only "suggestions" before, so nothing changes until the Admin edits them.
 export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
-  manager:           [...CUSTOMER_PARTS, ...LEAD_PARTS, 'collection', 'settlements', 'reports', 'guarantors', 'agentTracking', 'verificationPlanning'],
-  assistant_manager: ['customersView', 'customersHistory', 'customersEdit', 'leadsView', 'leadsEdit', 'leadsAssign', 'leadsApprove', 'leadsDisburse', 'leadsRenew', 'leadsClose', 'collection', 'reports', 'guarantors', 'agentTracking', 'verificationPlanning'],
-  accountant:        ['customersView', 'customersHistory', 'leadsView', 'leadsApprove', 'leadsDisburse', 'reports', 'settlements', 'agentTracking', 'verificationPlanning'],
-  cashier:           ['collection', 'settlements', 'leadsView', 'leadsDisburse'],
+  manager:           [...CUSTOMER_PARTS, ...LEAD_PARTS, ...COLLECTION_PARTS, 'settlements', 'reports', 'guarantors', 'agentTracking', 'verificationPlanning'],
+  assistant_manager: ['customersView', 'customersHistory', 'customersEdit', 'leadsView', 'leadsEdit', 'leadsAssign', 'leadsApprove', 'leadsDisburse', 'leadsRenew', 'leadsClose', ...COLLECTION_PARTS, 'reports', 'guarantors', 'agentTracking', 'verificationPlanning'],
+  accountant:        ['customersView', 'customersHistory', 'leadsView', 'leadsApprove', 'leadsDisburse', ...COLLECTION_PARTS, 'reports', 'settlements', 'agentTracking', 'verificationPlanning'],
+  cashier:           ['collectionView', 'collectionRecord', 'collectionSheet', 'settlements', 'leadsView', 'leadsDisburse'],
   agent:             [],
   // pages a guarantor sees until the Admin customises that one guarantor (everything they always had; chat is off by default)
   guarantor:         ['gp:dashboard', 'gp:leads', 'gp:collection', 'gp:payLinks', 'gp:commissions', 'gp:deposits', 'gp:myCustomers', 'gp:myIdCard', 'payHistory'],

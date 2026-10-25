@@ -9,7 +9,7 @@ import { Sheet, SheetContent, SheetClose } from '@/components/ui/sheet'
 import { Menu, X, Bell, User, LogOut, LayoutDashboard, Users, FileText, Truck, BarChart3, LandPlot, Upload, CreditCard, Settings, Shield, MessageSquare, MapPin, ClipboardList, Wallet, History, Sparkles, HelpCircle, ChevronLeft, ChevronRight, DollarSign, Coins, Banknote, Pin, PinOff, PieChart, TrendingUp, Route as RouteIcon, Navigation, Building2, Link2, LayoutGrid, ChevronDown } from 'lucide-react'
 import Dashboard from './pages/Dashboard'
 import LeadsPage from './pages/LeadsPage'
-import { hasAnyLead, hasAnyCustomer } from '@/lib/features'
+import { hasAnyLead, hasAnyCustomer, hasAnyCollection } from '@/lib/features'
 import StaffPage from './pages/StaffPage'
 import RepayPage from './pages/RepayPage'
 import NotificationsPage from './pages/NotificationsPage'
@@ -194,9 +194,9 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
           return
         }
         if (session.role !== 'Staff') return
-        const allowed = ['notifications', ...APP_CONFIG.STAFF_FEATURES.filter(f => f.view && (perms.includes(f.key) || (f.key === 'leads' && hasAnyLead(perms)) || (f.key === 'customers' && hasAnyCustomer(perms)))).map(f => f.view), ...(['payChat', 'payHistory', 'payMark', 'payBank', 'payOverride'].some(k => perms.includes(k)) ? ['payments'] : [])]
+        const allowed = ['notifications', ...APP_CONFIG.STAFF_FEATURES.filter(f => f.view && (perms.includes(f.key) || (f.key === 'leads' && hasAnyLead(perms)) || (f.key === 'customers' && hasAnyCustomer(perms)) || (f.key === 'collection' && hasAnyCollection(perms)))).map(f => f.view), ...(['payChat', 'payHistory', 'payMark', 'payBank', 'payOverride'].some(k => perms.includes(k)) ? ['payments'] : [])]
         if (restoredView.current && allowed.includes(restoredView.current)) return
-        const first = APP_CONFIG.STAFF_FEATURES.find(f => f.view && (perms.includes(f.key) || (f.key === 'leads' && hasAnyLead(perms)) || (f.key === 'customers' && hasAnyCustomer(perms))))
+        const first = APP_CONFIG.STAFF_FEATURES.find(f => f.view && (perms.includes(f.key) || (f.key === 'leads' && hasAnyLead(perms)) || (f.key === 'customers' && hasAnyCustomer(perms)) || (f.key === 'collection' && hasAnyCollection(perms))))
         setView(first ? first.view : 'notifications', true)
       })
       .catch(() => {})
@@ -216,7 +216,7 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
 
   const hasPay = ['payChat', 'payHistory', 'payMark', 'payBank', 'payOverride'].some(k => staffPerms.includes(k))
   const staffMenu = [
-    ...APP_CONFIG.STAFF_FEATURES.filter(f => f.view && (staffPerms.includes(f.key) || (f.key === 'leads' && hasAnyLead(staffPerms)) || (f.key === 'customers' && hasAnyCustomer(staffPerms)))).map(f => ({ key: f.view, label: f.key === 'leads' ? 'Leads' : f.key === 'customers' ? 'Customers' : f.label })),
+    ...APP_CONFIG.STAFF_FEATURES.filter(f => f.view && (staffPerms.includes(f.key) || (f.key === 'leads' && hasAnyLead(staffPerms)) || (f.key === 'customers' && hasAnyCustomer(staffPerms)) || (f.key === 'collection' && hasAnyCollection(staffPerms)))).map(f => ({ key: f.view, label: f.key === 'leads' ? 'Leads' : f.key === 'customers' ? 'Customers' : f.key === 'collection' ? 'Collection' : f.label })),
     ...(hasPay ? [{ key: 'payments', label: 'Payments' }] : []),
     { key: 'notifications', label: 'Notifications' },
   ]
@@ -296,7 +296,7 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
       case 'repayments':   return <RepayPage session={session} mode="all" />
       case 'today':        return <RepayPage session={session} mode="today" />
       case 'saturday':     return <RepayPage session={session} mode="saturday" />
-      case 'collection':   return <CollectionPage session={session} />
+      case 'collection':   return <CollectionPage session={session} perms={session.role === 'Staff' ? staffPerms : undefined} />
       case 'settlements':  return <SettlementsPage session={session} />
       case 'payments':     return <PaymentsPage session={session} />
       case 'routes':       return <VisitRoutesPage session={session} />

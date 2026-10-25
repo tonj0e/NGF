@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, getSession, ok, err } from '@/lib/api'
 import { needFeature } from '@/lib/access'
+import { coll } from '@/lib/features'
 import { readTable } from '@/lib/supabase-db'
 
 // Collection sheet for guarantors: one row per active customer showing the week
@@ -9,7 +10,7 @@ import { readTable } from '@/lib/supabase-db'
 
 export const GET = apiHandler(async (req: NextRequest) => {
   const session = await getSession(req)
-  await needFeature(session, ['collection'])
+  await needFeature(session, coll('collectionSheet'))
   const { searchParams } = new URL(req.url)
   const guarantorIdParam = searchParams.get('guarantorId') || ''
   const isDownload = searchParams.get('download') === '1'
