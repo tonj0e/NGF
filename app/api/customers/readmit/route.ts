@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, requireRole, ok, err } from '@/lib/api'
 import { requireFeature } from '@/lib/access'
-import { readTable, updateById, nowIso, invalidateCache, getSupabase } from '@/lib/supabase-db'
+import { getRowById, updateById, nowIso, invalidateCache, getSupabase } from '@/lib/supabase-db'
 import { csrfProtection } from '@/lib/csrf'
 import { createAuditLogger } from '@/lib/audit'
 
@@ -14,7 +14,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
   const note = String(reason || '').trim()
   if (!customerId) return err('customerId required')
   if (note.length < 20) return err('Describe the verification done before re-admitting (at least 20 characters)')
-  const c = (await readTable('Customers', { forceFresh: true })).find(x => x['Customer ID'] === customerId)
+  const c = await getRowById('Customers', customerId)
   if (!c) return err('Customer not found', 404)
   if (String(c['Permanent Block']) !== 'true') return err('This customer is not permanently closed')
   await updateById('Customers', customerId, { 'Permanent Block': 'false', 'Block Reason': null, 'Hold Until': null, 'Updated At': nowIso() })

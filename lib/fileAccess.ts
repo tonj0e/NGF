@@ -1,4 +1,4 @@
-import { readTable, getSupabase } from './supabase-db'
+import { selectRows, getRowById, getSupabase } from './supabase-db'
 import { Session } from '../types'
 
 // Who may read a stored file through /api/drive/[fileId].
@@ -6,49 +6,49 @@ import { Session } from '../types'
 // (their leads, customers, loans, repayments and collections). Profile pictures are shown on ID cards and lists
 // to every signed-in user, so the profiles bucket is open to all roles.
 
-const FILE_COLS = /url|file|photo|proof|folder|path|image|doc/i
+// The columns that can name a stored file, per table (only these tables hold file references).
+const LEAD_FILE_COLS = ['customer_photo_url', 'aadhaar_front_url', 'aadhaar_back_url', 'landmark_photo_url', 'house_photo_url', 'cheque_photo_url', 'document_folder_id']
 
-function collect(rows: Record<string, any>[], into: string[]) {
-  for (const r of rows) for (const [k, v] of Object.entries(r)) {
-    if (typeof v === 'string' && v && FILE_COLS.test(k)) into.push(v)
-  }
+// A value for a PostgREST filter list: quoted, with the characters that mean something escaped.
+// The id is matched as plain text, so `%`, `_` and `\` in it are escaped for LIKE first.
+function containsFilter(column: string, text: string) {
+  const like = '%' + text.replace(/[\\%_]/g, m => '\\' + m) + '%'
+  return `${column}.ilike."${like.replace(/[\\"]/g, m => '\\' + m)}"`
 }
+const anyColumn = (cols: string[], text: string) => cols.map(c => containsFilter(c, text)).join(',')
 
 export async function canReadFile(session: Session, fileId: string): Promise<boolean> {
   if (session.role === 'Admin' || session.role === 'Staff') return true
   if (!fileId || fileId.includes('..')) return false
   if (fileId.startsWith('supabase:profiles/')) return true
 
-  const [leads, customers, loans, repayments, collections, guarantors, agents] = await Promise.all([
-    readTable('Leads'), readTable('Customers'), readTable('Loans'), readTable('Repayments'),
-    readTable('Collections'), readTable('Guarantors'), readTable('Agents'),
-  ])
-
-  let myLeads: Record<string, any>[] = [], myLoans: Record<string, any>[] = []
-  const myCustomerIds = new Set<string>()
+  // Which of this person's loans / leads they may open files of
+  let who: { column: 'guarantor_id' | 'assigned_agent_id'; id: string }
   if (session.role === 'Guarantor') {
-    const g = guarantors.find(g => g['User ID'] === session.userId)
+    const g = (await selectRows('Guarantors', qb => qb.eq('user_id', session.userId).limit(1))).rows[0]
     if (!g) return false
     // a screenshot this guarantor sent in Payment Chat
-    const { data: chat } = await getSupabase().from('payment_chat').select('message_id').eq('guarantor_id', g['Guarantor ID']).like('image_url', `%${fileId}%`).limit(1)
+    const { data: chat } = await getSupabase().from('payment_chat').select('message_id').eq('guarantor_id', g['Guarantor ID']).like('image_url', '%' + fileId.replace(/[\\%_]/g, m => '\\' + m) + '%').limit(1)
     if (chat && chat.length) return true
-    myLeads = leads.filter(l => l['Guarantor ID'] === g['Guarantor ID'])
-    myLoans = loans.filter(l => l['Guarantor ID'] === g['Guarantor ID'])
-    customers.filter(c => c['Guarantor ID'] === g['Guarantor ID']).forEach(c => myCustomerIds.add(c['Customer ID']))
+    who = { column: 'guarantor_id', id: g['Guarantor ID'] }
   } else if (session.role === 'NGF AGENT') {
-    const a = agents.find(a => a['User ID'] === session.userId)
+    const a = (await selectRows('Agents', qb => qb.eq('user_id', session.userId).limit(1))).rows[0]
     if (!a) return false
-    myLeads = leads.filter(l => l['Assigned Agent ID'] === a['Agent ID'])
-    myLoans = loans.filter(l => l['Assigned Agent ID'] === a['Agent ID'])
+    who = { column: 'assigned_agent_id', id: a['Agent ID'] }
   } else return false
 
-  myLoans.forEach(l => myCustomerIds.add(l['Customer ID']))
-  const myLoanIds = new Set(myLoans.map(l => l['Loan ID']))
-  const refs: string[] = []
-  collect(myLeads, refs)
-  collect(myLoans, refs)
-  collect(customers.filter(c => myCustomerIds.has(c['Customer ID'])), refs)
-  collect(repayments.filter(r => myLoanIds.has(r['Loan ID'])), refs)
-  collect(collections.filter(c => myLoanIds.has(c['Loan ID'])), refs)
-  return refs.some(v => v.includes(fileId))
+  // Ask the database whether any of their own records names this file (one row is enough)
+  const leadAgentColumn = who.column === 'assigned_agent_id' ? 'assigned_agent_id' : 'guarantor_id'
+  const [leadHit, repaymentHit, collectionHits] = await Promise.all([
+    selectRows('Leads', qb => qb.eq(leadAgentColumn, who.id).or(anyColumn(LEAD_FILE_COLS, fileId)).limit(1)),
+    selectRows('RepaymentsEnriched', qb => qb.eq(who.column, who.id).or(containsFilter('proof_file_id', fileId)).limit(1)),
+    selectRows('Collections', qb => qb.or(containsFilter('proof_file_id', fileId)).limit(20)),
+  ])
+  if (leadHit.rows.length || repaymentHit.rows.length) return true
+  // a collection record belongs to them when its loan does
+  for (const c of collectionHits.rows) {
+    const loan = c['Loan ID'] ? await getRowById('Loans', c['Loan ID']) : null
+    if (loan && loan[who.column === 'guarantor_id' ? 'Guarantor ID' : 'Assigned Agent ID'] === who.id) return true
+  }
+  return false
 }

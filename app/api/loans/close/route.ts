@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { apiHandler, requireRole, ok, err } from '@/lib/api'
 import { requireFeature } from '@/lib/access'
 import { lead as leadKeys } from '@/lib/features'
-import { readTable, updateById, appendRow, makeId, nowIso, invalidateCache, getSupabase } from '@/lib/supabase-db'
+import { readTable, getRowById, selectAll, updateById, appendRow, makeId, nowIso, invalidateCache, getSupabase } from '@/lib/supabase-db'
 import { getTodayIST } from '@/lib/dateUtils'
 import { csrfProtection } from '@/lib/csrf'
 import { createAuditLogger } from '@/lib/audit'
@@ -19,13 +19,12 @@ const MODES: Record<string, string> = { Cash: 'Cash', UPI: 'UPI', Bank: 'Bank', 
 
 async function load(req: NextRequest, loanId: string) {
   const session = await requireFeature(req, leadKeys('leadsClose'))
-  const [loans, repayments, customers] = await Promise.all([readTable('Loans', { forceFresh: true }), readTable('Repayments', { forceFresh: true }), readTable('Customers', { forceFresh: true })])
-  const loan = loans.find(l => l['Loan ID'] === loanId)
+  const loan = await getRowById('Loans', loanId)
   if (!loan) return { error: err('Loan not found', 404) }
   const access = await getBranchAccess(session)
   if (!canApproveIn(access, await branchOfGuarantor(loan['Guarantor ID']))) return { error: err('This loan belongs to another branch', 403) }
-  const customer = customers.find(c => c['Customer ID'] === loan['Customer ID'])
-  const remaining = repayments.filter(r => r['Loan ID'] === loanId && r['Status'] !== 'Paid' && r['Status'] !== 'Waived')
+  const customer = await getRowById('Customers', loan['Customer ID'])
+  const remaining = await selectAll('Repayments', qb => qb.eq('loan_id', loanId).not('status', 'in', '(Paid,Waived)'))
   return { error: null, session, loan, customer, remaining }
 }
 
@@ -81,7 +80,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
   }
   invalidateCache('Loans'); invalidateCache('Repayments'); invalidateCache('Customers'); invalidateCache('Collections')
   await createAuditLogger(req, session).log('LOAN_CLOSED_EARLY', 'Loan', loanId, { mode, weeks: remaining.length, amount, paymentMode: pm, reason: reason.slice(0, 200) })
-  const g = (await readTable('Guarantors')).find(x => x['Guarantor ID'] === loan['Guarantor ID'])
+  const g = await getRowById('Guarantors', loan['Guarantor ID'])
   if (g) await notifyUser(g['User ID'], 'Guarantor', mode === 'hold' ? 'Loan closed (on hold)' : 'Loan closed permanently', `${customer['Name']}: ${mode === 'hold' ? `renewal opens after ${String(loan['End Date']).slice(0, 10)}` : 'no further loans'}.`, 'Loan', loanId)
   return ok({ closed: true, mode, weeksPrepaid: remaining.length, amount, holdUntil: mode === 'hold' ? String(loan['End Date']).slice(0, 10) : null })
 })

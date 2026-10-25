@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, getSession, requireRole, ok, err } from '@/lib/api'
 import { needFeature } from '@/lib/access'
-import { readTable, selectRows, selectAll, updateById, findRecord, formatDateYmd, addDays, nowIso, invalidateCache } from '@/lib/supabase-db'
+import { readTable, selectRows, selectAll, getRowById, updateById, findRecord, formatDateYmd, addDays, nowIso, invalidateCache } from '@/lib/supabase-db'
 import { getTodayIST } from '@/lib/dateUtils'
 import { guarantorCanSeeCommissions } from '@/lib/commissions'
 import { getBranchAccess, canSeeGuarantor, guarantorBranchMap } from '@/lib/branchAccess'
@@ -119,11 +119,9 @@ export const PATCH = apiHandler(async (req: NextRequest) => {
 
   if (action === 'foreclose') {
     if (!loanId) return err('loanId required')
-    const [loans, repayments, customers] = await Promise.all([
-      readTable('Loans'), readTable('Repayments'), readTable('Customers'),
-    ])
-    const loan = findRecord(loans, 'Loan ID', loanId)
+    const loan = await getRowById('Loans', loanId)
     if (!loan) return err('Loan not found')
+    const repayments = await selectAll('Repayments', qb => qb.eq('loan_id', loanId))
 
     // Mark loan as Completed
     await updateById('Loans', loanId, { 'Status': 'Completed', 'Updated At': nowIso() })
@@ -135,7 +133,7 @@ export const PATCH = apiHandler(async (req: NextRequest) => {
     }
 
     // Clear Active Loan ID on customer record
-    const customer = customers.find(c => c['Customer ID'] === loan['Customer ID'])
+    const customer = await getRowById('Customers', loan['Customer ID'])
     if (customer) {
       await updateById('Customers', customer['Customer ID'], { 'Active Loan ID': '', 'Updated At': nowIso() })
     }
@@ -148,18 +146,16 @@ export const PATCH = apiHandler(async (req: NextRequest) => {
 
   if (action === 'settleBalance') {
     if (!loanId) return err('loanId required')
-    const [loans, repayments, customers] = await Promise.all([
-      readTable('Loans'), readTable('Repayments'), readTable('Customers'),
-    ])
-    const loan = findRecord(loans, 'Loan ID', loanId)
+    const loan = await getRowById('Loans', loanId)
     if (!loan) return err('Loan not found')
+    const repayments = await selectAll('Repayments', qb => qb.eq('loan_id', loanId))
     const pending = repayments.filter(r => r['Loan ID'] === loanId && r['Status'] !== 'Paid' && r['Status'] !== 'Waived')
     const today = getTodayIST()
     for (const r of pending) {
       await updateById('Repayments', r['Repayment ID'], { 'Status': 'Paid', 'Paid Date': today, 'Notes': 'Balance settled', 'Updated At': nowIso() })
     }
     await updateById('Loans', loanId, { 'Status': 'Completed', 'Updated At': nowIso() })
-    const customer = customers.find(c => c['Customer ID'] === loan['Customer ID'])
+    const customer = await getRowById('Customers', loan['Customer ID'])
     if (customer) await updateById('Customers', customer['Customer ID'], { 'Active Loan ID': '', 'Updated At': nowIso() })
     invalidateCache('Loans')
     invalidateCache('Repayments')
@@ -169,8 +165,7 @@ export const PATCH = apiHandler(async (req: NextRequest) => {
 
   if (action === 'closeAccount') {
     if (!loanId) return err('loanId required')
-    const loans = await readTable('Loans')
-    const loan = findRecord(loans, 'Loan ID', loanId)
+    const loan = await getRowById('Loans', loanId)
     if (!loan) return err('Loan not found')
     await updateById('Loans', loanId, { 'Status': 'Closed', 'Updated At': nowIso() })
     invalidateCache('Loans')
@@ -179,9 +174,9 @@ export const PATCH = apiHandler(async (req: NextRequest) => {
 
   if (action === 'fixDates') {
     if (!loanId || !newStartDate) return err('loanId and newStartDate required')
-    const [loans, repayments] = await Promise.all([readTable('Loans'), readTable('Repayments')])
-    const loan = findRecord(loans, 'Loan ID', loanId)
+    const loan = await getRowById('Loans', loanId)
     if (!loan) return err('Loan not found')
+    const repayments = await selectAll('Repayments', qb => qb.eq('loan_id', loanId))
 
     const durationWeeks = Number(loan['Duration Weeks'])
     const start = new Date(newStartDate)

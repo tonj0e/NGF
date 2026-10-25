@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { apiHandler, getSession, ok, err } from '@/lib/api'
 import { needFeature } from '@/lib/access'
 import { coll } from '@/lib/features'
-import { readTable, updateById, appendRow, makeId, nowIso, paginate, invalidateCache, getSupabase } from '@/lib/supabase-db'
+import { readTable, selectRows, countRows, getRowById, updateById, appendRow, makeId, nowIso, invalidateCache, getSupabase } from '@/lib/supabase-db'
 import { APP_CONFIG } from '@/lib/config'
 import { saveFileSupabase } from '@/lib/drive'
 import { getTodayIST, getThisSaturday, getNextSaturday } from '@/lib/dateUtils'
@@ -134,23 +134,20 @@ export const POST = apiHandler(async (req: NextRequest) => {
   if (paymentMode && !mode) return err('Invalid payment mode')
   if (payStatus === 'Paid' && !mode) return err('Please choose a payment mode')
 
-  const [repayments, loans] = await Promise.all([readTable('Repayments', { forceFresh: true }), readTable('Loans', { forceFresh: true })])
-  const r = repayments.find(r => r['Repayment ID'] === repaymentId)
+  const r = await getRowById('Repayments', String(repaymentId || ''))
   if (!r) return err('Repayment not found', 404)
+  const loan = await getRowById('Loans', r['Loan ID'])
 
   // Same scope as the list above: Admin any loan, Staff loans of their branches, Guarantor own loans, agent assigned loans
   if (session.role !== 'Admin') {
-    const loan = loans.find(l => l['Loan ID'] === r['Loan ID'])
     let mine = false
     if (session.role === 'Staff') {
       mine = canSeeGuarantor(await getBranchAccess(session), await guarantorBranchMap(), loan?.['Guarantor ID'] || '')
     } else if (session.role === 'NGF AGENT') {
-      const agents = await readTable('Agents')
-      const agent = agents.find(a => a['User ID'] === session.userId)
+      const agent = (await selectRows('Agents', qb => qb.eq('user_id', session.userId).limit(1))).rows[0]
       mine = !!agent && loan?.['Assigned Agent ID'] === agent['Agent ID']
     } else if (session.role === 'Guarantor') {
-      const guarantors = await readTable('Guarantors')
-      const g = guarantors.find(g => g['User ID'] === session.userId)
+      const g = (await selectRows('Guarantors', qb => qb.eq('user_id', session.userId).limit(1))).rows[0]
       mine = !!g && loan?.['Guarantor ID'] === g['Guarantor ID']
     }
     if (!mine) return err('No permission', 403)
@@ -210,11 +207,9 @@ export const POST = apiHandler(async (req: NextRequest) => {
     })
 
     // Check loan completion
-    const allRepayments = await readTable('Repayments', { forceFresh: true })
-    const loanReps = allRepayments.filter(x => x['Loan ID'] === r['Loan ID'])
-    const allDone = loanReps.every(x => x['Status'] === 'Paid' || x['Status'] === 'Waived' || x['Repayment ID'] === repaymentId)
-    if (allDone) {
-      const loan = loans.find(l => l['Loan ID'] === r['Loan ID'])
+    // is any other week of this loan still open? (one small count, not the whole repayments table)
+    const stillOpen = await countRows('Repayments', qb => qb.eq('loan_id', r['Loan ID']).neq('repayment_id', repaymentId).not('status', 'in', '(Paid,Waived)'))
+    if (stillOpen === 0) {
       if (loan) await updateById('Loans', loan['Loan ID'], { 'Status': 'Completed', 'Updated At': nowIso() })
     }
   }

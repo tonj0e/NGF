@@ -1,33 +1,28 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, requireRole, ok, err } from '@/lib/api'
 import { requireFeature } from '@/lib/access'
-import { readTable, appendRow, updateById, findRecord, makeId, nowIso, formatDateYmd, invalidateCache } from '@/lib/supabase-db'
+import { readTable, countRows, getRowById, appendRow, updateById, findRecord, makeId, nowIso, formatDateYmd, invalidateCache } from '@/lib/supabase-db'
 import { APP_CONFIG } from '@/lib/config'
 import { getLeadDocFolder, uploadLeadPhoto, docLabel } from '@/lib/drive'
 import { payCodeFromLoanId } from '@/lib/payCode'
 
 async function makeLoanId(guarantorCode: string): Promise<string> {
-  const loans = await readTable('Loans')
+  // pick a random 4-digit number and ask the database whether that loan id is taken (no need to read every loan)
   const prefix = `${guarantorCode}-`
-  const usedNums = new Set(
-    loans.map(l => l['Loan ID']).filter(id => id?.startsWith(prefix))
-      .map(id => parseInt(id.slice(prefix.length), 10)).filter(n => !isNaN(n))
-  )
-  let num: number
-  do { num = Math.floor(1000 + Math.random() * 9000) } while (usedNums.has(num))
-  return `${prefix}${num}`
+  for (let tries = 0; tries < 60; tries++) {
+    const candidate = `${prefix}${Math.floor(1000 + Math.random() * 9000)}`
+    if ((await countRows('Loans', qb => qb.eq('loan_id', candidate))) === 0) return candidate
+  }
+  throw new Error('Could not find a free loan number. Please try again.')
 }
 
 async function makeCustomerId(guarantorCode: string): Promise<string> {
-  const customers = await readTable('Customers')
   const prefix = `NGF${guarantorCode}`
-  const usedNums = new Set(
-    customers.map(c => c['Customer ID']).filter(id => id?.startsWith(prefix))
-      .map(id => parseInt(id.slice(prefix.length), 10)).filter(n => !isNaN(n))
-  )
-  let num: number
-  do { num = Math.floor(1000 + Math.random() * 9000) } while (usedNums.has(num))
-  return `${prefix}${num.toString().padStart(4, '0')}`
+  for (let tries = 0; tries < 60; tries++) {
+    const candidate = `${prefix}${Math.floor(1000 + Math.random() * 9000).toString().padStart(4, '0')}`
+    if ((await countRows('Customers', qb => qb.eq('customer_id', candidate))) === 0) return candidate
+  }
+  throw new Error('Could not find a free customer number. Please try again.')
 }
 
 function addDays(date: Date, days: number): Date {
@@ -191,8 +186,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
   // Mark loan as Completed if all weeks are paid
   const allPaid = Array.from({ length: product.durationWeeks }, (_, i) => statusMap[i + 1] || 'Pending').every(s => s === 'Paid')
   if (allPaid) {
-    const loans = await readTable('Loans')
-    const loan = findRecord(loans, 'Loan ID', loanId)
+    const loan = await getRowById('Loans', loanId)
     if (loan) await updateById('Loans', loanId, { 'Status': 'Completed', 'Updated At': nowIso() })
     invalidateCache('Loans')
   }

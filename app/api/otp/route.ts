@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { apiHandler, getSession, ok, err } from '@/lib/api'
 import { notifyRole } from '@/lib/notifications'
-import { readTable, updateById, findRecord, nowIso, invalidateCache } from '@/lib/supabase-db'
+import { readTable, getRowById, selectRows, updateById, findRecord, nowIso, invalidateCache } from '@/lib/supabase-db'
 import { csrfProtection } from '@/lib/csrf'
 import { createAuditLogger } from '@/lib/audit'
 import { normalizeIndianMobile, maskMobile } from '@/lib/phone'
@@ -24,14 +24,13 @@ const VERIFIED_FRESH_MS = 12 * 60 * 60 * 1000
 type Ctx = { lead: Record<string, string>; phone: string | null; branchId: string; canOverride: boolean; customerName: string }
 
 async function load(session: Session, purpose: OtpPurpose, leadId: string): Promise<Ctx | { error: string; status: number }> {
-  const leads = await readTable('Leads', { forceFresh: true })
-  const lead = findRecord(leads, 'Lead ID', leadId)
+  const lead = await getRowById('Leads', leadId)
   if (!lead) return { error: 'Lead not found', status: 404 }
   const branchId = await branchOfGuarantor(lead['Guarantor ID'])
 
   if (purpose === 'lead_verification') {
     if (session.role !== 'NGF AGENT') return { error: 'Only the assigned field agent can verify a new customer', status: 403 }
-    const agent = (await readTable('Agents')).find(a => a['User ID'] === session.userId)
+    const agent = (await selectRows('Agents', qb => qb.eq('user_id', session.userId).limit(1))).rows[0]
     if (!agent || lead['Assigned Agent ID'] !== agent['Agent ID']) return { error: 'No permission', status: 403 }
     if (lead['Status'] !== 'Agent Assigned') return { error: 'This lead is not waiting for verification', status: 400 }
     return { lead, phone: null, branchId, canOverride: true, customerName: lead['Customer Name'] }

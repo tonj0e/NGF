@@ -3,7 +3,7 @@ import { apiHandler, getSession, requireRole, ok, err } from '@/lib/api'
 import { needFeature } from '@/lib/access'
 import { requireFeature } from '@/lib/access'
 import { customer as customerKeys } from '@/lib/features'
-import { readTable, selectAll, updateById, deleteById, findRecord, nowIso, invalidateCache } from '@/lib/supabase-db'
+import { readTable, selectAll, selectRows, getRowById, updateById, deleteById, findRecord, nowIso, invalidateCache } from '@/lib/supabase-db'
 import { getLeadDocFolder, uploadLeadPhoto } from '@/lib/drive'
 import { getTodayIST } from '@/lib/dateUtils'
 import { bulkScores } from '@/lib/customerHistory'
@@ -130,12 +130,11 @@ export const PATCH = apiHandler(async (req: NextRequest) => {
   const body = await req.json()
   const { customerId } = body
   if (!customerId) return err('customerId required')
-  const customers = await readTable('Customers')
-  const customer = findRecord(customers, 'Customer ID', customerId)
+  const customer = await getRowById('Customers', String(customerId))
   if (!customer) return err('Customer not found')
   if (session.role === 'Staff') {
-    const [access, gMap, allLoans] = await Promise.all([getBranchAccess(session), guarantorBranchMap(), readTable('Loans', { forceFresh: true })])
-    if (!canSeeGuarantor(access, gMap, customerGuarantorId(customer, allLoans))) return err('This customer belongs to another branch', 403)
+    const [access, gMap, theirLoans] = await Promise.all([getBranchAccess(session), guarantorBranchMap(), selectAll('Loans', qb => qb.eq('customer_id', customerId))])
+    if (!canSeeGuarantor(access, gMap, customerGuarantorId(customer, theirLoans))) return err('This customer belongs to another branch', 403)
   }
 
   await updateById('Customers', customerId, {
@@ -162,13 +161,12 @@ export const PATCH = apiHandler(async (req: NextRequest) => {
   ]
   const hasImages = imageKeys.some(([k]) => body[k])
   if (hasImages && customer['Lead ID']) {
-    const [leads, loans, guarantors] = await Promise.all([readTable('Leads'), readTable('Loans'), readTable('Guarantors')])
-    const lead = leads.find((l: any) => l['Lead ID'] === customer['Lead ID'])
+    const lead = await getRowById('Leads', customer['Lead ID'])
     if (lead) {
       // Try guarantor ID from customer record, then from loan, then from lead
-      const loan = loans.find((l: any) => l['Loan ID'] === customer['Active Loan ID'] || l['Customer ID'] === customerId)
+      const loan = (await selectRows('Loans', qb => qb.eq('customer_id', customerId).order('created_at', { ascending: false }).limit(1))).rows[0]
       const guarantorId = customer['Guarantor ID'] || loan?.['Guarantor ID'] || lead?.['Guarantor ID'] || ''
-      const g = guarantors.find((g: any) => g['Guarantor ID'] === guarantorId)
+      const g = guarantorId ? await getRowById('Guarantors', guarantorId) : null
       const { getLeadDocFolder, uploadLeadPhoto, docLabel } = await import('@/lib/drive')
       const { payCodeFromLoanId } = await import('@/lib/payCode')
       const code = payCodeFromLoanId(loan?.['Loan ID'] || customer['Active Loan ID'])
@@ -199,21 +197,17 @@ export const DELETE = apiHandler(async (req: NextRequest) => {
   const { customerId } = await req.json()
   if (!customerId) return err('customerId required')
 
-  const [customers, loans, repayments] = await Promise.all([
-    readTable('Customers', { forceFresh: true }), readTable('Loans', { forceFresh: true }), readTable('Repayments', { forceFresh: true }),
-  ])
-
-  const customer = findRecord(customers, 'Customer ID', customerId)
+  const customer = await getRowById('Customers', String(customerId))
   if (!customer) return err('Customer not found')
 
   // Delete all repayments for this customer
-  const customerRepayments = repayments.filter(r => r['Customer ID'] === customerId)
+  const customerRepayments = await selectAll('Repayments', qb => qb.eq('customer_id', customerId))
   for (const r of customerRepayments) {
     await deleteById('Repayments', r['Repayment ID'])
   }
 
   // Delete all loans for this customer
-  const customerLoans = loans.filter(l => l['Customer ID'] === customerId)
+  const customerLoans = await selectAll('Loans', qb => qb.eq('customer_id', customerId))
   for (const l of customerLoans) {
     await deleteById('Loans', l['Loan ID'])
   }
