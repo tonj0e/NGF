@@ -2,7 +2,8 @@ import { NextRequest } from 'next/server'
 import { apiHandler, requireRole, ok } from '@/lib/api'
 import { requireFeature } from '@/lib/access'
 import { lead as leadKeys } from '@/lib/features'
-import { readTable } from '@/lib/supabase-db'
+import { readTable, selectAll } from '@/lib/supabase-db'
+import { byIds } from '@/lib/db'
 import { findLoanProduct } from '@/lib/loanProducts'
 import { firstPaymentSaturdayIST } from '@/lib/dateUtils'
 import { getBranchAccess, canApproveIn, canSeeBranch } from '@/lib/branchAccess'
@@ -13,21 +14,26 @@ import { customerForRenewalLead } from '@/lib/renewalRules'
 export const GET = apiHandler(async (req: NextRequest) => {
   const session = await requireFeature(req, [...leadKeys('leadsDisburse'), 'leadsView'])
   const access = await getBranchAccess(session)
-  const [leads, guarantors, guarantorBranches, branches, customers, loans, users] = await Promise.all([
-    readTable('Leads', { forceFresh: true }), readTable('Guarantors'), readTable('GuarantorBranches', { forceFresh: true }),
-    readTable('Branches'), readTable('Customers', { forceFresh: true }), readTable('Loans', { forceFresh: true }), readTable('Users'),
-  ])
+  const [guarantorBranches, branches] = await Promise.all([readTable('GuarantorBranches', { forceFresh: true }), readTable('Branches')])
   const branchOf = (gid: string) => guarantorBranches.find(x => x['Guarantor ID'] === gid && String(x['Is Active']) !== 'false')?.['Branch ID'] || ''
   const firstPayment = firstPaymentSaturdayIST()
 
-  const approved = leads.filter(l => l['Status'] === 'Approved' && !l['Disbursed At'] && canSeeBranch(access, branchOf(l['Guarantor ID'])))
-  const rows = await Promise.all(approved.map(async l => {
+  // approved and waiting for the money: only these leads are read, then the people and loans they refer to
+  const waiting = await selectAll('Leads', qb => qb.eq('status', 'Approved').is('disbursed_at', null))
+  const approved = waiting.filter(l => canSeeBranch(access, branchOf(l['Guarantor ID'])))
+  const renewalCustomers = await Promise.all(approved.map(l => l['Loan Product'] === 'RENEWAL' ? customerForRenewalLead(l) : Promise.resolve(undefined)))
+  const [guarantors, users, loans] = await Promise.all([
+    byIds('Guarantors', 'guarantor_id', approved.map(l => l['Guarantor ID'])),
+    byIds('Users', 'user_id', approved.map(l => l['Approved By'])),
+    byIds('Loans', 'customer_id', renewalCustomers.filter(Boolean).map(c => c!['Customer ID'])),
+  ])
+  const rows = await Promise.all(approved.map(async (l, i) => {
     const gid = l['Guarantor ID']; const g = guarantors.find(x => x['Guarantor ID'] === gid)
     const branchId = branchOf(gid)
     const isRenewal = l['Loan Product'] === 'RENEWAL'
     let terms = { principal: 0, netDisbursed: 0, weekly: 0, weeks: 0, productLabel: '' }
     if (isRenewal) {
-      const c = customerForRenewalLead(l, customers)
+      const c = renewalCustomers[i]
       const prev = c ? loans.filter(x => x['Customer ID'] === c['Customer ID']).sort((a, b) => String(b['Created At']).localeCompare(String(a['Created At'])))[0] : undefined
       if (prev) terms = { principal: Number(prev['Principal Amount']), netDisbursed: Number(prev['Net Disbursed']), weekly: Number(prev['Weekly Collection Amount']), weeks: Number(prev['Duration Weeks']), productLabel: 'Renewal (same terms as last loan)' }
     } else {

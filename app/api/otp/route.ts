@@ -43,7 +43,7 @@ async function load(session: Session, purpose: OtpPurpose, leadId: string): Prom
   if (lead['Status'] !== 'Pending') return { error: 'This renewal is not waiting for approval', status: 400 }
   const access = await getBranchAccess(session)
   if (!canApproveIn(access, branchId)) return { error: 'This renewal belongs to another branch', status: 403 }
-  const customer = customerForRenewalLead(lead, await readTable('Customers', { forceFresh: true }))
+  const customer = await customerForRenewalLead(lead)
   return { lead, phone: normalizeIndianMobile(customer?.['Phone']), branchId, canOverride: canOverrideIn(access, branchId), customerName: customer?.['Name'] || lead['Customer Name'] }
 }
 

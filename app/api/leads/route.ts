@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { apiHandler, getSession, requireRole, ok, err } from '@/lib/api'
 import { needFeature } from '@/lib/access'
 import { lead } from '@/lib/features'
-import { readTable, appendRow, findRecord, makeId, nowIso, countRows } from '@/lib/supabase-db'
+import { readTable, appendRow, findRecord, makeId, nowIso, countRows, selectRows, selectAll, getRowById } from '@/lib/supabase-db'
 import { pageQuery, byIds, cleanSearch, scopeOf, withScope } from '@/lib/db'
 import { getLeadDocFolder, uploadLeadPhoto, docLabel } from '@/lib/drive'
 import { notifyRole, notifyUser } from '@/lib/notifications'
@@ -135,17 +135,15 @@ export const POST = apiHandler(async (req: NextRequest) => {
   await needFeature(session, lead(body.loanProduct === 'RENEWAL' ? 'leadsRenew' : 'leadsEdit'))   // Staff: renewals and new leads are separate parts
   if (!['Guarantor', 'Admin', 'Staff'].includes(session.role)) return err('No permission', 403)
 
-  const guarantors = await readTable('Guarantors')
-
   let guarantorId = body.guarantorId || ''
   let guarantorCode = ''
   if (session.role === 'Guarantor') {
     // First try to find by code (from session)
-    let g = guarantors.find(g => g['Code'] === session.guarantorCode)
+    let g = session.guarantorCode ? (await selectRows('Guarantors', qb => qb.eq('code', session.guarantorCode).limit(1))).rows[0] : undefined
 
     // If not found by code, try to find by userId (handle data inconsistency)
     if (!g) {
-      g = guarantors.find(g => g['User ID'] === session.userId)
+      g = (await selectRows('Guarantors', qb => qb.eq('user_id', session.userId).limit(1))).rows[0]
     }
 
     if (!g) {
@@ -154,33 +152,33 @@ export const POST = apiHandler(async (req: NextRequest) => {
     guarantorId = g['Guarantor ID']
     guarantorCode = g['Code']
   } else {
-    const g = guarantors.find(g => g['Guarantor ID'] === guarantorId)
+    const g = guarantorId ? (await getRowById('Guarantors', guarantorId)) || undefined : undefined
     if (!g) return err('Choose the guarantor for this lead')
     guarantorCode = g['Code'] || ''
   }
 
   // A renewal must pass the server-side rules (hold, permanent block, running loan, dues) and belong to this guarantor
   if (body.loanProduct === 'RENEWAL') {
-    const customers = await readTable('Customers', { forceFresh: true })
-    const cust = customerForRenewalLead({ 'Notes': body.notes || '', 'Phone': body.phone, 'Customer Name': body.customerName }, customers)
+    const cust = await customerForRenewalLead({ 'Notes': body.notes || '', 'Phone': body.phone, 'Customer Name': body.customerName })
     if (!cust) return err('Customer not found for this renewal')
     if (session.role === 'Guarantor' && cust['Guarantor ID'] !== guarantorId) return err('This customer does not belong to you')
     const el = await checkRenewalEligibility(cust['Customer ID'])
     if (!el.ok) return err(el.reason)
-    const pending = (await readTable('Leads', { forceFresh: true })).some(l => l['Loan Product'] === 'RENEWAL' && ['Pending', 'Approved'].includes(l['Status']) && (l['Notes'] || '').includes(`Customer ID: ${cust['Customer ID']}`))
+    const pending = (await countRows('Leads', qb => qb.eq('loan_product', 'RENEWAL').in('status', ['Pending', 'Approved']).ilike('notes', `%Customer ID: ${cust['Customer ID']}%`))) > 0
     if (pending) return err('A renewal request for this customer is already waiting')
   } else if (body.aadhaarNo && await isPermanentlyBlockedAadhaar(body.aadhaarNo)) {
     return err('This customer was closed permanently. An admin must re-admit them after fresh verification before a new lead can be added.')
   }
 
   // auto-reject if aadhaar already converted
-  const leads = await readTable('Leads', { forceFresh: true })
+  // leads with the same Aadhaar (digits in order, any spacing), found by the database; then checked exactly
   const digits = (v: string) => String(v || '').replace(/\D/g, '')
   if (body.loanProduct !== 'RENEWAL' && digits(body.aadhaarNo || '').length === 12) {
-    const open = leads.find(l => l['Loan Product'] !== 'RENEWAL' && digits(l['Aadhaar No']) === digits(body.aadhaarNo || '') && ['Pending', 'Agent Assigned', 'Verification Submitted', 'Approved'].includes(l['Status']))
+    const sameAadhaarLeads = await selectAll('Leads', qb => qb.ilike('aadhaar_no', `%${digits(body.aadhaarNo || '').split('').join('%')}%`))
+    const open = sameAadhaarLeads.find(l => l['Loan Product'] !== 'RENEWAL' && digits(l['Aadhaar No']) === digits(body.aadhaarNo || '') && ['Pending', 'Agent Assigned', 'Verification Submitted', 'Approved'].includes(l['Status']))
     if (open) return err(`A lead for this Aadhaar is already in progress (${open['Customer Name']}, ${open['Status']}). Do not submit it twice.`)
   }
-  const existingConverted = body.aadhaarNo ? leads.find(l => l['Aadhaar No'] === body.aadhaarNo && l['Status'] === 'Converted') : null
+  const existingConverted = body.aadhaarNo ? (await selectRows('Leads', qb => qb.eq('aadhaar_no', body.aadhaarNo!).eq('status', 'Converted').limit(1))).rows[0] || null : null
 
   const leadId = makeId('LEAD')
 

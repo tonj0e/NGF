@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { apiHandler, requireRole, ok, err, getSession } from '@/lib/api'
 import { requireFeature } from '@/lib/access'
 import { lead as leadKeys } from '@/lib/features'
-import { readTable, updateById, appendRow, deleteRow, findRecord, makeId, nowIso, formatDateYmd, addDays, deleteById, invalidateCache, getSupabase } from '@/lib/supabase-db'
+import { readTable, selectRows, selectAll, countRows, getRowById, updateById, appendRow, deleteRow, findRecord, makeId, nowIso, formatDateYmd, addDays, deleteById, invalidateCache, getSupabase } from '@/lib/supabase-db'
 import { uploadLeadPhoto, listFolderFiles, driveUrl, getLeadDocFolder, docLabel, renameLeadDocs } from '@/lib/drive'
 import { notifyUser, notifyRole } from '@/lib/notifications'
 import { validateBody, submitVerificationSchema, adminReviewSchema, assignAgentSchema, updateLeadSchema, tripSchema } from '@/lib/validation'
@@ -50,8 +50,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
     const body = validation.data
 
     const session = await requireFeature(req, leadKeys('leadsEdit'))
-    const leads = await readTable('Leads', { forceFresh: true })
-    const lead = findRecord(leads, 'Lead ID', leadId)
+    const lead = await getRowById('Leads', leadId)
     if (!lead) return err('Lead not found')
     if (!(await staffMaySee(session, lead))) return err('This lead belongs to another branch', 403)
     await updateById('Leads', leadId, {
@@ -85,10 +84,9 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
     const body = validation.data
 
     const session = await requireFeature(req, leadKeys('leadsAssign'))
-    const [leads, agents, users] = await Promise.all([readTable('Leads'), readTable('Agents'), readTable('Users')])
-    const lead = findRecord(leads, 'Lead ID', leadId)
+    const lead = await getRowById('Leads', leadId)
     if (!lead) return err('Lead not found')
-    const agent = findRecord(agents, 'Agent ID', body.agentId)
+    const agent = await getRowById('Agents', body.agentId)
     if (!agent) return err('Agent not found')
     if (!(await staffMaySee(session, lead))) return err('This lead belongs to another branch', 403)
     if (['Approved', 'Converted', 'Rejected'].includes(lead['Status']) || lead['Loan Product'] === 'RENEWAL') return err('This lead cannot be assigned to an agent in its current state')
@@ -111,11 +109,10 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
     const body = validation.data
 
     const session = await requireRole(req, ['NGF AGENT'])
-    const leads = await readTable('Leads')
-    const lead = findRecord(leads, 'Lead ID', leadId)
+    const lead = await getRowById('Leads', leadId)
     if (!lead) return err('Lead not found')
     // Only the agent the lead is assigned to may verify it, and only while it is waiting for verification
-    const myAgent = (await readTable('Agents')).find(a => a['User ID'] === session.userId)
+    const myAgent = (await selectRows('Agents', qb => qb.eq('user_id', session.userId).limit(1))).rows[0]
     if (!myAgent || lead['Assigned Agent ID'] !== myAgent['Agent ID']) return err('No permission', 403)
     if (lead['Status'] !== 'Agent Assigned') return err('This lead is not waiting for verification')
     // The customer's OTP (sent to their phone while the agent is at the house) must be verified first, or overridden with a reason.
@@ -136,8 +133,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
 
     // If folder doesn't exist yet (lead submitted without photos), create it now
     if (!folderId) {
-      const guarantors = await readTable('Guarantors')
-      const g = guarantors.find(g => g['Guarantor ID'] === lead['Guarantor ID'])
+      const g = await getRowById('Guarantors', lead['Guarantor ID'])
       const guarantorCode = g?.['Code'] || 'NGF'
       folderId = await getLeadDocFolder(guarantorCode, lead['Customer Name'], leadId)
       await updateById('Leads', leadId, { 'Document Folder ID': folderId, 'Updated At': nowIso() })
@@ -206,8 +202,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
     const body = validation.data
 
     const session = await requireFeature(req, leadKeys('leadsApprove'))
-    const [leads, guarantors] = await Promise.all([readTable('Leads', { forceFresh: true }), readTable('Guarantors')])
-    const lead = findRecord(leads, 'Lead ID', leadId)
+    const lead = await getRowById('Leads', leadId)
     if (!lead) return err('Lead not found')
     const { decision, notes } = body
     // Staff may only act on their own branch's leads (the branch of the guarantor)
@@ -221,7 +216,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
         if (lead['Status'] !== 'Pending') return err('This renewal is not waiting for approval')
         const otpFresh = !!lead['Otp Verified At'] && Date.now() - Date.parse(lead['Otp Verified At']) < OTP_FRESH_MS
         if (!otpFresh && !lead['Otp Override Reason']) return err('Verify the customer OTP first (or record why it could not be done).')
-        const cust = customerForRenewalLead(lead, await readTable('Customers', { forceFresh: true }))
+        const cust = await customerForRenewalLead(lead)
         if (!cust) return err('Customer not found for renewal')
         const el = await checkRenewalEligibility(cust['Customer ID'])
         if (!el.ok) return err(el.reason)
@@ -238,14 +233,14 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
       await updateById('Leads', leadId, { 'Status': 'Approved', 'Admin Final Decision': notes || 'Approved', 'Approved By': session.userId, 'Approved At': nowIso(), 'Updated At': nowIso() })
       invalidateCache('Leads')
       await createAuditLogger(req, session).log('LEAD_APPROVED_FOR_DISBURSEMENT', 'Lead', leadId, { renewal: isRenewal, otp: lead['Otp Override Reason'] ? 'override' : 'verified' })
-      const g = findRecord(guarantors, 'Guarantor ID', lead['Guarantor ID'])
+      const g = await getRowById('Guarantors', lead['Guarantor ID'])
       if (g) await notifyUser(g['User ID'], 'Guarantor', 'Lead Approved', `${lead['Customer Name']} has been approved. It is now in the disbursement list.`, 'Lead', leadId)
       try { await notifyBranchOfLead(lead['Guarantor ID'], 'Ready to disburse', `${lead['Customer Name']} (${isRenewal ? 'renewal' : 'new'}) is approved. Open Disbursement.`, leadId) } catch (e) { console.error('Branch alert failed:', e instanceof Error ? e.message : e) }
     } else if (decision === 'Reject Lead') {
       if (lead['Status'] === 'Converted' || lead['Status'] === 'Rejected' || lead['Disbursed At']) return err('This lead is already disbursed or closed and cannot be rejected')
       await updateById('Leads', leadId, { 'Status': 'Rejected', 'Admin Final Decision': notes || 'Rejected', 'Updated At': nowIso() })
       invalidateCache('Leads')
-      const g = findRecord(guarantors, 'Guarantor ID', lead['Guarantor ID'])
+      const g = await getRowById('Guarantors', lead['Guarantor ID'])
       if (g) await notifyUser(g['User ID'], 'Guarantor', 'Lead Rejected', `${lead['Customer Name']} has been rejected.`, 'Lead', leadId)
     } else if (decision === 'Request Reverification') {
       if (lead['Loan Product'] === 'RENEWAL' || !['Verification Submitted', 'Approved'].includes(lead['Status']) || lead['Disbursed At']) return err('Re-verification is only possible for a new lead that is verified or approved and not yet disbursed')
@@ -258,15 +253,14 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
 
   if (action === 'disburse') {
     const session = await requireFeature(req, leadKeys('leadsDisburse'))
-    const [leads, guarantors, agents] = await Promise.all([readTable('Leads', { forceFresh: true }), readTable('Guarantors'), readTable('Agents')])
-    const lead = findRecord(leads, 'Lead ID', leadId)
+    const lead = await getRowById('Leads', leadId)
     if (!lead) return err('Lead not found')
     const access = await getBranchAccess(session)
     if (!canApproveIn(access, await branchOfGuarantor(lead['Guarantor ID']))) return err('This lead belongs to another branch', 403)
     if (lead['Status'] !== 'Approved') return err('Only approved leads can be disbursed')
     const isRenewal = lead['Loan Product'] === 'RENEWAL'
     if (isRenewal) {
-      const cust = customerForRenewalLead(lead, await readTable('Customers', { forceFresh: true }))
+      const cust = await customerForRenewalLead(lead)
       if (!cust) return err('Customer not found for renewal')
       const el = await checkRenewalEligibility(cust['Customer ID'])   // a hold or block set after approval still applies
       if (!el.ok) return err(el.reason)
@@ -277,8 +271,8 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
       .eq('lead_id', leadId).eq('status', 'Approved').is('disbursed_at', null).select('lead_id')
     if (!claimed || claimed.length === 0) return err('This lead is already being disbursed')
     try {
-      if (isRenewal) await approveRenewal(lead, guarantors)
-      else await approveLoan(lead, guarantors, agents)
+      if (isRenewal) await approveRenewal(lead)
+      else await approveLoan(lead)
     } catch (e: any) {
       await getSupabase().from('leads').update({ disbursed_by: null, disbursed_at: null }).eq('lead_id', leadId)
       invalidateCache('Leads')
@@ -287,15 +281,14 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
     }
     const startDate = firstPaymentSaturdayIST()
     await createAuditLogger(req, session).log('LOAN_DISBURSED', 'Lead', leadId, { renewal: isRenewal, firstPayment: startDate })
-    const g = findRecord(guarantors, 'Guarantor ID', lead['Guarantor ID'])
+    const g = await getRowById('Guarantors', lead['Guarantor ID'])
     if (g) await notifyUser(g['User ID'], 'Guarantor', 'Loan Disbursed', `${lead['Customer Name']}: loan disbursed. First payment Saturday ${startDate}.`, 'Lead', leadId)
     return ok({ success: true, firstPayment: startDate })
   }
 
   if (action === 'scanFolder') {
     const scanSession = await requireFeature(req, leadKeys('leadsEdit'))
-    const leads = await readTable('Leads')
-    const lead = findRecord(leads, 'Lead ID', leadId)
+    const lead = await getRowById('Leads', leadId)
     if (!lead) return err('Lead not found')
     if (!(await staffMaySee(scanSession, lead))) return err('This lead belongs to another branch', 403)
     const folderId = lead['Document Folder ID']
@@ -348,30 +341,23 @@ export const DELETE = apiHandler(async (req: NextRequest, { params }: any) => {
   const delSession = await requireFeature(req, leadKeys('leadsDelete'))
 
   // First, find and delete any customers that reference this lead
-  const [leads, customers, loans, repayments] = await Promise.all([
-    readTable('Leads'),
-    readTable('Customers'),
-    readTable('Loans'),
-    readTable('Repayments'),
-  ])
-
-  const lead = findRecord(leads, 'Lead ID', leadId)
+  const lead = await getRowById('Leads', leadId)
   if (!lead) return err('Lead not found')
   if (!(await staffMaySee(delSession, lead))) return err('This lead belongs to another branch', 403)
 
-  // Delete customers that reference this lead (and their loans/repayments)
-  const relatedCustomers = customers.filter(c => c['Lead ID'] === leadId)
+  // Delete customers that reference this lead (and their loans/repayments): only those rows are read
+  const relatedCustomers = await selectAll('Customers', qb => qb.eq('lead_id', leadId))
   for (const customer of relatedCustomers) {
     const customerId = customer['Customer ID']
 
     // Delete repayments for this customer
-    const customerRepayments = repayments.filter(r => r['Customer ID'] === customerId)
+    const customerRepayments = await selectAll('Repayments', qb => qb.eq('customer_id', customerId))
     for (const r of customerRepayments) {
       await deleteById('Repayments', r['Repayment ID'])
     }
 
     // Delete loans for this customer
-    const customerLoans = loans.filter(l => l['Customer ID'] === customerId)
+    const customerLoans = await selectAll('Loans', qb => qb.eq('customer_id', customerId))
     for (const l of customerLoans) {
       await deleteById('Loans', l['Loan ID'])
     }
@@ -386,27 +372,24 @@ export const DELETE = apiHandler(async (req: NextRequest, { params }: any) => {
 })
 
 async function makeLoanId(guarantorCode: string): Promise<string> {
-  const loans = await readTable('Loans')
+  // pick a random 4-digit number and ask the database whether that loan id is taken (no need to read every loan)
   const prefix = `${guarantorCode}-`
-  const usedNums = new Set(
-    loans.map(l => l['Loan ID']).filter(id => id?.startsWith(prefix))
-      .map(id => parseInt(id.slice(prefix.length), 10)).filter(n => !isNaN(n))
-  )
-  let num: number
-  do { num = Math.floor(1000 + Math.random() * 9000) } while (usedNums.has(num))
-  return `${prefix}${num}`
+  for (let tries = 0; tries < 60; tries++) {
+    const candidate = `${prefix}${Math.floor(1000 + Math.random() * 9000)}`
+    if ((await countRows('Loans', qb => qb.eq('loan_id', candidate))) === 0) return candidate
+  }
+  throw new Error('Could not find a free loan number. Please try again.')
 }
 
-async function approveLoan(lead: Record<string, string>, guarantors: Record<string, string>[], agents: Record<string, string>[], productKey?: string) {
+async function approveLoan(lead: Record<string, string>, productKey?: string) {
   const { findLoanProduct, getLoanProducts } = await import('@/lib/loanProducts')
   const product = await findLoanProduct(productKey || lead['Loan Product'])
   if (!product) throw new Error(`Unknown loan product "${lead['Loan Product'] || ''}". Edit the lead and choose a valid product before disbursing.`)
-  const g = guarantors.find(g => g['Guarantor ID'] === lead['Guarantor ID'])
+  const g = await getRowById('Guarantors', lead['Guarantor ID'])
   const guarantorCode = g?.['Code'] || 'NGF'
   
   // Check if customer already exists for this lead (e.g., from previous approval)
-  const customers = await readTable('Customers')
-  const customer = customers.find(c => c['Lead ID'] === lead['Lead ID'])
+  const customer = (await selectRows('Customers', qb => qb.eq('lead_id', lead['Lead ID']).limit(1))).rows[0]
   let customerId: string
   
   if (customer) {
@@ -441,8 +424,7 @@ async function approveLoan(lead: Record<string, string>, guarantors: Record<stri
   }
 
   // Check if customer already has an active loan (for re-verification re-approval)
-  const loans = await readTable('Loans')
-  const existingLoan = loans.find(l => l['Customer ID'] === customerId && l['Status'] === 'Active')
+  const existingLoan = (await selectRows('Loans', qb => qb.eq('customer_id', customerId).eq('status', 'Active').limit(1))).rows[0]
 
   if (existingLoan) {
     // Update existing loan instead of creating new one (due to unique constraint on customer_id)
@@ -464,8 +446,7 @@ async function approveLoan(lead: Record<string, string>, guarantors: Record<stri
       'Updated At': nowIso(),
     })
     // Delete old repayments and create new ones
-    const oldRepayments = await readTable('Repayments')
-    const loanRepayments = oldRepayments.filter(r => r['Loan ID'] === existingLoan['Loan ID'])
+    const loanRepayments = await selectAll('Repayments', qb => qb.eq('loan_id', existingLoan['Loan ID']))
     for (const r of loanRepayments) {
       await deleteById('Repayments', r['Repayment ID'])
     }
@@ -500,24 +481,19 @@ async function approveLoan(lead: Record<string, string>, guarantors: Record<stri
 
 // Renewal: reuse the existing customer and their previous loan's terms, disburse a
 // fresh loan + repayment schedule, and reactivate the customer.
-async function approveRenewal(lead: Record<string, string>, guarantors: Record<string, string>[]) {
-  const [customers, loans] = await Promise.all([readTable('Customers'), readTable('Loans')])
+async function approveRenewal(lead: Record<string, string>) {
 
   // The renewal request stores the source customer id in its notes
-  const m = (lead['Notes'] || '').match(/Customer ID:\s*(\S+)/)
-  const customer = (m ? customers.find(c => c['Customer ID'] === m[1]) : undefined)
-    || customers.find(c => c['Phone'] === lead['Phone'] && c['Name'] === lead['Customer Name'])
+  const customer = await customerForRenewalLead(lead)
   if (!customer) throw new Error('Customer not found for renewal')
   // The customer must belong to the guarantor who asked, and must have no loan still running
   if (customer['Guarantor ID'] !== lead['Guarantor ID']) throw new Error('This customer does not belong to the guarantor who requested the renewal')
-  if (loans.some(l => l['Customer ID'] === customer['Customer ID'] && l['Status'] === 'Active')) throw new Error('This customer still has an active loan')
+  if ((await countRows('Loans', qb => qb.eq('customer_id', customer['Customer ID']).eq('status', 'Active'))) > 0) throw new Error('This customer still has an active loan')
 
-  const prev = loans
-    .filter(l => l['Customer ID'] === customer['Customer ID'])
-    .sort((a, b) => String(b['Created At']).localeCompare(String(a['Created At'])))[0]
+  const prev = (await selectRows('Loans', qb => qb.eq('customer_id', customer['Customer ID']).order('created_at', { ascending: false }).limit(1))).rows[0]
   if (!prev) throw new Error('No previous loan found for this customer')
 
-  const g = guarantors.find(gg => gg['Guarantor ID'] === customer['Guarantor ID'])
+  const g = await getRowById('Guarantors', customer['Guarantor ID'])
   const guarantorCode = g?.['Code'] || 'NGF'
   const loanId = await makeLoanId(guarantorCode)
   const startDate = new Date(firstPaymentSaturdayIST())   // next Saturday AFTER the handover day
@@ -555,7 +531,7 @@ async function approveRenewal(lead: Record<string, string>, guarantors: Record<s
     await updateById('Customers', customer['Customer ID'], { 'Active Loan ID': loanId, 'Status': 'Active', 'Updated At': nowIso() })
     await updateById('Leads', lead['Lead ID'], { 'Status': 'Converted', 'Updated At': nowIso() })
   } catch (e) {
-    const reps = (await readTable('Repayments', { forceFresh: true })).filter(r => r['Loan ID'] === loanId)
+    const reps = await selectAll('Repayments', qb => qb.eq('loan_id', loanId))
     for (const r of reps) await deleteById('Repayments', r['Repayment ID'])
     await deleteById('Loans', loanId).catch(() => {})
     if (customerTouched) await updateById('Customers', customer['Customer ID'], { 'Active Loan ID': '', 'Updated At': nowIso() }).catch(() => {})
