@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import EarlyCloseSection from './EarlyCloseSection'
 import { Session } from '@/types'
 
@@ -31,6 +31,12 @@ export default function LoansPage({ session, defaultFilter = 'active', customers
   const [loans, setLoans] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  // The server filters, searches and pages: only the loans on screen are loaded
+  const [page, setPage] = useState(1)
+  const [totalLoans, setTotalLoans] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
+  const PAGE_SIZE = 24
+  const loansUrl = () => `/api/loans?filter=${defaultFilter}&page=${page}&pageSize=${PAGE_SIZE}&q=${encodeURIComponent(search.trim())}`
   const [closeModal, setCloseModal] = useState<any | null>(null)
   const [closing, setClosing] = useState<string | null>(null)
   const [toast, setToast] = useState('')
@@ -69,7 +75,7 @@ export default function LoansPage({ session, defaultFilter = 'active', customers
       showToast(`Loan foreclosed. ${json.data.waivedWeeks} week(s) waived.`)
       setCloseModal(null)
       // Reload in place (keep old rows on screen)
-      fetch(`/api/loans?filter=${defaultFilter}`, { headers: { Authorization: `Bearer ${session.token}` } })
+      fetch(loansUrl(), { headers: { Authorization: `Bearer ${session.token}` } })
         .then(r => r.json()).then(j => { if (j.success) setLoans(j.data.loans) }).finally(() => setLoading(false))
     } else showToast(json.error || 'Failed')
   }
@@ -93,7 +99,7 @@ export default function LoansPage({ session, defaultFilter = 'active', customers
     if (json.success) {
       showToast(`Balance settled. ${json.data.settledWeeks} week(s) marked as paid.`)
       setCloseModal(null)
-      fetch(`/api/loans?filter=${defaultFilter}`, { headers: { Authorization: `Bearer ${session.token}` } })
+      fetch(loansUrl(), { headers: { Authorization: `Bearer ${session.token}` } })
         .then(r => r.json()).then(j => { if (j.success) setLoans(j.data.loans) }).finally(() => setLoading(false))
     } else showToast(json.error || 'Failed')
   }
@@ -117,26 +123,30 @@ export default function LoansPage({ session, defaultFilter = 'active', customers
     if (json.success) {
       showToast('Account closed.')
       setCloseModal(null)
-      fetch(`/api/loans?filter=${defaultFilter}`, { headers: { Authorization: `Bearer ${session.token}` } })
+      fetch(loansUrl(), { headers: { Authorization: `Bearer ${session.token}` } })
         .then(r => r.json()).then(j => { if (j.success) setLoans(j.data.loans) }).finally(() => setLoading(false))
     } else showToast(json.error || 'Failed')
   }
 
+  // a new tab or a new search starts again at page 1; the search is sent after a short pause
+  useEffect(() => { setPage(1) }, [defaultFilter, search])
+  const loadSeq = useRef(0)
   useEffect(() => {
-    setLoading(true)
-    fetch(`/api/loans?filter=${defaultFilter}`, { headers: { Authorization: `Bearer ${session.token}` } })
-      .then(r => r.json()).then(j => { if (j.success) setLoans(j.data.loans) }).finally(() => setLoading(false))
-  }, [defaultFilter])
+    const seq = ++loadSeq.current
+    const t = setTimeout(() => {
+      setLoading(true)
+      fetch(loansUrl(), { headers: { Authorization: `Bearer ${session.token}` } })
+        .then(r => r.json()).then(j => {
+          if (seq !== loadSeq.current || !j.success) return   // a newer request replaced this one
+          setLoans(j.data.loans); setTotalLoans(j.data.total); setTotalPages(j.data.totalPages)
+        }).finally(() => setLoading(false))
+    }, search ? 300 : 0)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultFilter, page, search])
 
-  const filtered = loans.filter(l => {
-    if (!search) return true
-    const q = search.toLowerCase()
-    return l.customerName.toLowerCase().includes(q) ||
-      l.customerPhone?.includes(search) ||
-      l.loanId.toLowerCase().includes(q) ||
-      l.guarantorName?.toLowerCase().includes(q) ||
-      l.agentName?.toLowerCase().includes(q)
-  })
+  const filtered = loans   // already searched by the server
+
 
   return (
     <div className="space-y-4">
@@ -166,7 +176,7 @@ export default function LoansPage({ session, defaultFilter = 'active', customers
 
       {/* Close Loan Modal */}
       {closeModal && (() => {
-        const photoUrl = customers?.find(c => c.customerId === closeModal.customerId)?.customerPhotoUrl || ''
+        const photoUrl = closeModal.customerPhotoUrl || customers?.find(c => c.customerId === closeModal.customerId)?.customerPhotoUrl || ''
         const remaining = closeModal.totalWeeks - closeModal.paidWeeks
         const paidCount = modalRepayments.filter(r => r['Status'] === 'Paid').length
         const lateCount = modalRepayments.filter(r => r['Status'] === 'Delayed').length
@@ -235,7 +245,7 @@ export default function LoansPage({ session, defaultFilter = 'active', customers
 
               {/* Early closure: Close & Hold / Close permanently (branch staff and admin) */}
               <EarlyCloseSection session={session} loanId={closeModal.loanId}
-                onDone={m => { showToast(m); setCloseModal(null); fetch(`/api/loans?filter=${defaultFilter}`, { headers: { Authorization: `Bearer ${session.token}` } }).then(r => r.json()).then(j => { if (j.success) setLoans(j.data.loans) }) }} />
+                onDone={m => { showToast(m); setCloseModal(null); fetch(loansUrl(), { headers: { Authorization: `Bearer ${session.token}` } }).then(r => r.json()).then(j => { if (j.success) setLoans(j.data.loans) }) }} />
 
               {session.role === 'Admin' && <>
               {/* Settle balance */}
@@ -278,7 +288,7 @@ export default function LoansPage({ session, defaultFilter = 'active', customers
         : (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {filtered.map(l => {
-              const photoUrl = customers?.find(c => c.customerId === l.customerId)?.customerPhotoUrl || ''
+              const photoUrl = l.customerPhotoUrl || customers?.find(c => c.customerId === l.customerId)?.customerPhotoUrl || ''
               return (
               <div key={l.loanId} className="rounded-[1.75rem] border border-white/70 bg-white p-5 shadow-panel space-y-3">
                 <div className="flex items-start justify-between gap-3">
@@ -331,6 +341,15 @@ export default function LoansPage({ session, defaultFilter = 'active', customers
           </div>
         )
       }
+      {totalLoans > PAGE_SIZE && (
+        <div className="flex items-center justify-between gap-3 pt-2">
+          <span className="text-xs text-[#697586]">{totalLoans} loans · page {page} of {totalPages}</span>
+          <div className="flex gap-2">
+            <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-semibold disabled:opacity-40">Previous</button>
+            <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} className="rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-semibold disabled:opacity-40">Next</button>
+          </div>
+        </div>
+      )}
       {!loading && filtered.length === 0 && <p className="py-10 text-center text-sm text-[#697586]">{search ? 'No results found.' : 'No loans found.'}</p>}
     </div>
   )

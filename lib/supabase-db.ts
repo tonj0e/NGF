@@ -6,7 +6,7 @@ export type TableName =
   | 'Users' | 'Guarantors' | 'Agents' | 'Notifications' | 'Logs'
   | 'Customers' | 'Loans' | 'Repayments' | 'Collections' | 'Settlements'
   | 'ReviewOptions' | 'Capital' | 'PayoutRequests' | 'Branches' | 'StaffAccess'
-  | 'Profiles' | 'Settings' | 'LoanProducts' | 'Deposits' | 'DepositRequests'
+  | 'LoansOverdue' | 'LoansRenewalEligible' | 'Profiles' | 'Settings' | 'LoanProducts' | 'Deposits' | 'DepositRequests'
   | 'Leads' | 'MigrationLog' | 'AgentTrips' | 'AgentAttendance'
   | 'BranchStaffRoles' | 'GuarantorBranches'
 
@@ -18,6 +18,8 @@ const TABLE_MAP: Record<TableName, string> = {
   Logs: 'logs',
   Customers: 'customers',
   Loans: 'loans',
+  LoansOverdue: 'loans_overdue',               // read-only views (migration 20261026100000)
+  LoansRenewalEligible: 'loans_renewal_eligible',
   Repayments: 'repayments',
   Collections: 'collections',
   Settlements: 'settlements',
@@ -356,6 +358,8 @@ function getPrimaryKeyColumn(table: TableName): string {
     Logs: 'log_id',
     Customers: 'customer_id',
     Loans: 'loan_id',
+    LoansOverdue: 'loan_id',
+    LoansRenewalEligible: 'loan_id',
     Repayments: 'repayment_id',
     Collections: 'collection_id',
     Settlements: 'settlement_id',
@@ -388,6 +392,8 @@ function getPascalPrimaryKey(table: TableName): string {
     Logs: 'Log ID',
     Customers: 'Customer ID',
     Loans: 'Loan ID',
+    LoansOverdue: 'Loan ID',
+    LoansRenewalEligible: 'Loan ID',
     Repayments: 'Repayment ID',
     Collections: 'Collection ID',
     Settlements: 'Settlement ID',
