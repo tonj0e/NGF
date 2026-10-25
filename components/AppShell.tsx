@@ -181,7 +181,8 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
       .then(r => r.json())
       .then(j => {
         if (!j.success) return
-        const perms = j.data.permissions || []
+        // Staff and agents: what they can really use (role defaults + extras - removals). Guarantors keep their own page list.
+        const perms = session.role === 'Guarantor' ? (j.data.permissions || []) : (j.data.effective || j.data.permissions || [])
         setStaffPerms(perms)
         if (session.role === 'Guarantor') {
           // pages an Admin switched off for this guarantor; the first allowed page opens

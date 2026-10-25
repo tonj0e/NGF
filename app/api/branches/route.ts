@@ -3,6 +3,8 @@ import { apiHandler, getSession, requireRole, ok, err } from '@/lib/api'
 import { readTable, appendRow, updateById, findRecord, makeId, nowIso, deleteById, invalidateCache, getRowById } from '@/lib/supabase-db'
 import { randomUUID } from 'crypto'
 import { APP_CONFIG } from '@/lib/config'
+import { FEATURES, FEATURE_KEYS, DEFAULT_ROLE_PERMISSIONS } from '@/lib/features'
+import { loadPermissions, savedRoleDefaults, ROLE_DEFAULTS_KEY } from '@/lib/access'
 
 // GET ?self=1  → the caller's own branch + granted permissions (used to build the
 //                Staff menu).
@@ -21,6 +23,8 @@ export const GET = apiHandler(async (req: NextRequest) => {
       branchId: mine?.['Branch ID'] || '',
       branchName: branch?.['Name'] || '',
       permissions,
+      // what this person can really use: role defaults + their own extras - their removals (menus are built from it)
+      effective: await loadPermissions(session),
     })
   }
 
@@ -29,6 +33,9 @@ export const GET = apiHandler(async (req: NextRequest) => {
     readTable('Branches'), readTable('StaffAccess'), readTable('Users'),
   ])
   return ok({
+    features: FEATURES,
+    roleDefaults: await savedRoleDefaults(),          // null until the Admin saves the table
+    startingDefaults: DEFAULT_ROLE_PERMISSIONS,
     branches: branches.map(b => ({ branchId: b['Branch ID'], name: b['Name'], status: b['Status'] })),
     access: access.map(a => {
       const perms = a['Permissions']
@@ -69,8 +76,9 @@ export const POST = apiHandler(async (req: NextRequest) => {
     const { userId, branchId } = body
     if (!userId) return err('userId required')
     // staff_access.permissions is a text[] column: send a Postgres array literal of known feature keys only
+    // a key written as `-key` takes a role default away from this person
     const known = new Set([...APP_CONFIG.STAFF_FEATURES.map(f => f.key), ...APP_CONFIG.GUARANTOR_FEATURES.map(f => f.key), 'pages:custom'])
-    const picked = Array.isArray(body.permissions) ? body.permissions.filter((k: unknown): k is string => typeof k === 'string' && known.has(k)) : []
+    const picked = Array.isArray(body.permissions) ? body.permissions.filter((k: unknown): k is string => typeof k === 'string' && (known.has(k) || (k.startsWith('-') && FEATURE_KEYS.has(k.slice(1))))) : []
     const permissions = `{${Array.from(new Set(picked)).join(',')}}`
     const access = await readTable('StaffAccess')
     const existing = access.find(a => a['User ID'] === userId)
@@ -84,6 +92,23 @@ export const POST = apiHandler(async (req: NextRequest) => {
       })
     }
     invalidateCache('StaffAccess')
+    return ok({ success: true })
+  }
+
+  // The table of what each branch role gets by default (Admin only)
+  if (action === 'saveRoleDefaults') {
+    const input = body.roleDefaults
+    if (!input || typeof input !== 'object') return err('roleDefaults required')
+    const clean: Record<string, string[]> = {}
+    for (const role of Object.keys(DEFAULT_ROLE_PERMISSIONS)) {
+      const list = Array.isArray(input[role]) ? input[role] : []
+      clean[role] = Array.from(new Set(list.filter((k: unknown): k is string => typeof k === 'string' && FEATURE_KEYS.has(k))))
+    }
+    const rows = await readTable('Settings', { forceFresh: true })
+    const value = JSON.stringify(clean)
+    if (rows.some(r => r['Key'] === ROLE_DEFAULTS_KEY)) await updateById('Settings', ROLE_DEFAULTS_KEY, { 'Value': value, 'Updated At': nowIso() })
+    else await appendRow('Settings', { 'Key': ROLE_DEFAULTS_KEY, 'Value': value, 'Updated At': nowIso() })
+    invalidateCache('Settings')
     return ok({ success: true })
   }
 

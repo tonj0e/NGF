@@ -11,6 +11,7 @@ import { AddUserDialog } from '@/components/org/AddUserDialog'
 import { APP_CONFIG } from '@/lib/config'
 import { EditGuarantorDialog } from '@/components/org/EditGuarantorDialog'
 import { RoleUserList } from '@/components/org/RoleUserList'
+import { RoleDefaultsCard } from '@/components/org/RoleDefaultsCard'
 import { Button } from '@/components/ui/button'
 
 type BranchRole = 'manager' | 'assistant_manager' | 'accountant' | 'cashier' | 'collection_agent' | 'guarantor'
@@ -60,6 +61,7 @@ export default function StaffPage({ session }: { session: Session }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  const [roleDefaultsVersion, setRoleDefaultsVersion] = useState(0)
   // Dialog states
   const [addBranchOpen, setAddBranchOpen] = useState(false)
   const [addUserOpen, setAddUserOpen] = useState(false)
@@ -114,6 +116,10 @@ export default function StaffPage({ session }: { session: Session }) {
   const [branchActionsLoading, setBranchActionsLoading] = useState<Record<string, boolean>>({})
   const [userActionsLoading, setUserActionsLoading] = useState<Record<string, boolean>>({})
 
+  const [roleDefaults, setRoleDefaults] = useState<Record<string, string[]> | null>(null)
+  useEffect(() => {
+    fetch('/api/branches', { headers: { Authorization: `Bearer ${session.token}` } }).then(r => r.json()).then(j => { if (j.success) setRoleDefaults(j.data.roleDefaults || null) }).catch(() => {})
+  }, [session.token, roleDefaultsVersion])
   const loadedOnce = useRef(false)
   async function loadData() {
     if (!loadedOnce.current) setLoading(true)
@@ -617,6 +623,8 @@ if (json.success) {
         )}
       </motion.div>
 
+      <RoleDefaultsCard session={session} onSaved={() => setRoleDefaultsVersion(v => v + 1)} />
+
       {/* Branches Section */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -702,6 +710,7 @@ if (json.success) {
         prefilledRole={addUserPrefilledRole}
         loading={userActionsLoading.addUser}
         editingUser={editingUser}
+        roleDefaults={roleDefaults}
         isLoading={isLoadingEdit}
       />
 

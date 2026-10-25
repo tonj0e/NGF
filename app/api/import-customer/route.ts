@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, requireRole, ok, err } from '@/lib/api'
+import { requireFeature } from '@/lib/access'
 import { readTable, appendRow, updateById, findRecord, makeId, nowIso, formatDateYmd, invalidateCache } from '@/lib/supabase-db'
 import { APP_CONFIG } from '@/lib/config'
 import { getLeadDocFolder, uploadLeadPhoto, docLabel } from '@/lib/drive'
@@ -48,7 +49,7 @@ async function b64ToFile(b64: string, filename: string): Promise<File> {
 }
 
 export const POST = apiHandler(async (req: NextRequest) => {
-  await requireRole(req, ['Admin'])
+  await requireFeature(req, ['importCustomer'])
   const body = await req.json()
 
   const {

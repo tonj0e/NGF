@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, getSession, requireRole, ok, err } from '@/lib/api'
+import { needFeature } from '@/lib/access'
 import { readTable, appendRow, updateById, invalidateCache, deleteById } from '@/lib/supabase-db'
 import { computeSummary, guarantorCanSeeCommissions } from '@/lib/commissions'
 import { randomInt } from 'crypto'
@@ -12,6 +13,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
 
   if (!showAll && session.role !== 'Guarantor') return err('Guarantors only', 403)
   if (showAll && session.role !== 'Admin' && session.role !== 'Staff') return err('Admins/Staff only', 403)
+  if (showAll) await needFeature(session, ['payoutRequests'])
 
   if (!showAll && !(await guarantorCanSeeCommissions(session))) return err('You do not have access to commissions', 403)
 
@@ -117,6 +119,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
 export const PATCH = apiHandler(async (req: NextRequest) => {
   const session = await getSession(req)
   if (session.role !== 'Admin' && session.role !== 'Staff') return err('Admins/Staff only', 403)
+  await needFeature(session, ['payoutRequests'])
 
   const body = await req.json()
   const { payoutId, action } = body // action: 'approve' | 'reject'

@@ -19,6 +19,8 @@ interface AddUserDialogProps {
   prefilledBranchId?: string
   prefilledRole?: string
   loading?: boolean
+  /** Saved role defaults (null until the Admin saves the Role defaults table) */
+  roleDefaults?: Record<string, string[]> | null
   editingUser?: {
     userId: string
     username: string
@@ -57,6 +59,7 @@ export function AddUserDialog({
   prefilledBranchId,
   prefilledRole,
   loading,
+  roleDefaults = null,
   editingUser,
   isLoading,
 }: AddUserDialogProps) {
@@ -109,7 +112,7 @@ export function AddUserDialog({
 
   // Update suggested permissions when branchRole changes (only for new users)
   useEffect(() => {
-    if (!showSuggestions || isEditing) return
+    if (!showSuggestions || isEditing || roleDefaults) return
     const branchRoleConfig = APP_CONFIG.BRANCH_ROLES?.find(r => r.key === formData.branchRole)
     if (branchRoleConfig) {
       setFormData(prev => ({ ...prev, permissions: [...branchRoleConfig.suggestedPermissions] }))
@@ -118,6 +121,24 @@ export function AddUserDialog({
 
   const handleChange = (field: keyof AddUserData, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }))
+  }
+
+  // With saved role defaults a feature is: Default (from the role), Extra (ticked for this person only) or Removed (a default taken away: stored as `-key`)
+  const roleHas = (key: string) => !!roleDefaults && (roleDefaults[formData.branchRole] || []).includes(key)
+  const featureState = (key: string): 'default' | 'extra' | 'removed' | 'off' => {
+    const p = formData.permissions
+    if (roleHas(key)) return p.includes(`-${key}`) ? 'removed' : 'default'
+    return p.includes(key) ? 'extra' : 'off'
+  }
+  const toggleFeature = (key: string) => {
+    const st = featureState(key)
+    setFormData(prev => {
+      const rest = prev.permissions.filter(x => x !== key && x !== `-${key}`)
+      if (st === 'default') return { ...prev, permissions: [...rest, `-${key}`] }
+      if (st === 'removed') return { ...prev, permissions: rest }
+      if (st === 'extra') return { ...prev, permissions: rest }
+      return { ...prev, permissions: [...rest, key] }
+    })
   }
 
   const handlePermissionChange = (permission: string, checked: boolean) => {
@@ -400,6 +421,18 @@ if (!open) return null
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {APP_CONFIG.STAFF_FEATURES.map(f => {
+                    if (roleDefaults) {
+                      const st = featureState(f.key)
+                      const on = st === 'default' || st === 'extra'
+                      const tag = st === 'default' ? 'Default' : st === 'extra' ? 'Extra' : st === 'removed' ? 'Removed' : ''
+                      return (
+                        <button key={f.key} type="button" disabled={loading} aria-pressed={on}
+                          onClick={() => toggleFeature(f.key)}
+                          className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${on ? (st === 'extra' ? 'border-blue-600 bg-blue-600 text-white' : 'border-green-600 bg-green-600 text-white') : st === 'removed' ? 'border-red-200 bg-red-50 text-red-600 line-through' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'}`}>
+                          {on ? '✓ ' : ''}{f.label}{tag && <span className="ml-1.5 text-[10px] font-bold uppercase opacity-80">{tag}</span>}
+                        </button>
+                      )
+                    }
                     const on = formData.permissions.includes(f.key)
                     return (
                       <button key={f.key} type="button" disabled={loading} aria-pressed={on}
@@ -411,7 +444,7 @@ if (!open) return null
                   })}
                 </div>
                 <p className="mt-2 text-xs text-gray-500">
-                  Green with a tick = this person has it. Click to switch it off (blank) or on, then save.
+                  {roleDefaults ? 'Green = from the role. Blue = extra for this person. Red = taken away from this person. Click to change, then save.' : 'Green with a tick = this person has it. Click to switch it off (blank) or on, then save.'}
                 </p>
               </div>
             </div>

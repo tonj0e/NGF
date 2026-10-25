@@ -1,16 +1,13 @@
 import { NextRequest } from 'next/server';
-import { apiHandler, getSession, ok, err } from '@/lib/api';
+import { apiHandler, getSession, ok, err } from '@/lib/api'
+import { requireFeature } from '@/lib/access';
 import { readTable } from '@/lib/supabase-db';
 import { calculateFinancialAnalytics } from '@/lib/financial';
 
 export const maxDuration = 30;
 
 export const GET = apiHandler(async (req: NextRequest) => {
-  const session = await getSession(req);
-
-  if (session.role !== 'Admin') {
-    return err('Financial Analytics is only available for Admin users.', 403);
-  }
+  const session = await requireFeature(req, ['financialAnalytics']);   // Admin, or Staff the Admin gave it to
 
   const timeout = new Promise<never>((_, reject) =>
     setTimeout(() => reject(new Error('Financial Analytics timeout')), 25000)

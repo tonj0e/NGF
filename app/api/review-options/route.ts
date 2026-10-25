@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, requireRole, ok, err } from '@/lib/api'
+import { requireFeature } from '@/lib/access'
 import { readTable, appendRow, updateById, deleteRow, findRecord, makeId, nowIso, deleteById, invalidateCache } from '@/lib/supabase-db'
 
 export const GET = apiHandler(async (_req: NextRequest) => {
@@ -8,7 +9,7 @@ export const GET = apiHandler(async (_req: NextRequest) => {
 })
 
 export const POST = apiHandler(async (req: NextRequest) => {
-  await requireRole(req, ['Admin'])
+  await requireFeature(req, ['reviewOptions'])
   const { label, category } = await req.json()
   if (!label) return err('label required')
   await appendRow('ReviewOptions', {
@@ -21,7 +22,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
 })
 
 export const PATCH = apiHandler(async (req: NextRequest) => {
-  await requireRole(req, ['Admin'])
+  await requireFeature(req, ['reviewOptions'])
   const { optionId, label } = await req.json()
   if (!optionId || !label) return err('optionId and label required')
   const opts = await readTable('ReviewOptions', { forceFresh: true })
@@ -33,7 +34,7 @@ export const PATCH = apiHandler(async (req: NextRequest) => {
 })
 
 export const DELETE = apiHandler(async (req: NextRequest) => {
-  await requireRole(req, ['Admin'])
+  await requireFeature(req, ['reviewOptions'])
   const { optionId } = await req.json()
   if (!optionId) return err('optionId required')
   const opts = await readTable('ReviewOptions')

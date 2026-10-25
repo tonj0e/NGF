@@ -1,3 +1,5 @@
+import { FEATURES } from './features'
+
 export const APP_CONFIG = {
   APP_NAME: 'NGF FINCORP Finance Operations Platform',
   COMPANY_PREFIX: 'NGF',
@@ -13,23 +15,7 @@ export const APP_CONFIG = {
   ROLES: ['Admin', 'Guarantor', 'NGF AGENT', 'Staff'],
   // Features a branch Staff account can be granted (configured in Dev → Branches).
   // `view` maps to the AppShell page key.
-  STAFF_FEATURES: [
-    { key: 'customers',   label: 'Customers',             view: 'customers' },
-    { key: 'leads',       label: 'Leads & Disbursements', view: 'leads' },
-    { key: 'collection',  label: 'Collection',            view: 'collection' },
-    { key: 'settlements', label: 'Settlements',           view: 'settlements' },
-    { key: 'guarantors',  label: 'Guarantors',            view: 'guarantors' },
-    { key: 'reports',     label: 'Reports',               view: 'reports' },
-    { key: 'agentTracking', label: 'Agent Tracking',      view: 'agentTracking' },
-    { key: 'verificationPlanning', label: 'Verification Routes (call customers, plan agent visits)', view: 'routes' },
-    // One Payments module (menu item added in AppShell when any of these is ticked)
-    { key: 'payChat', label: 'Payments: chat (see guarantor screenshots, reply, confirm)', view: '' },
-    { key: 'payHistory', label: 'Payments: payment history', view: '' },
-    { key: 'payMark', label: 'Payments: mark by UTR manually', view: '' },
-    { key: 'payBank', label: 'Payments: bank statement check', view: '' },
-    { key: 'payOverride', label: 'Payments: override duplicate UTR', view: '' },
-    { key: 'paymentLinks', label: 'Payment Links (send links and QR, close loans by payment)', view: 'payLinks' },
-  ] as { key: string; label: string; view: string }[],
+  STAFF_FEATURES: FEATURES.filter(f => f.holders.includes('staff')).map(({ key, label, view }) => ({ key, label, view })) as { key: string; label: string; view: string }[],
   // What a Guarantor can see, switched on or off in NGF Branches → edit guarantor. `gp:` keys are the pages in the
   // guarantor's own menu (all on until an Admin saves a custom list, which adds the `pages:custom` marker).
   // `payChat` lets them send payment screenshots, `payHistory` shows their recorded payments. Notifications is always on. Bank-statement
