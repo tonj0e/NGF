@@ -2,6 +2,7 @@
 import { Fragment, createContext, useContext, useEffect, useRef, useState, useCallback } from 'react'
 import { Session } from '@/types'
 import StatusPill from '@/components/ui/StatusPill'
+import Pager from '@/components/ui/Pager'
 
 // Whether this person may record payments (Staff only get it with the Record part; the server checks too)
 const RecordAllowed = createContext(true)
@@ -276,7 +277,7 @@ function PendingList({ apiMode, session, reviewOptions }: {
     const params = new URLSearchParams({ mode: apiMode, search: q, page: String(p), pageSize: String(PAGE_SIZE) })
     const res = await fetch(`/api/repayments?${params}`, { headers: { Authorization: `Bearer ${session.token}` } })
     const json = await res.json()
-    if (json.success) { setRows(json.data.rows); setTotal(json.data.total) }
+    if (json.success) { setRows(json.data.rows); setTotal(json.data.pagination?.total ?? json.data.total ?? 0) }
     setLoading(false)
   }, [apiMode, session.token])
 
@@ -299,21 +300,26 @@ function ComingSaturdayTab({ session, reviewOptions }: { session: Session; revie
   const [rows, setRows] = useState<Repayment[]>([])
   const [summary, setSummary] = useState<{ saturdayDate: string; customerCount: number; totalAmount: number; guarantorCount: number } | null>(null)
   const [loading, setLoading] = useState(true)
+  const [page, setPage] = useState(1)
+  const [pagination, setPagination] = useState({ total: 0, totalPages: 1 })
+  const SAT_PAGE = 30
 
+  // the summary counts every customer due; the list below is one page at a time
   useEffect(() => {
     const load = async () => {
       setLoading(true)
-      const params = new URLSearchParams({ mode: 'nextsaturday', page: '1', pageSize: '500' })
+      const params = new URLSearchParams({ mode: 'nextsaturday', page: String(page), pageSize: String(SAT_PAGE) })
       const res = await fetch(`/api/repayments?${params}`, { headers: { Authorization: `Bearer ${session.token}` } })
       const json = await res.json()
       if (json.success) {
         setRows(json.data.rows)
         setSummary(json.data.summary || null)
+        setPagination(json.data.pagination)
       }
       setLoading(false)
     }
     load()
-  }, [session.token])
+  }, [session.token, page])
 
   if (loading) return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" /></div>
 
@@ -344,6 +350,7 @@ function ComingSaturdayTab({ session, reviewOptions }: { session: Session; revie
         reviewOptions={reviewOptions} session={session}
         onSaved={() => {}}
         onPageChange={() => {}} />
+      <Pager page={page} totalPages={pagination.totalPages} total={pagination.total} noun="customers" pageSize={SAT_PAGE} onPage={setPage} />
     </div>
   )
 }
@@ -353,17 +360,25 @@ function ComingSaturdayTab({ session, reviewOptions }: { session: Session; revie
 function PastMonthTab({ session }: { session: Session }) {
   const [rows, setRows] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    fetch('/api/repayments?mode=history', { headers: { Authorization: `Bearer ${session.token}` } })
-      .then(r => r.json()).then(j => { if (j.success) setRows(j.data.rows || []) }).finally(() => setLoading(false))
-  }, [])
-
+  const [page, setPage] = useState(1)
+  const [pagination, setPagination] = useState({ total: 0, totalPages: 1 })
+  const [summary, setSummary] = useState({ paidCount: 0, paidTotal: 0 })
   const lastMonth = new Date(); lastMonth.setMonth(lastMonth.getMonth() - 1)
   const lastMonthStr = lastMonth.toISOString().slice(0, 7)
-  const paid = rows.filter(r => r['Status'] === 'Paid' && (r['Paid Date'] || '').startsWith(lastMonthStr))
-  const total = paid.reduce((s, r) => s + Number(r['Amount'] || 0), 0)
-  const avg = paid.length ? total / paid.length : 0
+
+  // the server picks last month's paid weeks, totals them and sends one page at a time
+  useEffect(() => {
+    setLoading(true)
+    fetch(`/api/repayments?mode=history&month=${lastMonthStr}&page=${page}&pageSize=50`, { headers: { Authorization: `Bearer ${session.token}` } })
+      .then(r => r.json()).then(j => {
+        if (!j.success) return
+        setRows(j.data.rows || []); setPagination(j.data.pagination); setSummary(j.data.summary || { paidCount: 0, paidTotal: 0 })
+      }).finally(() => setLoading(false))
+  }, [page])
+
+  const paid = rows
+  const total = summary.paidTotal
+  const avg = summary.paidCount ? total / summary.paidCount : 0
 
   if (loading) return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" /></div>
 
@@ -381,7 +396,7 @@ function PastMonthTab({ session }: { session: Session }) {
         </div>
         <div className="rounded-[1.5rem] border border-white/70 bg-white p-5 shadow-panel">
           <p className="text-xs text-[#697586]">Collection Count</p>
-          <p className="mt-2 text-3xl font-semibold">{paid.length}</p>
+          <p className="mt-2 text-3xl font-semibold">{summary.paidCount}</p>
         </div>
       </div>
       <div className="overflow-hidden rounded-[1.75rem] border border-white/70 bg-white shadow-panel">
@@ -406,6 +421,7 @@ function PastMonthTab({ session }: { session: Session }) {
           </tbody>
         </table>
         {paid.length === 0 && <p className="p-8 text-center text-sm text-[#697586]">No collections for last month.</p>}
+        <div className="px-5 pb-4"><Pager page={page} totalPages={pagination.totalPages} total={pagination.total} noun="payments" pageSize={50} onPage={setPage} /></div>
       </div>
     </div>
   )
@@ -416,15 +432,19 @@ function PastMonthTab({ session }: { session: Session }) {
 function HistoryTab({ session }: { session: Session }) {
   const [rows, setRows] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [page, setPage] = useState(1)
+  const [pagination, setPagination] = useState({ total: 0, totalPages: 1 })
 
+  // paid weeks, newest first, one page at a time
   useEffect(() => {
-    fetch('/api/repayments?mode=history', { headers: { Authorization: `Bearer ${session.token}` } })
-      .then(r => r.json()).then(j => { if (j.success) setRows(j.data.rows || []) }).finally(() => setLoading(false))
-  }, [])
+    setLoading(true)
+    fetch(`/api/repayments?mode=history&page=${page}&pageSize=50`, { headers: { Authorization: `Bearer ${session.token}` } })
+      .then(r => r.json()).then(j => { if (j.success) { setRows(j.data.rows || []); setPagination(j.data.pagination) } }).finally(() => setLoading(false))
+  }, [page])
 
   if (loading) return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" /></div>
 
-  const paid = rows.filter(r => r['Status'] === 'Paid')
+  const paid = rows
 
   return (
     <div className="overflow-hidden rounded-[1.75rem] border border-white/70 bg-white shadow-panel">
@@ -449,6 +469,7 @@ function HistoryTab({ session }: { session: Session }) {
         </table>
       </div>
       {paid.length === 0 && <p className="p-8 text-center text-sm text-[#697586]">No collections recorded.</p>}
+      <div className="px-5 pb-4"><Pager page={page} totalPages={pagination.totalPages} total={pagination.total} noun="payments" pageSize={50} onPage={setPage} /></div>
     </div>
   )
 }

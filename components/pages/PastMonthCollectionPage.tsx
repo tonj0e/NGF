@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { Session } from '@/types'
+import Pager from '@/components/ui/Pager'
 
 function currency(n: number) {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n)
@@ -9,18 +10,26 @@ function currency(n: number) {
 export default function PastMonthCollectionPage({ session }: { session: Session }) {
   const [rows, setRows] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    fetch('/api/repayments?mode=history', { headers: { Authorization: `Bearer ${session.token}` } })
-      .then(r => r.json()).then(j => { if (j.success) setRows(j.data.rows || []) }).finally(() => setLoading(false))
-  }, [])
-
+  const [page, setPage] = useState(1)
+  const [pagination, setPagination] = useState({ total: 0, totalPages: 1 })
+  const [summary, setSummary] = useState({ paidCount: 0, paidTotal: 0 })
   const lastMonth = new Date(); lastMonth.setMonth(lastMonth.getMonth() - 1)
   const lastMonthStr = lastMonth.toISOString().slice(0, 7)
-  const paid = rows.filter(r => r['Status'] === 'Paid' && (r['Paid Date'] || '').startsWith(lastMonthStr))
 
-  const total = paid.reduce((s, r) => s + Number(r['Amount'] || 0), 0)
-  const avg = paid.length ? total / paid.length : 0
+  // the server picks last month's paid weeks, totals them and sends one page at a time
+  useEffect(() => {
+    setLoading(true)
+    fetch(`/api/repayments?mode=history&month=${lastMonthStr}&page=${page}&pageSize=50`, { headers: { Authorization: `Bearer ${session.token}` } })
+      .then(r => r.json()).then(j => {
+        if (!j.success) return
+        setRows(j.data.rows || []); setPagination(j.data.pagination); setSummary(j.data.summary || { paidCount: 0, paidTotal: 0 })
+      }).finally(() => setLoading(false))
+  }, [page])
+
+  const paid = rows
+
+  const total = summary.paidTotal
+  const avg = summary.paidCount ? total / summary.paidCount : 0
 
   if (loading) return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" /></div>
 
@@ -38,7 +47,7 @@ export default function PastMonthCollectionPage({ session }: { session: Session 
         </div>
         <div className="rounded-[1.5rem] border border-white/70 bg-white p-5 shadow-panel">
           <p className="text-xs text-[#697586]">Collection Count</p>
-          <p className="mt-2 text-3xl font-semibold">{paid.length}</p>
+          <p className="mt-2 text-3xl font-semibold">{summary.paidCount}</p>
         </div>
       </div>
 
@@ -64,6 +73,7 @@ export default function PastMonthCollectionPage({ session }: { session: Session 
           </tbody>
         </table>
         {paid.length === 0 && <p className="p-8 text-center text-sm text-[#697586]">No collections for last month.</p>}
+        <div className="px-5 pb-4"><Pager page={page} totalPages={pagination.totalPages} total={pagination.total} noun="payments" pageSize={50} onPage={setPage} /></div>
       </div>
     </div>
   )

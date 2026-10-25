@@ -49,7 +49,7 @@ export default function LoansPage({ session, defaultFilter = 'active', customers
   useEffect(() => {
     if (!closeModal) { setModalRepayments([]); return }
     setModalRepsLoading(true)
-    fetch('/api/repayments?mode=history&pageSize=500', { headers: { Authorization: `Bearer ${session.token}` } })
+    fetch(`/api/repayments?loanId=${encodeURIComponent(closeModal.loanId)}`, { headers: { Authorization: `Bearer ${session.token}` } })
       .then(r => r.json())
       .then(j => { if (j.success) setModalRepayments((j.data.rows || []).filter((r: any) => r['Loan ID'] === closeModal.loanId)) })
       .finally(() => setModalRepsLoading(false))

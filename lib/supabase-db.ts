@@ -6,7 +6,7 @@ export type TableName =
   | 'Users' | 'Guarantors' | 'Agents' | 'Notifications' | 'Logs'
   | 'Customers' | 'Loans' | 'Repayments' | 'Collections' | 'Settlements'
   | 'ReviewOptions' | 'Capital' | 'PayoutRequests' | 'Branches' | 'StaffAccess'
-  | 'LoansOverdue' | 'LoansRenewalEligible' | 'Profiles' | 'Settings' | 'LoanProducts' | 'Deposits' | 'DepositRequests'
+  | 'LoansOverdue' | 'LoansRenewalEligible' | 'RepaymentsEnriched' | 'Profiles' | 'Settings' | 'LoanProducts' | 'Deposits' | 'DepositRequests'
   | 'Leads' | 'MigrationLog' | 'AgentTrips' | 'AgentAttendance'
   | 'BranchStaffRoles' | 'GuarantorBranches'
 
@@ -20,6 +20,7 @@ const TABLE_MAP: Record<TableName, string> = {
   Loans: 'loans',
   LoansOverdue: 'loans_overdue',               // read-only views (migration 20261026100000)
   LoansRenewalEligible: 'loans_renewal_eligible',
+  RepaymentsEnriched: 'repayments_enriched',    // read-only view (migration 20261026110000)
   Repayments: 'repayments',
   Collections: 'collections',
   Settlements: 'settlements',
@@ -360,6 +361,7 @@ function getPrimaryKeyColumn(table: TableName): string {
     Loans: 'loan_id',
     LoansOverdue: 'loan_id',
     LoansRenewalEligible: 'loan_id',
+    RepaymentsEnriched: 'repayment_id',
     Repayments: 'repayment_id',
     Collections: 'collection_id',
     Settlements: 'settlement_id',
@@ -394,6 +396,7 @@ function getPascalPrimaryKey(table: TableName): string {
     Loans: 'Loan ID',
     LoansOverdue: 'Loan ID',
     LoansRenewalEligible: 'Loan ID',
+    RepaymentsEnriched: 'Repayment ID',
     Repayments: 'Repayment ID',
     Collections: 'Collection ID',
     Settlements: 'Settlement ID',
