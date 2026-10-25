@@ -43,3 +43,6 @@ The live database is the source of truth, not `supabase_schema.sql`. This sectio
 
 ## Related
 - [[00 BRAIN]], [[Data Access Layer]], [[Security Brain]], [[Runbook Brain]]
+
+## Row limit (2026-10-26)
+Supabase returns at most 1000 rows per request (`max_rows` = 1000 on the project). `readTable` used to read a whole table in one request, so anything past row 1000 was silently dropped (repayments reach that at about 50 loans). Since 2026-10-26 `readTable` reads page by page in primary-key order (`lib/paginate.ts` `fetchAllPages`, tested in `tests/unit/paginate.test.ts`). Still open: direct queries that cap rows themselves (`bank_transactions` limit 2000 in `lib/payments.ts` returns 1000; long `.in(...)` lists) and speed: routes still load whole tables, so 400 customers (about 8000 repayment rows) means about 8 requests per full read. Next step is to filter in the database (per branch / per Saturday) on the busiest routes.

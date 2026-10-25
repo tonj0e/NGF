@@ -1,4 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
+import { fetchAllPages } from './paginate'
 
 // Table name mapping from Sheets names to Supabase table names
 export type TableName =
@@ -230,10 +231,17 @@ export async function readTable(table: TableName, options?: { forceFresh?: boole
   const supabase = getSupabase()
   const dbTable = TABLE_MAP[table]
 
-  const { data, error } = await supabase.from(dbTable).select('*')
-  if (error) throw new Error(`Failed to read ${table}: ${error.message}`)
+  // Ask page by page, in primary-key order so pages never overlap: the server stops at 1000 rows per request
+  const pk = getPrimaryKeyColumn(table)
+  const data = await fetchAllPages<any>(async (from, to) => {
+    let q = supabase.from(dbTable).select('*')
+    if (pk) q = q.order(pk, { ascending: true })
+    const { data: page, error } = await q.range(from, to)
+    if (error) throw new Error(`Failed to read ${table}: ${error.message}`)
+    return page || []
+  })
 
-  const rows = (data || []).map(row => {
+  const rows = data.map(row => {
     // Convert snake_case keys back to PascalCase for compatibility
     const pascalRow = toPascalCase(row)
     return pascalRow
