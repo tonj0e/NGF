@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel } from '@/components/ui/dropdown-menu'
 import { Sheet, SheetContent, SheetClose } from '@/components/ui/sheet'
-import { Menu, X, Bell, User, LogOut, LayoutDashboard, Users, FileText, Truck, BarChart3, LandPlot, Upload, CreditCard, Settings, Shield, MessageSquare, MapPin, ClipboardList, Wallet, History, Sparkles, HelpCircle, ChevronLeft, ChevronRight, DollarSign, Coins, Banknote, Pin, PinOff, PieChart, TrendingUp, Route as RouteIcon, Navigation, Building2, Link2 } from 'lucide-react'
+import { Menu, X, Bell, User, LogOut, LayoutDashboard, Users, FileText, Truck, BarChart3, LandPlot, Upload, CreditCard, Settings, Shield, MessageSquare, MapPin, ClipboardList, Wallet, History, Sparkles, HelpCircle, ChevronLeft, ChevronRight, DollarSign, Coins, Banknote, Pin, PinOff, PieChart, TrendingUp, Route as RouteIcon, Navigation, Building2, Link2, LayoutGrid, ChevronDown } from 'lucide-react'
 import Dashboard from './pages/Dashboard'
 import LeadsPage from './pages/LeadsPage'
 import StaffPage from './pages/StaffPage'
@@ -44,6 +44,7 @@ import PaymentLinksPage from './pages/PaymentLinksPage'
 function MenuIcon({ name }: { name: string }) {
   const icons: Record<string, React.ElementType> = {
     dashboard: LayoutDashboard,
+    features: LayoutGrid,
     customers: Users,
     leads: FileText,
     collection: Coins,
@@ -227,6 +228,53 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
   const pageTitle = menu.find(m => m.key === view)?.label || view
   const PageIcon = MenuIcon
 
+  // Admin menu: a short main list, and everything else tucked inside a "Features" drop-down
+  const isAdminNav = session.role === 'Admin'
+  const ADMIN_TOP_BEFORE = ['dashboard', 'staff', 'town']
+  const ADMIN_TOP_AFTER = ['notifications', 'dev']
+  const featureItems = isAdminNav ? menu.filter(m => ![...ADMIN_TOP_BEFORE, ...ADMIN_TOP_AFTER].includes(m.key)) : []
+  const [featuresOpen, setFeaturesOpen] = useState(false)
+  const inFeatures = featureItems.some(m => m.key === view)
+  useEffect(() => { if (inFeatures) setFeaturesOpen(true) }, [inFeatures])
+
+  const navItems = (onPick: (key: string) => void, collapsed: boolean) => {
+    const btn = (item: { key: string; label: string }, nested = false) => (
+      <Button
+        key={item.key}
+        onClick={() => onPick(item.key)}
+        variant={view === item.key ? 'default' : 'ghost'}
+        className={`w-full justify-start gap-3 rounded-xl px-3 text-sm font-medium transition-all ${nested && !collapsed ? 'py-2 pl-8' : 'py-2.5'} ${collapsed ? 'justify-center px-2' : ''}`}
+        title={collapsed ? item.label : undefined}
+      >
+        <MenuIcon name={item.key} />
+        {!collapsed && <span className="truncate">{item.label}</span>}
+      </Button>
+    )
+    if (!isAdminNav) return menu.map(i => btn(i))
+    const pick = (keys: string[]) => keys.map(k => menu.find(m => m.key === k)).filter((m): m is { key: string; label: string } => !!m)
+    return (
+      <>
+        {pick(ADMIN_TOP_BEFORE).map(i => btn(i))}
+        {featureItems.length > 0 && (
+          <div>
+            <Button
+              onClick={() => setFeaturesOpen(o => !o)}
+              variant={inFeatures && !featuresOpen ? 'secondary' : 'ghost'}
+              className={`w-full justify-start gap-3 rounded-xl px-3 py-2.5 text-sm font-medium ${collapsed ? 'justify-center px-2' : ''}`}
+              title={collapsed ? 'Features' : undefined}
+              aria-expanded={featuresOpen}
+            >
+              <MenuIcon name="features" />
+              {!collapsed && <><span className="flex-1 truncate text-left">Features</span><ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${featuresOpen ? 'rotate-180' : ''}`} /></>}
+            </Button>
+            {featuresOpen && <div className={`mt-0.5 space-y-0.5 ${collapsed ? '' : 'ml-3 border-l border-[#e5e7eb] pl-1'}`}>{featureItems.map(i => btn(i, true))}</div>}
+          </div>
+        )}
+        {pick(ADMIN_TOP_AFTER).map(i => btn(i))}
+      </>
+    )
+  }
+
   function renderPage() {
     // a Guarantor must not reach a page an Admin switched off, even if view state points at it
     if (session.role === 'Guarantor' && staffPerms.includes('pages:custom')
@@ -302,17 +350,7 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
             </div>
             <nav className="flex-1 overflow-y-auto px-3 py-3">
               <div className="space-y-0.5">
-                {menu.map(item => (
-                  <Button
-                    key={item.key}
-                    onClick={() => { setView(item.key); setMobileOpen(false) }}
-                    variant={view === item.key ? 'default' : 'ghost'}
-                    className="w-full justify-start gap-3 rounded-xl px-3 py-2.5 text-sm font-medium"
-                  >
-                    <MenuIcon name={item.key} />
-                    {item.label}
-                  </Button>
-                ))}
+                {navItems(k => { setView(k); setMobileOpen(false) }, false)}
               </div>
             </nav>
             <div className="border-t border-[#e5e7eb] p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
@@ -358,18 +396,7 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
           </div>
           <nav className="flex-1 overflow-y-auto px-2 py-2">
             <div className="space-y-1">
-              {menu.map(item => (
-                <Button
-                  key={item.key}
-                  onClick={() => setView(item.key)}
-                  variant={view === item.key ? 'default' : 'ghost'}
-                  className={`w-full justify-start gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${sidebarCollapsed ? 'justify-center px-2' : ''}`}
-                  title={sidebarCollapsed ? item.label : undefined}
-                >
-                  <MenuIcon name={item.key} />
-                  {!sidebarCollapsed && <span className="truncate">{item.label}</span>}
-                </Button>
-              ))}
+              {navItems(k => setView(k), sidebarCollapsed)}
             </div>
           </nav>
           {!sidebarCollapsed && (

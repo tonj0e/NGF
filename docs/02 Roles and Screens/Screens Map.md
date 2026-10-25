@@ -95,3 +95,6 @@ Mobile header shows no page title; the title shows only in the desktop header (`
 
 ## Related
 - [[Roles and Screens Brain]], [[Roles and Permissions]], [[Mobile and Responsive Notes]], [[Request Flow]], [[Lead to Loan]], [[Repayments and Collections]]
+
+## Admin menu layout (2026-10-25)
+Main list: Dashboard, NGF Branches, Branch Town, a **Features** drop-down, Notifications, Dev. Features holds everything else (Customers, Leads, Visit Routes, Collection, Reports, Financial Analytics, Settlements, Payments, Payment Links, Import Customer, Payout Requests, Guarantors, Review Options, Agent Tracking). The drop-down opens by itself when the open page is inside it. Built in `components/AppShell.tsx` (`navItems`); other roles' menus are unchanged.
