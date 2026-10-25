@@ -10,8 +10,8 @@ const ROLES: { key: string; label: string }[] = [
   { key: 'assistant_manager', label: 'Assistant Manager' },
   { key: 'accountant', label: 'Accountant' },
   { key: 'cashier', label: 'Cashier' },
-  { key: 'collection_agent', label: 'Collection Agent' },
   { key: 'agent', label: 'Agent' },
+  { key: 'guarantor', label: 'Guarantor' },
 ]
 
 // One table: what each branch role gets by default. Anything extra for one person is set when editing that person.
@@ -102,7 +102,7 @@ function FeatureRows({ group, list, table, toggle }: { group: string; list: Feat
         <tr key={f.key} className="border-t border-gray-100">
           <td className="py-2 pr-3 text-gray-800">{f.label}</td>
           {ROLES.map(r => {
-            const can = r.key === 'agent' ? f.holders.includes('agent') : f.holders.includes('staff')
+            const can = f.holders.includes(r.key === 'agent' ? 'agent' : r.key === 'guarantor' ? 'guarantor' : 'staff')
             return (
               <td key={r.key} className="px-2 py-2 text-center">
                 {can

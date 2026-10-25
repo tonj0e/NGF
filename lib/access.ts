@@ -2,7 +2,7 @@ import type { NextRequest } from 'next/server'
 import type { Session } from '@/types'
 import { getSession } from './api'
 import { readTable } from './supabase-db'
-import { FEATURES, canUse, effectivePermissions, permsOf } from './features'
+import { DEFAULT_ROLE_PERMISSIONS, FEATURES, canUse, effectivePermissions, permsOf } from './features'
 
 export const ROLE_DEFAULTS_KEY = 'role_defaults'
 
@@ -27,9 +27,15 @@ export async function loadPermissions(session: Pick<Session, 'userId' | 'role'>)
     savedRoleDefaults(),
   ])
   const extras = permsOf(access.find(a => a['User ID'] === session.userId)?.['Permissions'])
+  if (session.role === 'Guarantor') {
+    // Until an Admin customises this one guarantor (`pages:custom`) they get the guarantor defaults (or, before the table is
+    // saved, every page they always had). A customised guarantor has exactly the list the Admin ticked for them.
+    if (extras.includes('pages:custom')) return extras.filter(k => FEATURES.some(f => f.key === k))
+    return (defaults?.guarantor || DEFAULT_ROLE_PERMISSIONS.guarantor).filter(k => FEATURES.some(f => f.key === k))
+  }
   const roles = session.role === 'Staff'
     ? branchRoles.filter(r => r['User ID'] === session.userId && String(r['Is Active']) !== 'false').map(r => r['Role In Branch'])
-    : [session.role === 'NGF AGENT' ? 'agent' : session.role.toLowerCase()]
+    : [session.role === 'NGF AGENT' ? 'agent' : 'guarantor']
   return effectivePermissions(roles, extras, defaults || {})
 }
 

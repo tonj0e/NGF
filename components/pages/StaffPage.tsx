@@ -466,7 +466,10 @@ if (json.success) {
         perms = mine?.permissions || []; accessBranch = mine?.branchId || ''
       } catch {}
       // Until an Admin saves a custom list, a guarantor has every page they always had
-      if (!perms.includes('pages:custom')) perms = [...perms.filter(k => !k.startsWith('gp:')), ...APP_CONFIG.GUARANTOR_FEATURES.filter(f => f.key.startsWith('gp:')).map(f => f.key)]
+      if (!perms.includes('pages:custom')) {
+        const start = roleDefaults?.guarantor   // not customised yet: they follow the guarantor defaults (or every page, before the table is saved)
+        perms = start ? [...start] : [...perms.filter(k => !k.startsWith('gp:')), ...APP_CONFIG.GUARANTOR_FEATURES.filter(f => f.key.startsWith('gp:')).map(f => f.key)]
+      }
 
       // Open the edit dialog with full guarantor data
       setEditingGuarantor({

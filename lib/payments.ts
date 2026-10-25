@@ -2,6 +2,7 @@
 // Tables: payment_groups, payment_lines, payment_events, bank_transactions (see migrations/2026-10-18-payment-matching.sql).
 // All access control lives here and in app/api/payments/route.ts; the browser is never trusted.
 import { getSupabase, readTable, makeId, invalidateCache } from './supabase-db'
+import { loadPermissions } from './access'
 import { payCodeFromLoanId } from './payCode'
 import { getTodayIST, getThisSaturday } from './dateUtils'
 import { saveFileSupabase } from './drive'
@@ -60,10 +61,9 @@ export async function getAccess(session: Session): Promise<Access> {
     // A guarantor sends screenshots only when an Admin switched the chat on for them. They always see their own payments
     // until an Admin saves a custom page list, after which payHistory must be ticked. Manual marking, bank check and
     // duplicate override are never available to guarantors.
-    const acc = await readTable('StaffAccess', { forceFresh: true })
-    const perms = permsOf(acc.find(a => a['User ID'] === session.userId)?.['Permissions'])
+    const perms = await loadPermissions(session)
     const canChat = !!g && perms.includes(PERM_CHAT)
-    const canHistory = !!g && (!perms.includes('pages:custom') || perms.includes(PERM_HISTORY))
+    const canHistory = !!g && perms.includes(PERM_HISTORY)
     return { isAdmin: false, isGuarantor: true, guarantorId: g?.['Guarantor ID'] || '', canMark: false, canChat, canHistory, canBank: false, canOverride: false, canView: canChat || canHistory }
   }
   const access = await readTable('StaffAccess', { forceFresh: true })

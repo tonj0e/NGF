@@ -29,6 +29,14 @@ export const FEATURES: Feature[] = [
   { key: 'payBank',     label: 'Payments: bank statement check',     group: 'Payments', holders: ['staff', 'agent'], view: '' },
   { key: 'payOverride', label: 'Payments: override duplicate UTR',   group: 'Payments', holders: ['staff', 'agent'], view: '' },
   { key: 'paymentLinks', label: 'Payment Links (send links and QR, close loans by payment)', group: 'Payments', holders: ['staff'], view: 'payLinks' },
+  { key: 'gp:dashboard',   label: 'Dashboard',          group: 'Guarantor pages', holders: ['guarantor'], view: '' },
+  { key: 'gp:leads',       label: 'Leads',              group: 'Guarantor pages', holders: ['guarantor'], view: '' },
+  { key: 'gp:collection',  label: 'Collection',         group: 'Guarantor pages', holders: ['guarantor'], view: '' },
+  { key: 'gp:payLinks',    label: 'Send Payment Link',  group: 'Guarantor pages', holders: ['guarantor'], view: '' },
+  { key: 'gp:commissions', label: 'Commissions',        group: 'Guarantor pages', holders: ['guarantor'], view: '' },
+  { key: 'gp:deposits',    label: 'Deposits',           group: 'Guarantor pages', holders: ['guarantor'], view: '' },
+  { key: 'gp:myCustomers', label: 'My Customers',       group: 'Guarantor pages', holders: ['guarantor'], view: '' },
+  { key: 'gp:myIdCard',    label: 'My ID Card',         group: 'Guarantor pages', holders: ['guarantor'], view: '' },
   { key: 'financialAnalytics', label: 'Financial Analytics', group: 'Admin tools', holders: ['staff'], view: 'financialAnalytics' },
   { key: 'importCustomer',     label: 'Import Customer',     group: 'Admin tools', holders: ['staff'], view: 'importCustomer' },
   { key: 'payoutRequests',     label: 'Payout Requests',     group: 'Admin tools', holders: ['staff'], view: 'payoutRequests' },
@@ -51,9 +59,9 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
   assistant_manager: ['customers', 'leadsView', 'leadsEdit', 'leadsAssign', 'leadsApprove', 'leadsDisburse', 'leadsRenew', 'leadsClose', 'collection', 'reports', 'guarantors', 'agentTracking', 'verificationPlanning'],
   accountant:        ['customers', 'leadsView', 'leadsApprove', 'leadsDisburse', 'reports', 'settlements', 'agentTracking', 'verificationPlanning'],
   cashier:           ['collection', 'settlements', 'leadsView', 'leadsDisburse'],
-  collection_agent:  ['collection'],
   agent:             [],
-  guarantor:         [],
+  // pages a guarantor sees until the Admin customises that one guarantor (everything they always had; chat is off by default)
+  guarantor:         ['gp:dashboard', 'gp:leads', 'gp:collection', 'gp:payLinks', 'gp:commissions', 'gp:deposits', 'gp:myCustomers', 'gp:myIdCard', 'payHistory'],
 }
 
 /** Permissions stored as an array, a comma text, or nothing */
