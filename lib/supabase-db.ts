@@ -6,7 +6,7 @@ export type TableName =
   | 'Users' | 'Guarantors' | 'Agents' | 'Notifications' | 'Logs'
   | 'Customers' | 'Loans' | 'Repayments' | 'Collections' | 'Settlements'
   | 'ReviewOptions' | 'Capital' | 'PayoutRequests' | 'Branches' | 'StaffAccess'
-  | 'LoansOverdue' | 'LoansRenewalEligible' | 'RepaymentsEnriched' | 'CollectionSheetRows' | 'Profiles' | 'Settings' | 'LoanProducts' | 'Deposits' | 'DepositRequests'
+  | 'LoansOverdue' | 'LoansRenewalEligible' | 'RepaymentsEnriched' | 'CollectionSheetRows' | 'SettlementLines' | 'Profiles' | 'Settings' | 'LoanProducts' | 'Deposits' | 'DepositRequests'
   | 'Leads' | 'MigrationLog' | 'AgentTrips' | 'AgentAttendance'
   | 'BranchStaffRoles' | 'GuarantorBranches'
 
@@ -20,6 +20,7 @@ const TABLE_MAP: Record<TableName, string> = {
   Loans: 'loans',
   LoansOverdue: 'loans_overdue',               // read-only views (migration 20261026100000)
   LoansRenewalEligible: 'loans_renewal_eligible',
+  SettlementLines: 'settlement_lines',            // read-only view (migration 20261026140000)
   CollectionSheetRows: 'collection_sheet_rows',   // read-only view (migration 20261026130000)
   RepaymentsEnriched: 'repayments_enriched',    // read-only view (migration 20261026110000)
   Repayments: 'repayments',
@@ -364,6 +365,7 @@ function getPrimaryKeyColumn(table: TableName): string {
     LoansRenewalEligible: 'loan_id',
     RepaymentsEnriched: 'repayment_id',
     CollectionSheetRows: 'loan_id',
+    SettlementLines: 'repayment_id',
     Repayments: 'repayment_id',
     Collections: 'collection_id',
     Settlements: 'settlement_id',
@@ -400,6 +402,7 @@ function getPascalPrimaryKey(table: TableName): string {
     LoansRenewalEligible: 'Loan ID',
     RepaymentsEnriched: 'Repayment ID',
     CollectionSheetRows: 'Loan ID',
+    SettlementLines: 'Repayment ID',
     Repayments: 'Repayment ID',
     Collections: 'Collection ID',
     Settlements: 'Settlement ID',
@@ -478,6 +481,11 @@ export async function queryTable<T = any>(
   if (error) throw new Error(`Query failed on ${table}: ${error.message}`)
 
   return (data || []).map((row: any) => toPascalCase(row))
+}
+
+/** A database row (snake_case keys) in the usual Pascal-keyed shape. */
+export function pascalRow(row: Record<string, any>): Record<string, string> {
+  return toPascalCase(row) as Record<string, string>
 }
 
 /** One database-side query: `build` adds filters, order and range to the query (columns are database snake_case names).

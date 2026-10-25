@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 import { Session } from '@/types'
+import Pager from '@/components/ui/Pager'
 
 function currency(n: number) {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n)
@@ -43,6 +44,29 @@ type CollectionSummary = {
   staffBreakdown: Map<string, StaffBreakdown>
 }
 
+// A summary row from /api/settlements/summary, in the shape the screen uses. The customer-by-customer
+// transactions are empty here and filled in only when one guarantor is opened (see openDetail).
+type ServerSummary = {
+  dueDate: string; guarantorId: string; guarantorName: string; guarantorCode: string; guarantorPhone: string
+  totalDue: number; unpaid: number; upiDue: number; cashDue: number
+  collectors: { collectorUserId: string; collectorName: string; collectorCode: string; collectorRole: string; cash: number; upi: number }[]
+  settlement: Settlement | null
+}
+function toSummary(x: ServerSummary): CollectionSummary {
+  const staffBreakdown = new Map<string, StaffBreakdown>()
+  for (const c of x.collectors || []) {
+    staffBreakdown.set(c.collectorUserId || '__guarantor__', {
+      collectorUserId: c.collectorUserId || '',
+      collectorName: c.collectorUserId ? (c.collectorName || 'Unknown') : x.guarantorName,
+      collectorCode: c.collectorCode || '',
+      collectorRole: c.collectorUserId ? (c.collectorRole || '') : 'Guarantor',
+      cash: Number(c.cash) || 0, upi: Number(c.upi) || 0, transactions: [],
+    })
+  }
+  return { guarantorId: x.guarantorId, guarantorName: x.guarantorName, guarantorCode: x.guarantorCode, guarantorPhone: x.guarantorPhone,
+    cashDue: x.cashDue, upiDue: x.upiDue, totalDue: x.totalDue, unpaid: x.unpaid, staffBreakdown }
+}
+
 export default function SettlementsPage({ session }: { session: Session }) {
   const [tab, setTab] = useState<'today' | 'unsettled' | 'history'>('today')
   const saturday = thisSaturday()
@@ -60,8 +84,18 @@ export default function SettlementsPage({ session }: { session: Session }) {
   const isSaving = (id: string) => savingIds.has(id)
 
   const [histLoading, setHistLoading] = useState(false)
-  const [allSettlements, setAllSettlements] = useState<Settlement[]>([])
-  const [guarantors, setGuarantors] = useState<Guarantor[]>([])
+  const [allSettlements, setAllSettlements] = useState<Settlement[]>([])   // the opened guarantor's history
+  const [guarantors, setGuarantors] = useState<Guarantor[]>([])            // one page of the history guarantor list
+  // The server adds the totals up and sends one page at a time
+  const [todayPage, setTodayPage] = useState(1)
+  const [todayTotal, setTodayTotal] = useState(0)
+  const [todayPages, setTodayPages] = useState(1)
+  const [guarantorSearch, setGuarantorSearch] = useState('')
+  const [unsettledPage, setUnsettledPage] = useState(1)
+  const [unsettledMore, setUnsettledMore] = useState(false)
+  const [histPage, setHistPage] = useState(1)
+  const [histPages, setHistPages] = useState(1)
+  const PAGE = 100
 
   // Unsettled tab state
   const [unsettledLoading, setUnsettledLoading] = useState(false)
@@ -72,135 +106,31 @@ export default function SettlementsPage({ session }: { session: Session }) {
   }>>([])
 
 
-  // Load all unsettled weeks from past
-  async function loadUnsettled() {
+  // Past weeks that still need a settlement, one page at a time (the database groups them by guarantor and Saturday)
+  async function loadUnsettled(page = 1) {
     setUnsettledLoading(true)
     try {
-      // Fetch all settlements and all repayments
-      const [stlRes, gRes, repRes] = await Promise.all([
-        fetch('/api/settlements', { headers: { Authorization: `Bearer ${session.token}` } }),
-        fetch('/api/staff', { headers: { Authorization: `Bearer ${session.token}` } }),
-        fetch('/api/settlements/due?all=true', { headers: { Authorization: `Bearer ${session.token}` } }),
-      ])
-      const [stlJson, gJson, repJson] = await Promise.all([stlRes.json(), gRes.json(), repRes.json()])
-      
-      const gs: Guarantor[] = gJson.success ? gJson.data.guarantors || [] : []
-      setGuarantors(gs)
-      const allStls: Settlement[] = stlJson.success ? stlJson.data.settlements || [] : []
-      const allRepayments = repJson.success ? repJson.data || [] : []
-      
-      // Group repayments by Saturday Date and Guarantor
-      const weekMap = new Map<string, Map<string, {
-        repayments: any[],
-        settlement: Settlement | null
-      }>>()
-      
-      for (const r of allRepayments) {
-        const satDate = r.dueDate || r['Due Date']
-        if (!satDate || satDate >= saturday) continue // Only past weeks
-        
-        // API now returns guarantorId directly, no need for extra API call
-        const gId = r.guarantorId
-        if (!gId) continue
-        
-        if (!weekMap.has(satDate)) weekMap.set(satDate, new Map())
-        const gMap = weekMap.get(satDate)!
-        if (!gMap.has(gId)) gMap.set(gId, { repayments: [], settlement: null })
-        gMap.get(gId)!.repayments.push(r)
+      const res = await fetch(`/api/settlements/summary?unsettled=1&before=${saturday}&page=${page}&pageSize=${PAGE}&q=${encodeURIComponent(guarantorSearch.trim())}`, { headers: { Authorization: `Bearer ${session.token}` } })
+      const json = await res.json()
+      const rows: ServerSummary[] = json.success ? json.data.summaries || [] : []
+      const byWeek = new Map<string, { saturdayDate: string; summaries: CollectionSummary[]; settlements: Settlement[] }>()
+      for (const x of rows) {
+        if (!byWeek.has(x.dueDate)) byWeek.set(x.dueDate, { saturdayDate: x.dueDate, summaries: [], settlements: [] })
+        const w = byWeek.get(x.dueDate)!
+        w.summaries.push(toSummary(x))
+        if (x.settlement) w.settlements.push(x.settlement)
       }
-      
-      // Add settlements to week map
-      for (const s of allStls) {
-        const satDate = s['Saturday Date']
-        if (!satDate || satDate >= saturday) continue
-        const gId = s['Entity ID']
-        if (!weekMap.has(satDate)) weekMap.set(satDate, new Map())
-        const gMap = weekMap.get(satDate)!
-        if (!gMap.has(gId)) gMap.set(gId, { repayments: [], settlement: null })
-        gMap.get(gId)!.settlement = s
-      }
-      
-      // Build unsettled weeks data
-      const weeks: Array<{
-        saturdayDate: string
-        summaries: CollectionSummary[]
-        settlements: Settlement[]
-      }> = []
-      
-      for (const [satDate, gMap] of weekMap.entries()) {
-        const summaries: CollectionSummary[] = []
-        const settlements: Settlement[] = []
-        
-        for (const [gId, { repayments, settlement }] of gMap.entries()) {
-          const g = gs.find(g => g.guarantorId === gId)
-          if (!g) continue
-          
-          let cashDue = 0, upiDue = 0, totalDue = 0, unpaid = 0
-          const staffBreakdown = new Map<string, StaffBreakdown>()
-          
-          for (const r of repayments) {
-            const amt = Number(r.amount) || 0
-            const isPaid = r.status === 'Paid'
-            const mode = (r.paymentMode || '').toLowerCase()
-            const isUpi = mode.includes('upi') || mode.includes('qr') || mode.includes('bank')
-            
-            totalDue += amt
-            if (!isPaid) {
-              unpaid += amt
-            } else {
-              const collectorKey = r.collectorUserId || '__guarantor__'
-              if (!staffBreakdown.has(collectorKey)) {
-                staffBreakdown.set(collectorKey, {
-                  collectorUserId: r.collectorUserId || '',
-                  collectorName: r.collectorUserId ? (r.collectorName || 'Unknown') : 'Guarantor',
-                  collectorCode: r.collectorCode || '',
-                  collectorRole: r.collectorUserId ? (r.collectorRole || '') : 'Guarantor',
-                  cash: 0, upi: 0, transactions: [],
-                })
-              }
-              const sb = staffBreakdown.get(collectorKey)!
-              if (isUpi) { sb.upi += amt; upiDue += amt }
-              else { sb.cash += amt }
-              sb.transactions.push({
-                customerName: r.customerName || 'Unknown Customer',
-                amount: amt,
-                paymentMode: r.paymentMode || 'Cash',
-                paidAt: r.paidAt || r.updatedAt || r.createdAt || '',
-              })
-              if (!isUpi && (!r.collectorUserId || r.collectorRole === 'Guarantor')) {
-                cashDue += amt
-              }
-            }
-            
-            // Check if there's a settlement and if it's fully settled
-            const isSettled = settlement && settlement['Status'] === 'Settled'
-            const balance = settlement ? Number(settlement['Balance']) : 0
-            
-            // Only add to unsettled if there's unpaid or balance > 0
-            if (unpaid > 0 || balance > 0 || !isSettled) {
-              summaries.push({
-                guarantorId: gId, guarantorName: g?.name || gId,
-                guarantorCode: g?.code || '', guarantorPhone: g?.phone || '',
-                cashDue, upiDue, totalDue, unpaid,
-                staffBreakdown,
-              })
-              if (settlement) settlements.push(settlement)
-            }
-          }
+      const weeks = Array.from(byWeek.values()).sort((a, b) => b.saturdayDate.localeCompare(a.saturdayDate))
+      setUnsettledWeeks(prev => {
+        // a week can continue on the next page: add its guarantors to the week already on screen
+        const map = new Map((page === 1 ? [] : prev).map(w => [w.saturdayDate, { ...w, summaries: [...w.summaries], settlements: [...w.settlements] }]))
+        for (const w of weeks) {
+          const have = map.get(w.saturdayDate)
+          if (have) { have.summaries.push(...w.summaries); have.settlements.push(...w.settlements) } else map.set(w.saturdayDate, w)
         }
-        
-        if (summaries.length > 0) {
-          weeks.push({
-            saturdayDate: satDate,
-            summaries,
-            settlements,
-          })
-        }
-      }
-      
-      // Sort by date descending (most recent first)
-      weeks.sort((a, b) => b.saturdayDate.localeCompare(a.saturdayDate))
-      setUnsettledWeeks(weeks)
+        return Array.from(map.values()).sort((a, b) => b.saturdayDate.localeCompare(a.saturdayDate))
+      })
+      setUnsettledMore(json.success && page < json.data.totalPages)
     } catch (e) {
       console.error('Failed to load unsettled:', e)
     } finally {
@@ -217,94 +147,67 @@ export default function SettlementsPage({ session }: { session: Session }) {
   const [toast, setToast] = useState('')
   function showToast(m: string) { setToast(m); setTimeout(() => setToast(''), 3000) }
 
-  async function loadToday() {
+  // This Saturday: totals per guarantor with weeks due, searched and paged by the server
+  async function loadToday(page = todayPage) {
     if (!loadedOnce.current) setLoading(true)
-    const [repRes, stlRes, gRes] = await Promise.all([
-      fetch(`/api/settlements/due?saturday=${saturday}`, { headers: { Authorization: `Bearer ${session.token}` } }),
-      fetch(`/api/settlements?saturday=${saturday}`, { headers: { Authorization: `Bearer ${session.token}` } }),
-      fetch('/api/staff', { headers: { Authorization: `Bearer ${session.token}` } }),
-    ])
-    const [repJson, stlJson, gJson] = await Promise.all([repRes.json(), stlRes.json(), gRes.json()])
-
-    const gs: Guarantor[] = gJson.success ? gJson.data.guarantors || [] : []
-    setGuarantors(gs)
-    const repayments = repJson.success ? repJson.data || [] : []
-    const stls: Settlement[] = stlJson.success ? stlJson.data.settlements || [] : []
-    setSettlements(stls)
-
-    const map = new Map<string, CollectionSummary>()
-    for (const g of gs) {
-      map.set(g.guarantorId, {
-        guarantorId: g.guarantorId, guarantorName: g.name,
-        guarantorCode: g.code, guarantorPhone: g.phone,
-        cashDue: 0, upiDue: 0, totalDue: 0, unpaid: 0,
-        staffBreakdown: new Map(),
-      })
-    }
-
-    for (const r of repayments) {
-      const gId = r.guarantorId || ''
-      if (!gId) continue
-      const s = map.get(gId)
-      if (!s) continue
-      const amt = Number(r.amount) || 0
-      const isPaid = r.status === 'Paid'
-      const mode = (r.paymentMode || '').toLowerCase()
-      const isUpi = mode.includes('upi') || mode.includes('qr') || mode.includes('bank')
-
-      s.totalDue += amt
-      if (!isPaid) {
-        s.unpaid += amt
-      } else {
-        // Track breakdown per collector
-        const collectorKey = r.collectorUserId || '__guarantor__'
-        if (!s.staffBreakdown.has(collectorKey)) {
-          s.staffBreakdown.set(collectorKey, {
-            collectorUserId: r.collectorUserId || '',
-            collectorName: r.collectorUserId ? (r.collectorName || 'Unknown') : s.guarantorName,
-            collectorCode: r.collectorCode || '',
-            collectorRole: r.collectorUserId ? (r.collectorRole || '') : 'Guarantor',
-            cash: 0, upi: 0, transactions: [],
-          })
-        }
-        const sb = s.staffBreakdown.get(collectorKey)!
-        if (isUpi) { sb.upi += amt; s.upiDue += amt }
-        else { sb.cash += amt }
-        sb.transactions.push({
-          customerName: r.customerName || 'Unknown Customer',
-          amount: amt,
-          paymentMode: r.paymentMode || 'Cash',
-          paidAt: r.paidAt || r.updatedAt || r.createdAt || '',
-        })
-
-        // Cash Due = only cash collected by the guarantor themselves
-        if (!isUpi && (!r.collectorUserId || r.collectorRole === 'Guarantor')) {
-          s.cashDue += amt
-        }
-      }
-    }
-
-    setSummaries(Array.from(map.values()).filter(s => s.totalDue > 0 || s.unpaid > 0))
+    const res = await fetch(`/api/settlements/summary?saturday=${saturday}&page=${page}&pageSize=${PAGE}&q=${encodeURIComponent(guarantorSearch.trim())}`, { headers: { Authorization: `Bearer ${session.token}` } })
+    const json = await res.json()
+    const rows: ServerSummary[] = json.success ? json.data.summaries || [] : []
+    setSummaries(rows.map(toSummary))
+    setSettlements(rows.map(x => x.settlement).filter(Boolean) as Settlement[])
+    if (json.success) { setTodayTotal(json.data.total); setTodayPages(json.data.totalPages) }
     loadedOnce.current = true
     setLoading(false)
   }
 
-  async function loadHistory() {
+  // The customer-by-customer lines of one guarantor and week, loaded only when that guarantor is opened
+  async function loadTransactions(summary: CollectionSummary, satDate: string): Promise<CollectionSummary> {
+    const res = await fetch(`/api/settlements/due?saturday=${satDate}&guarantorId=${encodeURIComponent(summary.guarantorId)}`, { headers: { Authorization: `Bearer ${session.token}` } })
+    const json = await res.json()
+    const lines: any[] = json.success ? json.data || [] : []
+    const sb = new Map<string, StaffBreakdown>()
+    for (const [k, v] of summary.staffBreakdown) sb.set(k, { ...v, transactions: [] })
+    for (const r of lines) {
+      if (r.status !== 'Paid') continue
+      const key = r.collectorUserId || '__guarantor__'
+      const entry: StaffBreakdown = sb.get(key) || { collectorUserId: r.collectorUserId || '', collectorName: r.collectorUserId ? (r.collectorName || 'Unknown') : summary.guarantorName, collectorCode: r.collectorCode || '', collectorRole: r.collectorUserId ? (r.collectorRole || '') : 'Guarantor', cash: 0, upi: 0, transactions: [] }
+      entry.transactions.push({ customerName: r.customerName || 'Unknown Customer', amount: Number(r.amount) || 0, paymentMode: r.paymentMode || 'Cash', paidAt: r.paidAt || r.updatedAt || r.createdAt || '' })
+      sb.set(key, entry)
+    }
+    return { ...summary, staffBreakdown: sb }
+  }
+  async function openDetail(summary: CollectionSummary) {
+    setDetailSummary(await loadTransactions(summary, saturday))
+  }
+
+  // History: first the guarantors (one page, searchable), then one guarantor's weeks when opened
+  async function loadHistory(page = histPage) {
     setHistLoading(true)
-    const [stlRes, gRes] = await Promise.all([
-      fetch('/api/settlements', { headers: { Authorization: `Bearer ${session.token}` } }),
-      fetch('/api/staff', { headers: { Authorization: `Bearer ${session.token}` } }),
-    ])
-    const [stlJson, gJson] = await Promise.all([stlRes.json(), gRes.json()])
-    const gs: Guarantor[] = gJson.success ? gJson.data.guarantors || [] : []
-    setGuarantors(gs)
-    setAllSettlements(stlJson.success ? stlJson.data.settlements || [] : [])
+    const res = await fetch(`/api/settlements?guarantorList=1&page=${page}&pageSize=50&q=${encodeURIComponent(guarantorSearch.trim())}`, { headers: { Authorization: `Bearer ${session.token}` } })
+    const json = await res.json()
+    setGuarantors(json.success ? json.data.guarantors || [] : [])
+    if (json.success) setHistPages(json.data.totalPages)
+    setHistLoading(false)
+  }
+  async function loadGuarantorHistory(guarantorId: string) {
+    setHistLoading(true)
+    const res = await fetch(`/api/settlements?entityId=${encodeURIComponent(guarantorId)}&pageSize=200`, { headers: { Authorization: `Bearer ${session.token}` } })
+    const json = await res.json()
+    setAllSettlements(json.success ? json.data.settlements || [] : [])
     setHistLoading(false)
   }
 
-  useEffect(() => { loadToday() }, [])
-  useEffect(() => { if (tab === 'history') loadHistory() }, [tab])
-  useEffect(() => { if (tab === 'unsettled') loadUnsettled() }, [tab])
+  // a new search starts again at page 1; it is sent to the server after a short pause
+  useEffect(() => { setTodayPage(1); setUnsettledPage(1); setHistPage(1) }, [guarantorSearch, tab])
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (tab === 'today') loadToday(todayPage)
+      else if (tab === 'unsettled') loadUnsettled(unsettledPage)
+      else if (tab === 'history' && !histView) loadHistory(histPage)
+    }, guarantorSearch ? 300 : 0)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, todayPage, unsettledPage, histPage, guarantorSearch])
 
   async function recordSettlement(guarantorId: string, guarantorName: string, cashDue: number, upiDue: number) {
     setSaving(guarantorId, true)
@@ -324,21 +227,20 @@ export default function SettlementsPage({ session }: { session: Session }) {
       setOpenId(null); setSubmitAmount(''); setSubmitNotes('')
       setAllSettlements([])
       await loadToday()
-      await loadHistory()
     } else {
       showToast('Failed to record. Please try again.')
     }
     setSaving(guarantorId, false)
   }
 
-  async function settleNow(guarantorId: string, guarantorName: string, upiDue: number) {
+  async function settleNow(guarantorId: string, guarantorName: string, upiDue: number, satDate: string = saturday) {
     setSaving(guarantorId, true)
     const res = await fetch('/api/settlements', {
       method: 'POST',
       headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         entityType: 'Guarantor', entityId: guarantorId, entityName: guarantorName,
-        saturdayDate: saturday, totalCashDue: 0, totalUpiDue: upiDue,
+        saturdayDate: satDate, totalCashDue: 0, totalUpiDue: upiDue,
         amountSubmitted: upiDue, notes: 'Auto-settled: cash due is ₹0',
         recordedBy: session.userId,
       }),
@@ -348,7 +250,7 @@ export default function SettlementsPage({ session }: { session: Session }) {
       showToast('✓ Settled successfully.')
       setAllSettlements([])
       await loadToday()
-      await loadHistory()
+      if (tab === 'unsettled') { setUnsettledPage(1); await loadUnsettled(1) }
     } else {
       const errMsg = json.error || json.data?.error || 'Unknown error'
       showToast(`Failed: ${errMsg}`)
@@ -358,21 +260,8 @@ export default function SettlementsPage({ session }: { session: Session }) {
 
   const getSettlement = (gId: string) => settlements.find(s => s['Entity ID'] === gId)
 
-  // Build unique guarantors directly from settlements — no dependency on guarantors state
-  const histGuarantorMap = new Map<string, { guarantorId: string; name: string; code: string; phone: string }>()
-  for (const s of allSettlements) {
-    if (!histGuarantorMap.has(s['Entity ID'])) {
-      const g = guarantors.find(g => g.guarantorId === s['Entity ID'])
-      histGuarantorMap.set(s['Entity ID'], {
-        guarantorId: s['Entity ID'],
-        name: g?.name || s['Entity Name'] || s['Entity ID'],
-        code: g?.code || '',
-        phone: g?.phone || '',
-      })
-    }
-  }
-  const histGuarantors = Array.from(histGuarantorMap.values())
-
+  // the guarantors on this page of the list, and the opened guarantor's weeks (oldest first, as before)
+  const histGuarantors = guarantors
   const getGuarantorHistory = (gId: string) =>
     allSettlements
       .filter(s => s['Entity ID'] === gId)
@@ -380,7 +269,7 @@ export default function SettlementsPage({ session }: { session: Session }) {
 
   async function loadHistWeekDetail(stl: Settlement) {
     setHistWeekLoading(true)
-    const repRes = await fetch(`/api/settlements/due?saturday=${stl['Saturday Date']}`, {
+    const repRes = await fetch(`/api/settlements/due?saturday=${stl['Saturday Date']}&guarantorId=${encodeURIComponent(stl['Entity ID'])}`, {
       headers: { Authorization: `Bearer ${session.token}` },
     })
     const repJson = await repRes.json()
@@ -681,15 +570,20 @@ export default function SettlementsPage({ session }: { session: Session }) {
 
     // Level 1: Guarantor cards
     if (histGuarantors.length === 0) return (
-      <p className="rounded-2xl border border-dashed border-[#e5e7eb] bg-white p-8 text-center text-sm text-[#697586]">
-        No settlement history found.
-      </p>
+      <div className="space-y-3">
+        <input value={guarantorSearch} onChange={e => setGuarantorSearch(e.target.value)} placeholder="Search guarantor name or code…" data-no-upper
+          className="w-full max-w-sm rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2.5 text-sm outline-none focus:border-[#1a1a2e]" />
+        <p className="rounded-2xl border border-dashed border-[#e5e7eb] bg-white p-8 text-center text-sm text-[#697586]">
+          {histLoading ? 'Loading…' : 'No guarantors found.'}
+        </p>
+      </div>
     )
     return (
+      <div className="space-y-3">
+      <input value={guarantorSearch} onChange={e => setGuarantorSearch(e.target.value)} placeholder="Search guarantor name or code…" data-no-upper
+        className="w-full max-w-sm rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2.5 text-sm outline-none focus:border-[#1a1a2e]" />
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {histGuarantors.map(g => {
-          const history = getGuarantorHistory(g.guarantorId)
-          const lastWeek = history[history.length - 1]
           return (
             <div key={g.guarantorId} className="rounded-2xl border border-white/70 bg-white px-4 py-3 shadow-panel space-y-2">
               <div className="flex items-center justify-between gap-2">
@@ -697,26 +591,17 @@ export default function SettlementsPage({ session }: { session: Session }) {
                   <p className="text-sm font-semibold leading-tight">{g.name}</p>
                   <p className="text-xs text-[#697586]">{g.code} &bull; {g.phone}</p>
                 </div>
-                <span className="rounded-full bg-[#f4f5f7] px-2.5 py-0.5 text-xs font-semibold text-[#697586] shrink-0">
-                  {history.length} week{history.length !== 1 ? 's' : ''}
-                </span>
               </div>
-              {lastWeek && (
-                <div className="rounded-xl bg-[#f4f5f7] px-3 py-2 text-xs flex justify-between items-center">
-                  <span className="text-[#697586]">Last: {lastWeek['Saturday Date']}</span>
-                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${lastWeek['Status'] === 'Settled' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
-                    {lastWeek['Status']}
-                  </span>
-                </div>
-              )}
               <button
-                onClick={() => { setHistView(g); setHistWeekDetail(null) }}
+                onClick={() => { setHistView(g); setHistWeekDetail(null); setAllSettlements([]); loadGuarantorHistory(g.guarantorId) }}
                 className="w-full rounded-xl border border-[#e5e7eb] bg-[#f4f5f7] px-3 py-1.5 text-xs font-semibold text-[#697586] hover:bg-[#1a1a2e] hover:text-white transition">
                 View
               </button>
             </div>
           )
         })}
+      </div>
+      <Pager page={histPage} totalPages={histPages} total={histPages * 50} noun="guarantors" pageSize={50} onPage={setHistPage} />
       </div>
     )
   }
@@ -788,6 +673,10 @@ export default function SettlementsPage({ session }: { session: Session }) {
         </button>
       </div>
 
+      {(tab === 'today' || tab === 'unsettled') && (
+        <input value={guarantorSearch} onChange={e => setGuarantorSearch(e.target.value)} placeholder="Search guarantor name or code…" data-no-upper
+          className="w-full max-w-sm rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2.5 text-sm outline-none focus:border-[#1a1a2e]" />
+      )}
       {tab === 'today' && (
         <p className="text-sm text-[#697586]">
           Showing settlements for <span className="font-semibold text-[#1a1a2e]">{saturday}</span>
@@ -848,7 +737,7 @@ export default function SettlementsPage({ session }: { session: Session }) {
                   </div>
 
                   <button
-                    onClick={() => setDetailSummary(s)}
+                    onClick={() => openDetail(s)}
                     className="w-full rounded-xl border border-[#e5e7eb] bg-[#f4f5f7] px-3 py-1.5 text-xs font-semibold text-[#697586] hover:bg-[#1a1a2e] hover:text-white transition">
                     View Details
                   </button>
@@ -925,6 +814,8 @@ export default function SettlementsPage({ session }: { session: Session }) {
         )
       )}
 
+
+      {tab === 'today' && <Pager page={todayPage} totalPages={todayPages} total={todayTotal} noun="guarantors" pageSize={PAGE} onPage={setTodayPage} />}
 
       {/* UNSETTLED TAB */}
       {tab === 'unsettled' && (
@@ -1015,7 +906,7 @@ export default function SettlementsPage({ session }: { session: Session }) {
                                 if (s.cashDue > 0) {
                                   showToast(`Cash due ₹${s.cashDue.toLocaleString('en-IN')} is still pending`)
                                 } else {
-                                  settleNow(s.guarantorId, s.guarantorName, s.upiDue)
+                                  settleNow(s.guarantorId, s.guarantorName, s.upiDue, week.saturdayDate)
                                 }
                               }}
                               disabled={isSaving(s.guarantorId)}
@@ -1032,6 +923,10 @@ export default function SettlementsPage({ session }: { session: Session }) {
             ))}
           </div>
         )
+      )}
+
+      {tab === 'unsettled' && unsettledMore && (
+        <button onClick={() => setUnsettledPage(p => p + 1)} className="rounded-2xl border border-[#e5e7eb] bg-white px-5 py-2.5 text-sm font-semibold">Load more</button>
       )}
 
       {/* HISTORY TAB */}

@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, requireRole, ok, err } from '@/lib/api'
 import { requireFeature } from '@/lib/access'
-import { readTable, appendRow, updateById, findRecord, makeId, nowIso, invalidateCache } from '@/lib/supabase-db'
+import { readTable, appendRow, updateById, getRowById, countRows, makeId, nowIso, invalidateCache } from '@/lib/supabase-db'
+import { pageQuery, byIds, cleanSearch, scopeOf } from '@/lib/db'
 import { getTodayIST } from '@/lib/dateUtils'
 import { getBranchAccess, canSeeBranch, guarantorBranchMap, type BranchAccess } from '@/lib/branchAccess'
 
@@ -15,28 +16,48 @@ async function staffEntityScope(session: { userId: string; role: string }): Prom
   return { access, ids }
 }
 
+// GET /api/settlements
+//   ?saturday=DATE                 settlement records of one Saturday
+//   ?entityId=ID&page=&pageSize=   one guarantor's settlement history, newest first
+//   ?guarantorList=1&q=&page=      guarantors you may open the history of (name or code search)
 export const GET = apiHandler(async (req: NextRequest) => {
   const session = await requireFeature(req, ['settlements'])
-  const { searchParams } = new URL(req.url)
-  const saturday = searchParams.get('saturday') || ''
-
-  const [settlements, guarantors] = await Promise.all([
-    readTable('Settlements', { forceFresh: true }), readTable('Guarantors', { forceFresh: true }),
-  ])
-
-  let rows = settlements
-  if (saturday) rows = rows.filter(s => s['Saturday Date'] === saturday)
+  const sp = new URL(req.url).searchParams
+  const saturday = sp.get('saturday') || ''
+  const entityId = sp.get('entityId') || ''
   const scope = await staffEntityScope(session)
-  if (scope) rows = rows.filter(s => scope.ids.has(s['Entity ID']))
 
-  const enriched = rows.map(s => {
-    const g = s['Entity Type'] === 'Guarantor'
-      ? guarantors.find(g => g['Guarantor ID'] === s['Entity ID'])
-      : null
-    return { ...s, entityPhone: g?.['Phone'] || '' }
+  if (sp.get('guarantorList') === '1') {
+    const sc = await scopeOf(session)
+    const text = cleanSearch(sp.get('q'))
+    const r = await pageQuery('Guarantors', {
+      filters: qb => (sc.kind === 'guarantors' ? qb.in('guarantor_id', sc.ids) : sc.kind === 'none' ? qb.in('guarantor_id', ['__none__']) : qb),
+      search: { columns: ['name', 'code'], text }, order: [{ column: 'name' }, { column: 'guarantor_id' }],
+      page: sp.get('page') || 1, pageSize: sp.get('pageSize') || 50,
+    })
+    return ok({
+      guarantors: r.rows.map(g => ({ guarantorId: g['Guarantor ID'], name: g['Name'], code: g['Code'], phone: g['Phone'] || '' })),
+      total: r.total, page: r.page, pageSize: r.pageSize, totalPages: r.totalPages,
+    })
+  }
+
+  // a Staff user only reads settlements of people in their own branches
+  // Staff read one guarantor or agent at a time (the summary endpoint serves the per-Saturday overview)
+  if (scope && (!entityId || !scope.ids.has(entityId))) return ok({ settlements: [], total: 0, page: 1, pageSize: 0, totalPages: 1 })
+  const r = await pageQuery('Settlements', {
+    filters: qb => {
+      let q = qb
+      if (saturday) q = q.eq('saturday_date', saturday)
+      if (entityId) q = q.eq('entity_id', entityId)
+      return q
+    },
+    order: [{ column: 'saturday_date', ascending: false }, { column: 'settlement_id' }],
+    page: sp.get('page') || 1, pageSize: sp.get('pageSize') || 200,
   })
-
-  return ok({ settlements: enriched })
+  const guarantors = await byIds('Guarantors', 'guarantor_id', r.rows.filter(s => s['Entity Type'] === 'Guarantor').map(s => s['Entity ID']))
+  const phone = new Map(guarantors.map(g => [g['Guarantor ID'], g['Phone'] || '']))
+  const enriched = r.rows.map(s => ({ ...s, entityPhone: s['Entity Type'] === 'Guarantor' ? phone.get(s['Entity ID']) || '' : '' }))
+  return ok({ settlements: enriched, total: r.total, page: r.page, pageSize: r.pageSize, totalPages: r.totalPages })
 })
 
 export const POST = apiHandler(async (req: NextRequest) => {
@@ -58,20 +79,10 @@ export const POST = apiHandler(async (req: NextRequest) => {
   if (notes && notes.includes('QR Payout')) {
     const payoutIdMatch = notes.match(/PYOUT\d+/)
     if (payoutIdMatch) {
-      const existing = await readTable('Settlements', { forceFresh: true })
-      const dupe = existing.find(s => s['Notes']?.includes(payoutIdMatch[0]) && s['Entity ID'] === entityId)
-      if (dupe) return err('Payout already recorded for this QR')
+      const dupes = await countRows('Settlements', qb => qb.eq('entity_id', entityId).ilike('notes', `%${payoutIdMatch[0]}%`))
+      if (dupes > 0) return err('Payout already recorded for this QR')
     }
   }
-
-  const [collections, repayments, loans] = await Promise.all([
-    readTable('Collections', { forceFresh: true }), readTable('Repayments', { forceFresh: true }), readTable('Loans', { forceFresh: true }),
-  ])
-
-  // Exclude Closed/Completed loans from settlement calculations (per business logic in settlements/due)
-  const inactiveLoanIds = new Set(
-    loans.filter(l => l['Status'] === 'Closed' || l['Status'] === 'Completed').map(l => l['Loan ID'])
-  )
 
   const today = getTodayIST()
 
@@ -101,8 +112,7 @@ export const PATCH = apiHandler(async (req: NextRequest) => {
   const { settlementId, amountSubmitted, notes } = await req.json()
   if (!settlementId) return err('settlementId required')
 
-  const settlements = await readTable('Settlements', { forceFresh: true })
-  const s = findRecord(settlements, 'Settlement ID', settlementId)
+  const s = await getRowById('Settlements', String(settlementId))
   if (!s) return err('Settlement not found')
   const scope = await staffEntityScope(session)
   if (scope && !scope.ids.has(s['Entity ID'])) return err('This settlement belongs to another branch', 403)
