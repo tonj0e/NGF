@@ -9,6 +9,7 @@ import { Sheet, SheetContent, SheetClose } from '@/components/ui/sheet'
 import { Menu, X, Bell, User, LogOut, LayoutDashboard, Users, FileText, Truck, BarChart3, LandPlot, Upload, CreditCard, Settings, Shield, MessageSquare, MapPin, ClipboardList, Wallet, History, Sparkles, HelpCircle, ChevronLeft, ChevronRight, DollarSign, Coins, Banknote, Pin, PinOff, PieChart, TrendingUp, Route as RouteIcon, Navigation, Building2, Link2, LayoutGrid, ChevronDown } from 'lucide-react'
 import Dashboard from './pages/Dashboard'
 import LeadsPage from './pages/LeadsPage'
+import InstallAppButton from './InstallAppButton'
 import { hasAnyLead, hasAnyCustomer, hasAnyCollection } from '@/lib/features'
 import StaffPage from './pages/StaffPage'
 import RepayPage from './pages/RepayPage'
@@ -439,7 +440,7 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
           {/* Main */}
           <main className="flex min-w-0 flex-1 flex-col">
             {/* Mobile Header */}
-            <header className="sticky top-0 z-20 border-b border-[#e5e7eb] bg-white/90 backdrop-blur-md lg:hidden">
+            <header className="sticky top-0 z-20 border-b border-[#e5e7eb] bg-white/90 pt-[env(safe-area-inset-top)] backdrop-blur-md lg:hidden">
               <div className="flex items-center justify-between gap-2 px-3 py-2.5">
                 <div className="flex items-center gap-2 min-w-0 flex-1">
                   <Button variant="ghost" size="icon" onClick={() => setMobileOpen(true)} aria-label="Open menu">
@@ -451,6 +452,7 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
+                  <InstallAppButton />
                   {/* Notifications: opens the real inbox (the old dropdown showed fixed sample items and a fixed badge) */}
                   <Button variant="ghost" size="icon" aria-label="Notifications" onClick={() => setView('notifications')}>
                     <Bell className="h-5 w-5" />
@@ -498,7 +500,7 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
             </header>
 
             {/* Desktop Header */}
-            <header className="sticky top-0 z-30 border-b border-[#e5e7eb] bg-white/90 backdrop-blur-md hidden lg:block">
+            <header className="sticky top-0 z-30 border-b border-[#e5e7eb] bg-white/90 pt-[env(safe-area-inset-top)] backdrop-blur-md hidden lg:block">
               <div className="flex items-center justify-between gap-4 px-4 py-3 sm:px-6">
                 <div className="flex items-center gap-3">
                   <div>
@@ -509,6 +511,7 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
+                  <InstallAppButton />
                   {/* Notifications: opens the real inbox (the old dropdown showed fixed sample items and a fixed badge) */}
                   <Button variant="ghost" size="icon" aria-label="Notifications" onClick={() => setView('notifications')}>
                     <Bell className="h-5 w-5" />
