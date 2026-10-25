@@ -65,7 +65,7 @@ export function withScope(qb: any, scope: Scope): any {
 /** Company-wide loan and repayment totals, added up by the database (function company_totals). */
 export interface CompanyTotals {
   loanCount: number; activePrincipal: number; activeInterest: number; activeCommission: number; activeNetDisbursed: number
-  totalPrincipal: number; totalInterest: number; paidTotal: number; pendingTotal: number
+  totalPrincipal: number; totalInterest: number; paidTotal: number; pendingTotal: number; overdueCount: number; overdueAmount: number
   commissionByGuarantor: Record<string, number>
 }
 export async function companyTotals(): Promise<CompanyTotals> {
@@ -76,7 +76,7 @@ export async function companyTotals(): Promise<CompanyTotals> {
     loanCount: Number(t.loan_count), activePrincipal: Number(t.active_principal), activeInterest: Number(t.active_interest),
     activeCommission: Number(t.active_commission), activeNetDisbursed: Number(t.active_net_disbursed),
     totalPrincipal: Number(t.total_principal), totalInterest: Number(t.total_interest), paidTotal: Number(t.paid_total),
-    pendingTotal: Number(t.pending_total),
+    pendingTotal: Number(t.pending_total), overdueCount: Number(t.overdue_count || 0), overdueAmount: Number(t.overdue_amount || 0),
     commissionByGuarantor: Object.fromEntries(Object.entries(t.commission_by_guarantor || {}).map(([k, v]) => [k, Number(v)])),
   }
 }

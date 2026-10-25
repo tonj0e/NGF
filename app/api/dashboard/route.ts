@@ -6,6 +6,11 @@ import { getTodayIST, getNextSaturday, addDaysIST } from '@/lib/dateUtils'
 
 export const maxDuration = 30
 
+// The figures change slowly and cost the database a second or more at full size, so each viewer's figures are
+// kept for 45 seconds (unread notifications are always fresh). Admin shares one entry; others have their own.
+const CACHE_MS = 45_000
+const figures = new Map<string, { at: number; data: any }>()
+
 // Every figure is computed by the database (function dashboard_metrics) for the viewer's own scope:
 // Admin all, Guarantor own, agent assigned, Staff their branches. The app only shapes the answer.
 export const GET = apiHandler(async (req: NextRequest) => {
@@ -23,16 +28,24 @@ export const GET = apiHandler(async (req: NextRequest) => {
     guarantors = scope.kind === 'guarantors' ? scope.ids : scope.kind === 'none' ? ['__none__'] : null
   }
 
+  const cacheKey = `${session.role}:${session.role === 'Admin' ? 'all' : session.userId}:${today}`
+  const hit = figures.get(cacheKey)
   const [metricsRes, capital, unread] = await Promise.all([
-    getSupabase().rpc('dashboard_metrics', {
-      p_today: today, p_saturday: comingSaturday, p_guarantors: guarantors, p_agent: agentId, p_own_customers: session.role === 'Guarantor',
-    }),
+    hit && Date.now() - hit.at < CACHE_MS
+      ? Promise.resolve({ data: hit.data.metrics, error: null })
+      : getSupabase().rpc('dashboard_metrics', {
+          p_today: today, p_saturday: comingSaturday, p_guarantors: guarantors, p_agent: agentId, p_own_customers: session.role === 'Guarantor',
+        }),
     session.role === 'Admin' ? readTable('Capital') : Promise.resolve([]),
     selectRows('Notifications', qb => qb.eq('is_read', false)
       .or(`user_id.eq.${session.userId},and(user_id.is.null,role.eq.${session.role})`)
       .order('created_at', { ascending: false }).limit(5)),
   ])
   if (metricsRes.error) return err('Dashboard data unavailable. Please try again.')
+  if (!hit || Date.now() - hit.at >= CACHE_MS) {
+    figures.set(cacheKey, { at: Date.now(), data: { metrics: metricsRes.data } })
+    if (figures.size > 500) for (const k of figures.keys()) { figures.delete(k); if (figures.size <= 250) break }   // keep the cache small
+  }
   const m = metricsRes.data as any
   const rep = m.rep, lo = m.lo
 

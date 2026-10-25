@@ -106,11 +106,11 @@ export default function SettlementsPage({ session }: { session: Session }) {
   }>>([])
 
 
-  // Past weeks that still need a settlement, one page at a time (the database groups them by guarantor and Saturday)
+  // Past weeks that still need a settlement, two weeks at a time (the database groups them by guarantor and Saturday); each 'page' is the next two older weeks
   async function loadUnsettled(page = 1) {
     setUnsettledLoading(true)
     try {
-      const res = await fetch(`/api/settlements/summary?unsettled=1&before=${saturday}&page=${page}&pageSize=${PAGE}&q=${encodeURIComponent(guarantorSearch.trim())}`, { headers: { Authorization: `Bearer ${session.token}` } })
+      const res = await fetch(`/api/settlements/summary?unsettled=1&before=${saturday}&window=${page - 1}&page=1&pageSize=500&q=${encodeURIComponent(guarantorSearch.trim())}`, { headers: { Authorization: `Bearer ${session.token}` } })
       const json = await res.json()
       const rows: ServerSummary[] = json.success ? json.data.summaries || [] : []
       const byWeek = new Map<string, { saturdayDate: string; summaries: CollectionSummary[]; settlements: Settlement[] }>()
@@ -130,7 +130,7 @@ export default function SettlementsPage({ session }: { session: Session }) {
         }
         return Array.from(map.values()).sort((a, b) => b.saturdayDate.localeCompare(a.saturdayDate))
       })
-      setUnsettledMore(json.success && page < json.data.totalPages)
+      setUnsettledMore(!!(json.success && json.data.hasMore))
     } catch (e) {
       console.error('Failed to load unsettled:', e)
     } finally {
@@ -926,7 +926,7 @@ export default function SettlementsPage({ session }: { session: Session }) {
       )}
 
       {tab === 'unsettled' && unsettledMore && (
-        <button onClick={() => setUnsettledPage(p => p + 1)} className="rounded-2xl border border-[#e5e7eb] bg-white px-5 py-2.5 text-sm font-semibold">Load more</button>
+        <button onClick={() => setUnsettledPage(p => p + 1)} className="rounded-2xl border border-[#e5e7eb] bg-white px-5 py-2.5 text-sm font-semibold">Load two older weeks</button>
       )}
 
       {/* HISTORY TAB */}

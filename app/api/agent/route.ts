@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, ok, err, requireRole } from '@/lib/api'
-import { readTable } from '@/lib/supabase-db'
+import { readTable, countRows } from '@/lib/supabase-db'
+import { companyTotals } from '@/lib/db'
 import { getTodayIST } from '@/lib/dateUtils'
 
 const FEATURE_KEYS = ['enabled', 'voice', 'finance', 'collections', 'payouts', 'capital', 'reports', 'approvals'] as const
@@ -26,31 +27,25 @@ export const POST = apiHandler(async (req: NextRequest) => {
     enabledFeatures[key] = getValue(settingsRows, `agent:${key}`, '1') === '1'
   }
 
-  const [loans, repayments, capital, guarantors, leads, customers] = await Promise.all([
-    readTable('Loans'),
-    readTable('Repayments'),
-    readTable('Capital'),
-    readTable('Guarantors'),
-    readTable('Leads'),
-    readTable('Customers'),
-  ])
-
-  const activeLoans = loans.filter(l => l['Status'] === 'Active')
+  // figures come from the database (counts and sums), not from downloading every table
   const today = getTodayIST()
-  const overdueLoans = repayments.filter(r => r['Status'] === 'Pending' && r['Due Date'] < today)
+  const [totals, capital, activeLoanCount, activeCustomerCount, pendingLeadCount] = await Promise.all([
+    companyTotals(), readTable('Capital'),
+    countRows('Loans', qb => qb.eq('status', 'Active')), countRows('Customers', qb => qb.eq('status', 'Active')), countRows('Leads', qb => qb.eq('status', 'Pending')),
+  ])
   const totalCapital = capital.reduce((sum, r) => sum + Number(r['Amount'] || 0), 0)
-  const principalOutstanding = activeLoans.reduce((sum, l) => sum + Number(l['Principal Amount'] || 0), 0)
-  const totalCollected = repayments.filter(r => r['Status'] === 'Paid').reduce((sum, r) => sum + Number(r['Amount'] || 0), 0)
-  const totalInterest = loans.reduce((sum, l) => sum + Number(l['Interest Deduction'] || 0), 0)
+  const principalOutstanding = totals.activePrincipal
+  const totalCollected = totals.paidTotal
+  const totalInterest = totals.totalInterest
   const totalPayouts = capital.filter(c => c['Type'] === 'Investor').reduce((sum, c) => sum + Number(c['Amount'] || 0), 0)
 
   const snapshot = {
     date: today,
-    activeLoans: activeLoans.length,
-    activeCustomers: customers.filter(c => c['Status'] === 'Active').length,
-    pendingLeads: leads.filter(l => l['Status'] === 'Pending').length,
-    overdueRepayments: overdueLoans.length,
-    overdueAmount: overdueLoans.reduce((sum, r) => sum + Number(r['Amount'] || 0), 0),
+    activeLoans: activeLoanCount,
+    activeCustomers: activeCustomerCount,
+    pendingLeads: pendingLeadCount,
+    overdueRepayments: totals.overdueCount,
+    overdueAmount: totals.overdueAmount,
     totalCapital,
     principalOutstanding,
     totalCollected,
