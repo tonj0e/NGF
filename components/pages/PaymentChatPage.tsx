@@ -1,5 +1,5 @@
 'use client'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Session } from '@/types'
 
 type Stats = { collectionDay: string; due: number; recorded: number; remaining: number; wrongUsed: number; wrongAllowed: number; wrongLeft: number; manualMode: boolean }
@@ -456,7 +456,7 @@ function ReaderTest({ session, keys }: { session: Session; keys: { claude: boole
           <p className="font-semibold">{r.provider === 'nvidia' ? 'NVIDIA' : 'Claude'} <span className="font-mono font-normal text-[#697586]">{r.model}</span> · {(r.ms / 1000).toFixed(1)} s{r.costUsd ? ` · about ₹${(r.costUsd * INR_PER_USD).toFixed(2)}` : ' · free'}</p>
           {r.ok && r.reading ? (
             <dl className="mt-1 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
-              {Object.entries(r.reading).map(([k, v]) => (<><dt key={k + 'k'} className="text-[#697586]">{k}</dt><dd key={k + 'v'} className="font-mono break-all">{v === null ? '—' : String(v)}</dd></>))}
+              {Object.entries(r.reading).map(([k, v]) => (<Fragment key={k}><dt className="text-[#697586]">{k}</dt><dd className="font-mono break-all">{v === null ? '—' : String(v)}</dd></Fragment>))}
             </dl>
           ) : <p className="mt-1 text-red-600">{r.error}</p>}
         </div>
