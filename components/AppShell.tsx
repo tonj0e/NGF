@@ -157,6 +157,9 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
       if (window.location.hash !== `#${key}`) window.history[replace ? 'replaceState' : 'pushState'](null, '', `#${key}`)
     } catch {}
   }
+  // the agent's My Route page stays loaded once opened (its Google map is billed per load)
+  const [seenRoute, setSeenRoute] = useState(false)
+  useEffect(() => { if (view === 'myRoute') setSeenRoute(true) }, [view])
   // the address always names the current page; the back and forward buttons move between pages
   useEffect(() => {
     try { if (window.location.hash !== `#${view}`) window.history.replaceState(null, '', `#${view}`) } catch {}
@@ -301,7 +304,7 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
       case 'settlements':  return <SettlementsPage session={session} />
       case 'payments':     return <PaymentsPage session={session} />
       case 'routes':       return <VisitRoutesPage session={session} />
-      case 'myRoute':      return <MyRoutePage session={session} onOpenVerification={() => setView('verifications')} />
+      case 'myRoute':      return null   // kept alive separately (see below) so its map is not rebuilt on every visit
       case 'reviewOptions': return <ReviewOptionsPage session={session} />
       case 'pastMonth':    return <PastMonthCollectionPage session={session} />
       case 'collections':  return <CollectionsPage session={session} />
@@ -560,6 +563,7 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
             </header>
             <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 lg:px-8 pb-8 md:pb-4 lg:pb-0">
               {renderPage()}
+              {session.role === 'NGF AGENT' && seenRoute && <div hidden={view !== 'myRoute'}><MyRoutePage session={session} active={view === 'myRoute'} /></div>}
             </div>
           </main>
         </div>

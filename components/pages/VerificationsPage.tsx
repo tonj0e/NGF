@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import OtpPanel, { OtpState } from './OtpPanel'
 import { Session, Lead, AgentTrip } from '@/types'
 
@@ -94,7 +94,9 @@ function UploadBox({ photoKey, preview, onChange }: { photoKey: PhotoKey; previe
   )
 }
 
-export default function VerificationsPage({ session }: { session: Session }) {
+// Normal use: the list of assigned leads. Embedded (inside My Route): opens straight on one lead (`leadId`), calls `onClose` for Back
+// and `onDone` once the form and the trip prompt are finished, so the agent never leaves My Route.
+export default function VerificationsPage({ session, embedded = false, leadId, onClose, onDone }: { session: Session; embedded?: boolean; leadId?: string; onClose?: () => void; onDone?: () => void }) {
   const [leads, setLeads] = useState<Lead[]>([])
   const [stops, setStops] = useState<Record<string, number>>({})
   const [active, setActive] = useState<Lead | null>(null)
@@ -111,6 +113,9 @@ export default function VerificationsPage({ session }: { session: Session }) {
   const [savingTrip, setSavingTrip] = useState(false)
   const [visitPhone, setVisitPhone] = useState('')
   const [otpState, setOtpState] = useState<OtpState>({ verified: false, overridden: false })
+  const [awaitingTrip, setAwaitingTrip] = useState(false)
+  const [tripLeadId, setTripLeadId] = useState('')
+  const picked = useRef(false)
   useEffect(() => { setVisitPhone(active?.phone || ''); setOtpState({ verified: false, overridden: false }) }, [active?.leadId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handlePhoto(key: PhotoKey, file: File) {
@@ -221,6 +226,15 @@ export default function VerificationsPage({ session }: { session: Session }) {
   }
 
   useEffect(() => { load() }, [])
+  // embedded: open the chosen lead once the list has loaded (once only: after submitting, the lead leaves the list)
+  useEffect(() => {
+    if (!embedded || !leadId || loading || picked.current) return
+    picked.current = true
+    const l = leads.find(x => x.leadId === leadId)
+    if (l) setActive(l); else { showToast('This lead is no longer waiting for verification.'); onClose?.() }
+  }, [embedded, leadId, loading, leads]) // eslint-disable-line react-hooks/exhaustive-deps
+  // embedded: when the trip prompt after a submitted verification is finished, hand control back
+  useEffect(() => { if (embedded && awaitingTrip && !showLocationModal) { setAwaitingTrip(false); onDone?.() } }, [showLocationModal, awaitingTrip]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function submit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -261,7 +275,7 @@ export default function VerificationsPage({ session }: { session: Session }) {
       const json = await res.json()
       if (json.success) {
         showToast('Verification submitted.')
-        const leadId = active!.leadId
+        setTripLeadId(active!.leadId)
         setActive(null)
         setPreviews({})
         setPhotoFiles({})
@@ -270,17 +284,20 @@ export default function VerificationsPage({ session }: { session: Session }) {
         setTimeout(() => {
           getCurrentLocation()
           setShowLocationModal(true)
+          setAwaitingTrip(true)
         }, 500)
       } else showToast(json.error || 'Failed')
     } finally { setSubmitting(false) }
   }
 
+  // embedded and no lead open (waiting for the list, or only the trip prompt is showing): no list is ever shown here
+  const hideList = embedded && !active
   if (loading) return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" /></div>
 
   return (
     <div className="space-y-4">
       {toast && <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-2xl bg-[#1a1a2e] px-5 py-3 text-sm font-medium text-white shadow-lg">{toast}</div>}
-      {!active ? (
+      {hideList ? null : !active ? (
         <div className="rounded-[1.75rem] border border-white/70 bg-white shadow-panel">
           <div className="border-b border-black/5 px-6 py-4">
             <p className="text-sm font-semibold">Verification Queue</p>
@@ -296,9 +313,11 @@ export default function VerificationsPage({ session }: { session: Session }) {
                     <p className="text-sm text-[#697586]">{l.phone} &bull; {l.place}</p>
                   </div>
                 </div>
-                <button onClick={() => setActive(l)} className="rounded-2xl bg-[#1a1a2e] px-4 py-2 text-sm font-semibold text-white">
+                {stops[l.leadId]
+                  ? <span className="rounded-2xl bg-[#f4f5f7] px-3 py-2 text-xs font-semibold text-[#697586]">Start from My Route</span>
+                  : <button onClick={() => setActive(l)} className="rounded-2xl bg-[#1a1a2e] px-4 py-2 text-sm font-semibold text-white">
                   Start Verification
-                </button>
+                </button>}
               </div>
             ))}
             {leads.length === 0 && <p className="p-8 text-center text-sm text-[#697586]">No leads assigned for verification.</p>}
@@ -312,7 +331,7 @@ export default function VerificationsPage({ session }: { session: Session }) {
                 <p className="text-xl font-semibold">{active.customerName}</p>
                 <p className="mt-1 text-sm text-[#697586]">{active.phone} &bull; {active.leadId}</p>
               </div>
-              <button onClick={() => { setActive(null); setPreviews({}); setPhotoFiles({}) }} className="rounded-2xl border border-[#e5e7eb] px-4 py-2 text-sm font-semibold">Back</button>
+              <button onClick={() => { setActive(null); setPreviews({}); setPhotoFiles({}); if (embedded) onClose?.() }} className="rounded-2xl border border-[#e5e7eb] px-4 py-2 text-sm font-semibold">Back</button>
             </div>
           </div>
           <form onSubmit={submit} className="space-y-8 p-6">
@@ -497,7 +516,7 @@ export default function VerificationsPage({ session }: { session: Session }) {
               </button>
             </div>
             <button
-              onClick={() => saveTrip(active?.leadId || '')}
+              onClick={() => saveTrip(tripLeadId || active?.leadId || '')}
               disabled={savingTrip || !currentLocation || !lastLocation || !manualDistance}
               className="mt-3 w-full rounded-2xl bg-[#1a1a2e] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
             >

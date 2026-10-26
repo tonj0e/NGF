@@ -1,8 +1,9 @@
 'use client'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Session } from '@/types'
 import { Phone, Navigation, MapPin } from 'lucide-react'
 import RouteMap from '@/components/routes/RouteMap'
+import VerificationsPage from './VerificationsPage'
 import { fetchRoads } from '@/lib/clientRoads'
 
 type Stop = {
@@ -31,7 +32,9 @@ async function api(session: Session, path: string, body?: unknown) {
   return json.data
 }
 
-export default function MyRoutePage({ session, onOpenVerification }: { session: Session; onOpenVerification?: () => void }) {
+// `active` is false while the page is kept hidden behind another page (the map stays loaded, so coming back costs no new map load)
+export default function MyRoutePage({ session, active = true }: { session: Session; active?: boolean }) {
+  const [verifyId, setVerifyId] = useState('')
   const [date, setDate] = useState(today())
   const [data, setData] = useState<Mine | null>(null)
   const [loading, setLoading] = useState(true)
@@ -41,13 +44,17 @@ export default function MyRoutePage({ session, onOpenVerification }: { session: 
   const [roads, setRoads] = useState<(string | null)[] | null>(null)
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(''), 3500) }
 
+  const seq = useRef(0)   // only the newest request may fill the page (a slow older answer must not overwrite a newer day)
   const load = useCallback(async (quiet = false) => {
+    const mine = ++seq.current
     if (!quiet) setLoading(true)
-    try { setData(await api(session, `/api/routes?view=mine&date=${date}`)); setError('') }
-    catch (e) { setError(e instanceof Error ? e.message : 'Failed to load') }
-    setLoading(false)
+    try { const d = await api(session, `/api/routes?view=mine&date=${date}`); if (mine === seq.current) { setData(d); setError('') } }
+    catch (e) { if (mine === seq.current) setError(e instanceof Error ? e.message : 'Failed to load') }
+    if (mine === seq.current) setLoading(false)
   }, [session, date])
   useEffect(() => { load() }, [load])
+  const wasActive = useRef(active)
+  useEffect(() => { if (active && !wasActive.current) load(true); wasActive.current = active }, [active]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function setStatus(leadId: string, status: string) {
     setBusy(leadId + status)
@@ -156,17 +163,22 @@ export default function MyRoutePage({ session, onOpenVerification }: { session: 
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   {nav && <a href={nav} target="_blank" rel="noreferrer" onClick={() => s.visitStatus !== 'On the way' && setStatus(s.leadId, 'On the way')} className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-[#1a1a2e] px-3 py-3 text-sm font-semibold text-white"><Navigation className="h-4 w-4" />Navigate</a>}
                   {s.phone && <a href={`tel:${s.phone}`} className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-green-600 px-3 py-3 text-sm font-semibold text-white"><Phone className="h-4 w-4" />Call</a>}
-                  <button onClick={() => setStatus(s.leadId, 'Reached')} disabled={!!busy} className="rounded-2xl border border-[#e5e7eb] px-3 py-3 text-sm font-semibold disabled:opacity-40">I have reached</button>
+                  {s.visitStatus === 'Reached'
+                    ? <button onClick={() => setVerifyId(s.leadId)} className="rounded-2xl bg-[#f0b429] px-3 py-3 text-sm font-bold text-[#1a1400]">Start verification</button>
+                    : <button onClick={() => setStatus(s.leadId, 'Reached')} disabled={!!busy} className="rounded-2xl border border-[#e5e7eb] px-3 py-3 text-sm font-semibold disabled:opacity-40">I have reached</button>}
                   <button onClick={() => { if (confirm('Mark the customer as not at home? The branch will be told to reschedule.')) setStatus(s.leadId, 'Absent') }} disabled={!!busy} className="rounded-2xl border border-red-200 px-3 py-3 text-sm font-semibold text-red-600 disabled:opacity-40">Not at home</button>
-                  {onOpenVerification && s.visitStatus === 'Reached' && (
-                    <button onClick={onOpenVerification} className="col-span-2 rounded-2xl bg-[#f0b429] px-3 py-3 text-sm font-semibold text-[#1a1400]">Start verification</button>
-                  )}
                 </div>
               )}
             </div>
           )
         })}
       </div>
+      {verifyId && (
+        // the verification form opens over this page; the map underneath stays loaded
+        <div className="fixed inset-0 z-40 overflow-y-auto bg-[#f4f5f7] px-3 pb-8 pt-[max(0.75rem,env(safe-area-inset-top))]">
+          <VerificationsPage session={session} embedded leadId={verifyId} onClose={() => setVerifyId('')} onDone={() => { setVerifyId(''); load(true) }} />
+        </div>
+      )}
       {toast && <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-2xl bg-[#1a1a2e] px-5 py-3 text-sm font-medium text-white shadow-lg">{toast}</div>}
     </div>
   )
