@@ -373,8 +373,8 @@ function RouteCard({ r, board, date, busy, session, act, startOpen }: {
         ))}
       </div>
       {mapStops.length > 0 && (
-        <div className="overflow-hidden rounded-2xl border border-[#e5e7eb] lg:sticky lg:top-20">
-          <RouteMap bare start={startPt} startLabel="START" stops={mapStops} nextId={nextStop?.id} roads={roads} />
+        <div className="overflow-hidden rounded-2xl border border-[#e5e7eb] lg:sticky lg:top-16">
+          <RouteMap bare heightClass="h-[480px] lg:h-[calc(100vh-11rem)] lg:min-h-[560px]" start={startPt} startLabel="START" stops={mapStops} nextId={nextStop?.id} roads={roads} />
         </div>
       )}
       </div>

@@ -55,13 +55,14 @@ function decodePath(enc: string): Pt[] {
   return out
 }
 
-export default function RouteMap({ start, startLabel, stops, nextId, onPick, roads, bare }: {
+export default function RouteMap({ start, startLabel, stops, nextId, onPick, roads, bare, heightClass }: {
   start: Pt | null
   startLabel: string
   stops: SketchStop[]
   nextId?: string
   onPick?: (id: string) => void
   bare?: boolean // map and legend only; the page supplies its own header card
+  heightClass?: string // map height (default 420px)
   roads?: (string | null)[] | null // road shape for each leg (start -> stop 1 -> stop 2 ...), straight line where missing
 }) {
   const box = useRef<HTMLDivElement>(null)
@@ -181,7 +182,7 @@ export default function RouteMap({ start, startLabel, stops, nextId, onPick, roa
           </div>
         </div>
       )}
-      <div ref={box} className="h-[420px] w-full bg-[#e8eaf0]" aria-label="Map of today's visits" />
+      <div ref={box} className={`${heightClass || 'h-[420px]'} w-full bg-[#e8eaf0]`} aria-label="Map of today's visits" />
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-2 text-[11px] text-[#697586]">
         <span className="inline-flex items-center gap-3">
           <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full border-2 border-[#1a1a2e] bg-white" />To visit</span>
