@@ -71,6 +71,7 @@ export default function RouteMap({ start, startLabel, stops, nextId, onPick, roa
   const raf = useRef(0)
   const [ready, setReady] = useState(false)
   const [failed, setFailed] = useState(false)
+  const [sat, setSat] = useState(false)
   const pickRef = useRef(onPick)
   pickRef.current = onPick
 
@@ -88,6 +89,9 @@ export default function RouteMap({ start, startLabel, stops, nextId, onPick, roa
     }).catch(() => { if (!dead) setFailed(true) })
     return () => { dead = true; cancelAnimationFrame(raf.current) }
   }, [])
+
+  // Map / Satellite switch (Hybrid keeps the place names on the photo)
+  useEffect(() => { mapRef.current?.setMapTypeId(sat ? 'hybrid' : 'roadmap') }, [sat, ready])
 
   // (re)draw pins and lines when the stops change
   useEffect(() => {
@@ -182,7 +186,10 @@ export default function RouteMap({ start, startLabel, stops, nextId, onPick, roa
           </div>
         </div>
       )}
-      <div ref={box} className={`${heightClass || 'h-[420px]'} w-full bg-[#e8eaf0]`} aria-label="Map of today's visits" />
+      <div className="relative">
+        <div ref={box} className={`${heightClass || 'h-[420px]'} w-full bg-[#e8eaf0]`} aria-label="Map of today's visits" />
+        <button type="button" onClick={() => setSat(v => !v)} className="absolute left-2 top-2 rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-[#1a1a2e] shadow-md ring-1 ring-black/10">{sat ? 'Map' : 'Satellite'}</button>
+      </div>
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-2 text-[11px] text-[#697586]">
         <span className="inline-flex items-center gap-3">
           <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full border-2 border-[#1a1a2e] bg-white" />To visit</span>
