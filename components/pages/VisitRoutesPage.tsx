@@ -85,32 +85,29 @@ export default function VisitRoutesPage({ session }: { session: Session }) {
 
   return (
     <div className="space-y-4">
-      <div className={`${card} flex flex-wrap items-end gap-3`}>
-        <label className="text-xs font-semibold uppercase tracking-wider text-[#697586]">Visit day
-          <div className="mt-1 flex items-center gap-1">
-            <button className="rounded-xl border border-[#e5e7eb] px-3 py-3 text-sm" onClick={() => setDate(shift(date, -1))}>‹</button>
-            <input type="date" value={date} onChange={e => e.target.value && setDate(e.target.value)} className="rounded-2xl border border-[#e5e7eb] px-3 py-3 text-sm font-medium normal-case tracking-normal text-[#1a1a2e]" />
-            <button className="rounded-xl border border-[#e5e7eb] px-3 py-3 text-sm" onClick={() => setDate(shift(date, 1))}>›</button>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex gap-2">
+          {([['plan', `To plan${needCall.length + ready.length ? ` (${needCall.length + ready.length})` : ''}`], ['routes', 'Agent routes']] as const).map(([k, label]) => (
+            <button key={k} onClick={() => setTab(k)} className={`${btn} !py-2 ${tab === k ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586]'}`}>{label}</button>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1" title="Visit day">
+            <button className="rounded-xl border border-[#e5e7eb] bg-white px-2.5 py-1.5 text-sm" onClick={() => setDate(shift(date, -1))}>‹</button>
+            <input type="date" value={date} onChange={e => e.target.value && setDate(e.target.value)} className="rounded-xl border border-[#e5e7eb] bg-white px-2.5 py-1.5 text-sm font-medium text-[#1a1a2e]" />
+            <button className="rounded-xl border border-[#e5e7eb] bg-white px-2.5 py-1.5 text-sm" onClick={() => setDate(shift(date, 1))}>›</button>
           </div>
-        </label>
-        {board && board.branches.length > 1 && (
-          <label className="text-xs font-semibold uppercase tracking-wider text-[#697586]">Branch
-            <select value={branchId} onChange={e => setBranchId(e.target.value)} className="mt-1 block rounded-2xl border border-[#e5e7eb] bg-white px-3 py-3 text-sm font-medium normal-case tracking-normal text-[#1a1a2e]">
+          {board && board.branches.length > 1 && (
+            <select value={branchId} onChange={e => setBranchId(e.target.value)} className="rounded-xl border border-[#e5e7eb] bg-white px-2.5 py-1.5 text-sm font-medium text-[#1a1a2e]">
               <option value="">All branches</option>
               {board.branches.map(b => <option key={b.branchId} value={b.branchId}>{b.name}</option>)}
             </select>
-          </label>
-        )}
-        {board && !board.config.googleReady && (
-          <p className="basis-full rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">Google road distances are not set up yet, so distances are straight-line estimates (about 1.4x). Add the Google key to get real road distances.</p>
-        )}
+          )}
+        </div>
       </div>
-
-      <div className="flex gap-2">
-        {([['plan', `To plan${needCall.length + ready.length ? ` (${needCall.length + ready.length})` : ''}`], ['routes', 'Agent routes']] as const).map(([k, label]) => (
-          <button key={k} onClick={() => setTab(k)} className={`${btn} ${tab === k ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586]'}`}>{label}</button>
-        ))}
-      </div>
+      {board && !board.config.googleReady && (
+        <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">Google road distances are not set up yet, so distances are straight-line estimates (about 1.4x). Add the Google key to get real road distances.</p>
+      )}
 
       {loading && <p className="p-8 text-center text-sm text-[#697586]">Loading…</p>}
 
@@ -335,8 +332,8 @@ function RouteCard({ r, board, date, busy, session, act, startOpen }: {
 
       {r.stops.length === 0 && <p className="mt-3 text-sm text-[#697586]">No visits planned for this day.</p>}
 
-      <div className="mt-3 grid gap-4 lg:grid-cols-2 lg:items-start">
-      <div className="space-y-2" onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
+      <div className="mt-3 grid gap-4 lg:h-[calc(100vh-12rem)] lg:min-h-[460px] lg:grid-cols-2">
+      <div className="space-y-2 lg:min-h-0 lg:overflow-y-auto lg:pr-1" onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
         {list.map((s, i) => (
           <div key={s.leadId} ref={el => { rows.current[s.leadId] = el }}
             className={`rounded-2xl border p-3 ${dragging === s.leadId ? 'border-[#f0b429] bg-amber-50 shadow-lg' : s.done ? 'border-green-200 bg-green-50' : 'border-[#e5e7eb] bg-white'}`}>
@@ -373,8 +370,8 @@ function RouteCard({ r, board, date, busy, session, act, startOpen }: {
         ))}
       </div>
       {mapStops.length > 0 && (
-        <div className="overflow-hidden rounded-2xl border border-[#e5e7eb] lg:sticky lg:top-16">
-          <RouteMap bare heightClass="h-[480px] lg:h-[calc(100vh-11rem)] lg:min-h-[560px]" start={startPt} startLabel="START" stops={mapStops} nextId={nextStop?.id} roads={roads} />
+        <div className="overflow-hidden rounded-2xl border border-[#e5e7eb] lg:h-full">
+          <RouteMap bare heightClass="h-[480px] lg:h-[calc(100vh-12rem-2.5rem)] lg:min-h-[420px]" start={startPt} startLabel="START" stops={mapStops} nextId={nextStop?.id} roads={roads} />
         </div>
       )}
       </div>
