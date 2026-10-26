@@ -1,7 +1,7 @@
 'use client'
 import { useCallback, useEffect, useState } from 'react'
 import { Session } from '@/types'
-import { Phone, Navigation, MapPin, RefreshCw } from 'lucide-react'
+import { Phone, Navigation, MapPin } from 'lucide-react'
 import RouteMap from '@/components/routes/RouteMap'
 
 type Stop = {
@@ -53,18 +53,6 @@ export default function MyRoutePage({ session, onOpenVerification }: { session: 
     try { await api(session, '/api/routes', { action: 'stopStatus', leadId, status }); await load(true) }
     catch (e) { flash(e instanceof Error ? e.message : 'Failed') }
     setBusy('')
-  }
-
-  function replan() {
-    if (!navigator.geolocation) { flash('This phone cannot share its location'); return }
-    setBusy('replan')
-    navigator.geolocation.getCurrentPosition(async pos => {
-      try {
-        await api(session, '/api/routes', { action: 'replan', lat: pos.coords.latitude, lng: pos.coords.longitude, date })
-        flash('Remaining stops re-ordered from where you are'); await load(true)
-      } catch (e) { flash(e instanceof Error ? e.message : 'Failed') }
-      setBusy('')
-    }, () => { flash('Allow location access to re-plan'); setBusy('') }, { enableHighAccuracy: true, timeout: 15000 })
   }
 
   // road shape for the map (display only; falls back to straight lines if it cannot be fetched)
@@ -136,12 +124,6 @@ export default function MyRoutePage({ session, onOpenVerification }: { session: 
 
           {data?.plan?.startSource && (
             <p className="relative mt-3 flex items-center gap-2 text-xs text-white/65"><span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_0_4px_rgba(52,211,153,.22)]" />Starting from: {data.plan.startSource}</p>
-          )}
-
-          {stops.some(s => !s.done) && date === today() && (
-            <button onClick={replan} disabled={busy === 'replan'} className="relative mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#f0b429] px-4 py-3 text-sm font-bold text-[#1a1a2e] shadow-lg shadow-black/20 transition active:scale-[.98] disabled:opacity-50">
-              <RefreshCw className={`h-4 w-4 ${busy === 'replan' ? 'animate-spin' : ''}`} />{busy === 'replan' ? 'Working…' : 'Re-plan from where I am now'}
-            </button>
           )}
         </div>
 
