@@ -23,6 +23,8 @@ export const GET = apiHandler(async (req: NextRequest) => {
 export const POST = apiHandler(async (req: NextRequest) => {
   await requireRole(req, ['Admin'])
   const body = await req.json()
+  // an Agent added to a branch must be a real agent (own record, assign-agent list, agent portal)
+  if (body.role === 'Staff' && body.branchRole === 'collection_agent') body.role = 'NGF AGENT'
 
   // Check if username already exists
   const existingUsers = await readTable('Users', { forceFresh: true })

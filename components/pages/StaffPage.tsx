@@ -177,7 +177,8 @@ export default function StaffPage({ session }: { session: Session }) {
       const url = '/api/staff'
       const body: any = {
         username: userData.username,
-        role: 'Staff',
+        // an Agent in a branch is a real agent login (Agents list, assign-agent option, agent portal), not a Staff login
+        role: userData.branchRole === 'collection_agent' ? 'NGF AGENT' : 'Staff',
         name: userData.name,
         email: userData.email,
         phone: userData.phone,
