@@ -11,6 +11,9 @@ import RenewalApproveModal from './RenewalApproveModal'
 import DisburseQueue from './DisburseQueue'
 import { buildLeadNoteData, buildPromissoryHtml, PROMISSORY_TEMPLATE_KEY, DEFAULT_PROMISSORY_BODY } from '@/lib/promissoryNote'
 
+// a lead is "completed" for the guarantor once the agent has submitted the verification (it then waits for the admin)
+const DONE_STATUSES = ['Verification Submitted', 'Approved']
+
 type LeadTab = 'new' | 'history' | 'renewal' | 'disbursements'
 
 function currencyInr(n: number) {
@@ -636,13 +639,31 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
         <LeadsHistoryWeeks session={session} search={search} branch={branchFilter} version={counts.history} renderLead={renderLead} />
       ) : (
       <>
-        {visibleLeads.length === 0 && <p className="p-8 text-center text-sm text-[#697586]">{tab === 'new' ? 'No new leads.' : 'No renewal requests yet.'}</p>}
+        {visibleLeads.length === 0 && !(session.role === 'Guarantor' && tab === 'new') && <p className="p-8 text-center text-sm text-[#697586]">{tab === 'new' ? 'No new leads.' : 'No renewal requests yet.'}</p>}
         <div className="px-5 pb-4"><Pager page={page} totalPages={totalPages} total={totalLeads} noun="leads" pageSize={LEADS_PAGE} onPage={setPage} /></div>
+        {session.role === 'Guarantor' && tab === 'new' ? (
+          // Guarantor: "Not completed" (waiting for the agent) and "Completed" (the agent has finished the verification)
+          [['Not completed', visibleLeads.filter(l => !DONE_STATUSES.includes(l.status)), 'bg-amber-100 text-amber-700'],
+           ['Completed', visibleLeads.filter(l => DONE_STATUSES.includes(l.status)), 'bg-green-100 text-green-700']].map(([title, rows, pill]) => (
+            <section key={title as string} className="space-y-2">
+              <div className="flex items-center gap-2 px-1">
+                <h3 className="text-sm font-semibold">{title as string}</h3>
+                <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${pill}`}>{(rows as Lead[]).length}</span>
+              </div>
+              <div className="overflow-hidden rounded-[1.75rem] border border-white/70 bg-white shadow-panel divide-y divide-black/5">
+                {(rows as Lead[]).length === 0
+                  ? <p className="p-5 text-center text-xs text-[#697586]">{title === 'Completed' ? 'Nothing completed yet.' : 'Nothing waiting.'}</p>
+                  : (rows as Lead[]).map(renderLead)}
+              </div>
+            </section>
+          ))
+        ) : (
         <div className="overflow-hidden rounded-[1.75rem] border border-white/70 bg-white shadow-panel divide-y divide-black/5">
           <div className="overflow-x-auto">
             {visibleLeads.map(renderLead)}
       </div>
     </div>
+        )}
   </>
   )}
 </div>
