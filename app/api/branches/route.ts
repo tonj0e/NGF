@@ -154,6 +154,11 @@ export const POST = apiHandler(async (req: NextRequest) => {
       })
     }
     invalidateCache('BranchStaffRoles')
+    // an agent belongs to the branch where they hold the agent role (branch staff see only their own branch's agents)
+    if (roleInBranch === 'collection_agent' && isActive !== false) {
+      const ag = (await readTable('Agents', { forceFresh: true })).find(a => a['User ID'] === userId)
+      if (ag && ag['Branch ID'] !== branchId) { await updateById('Agents', ag['Agent ID'], { 'Branch ID': branchId, 'Updated At': nowIso() }); invalidateCache('Agents') }
+    }
     return ok({ success: true })
   }
 

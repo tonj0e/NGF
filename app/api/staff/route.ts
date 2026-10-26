@@ -71,6 +71,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
       await appendRow('Agents', {
         'Agent ID': makeId('AGT'), 'User ID': userId, 'Name': body.name,
         'Phone': body.phone || '', 'Agent Type': body.agentType || 'Verification & Collection',
+        'Branch ID': body.branchId || null,   // branch staff only see agents of their own branch (tracking, routes)
         'Status': 'Active', 'Created At': nowIso(), 'Updated At': nowIso(),
       })
     }
@@ -255,6 +256,7 @@ export const PATCH = apiHandler(async (req: NextRequest) => {
       await appendRow('Agents', {
         'Agent ID': makeId('AGT'), 'User ID': userId, 'Name': body.name || user['Name'],
         'Phone': body.phone || '', 'Agent Type': body.agentType || 'Verification & Collection',
+        'Branch ID': body.branchId || null,
         'Status': 'Active', 'Created At': nowIso(), 'Updated At': nowIso(),
       })
     }
