@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { Session } from '@/types'
+import { apiSend } from '@/lib/clientApi'
 import { APP_CONFIG } from '@/lib/config'
 const MAX_BYTES = 1 * 1024 * 1024
 
@@ -69,12 +70,8 @@ export default function SubmitLeadPage({ session, onDone }: { session: Session; 
         const file = gf(key)
         if (file) payload[key] = await fileToPayload(file)
       }
-      const res = await fetch('/api/leads', {
-        method: 'POST', headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      const json = await res.json()
-      if (!json.success) { setError(json.error || 'Failed'); return }
+      const res = await apiSend(session.token, 'POST', '/api/leads', payload)
+      if (!res.ok) { setError(res.error || 'Failed'); return }
       onDone()
     } catch (e: any) { setError(e.message || 'Failed') } finally { setLoading(false) }
   }

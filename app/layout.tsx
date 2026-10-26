@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import AutoUppercase from '@/components/AutoUppercase'
 import PwaClient from '@/components/PwaClient'
+import CsrfFetch from '@/components/CsrfFetch'
 
 export const metadata: Metadata = {
   title: 'NGF FINCORP',
@@ -28,6 +29,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AutoUppercase />
         {children}
         <PwaClient />
+        <CsrfFetch />
       </body>
     </html>
   )

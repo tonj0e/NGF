@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { Session } from '@/types'
+import { apiSend } from '@/lib/clientApi'
 import { evaluateRenewal } from '@/lib/reviews'
 import NgfScoreBadge from '@/components/ui/NgfScoreBadge'
 
@@ -66,20 +67,15 @@ export default function RenewalModal({ session, onClose, onDone }: {
     setSubmitting(c.customerId)
     setError('')
     try {
-      const res = await fetch('/api/leads', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          customerName: c.name,
-          phone: c.phone,
-          place: c.place || '',
-          address: c.address || '',
-          loanProduct: 'RENEWAL',
-          notes: `Renewal request — Customer ID: ${c.customerId}`,
-        }),
+      const res = await apiSend(session.token, 'POST', '/api/leads', {
+        customerName: c.name,
+        phone: c.phone,
+        place: c.place || '',
+        address: c.address || '',
+        loanProduct: 'RENEWAL',
+        notes: `Renewal request — Customer ID: ${c.customerId}`,
       })
-      const json = await res.json()
-      if (!json.success) { setError(json.error || 'Failed to submit'); return }
+      if (!res.ok) { setError(res.error || 'Failed to submit'); return }
       setSubmitted(c.customerId)
       onDone()
     } catch {
