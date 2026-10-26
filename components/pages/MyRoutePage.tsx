@@ -85,32 +85,28 @@ export default function MyRoutePage({ session, onOpenVerification }: { session: 
   return (
     <div className="space-y-4">
       <div className="overflow-hidden rounded-[2rem] bg-white shadow-panel ring-1 ring-black/5">
-        <div className="relative overflow-hidden bg-gradient-to-br from-[#14142b] via-[#1f1d4d] to-[#35286e] px-5 pb-5 pt-5 text-white">
+        <div className="relative overflow-hidden bg-gradient-to-br from-[#14142b] via-[#1f1d4d] to-[#35286e] px-4 pb-4 pt-4 text-white">
           <div className="pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full bg-[#f0b429]/20 blur-3xl" />
           <div className="pointer-events-none absolute -bottom-16 -left-10 h-40 w-40 rounded-full bg-indigo-400/20 blur-3xl" />
-          <div className="relative flex flex-col gap-3">
-            <p className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.14em] text-white/60">Today at a glance</p>
-            <div className="flex items-center justify-between gap-1 rounded-full bg-white/10 p-1 ring-1 ring-white/15 backdrop-blur">
-              <button aria-label="Previous day" className="grid h-8 w-8 place-items-center rounded-full text-base hover:bg-white/15" onClick={() => setDate(shift(date, -1))}>‹</button>
-              <input type="date" value={date} onChange={e => e.target.value && setDate(e.target.value)} className="min-w-0 flex-1 bg-transparent text-center text-sm font-semibold text-white [color-scheme:dark] focus:outline-none" />
-              <button aria-label="Next day" className="grid h-8 w-8 place-items-center rounded-full text-base hover:bg-white/15" onClick={() => setDate(shift(date, 1))}>›</button>
+          <div className="relative flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-3xl font-extrabold leading-none tracking-tight">{doneCount}<span className="text-xl font-bold text-white/45"> / {stops.length}</span></p>
+              <p className="mt-1 text-xs text-white/65">{stops.length === 0 ? 'No visits planned' : doneCount === stops.length ? 'All visits done 🎉' : `${stops.length - doneCount} to go`}</p>
             </div>
-          </div>
-
-          <div className="relative mt-5 flex items-center justify-between gap-4">
-            <div>
-              <p className="text-4xl font-extrabold leading-none tracking-tight">{doneCount}<span className="text-2xl font-bold text-white/45"> / {stops.length}</span></p>
-              <p className="mt-1.5 text-sm text-white/65">{stops.length === 0 ? 'No visits planned' : doneCount === stops.length ? 'All visits done 🎉' : `${stops.length - doneCount} to go`}</p>
-            </div>
-            <svg width="76" height="76" viewBox="0 0 76 76" className="shrink-0" aria-hidden>
+            <svg width="60" height="60" viewBox="0 0 76 76" className="shrink-0" aria-hidden>
               <circle cx="38" cy="38" r="31" fill="none" stroke="rgba(255,255,255,.14)" strokeWidth="8" />
               <circle cx="38" cy="38" r="31" fill="none" stroke="url(#ringg)" strokeWidth="8" strokeLinecap="round" strokeDasharray={`${(stops.length ? doneCount / stops.length : 0) * 194.8} 194.8`} transform="rotate(-90 38 38)" className="transition-all duration-700" />
               <defs><linearGradient id="ringg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#34d399" /><stop offset="1" stopColor="#bef264" /></linearGradient></defs>
-              <text x="38" y="43" textAnchor="middle" fontSize="15" fontWeight="800" fill="#fff">{stops.length ? Math.round(doneCount / stops.length * 100) : 0}%</text>
+              <text x="38" y="43" textAnchor="middle" fontSize="17" fontWeight="800" fill="#fff">{stops.length ? Math.round(doneCount / stops.length * 100) : 0}%</text>
             </svg>
+            <div className="flex shrink-0 items-center rounded-full bg-white/10 p-0.5 ring-1 ring-white/15 backdrop-blur">
+              <button aria-label="Previous day" className="grid h-6 w-6 place-items-center rounded-full text-sm hover:bg-white/15" onClick={() => setDate(shift(date, -1))}>‹</button>
+              <input type="date" value={date} onChange={e => e.target.value && setDate(e.target.value)} className="w-[5.6rem] bg-transparent text-center text-[11px] font-semibold text-white [color-scheme:dark] focus:outline-none" />
+              <button aria-label="Next day" className="grid h-6 w-6 place-items-center rounded-full text-sm hover:bg-white/15" onClick={() => setDate(shift(date, 1))}>›</button>
+            </div>
           </div>
 
-          <div className="relative mt-5 grid grid-cols-3 gap-2">
+          <div className="relative mt-3 grid grid-cols-3 gap-2">
             {[
               ['Visits', String(stops.length)],
               ['Distance', data?.plan?.totalKm != null && stops.length > 0 ? `${data.plan.totalKm} km` : '—'],
