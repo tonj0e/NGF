@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, getSession, ok, err } from '@/lib/api'
 import { googleKey } from '@/lib/routeMath'
+import { reportError } from '@/lib/monitor'
 
 // Road shape for the route map: one Google Routes API call for the whole day, returns one encoded line per leg
 // (point i -> point i+1). Display only; nothing is saved. Any logged-in user may ask, for their own screen.
@@ -43,7 +44,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
     cache.set(key, { at: Date.now(), legs })
     return ok({ legs })
   } catch (e) {
-    console.error('Road path failed, map will use straight lines:', e instanceof Error ? e.message : e)
+    reportError('Road path failed, map will use straight lines', e)
     return ok({ legs: points.slice(1).map(() => null) })
   }
 })

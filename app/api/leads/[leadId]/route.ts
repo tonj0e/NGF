@@ -15,6 +15,7 @@ import { getBranchAccess, branchOfGuarantor, canApproveIn, canSeeBranch } from '
 import { checkRenewalEligibility, customerForRenewalLead } from '@/lib/renewalRules'
 import { normalizeIndianMobile } from '@/lib/phone'
 import { notifyBranchOfLead } from '@/lib/routes'
+import { reportError } from '@/lib/monitor'
 
 const OTP_FRESH_MS = 60 * 60 * 1000          // a renewal OTP stays valid for approval for 1 hour
 const OTP_VISIT_FRESH_MS = 12 * 60 * 60 * 1000  // an agent's visit OTP stays valid for submitting for 12 hours
@@ -149,7 +150,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
       if (body.aadhaarFront) aadhaarFrontUrl = await uploadLeadPhoto(folderId, 'aadhaar_front', toPayload(body.aadhaarFront, 'aadhaar_front_lead.jpg'), docLabel(lead['Customer Name'], leadId))
       if (body.aadhaarBack) aadhaarBackUrl = await uploadLeadPhoto(folderId, 'aadhaar_back', toPayload(body.aadhaarBack, 'aadhaar_back_lead.jpg'), docLabel(lead['Customer Name'], leadId))
     } catch (uploadError) {
-      console.error('submitVerification: Photo upload failed:', uploadError)
+      reportError('submitVerification: Photo upload failed', uploadError)
       return err(`Photo upload failed: ${uploadError instanceof Error ? uploadError.message : 'Unknown error'}`)
     }
 
@@ -185,10 +186,10 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
       })
       invalidateCache('Leads')
       await notifyRole('Admin', 'Verification Submitted', `Verification for ${lead['Customer Name']} submitted by ${session.name}`, 'Lead', leadId)
-      try { await notifyBranchOfLead(lead['Guarantor ID'], 'Verification submitted', `${lead['Customer Name']}: verified at the house${lead['Otp Override Reason'] ? ' (OTP overridden: ' + lead['Otp Override Reason'] + ')' : ' (customer OTP confirmed)'}. Review and approve.`, leadId) } catch (e) { console.error('Branch alert failed:', e instanceof Error ? e.message : e) }
+      try { await notifyBranchOfLead(lead['Guarantor ID'], 'Verification submitted', `${lead['Customer Name']}: verified at the house${lead['Otp Override Reason'] ? ' (OTP overridden: ' + lead['Otp Override Reason'] + ')' : ' (customer OTP confirmed)'}. Review and approve.`, leadId) } catch (e) { reportError('Branch alert failed', e) }
       return ok({ success: true })
     } catch (dbError) {
-      console.error('submitVerification: DB update failed:', dbError)
+      reportError('submitVerification: DB update failed', dbError)
       return err(`Database update failed: ${dbError instanceof Error ? dbError.message : 'Unknown error'}`)
     }
   }
@@ -235,7 +236,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
       await createAuditLogger(req, session).log('LEAD_APPROVED_FOR_DISBURSEMENT', 'Lead', leadId, { renewal: isRenewal, otp: lead['Otp Override Reason'] ? 'override' : 'verified' })
       const g = await getRowById('Guarantors', lead['Guarantor ID'])
       if (g) await notifyUser(g['User ID'], 'Guarantor', 'Lead Approved', `${lead['Customer Name']} has been approved. It is now in the disbursement list.`, 'Lead', leadId)
-      try { await notifyBranchOfLead(lead['Guarantor ID'], 'Ready to disburse', `${lead['Customer Name']} (${isRenewal ? 'renewal' : 'new'}) is approved. Open Disbursement.`, leadId) } catch (e) { console.error('Branch alert failed:', e instanceof Error ? e.message : e) }
+      try { await notifyBranchOfLead(lead['Guarantor ID'], 'Ready to disburse', `${lead['Customer Name']} (${isRenewal ? 'renewal' : 'new'}) is approved. Open Disbursement.`, leadId) } catch (e) { reportError('Branch alert failed', e) }
     } else if (decision === 'Reject Lead') {
       if (lead['Status'] === 'Converted' || lead['Status'] === 'Rejected' || lead['Disbursed At']) return err('This lead is already disbursed or closed and cannot be rejected')
       await updateById('Leads', leadId, { 'Status': 'Rejected', 'Admin Final Decision': notes || 'Rejected', 'Updated At': nowIso() })
@@ -276,7 +277,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
     } catch (e: any) {
       await getSupabase().from('leads').update({ disbursed_by: null, disbursed_at: null }).eq('lead_id', leadId)
       invalidateCache('Leads')
-      console.error('disburse failed:', e)
+      reportError('disburse failed', e)
       return err(e.message || 'Failed to disburse')
     }
     const startDate = firstPaymentSaturdayIST()

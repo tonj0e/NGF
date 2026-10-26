@@ -2,6 +2,7 @@ import { getOAuthDriveClient } from './google'
 import { APP_CONFIG } from './config'
 import { Readable } from 'stream'
 import { FilePayload } from '@/types'
+import { reportError } from './monitor'
 import {
   BUCKETS,
   uploadToSupabase,
@@ -105,7 +106,7 @@ export async function renameLeadDocs(folderId: string, customerName: string, cod
       const next = `${label} - ${type}${ext}`
       if (next !== f.name) await drive.files.update({ fileId: f.id!, requestBody: { name: next }, fields: 'id', supportsAllDrives: true })
     }
-  } catch (e) { console.error('Could not rename customer documents:', e instanceof Error ? e.message : e) }
+  } catch (e) { reportError('Could not rename customer documents', e) }
 }
 
 const ONE_MB = 1024 * 1024
@@ -123,7 +124,7 @@ async function fitUnderOneMb(buf: Buffer, mime: string): Promise<{ buf: Buffer; 
         if (out.length <= ONE_MB) return { buf: out, mime: 'image/jpeg' }
       }
     }
-  } catch (e) { console.error('Image shrink failed, storing the original:', e instanceof Error ? e.message : e) }
+  } catch (e) { reportError('Image shrink failed, storing the original', e) }
   return { buf, mime }
 }
 

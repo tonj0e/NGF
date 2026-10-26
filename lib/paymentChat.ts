@@ -12,6 +12,7 @@ import { readSlip, slipReaderConfigured, providerKeys, pickProvider, nvidiaModel
 import { payCodeFromLoanId } from './payCode'
 import { canSeeGuarantor, guarantorBranchMap } from './branchAccess'
 import type { Session } from '../types'
+import { reportError } from './monitor'
 
 // Statuses where the guarantor must fix this message before sending the next screenshot
 export const FIX_STATUSES = ['Needs Retake', 'Duplicate', 'Amount Mismatch', 'Wrong Payee', 'Not Successful']
@@ -283,7 +284,7 @@ export async function submitSlip(session: Session, access: Access, input: Submit
   // Read it
   let reading: SlipReading, inT = 0, outT = 0, cost = 0, readerName = ''
   try { const r = await readSlip(b64, media, prov); ({ reading, inTokens: inT, outTokens: outT, costUsd: cost } = r); readerName = `${r.provider}:${r.model}` }
-  catch (e) { console.error('Slip read failed:', e instanceof Error ? e.message : e); return toOffice('The screenshot could not be read just now.') }
+  catch (e) { reportError('Slip read failed', e); return toOffice('The screenshot could not be read just now.') }
   const utr = normalizeUtr(reading.utr)
   const usage = { in_tokens: Math.max(1, inT), out_tokens: outT, cost_usd: cost, reader: readerName }
   const read = { utr: utr || null, amount_read: reading.amount, txn_date: reading.date, txn_time: reading.time, payee: reading.payee, pay_app: reading.app, confidence: reading.confidence, group_id: null, duplicate_group_id: null, ...usage }

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import SmsPanel from './SmsPanel'
 import GatewayPanel from './GatewayPanel'
 import IntegrationFields from './IntegrationFields'
+import MonitorPanel from './MonitorPanel'
 import WhatsAppPanel from './WhatsAppPanel'
 import { Session } from '../../types'
 import { PAYMENT_UNLOCK_KEY } from './CollectionPage'
@@ -563,6 +564,10 @@ export default function DevPage({ session }: { session: Session }) {
           className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${subTab === 'aiReader' ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
           AI Reader
         </button>
+        <button onClick={() => setSubTab('monitor')}
+          className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${subTab === 'monitor' ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
+          Error tracking
+        </button>
         <button onClick={() => setSubTab('note')}
           className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${subTab === 'note' ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
           Promissory Note
@@ -990,6 +995,8 @@ export default function DevPage({ session }: { session: Session }) {
           <IntegrationFields session={session} group="ai" />
         </div>
       )}
+
+      {subTab === 'monitor' && <MonitorPanel session={session} />}
 
       {subTab === 'note' && (
         <div className="rounded-[1.75rem] border border-white/70 bg-white shadow-panel p-6 space-y-4">

@@ -9,6 +9,7 @@ import { createAuditLogger } from '@/lib/audit'
 import { getBranchAccess, branchOfGuarantor, canApproveIn } from '@/lib/branchAccess'
 import { notifyUser } from '@/lib/notifications'
 import { finalizeClosure } from '@/lib/loanClosure'
+import { reportError } from '@/lib/monitor'
 
 // Early closure of a loan when the customer pays the remaining weeks up front.
 //  hold      -> customer can renew again only after the ORIGINAL end date of the loan (hold_until = end date)
@@ -75,7 +76,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
     // Put the loan back so nothing is half closed; paid weeks already marked stay paid and are visible in history
     await getSupabase().from('loans').update({ status: 'Active', updated_at: nowIso() }).eq('loan_id', loanId)
     invalidateCache('Loans'); invalidateCache('Repayments'); invalidateCache('Customers'); invalidateCache('Collections')
-    console.error('close loan failed:', e)
+    reportError('close loan failed', e)
     return err((e instanceof Error && e.message) || 'Could not close the loan. Check the repayments and try again.', 500)
   }
   invalidateCache('Loans'); invalidateCache('Repayments'); invalidateCache('Customers'); invalidateCache('Collections')

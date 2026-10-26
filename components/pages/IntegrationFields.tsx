@@ -7,7 +7,7 @@ import { apiGet, apiSend } from '@/lib/clientApi'
 
 type F = { name: string; group: string; label: string; secret: boolean; hint?: string; options?: string[]; placeholder?: string; source: 'panel' | 'server' | 'none'; last4: string; value: string }
 
-export default function IntegrationFields({ session, group, onChanged }: { session: Session; group: 'sms' | 'whatsapp' | 'gateway' | 'ai'; onChanged?: () => void }) {
+export default function IntegrationFields({ session, group, onChanged }: { session: Session; group: 'sms' | 'whatsapp' | 'gateway' | 'ai' | 'monitor'; onChanged?: () => void }) {
   const [fields, setFields] = useState<F[]>([])
   const [edit, setEdit] = useState<string | null>(null)
   const [value, setValue] = useState('')

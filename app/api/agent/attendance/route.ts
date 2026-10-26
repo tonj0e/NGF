@@ -8,6 +8,7 @@ import { csrfProtection } from '@/lib/csrf'
 import { onAttendance } from '@/lib/routes'
 import { getTodayIST } from '@/lib/dateUtils'
 import { getBranchAccess, canSeeBranch } from '@/lib/branchAccess'
+import { reportError } from '@/lib/monitor'
 
 export const POST = apiHandler(async (req: NextRequest) => {
   const session = await getSession(req)
@@ -59,12 +60,12 @@ export const POST = apiHandler(async (req: NextRequest) => {
   )
 
   // Marking attendance starts live tracking; the phone keeps it going until punch-out
-  try { await updateById('Agents', agent['Agent ID'], { 'Is Tracking': 'true', 'Updated At': nowIso() }) } catch (e) { console.error('Could not switch tracking on:', e instanceof Error ? e.message : e) }
+  try { await updateById('Agents', agent['Agent ID'], { 'Is Tracking': 'true', 'Updated At': nowIso() }) } catch (e) { reportError('Could not switch tracking on', e) }
 
   // Re-order today's visit route from where the agent is starting the day
   try {
     await onAttendance(agent['Agent ID'], getTodayIST(), Number(latitude), Number(longitude), session.userId)
-  } catch (e) { console.error('Route re-order on attendance failed:', e instanceof Error ? e.message : e) }
+  } catch (e) { reportError('Route re-order on attendance failed', e) }
 
   return ok({ success: true, message: 'Attendance marked successfully' })
 })

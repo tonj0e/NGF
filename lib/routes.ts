@@ -10,6 +10,7 @@ import {
   optimizeOrder, legsFor, type OrderInput,
 } from './routeMath'
 import type { Session } from '../types'
+import { reportError } from './monitor'
 
 export const PERM_PLAN = 'verificationPlanning'
 const PLANNER_ROLES = ['manager', 'assistant_manager', 'accountant']
@@ -197,7 +198,7 @@ async function buildMatrix(points: LatLng[]): Promise<{ m: Matrix; source: strin
       for (let c = 0; c < rows.length; c += 300) await sb.from('route_dist_cache').upsert(rows.slice(c, c + 300), { onConflict: 'pair_key' })
       return { m, source: 'Google' }
     } catch (e) {
-      console.error('Google routes failed, using straight-line estimate:', e instanceof Error ? e.message : e)
+      reportError('Google routes failed, using straight-line estimate', e)
     }
   }
   const m = points.map((p, i) => points.map((q, j) => (i === j ? { km: 0, min: 0 } : cached.get(pairKey(p, q)) || estimateLeg(p, q))))

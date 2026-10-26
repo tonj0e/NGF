@@ -7,7 +7,7 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto'
 import { getSupabase, readTable, updateById, appendRow, invalidateCache, nowIso } from './supabase-db'
 
-export type Group = 'sms' | 'whatsapp' | 'gateway' | 'ai'
+export type Group = 'sms' | 'whatsapp' | 'gateway' | 'ai' | 'monitor'
 export interface Field { name: string; group: Group; label: string; secret: boolean; hint?: string; options?: string[]; placeholder?: string }
 
 export const FIELDS: Field[] = [
@@ -30,6 +30,7 @@ export const FIELDS: Field[] = [
   { name: 'WHATSAPP_META_LANG', group: 'whatsapp', label: 'Meta template language', secret: false, placeholder: 'en' },
   { name: 'WHATSAPP_DAILY_CAP', group: 'whatsapp', label: 'Daily limit of automatic WhatsApp messages', secret: false, placeholder: '300', hint: 'Protects your WhatsApp bill' },
   // AI reader for payment screenshots (Payments > Chat)
+  { name: 'SENTRY_DSN', group: 'monitor', label: 'Sentry key (DSN)', secret: true, hint: 'sentry.io > Settings > Projects > your project > Client Keys (DSN). A long address starting with https://. Used straight away, no rebuild' },
   { name: 'ANTHROPIC_API_KEY', group: 'ai', label: 'Claude API key', secret: true, hint: 'console.anthropic.com > API keys. Paid, most accurate. Set a monthly spending limit there' },
   { name: 'NVIDIA_API_KEY', group: 'ai', label: 'NVIDIA API key', secret: true, hint: 'build.nvidia.com > your API key. Free, for testing' },
   { name: 'NVIDIA_MODEL', group: 'ai', label: 'NVIDIA model', secret: false, placeholder: 'nvidia/nemotron-nano-12b-v2-vl', hint: 'Must be a vision model (one that can read images). Empty = the default shown here' },

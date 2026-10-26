@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { appendRow, nowIso, makeId } from './supabase-db'
+import { reportError } from './monitor'
 
 export interface AuditLogEntry {
   userId: string
@@ -29,7 +30,7 @@ export async function logAudit(entry: AuditLogEntry): Promise<void> {
       'Created At': nowIso(),
     })
   } catch (error) {
-    console.error('Failed to write audit log:', error)
+    reportError('Failed to write audit log', error)
   }
 }
 

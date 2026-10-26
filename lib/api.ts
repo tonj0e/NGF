@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken, passwordVersionMatches } from './auth'
 import { Session } from '../types'
 import { getSupabase } from './supabase-db'
+import * as Sentry from '@sentry/nextjs'
+import { newRequestId, ensureSentry } from './monitor'
 
 export async function getSession(req: NextRequest): Promise<Session> {
   const auth = req.headers.get('authorization') || ''
@@ -54,13 +56,32 @@ export function err(message: string, status = 400) {
   return NextResponse.json({ success: false, error: message }, { status })
 }
 
+// Most thrown Errors here are plain business messages ("Customer not found"). A bug (TypeError...) or a database/network failure is different:
+// those are reported with who and which request, and the answer carries X-Request-Id so the problem can be found by that id.
+function isUnexpected(e: unknown): boolean {
+  if (!(e instanceof Error)) return true
+  if (e.constructor !== Error) return ['TypeError', 'ReferenceError', 'RangeError', 'SyntaxError'].includes(e.name)
+  return /supabase|postgres|pgrst|relation .* does not exist|column .* does not exist|fetch failed|timeout|timed out|ECONN|socket hang up|JWT/i.test(e.message)
+}
+
 export function apiHandler(fn: (req: NextRequest, ctx?: any) => Promise<NextResponse>) {
   return async (req: NextRequest, ctx?: any) => {
     try {
       return await fn(req, ctx)
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Server error'
-      return err(msg, msg === 'No permission' ? 403 : msg === 'No token provided' || msg === 'Session expired' ? 401 : 400)
+      const res = err(msg, msg === 'No permission' ? 403 : msg === 'No token provided' || msg === 'Session expired' ? 401 : 400)
+      if (isUnexpected(e)) {
+        const requestId = newRequestId()
+        let userId: string | undefined
+        try { userId = (await getSession(req)).userId } catch { /* not signed in */ }
+        const route = req.nextUrl?.pathname || ''
+        console.error(`[req ${requestId}] ${req.method} ${route} failed${userId ? ` user=${userId}` : ''}: ${msg}`)
+        await ensureSentry()
+        try { Sentry.captureException(e, { tags: { requestId, route, method: req.method }, user: userId ? { id: userId } : undefined }) } catch { /* reporting must never break the answer */ }
+        res.headers.set('X-Request-Id', requestId)
+      }
+      return res
     }
   }
 }

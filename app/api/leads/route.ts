@@ -13,6 +13,7 @@ import { notifyBranchOfLead } from '@/lib/routes'
 import { getBranchAccess, canSeeBranch } from '@/lib/branchAccess'
 import { checkRenewalEligibility, customerForRenewalLead, isPermanentlyBlockedAadhaar } from '@/lib/renewalRules'
 import { getTodayIST, addDaysIST } from '@/lib/dateUtils'
+import { reportError } from '@/lib/monitor'
 
 // GET /api/leads
 //   ?tab=new|history|renewal   which list (new = still in progress, history = Converted or Rejected, renewal = renewal requests)
@@ -276,7 +277,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
   // The guarantor's branch team (manager, assistant manager, accountant) must phone the customer and plan the visit
   try {
     if (!autoRejected) await notifyBranchOfLead(guarantorId, 'New lead to call', `${body.customerName} from ${session.name}. Call the customer and fix the visit location.`, leadId)
-  } catch (e) { console.error('Branch lead alert failed:', e instanceof Error ? e.message : e) }
+  } catch (e) { reportError('Branch lead alert failed', e) }
 
   return ok({ leadId, autoRejected })
 })
