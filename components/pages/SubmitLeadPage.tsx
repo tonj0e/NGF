@@ -48,15 +48,19 @@ async function fileToPayload(file: File) {
   })
 }
 
-// the days a lead can be filed under: today and the 30 days before it (so a lead taken earlier lands in the right week)
-function lastDays(count: number) {
+// the days a lead can be filed under: today and the weekdays (Monday to Friday) up to the end of next week,
+// so a lead taken on Friday, Saturday or Sunday can be put on next week's Monday, Tuesday...
+function leadDays() {
   const out: { value: string; label: string }[] = []
   const now = new Date()
-  for (let i = 0; i < count; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i)
+  const base = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const endOfNextWeek = new Date(base); endOfNextWeek.setDate(base.getDate() + ((7 - base.getDay()) % 7) + 7 - 2)   // next week's Friday
+  for (const d = new Date(base); d <= endOfNextWeek; d.setDate(d.getDate() + 1)) {
+    const isToday = d.getTime() === base.getTime()
+    if (!isToday && (d.getDay() === 0 || d.getDay() === 6)) continue
     const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
     const text = d.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' })
-    out.push({ value, label: i === 0 ? `Today, ${text}` : i === 1 ? `Yesterday, ${text}` : text })
+    out.push({ value, label: isToday ? `Today, ${text}` : text })
   }
   return out
 }
@@ -64,7 +68,7 @@ function lastDays(count: number) {
 export default function SubmitLeadPage({ session, onDone }: { session: Session; onDone: () => void }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [dayOptions] = useState(() => lastDays(31))
+  const [dayOptions] = useState(() => leadDays())
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -123,7 +127,7 @@ export default function SubmitLeadPage({ session, onDone }: { session: Session; 
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block">
             <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-[#697586]">Lead day</span>
-            <select name="submittedDate" defaultValue={dayOptions[0].value}
+            <select name="submittedDate" defaultValue={(dayOptions.find(d => !/^Today, (Saturday|Sunday)/.test(d.label)) || dayOptions[0]).value}
               className="w-full rounded-2xl border border-[#e5e7eb] bg-[#f4f5f7] px-4 py-3 text-sm outline-none focus:border-[#1a1a2e] focus:bg-white transition">
               {dayOptions.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
             </select>

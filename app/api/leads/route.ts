@@ -194,9 +194,9 @@ export const POST = apiHandler(async (req: NextRequest) => {
   const existingConverted = body.aadhaarNo ? (await selectRows('Leads', qb => qb.eq('aadhaar_no', body.aadhaarNo!).eq('status', 'Converted').limit(1))).rows[0] || null : null
 
   const leadId = makeId('LEAD')
-  // the day the lead was taken: today by default, or an earlier day (not in the future, not older than 90 days)
+  // the day the lead is filed under: today by default, or a day of the coming two weeks (a lead taken late in the week goes on next week)
   const today = getTodayIST()
-  if (body.submittedDate && (body.submittedDate > today || body.submittedDate < addDaysIST(today, -90))) return err('Choose a day from the last 90 days, up to today.')
+  if (body.submittedDate && (body.submittedDate > addDaysIST(today, 14) || body.submittedDate < addDaysIST(today, -90))) return err('Choose today or a day in the next two weeks.')
   const leadDate = body.submittedDate || today
 
   let folderId = ''
