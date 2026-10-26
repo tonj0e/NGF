@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Session } from '@/types'
 import { Phone, MapPin, GripVertical, ChevronUp, ChevronDown, Route as RouteIcon, Wand2, X, Navigation } from 'lucide-react'
 import RouteMap from '@/components/routes/RouteMap'
+import { fetchRoads } from '@/lib/clientRoads'
 
 type Stop = {
   leadId: string; customerName: string; phone: string; place: string; address: string; landmark: string; status: string; submittedDate: string
@@ -240,8 +241,21 @@ function RouteCard({ r, board, date, busy, session, act, startOpen }: {
   const rows = useRef<Record<string, HTMLDivElement | null>>({})
   const startOrder = useRef('')
   const [open, setOpen] = useState(startOpen)
+  const [seen, setSeen] = useState(startOpen) // once opened, the body (and its map) stays in the page, hidden, so reopening costs no new map load
   const [roads, setRoads] = useState<(string | null)[] | null>(null)
-  useEffect(() => { setOrder(r.stops.map(s => s.leadId)) }, [r.stops])
+  const savedIds = r.stops.map(s => s.leadId)
+  const dirty = order.length === savedIds.length && order.join() !== savedIds.join()
+  const dirtyRef = useRef(false)
+  dirtyRef.current = dirty
+  // fresh data from the server: start from it, but keep the unsaved arrangement of the stops that are still there
+  useEffect(() => {
+    setOrder(prev => {
+      if (!dirtyRef.current) return savedIds
+      const keep = prev.filter(id => savedIds.includes(id))
+      return [...keep, ...savedIds.filter(id => !keep.includes(id))]
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [r.stops])
   const byId = new Map(r.stops.map(s => [s.leadId, s]))
   const list = order.map(id => byId.get(id)).filter((s): s is Stop => !!s)
   const url = mapsRouteUrl(r)
@@ -260,22 +274,21 @@ function RouteCard({ r, board, date, busy, session, act, startOpen }: {
     setRoads(null)
     if (roadPts.length < 2 || roadPts.length > 26 || dragging) return
     const t = setTimeout(() => {
-      fetch('/api/routes/path', { method: 'POST', headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ points: roadPts }) })
-        .then(res => res.json()).then(j => { if (!dead && j.success) setRoads(j.data.legs) }).catch(() => {})
+      fetchRoads(session.token, roadPts).then(legs => { if (!dead && legs) setRoads(legs) }).catch(() => {})
     }, 600)
     return () => { dead = true; clearTimeout(t) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, roadKey, dragging, session.token])
 
-  function commit(next: string[]) {
-    if (next.join() === r.stops.map(s => s.leadId).join()) return
-    act(`reorder${r.agentId}`, { action: 'reorder', agentId: r.agentId, date, order: next }, 'Order saved, agent notified')
+  // arranging only changes the screen (and the map); the agent gets the order when Save order is pressed
+  function saveOrder() {
+    act(`reorder${r.agentId}`, { action: 'reorder', agentId: r.agentId, date, order }, 'Order saved, agent notified')
   }
   function move(i: number, d: number) {
     const j = i + d
     if (j < 0 || j >= order.length || byId.get(order[i])?.done || byId.get(order[j])?.done) return
     const next = order.slice(); [next[i], next[j]] = [next[j], next[i]]
-    setOrder(next); commit(next)
+    setOrder(next)
   }
   function onDown(e: React.PointerEvent, id: string) {
     if (byId.get(id)?.done) return
@@ -299,24 +312,24 @@ function RouteCard({ r, board, date, busy, session, act, startOpen }: {
   function onUp() {
     if (!dragging) return
     setDragging('')
-    if (order.join() !== startOrder.current) commit(order)
   }
 
   return (
     <div className={card}>
-      <button type="button" onClick={() => setOpen(o => !o)} aria-expanded={open} className="flex w-full items-center justify-between gap-3 text-left">
+      <button type="button" onClick={() => { setOpen(o => !o); setSeen(true) }} aria-expanded={open} className="flex w-full items-center justify-between gap-3 text-left">
         <div className="min-w-0">
           <p className="font-semibold">{r.name}</p>
           <p className="text-xs text-[#697586]">
             {r.stops.length} {r.stops.length === 1 ? 'stop' : 'stops'}
             {r.plan?.totalKm != null && r.stops.length > 0 && <> · {r.plan.totalKm} km · {hm(r.plan.totalMin)}</>}
             {r.plan?.manual && <> · <span className="font-semibold text-violet-700">Hand-ordered</span></>}
+            {dirty && <> · <span className="font-semibold text-amber-600">Not saved yet</span></>}
           </p>
         </div>
         <ChevronDown className={`h-5 w-5 shrink-0 text-[#697586] transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
-      {open && (<>
+      {seen && (<div className={open ? '' : 'hidden'}>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-[#697586]">
           {r.plan?.startSource ? <>Starts from: {r.plan.startSource}</> : 'Start point unknown until the agent marks attendance'}
@@ -326,6 +339,8 @@ function RouteCard({ r, board, date, busy, session, act, startOpen }: {
           <button disabled={!r.stops.length || busy === `opt${r.agentId}`} onClick={() => act(`opt${r.agentId}`, { action: 'optimize', agentId: r.agentId, date }, 'Best order applied')} className={`${btn} inline-flex items-center gap-1 bg-[#1a1a2e] text-white`}>
             <Wand2 className="h-4 w-4" />{busy === `opt${r.agentId}` ? 'Working…' : 'Best order'}
           </button>
+          {dirty && <button onClick={() => setOrder(savedIds)} className={`${btn} border border-[#e5e7eb] bg-white text-[#697586]`}>Undo</button>}
+          {dirty && <button disabled={busy === `reorder${r.agentId}`} onClick={saveOrder} className={`${btn} bg-[#f0b429] text-[#1a1a2e] shadow-md`}>{busy === `reorder${r.agentId}` ? 'Saving…' : 'Save order'}</button>}
           {url && <a href={url} target="_blank" rel="noreferrer" className={`${btn} inline-flex items-center gap-1 border border-[#e5e7eb] bg-white`}><RouteIcon className="h-4 w-4" />Google Maps</a>}
         </div>
       </div>
@@ -375,7 +390,7 @@ function RouteCard({ r, board, date, busy, session, act, startOpen }: {
         </div>
       )}
       </div>
-      </>)}
+      </div>)}
     </div>
   )
 }

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Session } from '@/types'
 import { Phone, Navigation, MapPin } from 'lucide-react'
 import RouteMap from '@/components/routes/RouteMap'
+import { fetchRoads } from '@/lib/clientRoads'
 
 type Stop = {
   leadId: string; customerName: string; phone: string; place: string; address: string; landmark: string; guarantorName: string
@@ -66,7 +67,7 @@ export default function MyRoutePage({ session, onOpenVerification }: { session: 
     let dead = false
     setRoads(null)
     if (roadPts.length < 2 || roadPts.length > 26) return
-    api(session, '/api/routes/path', { points: roadPts }).then(r => { if (!dead) setRoads(r.legs) }).catch(() => {})
+    fetchRoads(session.token, roadPts).then(legs => { if (!dead && legs) setRoads(legs) }).catch(() => {})
     return () => { dead = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, roadKey])

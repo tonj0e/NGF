@@ -72,6 +72,7 @@ export default function RouteMap({ start, startLabel, stops, nextId, onPick, roa
   const [ready, setReady] = useState(false)
   const [failed, setFailed] = useState(false)
   const [sat, setSat] = useState(false)
+  const fit = useRef<(() => void) | null>(null)
   const pickRef = useRef(onPick)
   pickRef.current = onPick
 
@@ -89,6 +90,20 @@ export default function RouteMap({ start, startLabel, stops, nextId, onPick, roa
     }).catch(() => { if (!dead) setFailed(true) })
     return () => { dead = true; cancelAnimationFrame(raf.current) }
   }, [])
+
+  // a map kept in a hidden section has no size; when it is shown again, wake it up and frame the stops
+  useEffect(() => {
+    const el = box.current
+    if (!ready || !el || typeof ResizeObserver === 'undefined') return
+    let was = el.offsetWidth
+    const ro = new ResizeObserver(() => {
+      const now = el.offsetWidth
+      if (was === 0 && now > 0 && mapRef.current) { w().google.maps.event.trigger(mapRef.current, 'resize'); fit.current?.() }
+      was = now
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [ready])
 
   // Map / Satellite switch (Hybrid keeps the place names on the photo)
   useEffect(() => { mapRef.current?.setMapTypeId(sat ? 'hybrid' : 'roadmap') }, [sat, ready])
@@ -163,8 +178,11 @@ export default function RouteMap({ start, startLabel, stops, nextId, onPick, roa
       add(m)
     })
 
-    if (nodes.length === 1) { map.setCenter(nodes[0].p); map.setZoom(14) }
-    else map.fitBounds(bounds, { top: 56, right: 48, bottom: 64, left: 48 })
+    fit.current = () => {
+      if (nodes.length === 1) { map.setCenter(nodes[0].p); map.setZoom(14) }
+      else map.fitBounds(bounds, { top: 56, right: 48, bottom: 64, left: 48 })
+    }
+    fit.current()
     return () => cancelAnimationFrame(raf.current)
   }, [ready, start, startLabel, stops, nextId, roads])
 
