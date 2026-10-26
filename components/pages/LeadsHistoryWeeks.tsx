@@ -25,7 +25,7 @@ export default function LeadsHistoryWeeks({ session, search, branch, version, re
   const [weeksBack, setWeeksBack] = useState(12)
   const [perDay, setPerDay] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
-  const [openWeeks, setOpenWeeks] = useState<Set<string>>(new Set())
+  const [openWeeks, setOpenWeeks] = useState<Set<string>>(new Set([mondayOf(ymd(new Date()))]))   // this week starts open
   const [openDays, setOpenDays] = useState<Set<string>>(new Set())
   const [dayLeads, setDayLeads] = useState<Record<string, Lead[] | 'loading'>>({})
   const seq = useRef(0)
@@ -63,11 +63,11 @@ export default function LeadsHistoryWeeks({ session, search, branch, version, re
   // week (Monday) -> its days, newest first
   const weekMap = new Map<string, string[]>()
   for (const d of Object.keys(perDay)) { const w = mondayOf(d); weekMap.set(w, [...(weekMap.get(w) || []), d]) }
-  const weeks = Array.from(weekMap.keys()).sort().reverse()
   const thisMonday = mondayOf(ymd(new Date()))
+  if (!weekMap.has(thisMonday)) weekMap.set(thisMonday, [])   // this week is always shown, even before any lead is finished
+  const weeks = Array.from(weekMap.keys()).sort().reverse()
 
   if (loading) return <p className="p-8 text-center text-sm text-[#697586]">Loading…</p>
-  if (!weeks.length) return <p className="p-8 text-center text-sm text-[#697586]">No leads history yet.</p>
 
   return (
     <div className="space-y-3">
