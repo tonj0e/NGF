@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Session } from '@/types'
 import { Phone, MapPin, GripVertical, ChevronUp, ChevronDown, Route as RouteIcon, Wand2, X, Navigation } from 'lucide-react'
+import RouteMap from '@/components/routes/RouteMap'
 
 type Stop = {
   leadId: string; customerName: string; phone: string; place: string; address: string; landmark: string; status: string; submittedDate: string
@@ -126,7 +127,7 @@ export default function VisitRoutesPage({ session }: { session: Session }) {
       {board && tab === 'routes' && (
         <div className="space-y-4">
           {board.routes.length === 0 && <p className="p-8 text-center text-sm text-[#697586]">No agents in this branch.</p>}
-          {board.routes.map(r => <RouteCard key={r.agentId + date} r={r} board={board} date={date} busy={busy} session={session} act={act} />)}
+          {board.routes.map((r, i) => <RouteCard key={r.agentId + date} r={r} board={board} date={date} busy={busy} session={session} act={act} startOpen={i === board.routes.findIndex(x => x.stops.length > 0)} />)}
         </div>
       )}
 
@@ -233,19 +234,41 @@ function PlanCard({ s, board, date, busy, onSave, onAssign }: {
 
 // ─── One agent's day, with drag-to-reorder ───────────────────────────────────
 
-function RouteCard({ r, board, date, busy, session, act }: {
-  r: AgentRoute; board: Board; date: string; busy: string; session: Session
+function RouteCard({ r, board, date, busy, session, act, startOpen }: {
+  r: AgentRoute; board: Board; date: string; busy: string; session: Session; startOpen: boolean
   act: (label: string, body: Record<string, unknown>, okMsg: string) => Promise<void>
 }) {
   const [order, setOrder] = useState<string[]>(r.stops.map(s => s.leadId))
   const [dragging, setDragging] = useState('')
   const rows = useRef<Record<string, HTMLDivElement | null>>({})
   const startOrder = useRef('')
+  const [open, setOpen] = useState(startOpen)
+  const [roads, setRoads] = useState<(string | null)[] | null>(null)
   useEffect(() => { setOrder(r.stops.map(s => s.leadId)) }, [r.stops])
   const byId = new Map(r.stops.map(s => [s.leadId, s]))
   const list = order.map(id => byId.get(id)).filter((s): s is Stop => !!s)
   const url = mapsRouteUrl(r)
-  void session
+
+  // the map follows the order on screen at once (also while dragging); road shapes are fetched a moment after the order settles
+  const mapStops = list.flatMap((s, i) => s.hasLocation && s.visitLat != null && s.visitLng != null
+    ? [{ id: s.leadId, n: i + 1, label: s.visitPlace || s.place || s.customerName, lat: s.visitLat, lng: s.visitLng, done: s.done, absent: s.visitStatus === 'Absent', legKm: s.legKm }]
+    : [])
+  const startPt = r.plan?.startLat != null && r.plan?.startLng != null ? { lat: r.plan.startLat, lng: r.plan.startLng } : null
+  const nextStop = mapStops.find(s => !s.done)
+  const roadPts = [...(startPt ? [startPt] : []), ...mapStops.map(s => ({ lat: s.lat, lng: s.lng }))]
+  const roadKey = roadPts.map(p => `${p.lat.toFixed(4)},${p.lng.toFixed(4)}`).join('|')
+  useEffect(() => {
+    if (!open) return
+    let dead = false
+    setRoads(null)
+    if (roadPts.length < 2 || roadPts.length > 26 || dragging) return
+    const t = setTimeout(() => {
+      fetch('/api/routes/path', { method: 'POST', headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ points: roadPts }) })
+        .then(res => res.json()).then(j => { if (!dead && j.success) setRoads(j.data.legs) }).catch(() => {})
+    }, 600)
+    return () => { dead = true; clearTimeout(t) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, roadKey, dragging, session.token])
 
   function commit(next: string[]) {
     if (next.join() === r.stops.map(s => s.leadId).join()) return
@@ -284,29 +307,36 @@ function RouteCard({ r, board, date, busy, session, act }: {
 
   return (
     <div className={card}>
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
+      <button type="button" onClick={() => setOpen(o => !o)} aria-expanded={open} className="flex w-full items-center justify-between gap-3 text-left">
+        <div className="min-w-0">
           <p className="font-semibold">{r.name}</p>
           <p className="text-xs text-[#697586]">
             {r.stops.length} {r.stops.length === 1 ? 'stop' : 'stops'}
             {r.plan?.totalKm != null && r.stops.length > 0 && <> · {r.plan.totalKm} km · {hm(r.plan.totalMin)}</>}
-          </p>
-          <p className="text-xs text-[#697586]">
-            {r.plan?.startSource ? <>Starts from: {r.plan.startSource}</> : 'Start point unknown until the agent marks attendance'}
-            {r.plan?.source && <> · {r.plan.source}</>}{r.plan?.manual && <> · <span className="font-semibold text-violet-700">Hand-ordered</span></>}
+            {r.plan?.manual && <> · <span className="font-semibold text-violet-700">Hand-ordered</span></>}
           </p>
         </div>
+        <ChevronDown className={`h-5 w-5 shrink-0 text-[#697586] transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && (<>
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-[#697586]">
+          {r.plan?.startSource ? <>Starts from: {r.plan.startSource}</> : 'Start point unknown until the agent marks attendance'}
+          {r.plan?.source && <> · {r.plan.source}</>}
+        </p>
         <div className="flex flex-wrap gap-2">
           <button disabled={!r.stops.length || busy === `opt${r.agentId}`} onClick={() => act(`opt${r.agentId}`, { action: 'optimize', agentId: r.agentId, date }, 'Best order applied')} className={`${btn} inline-flex items-center gap-1 bg-[#1a1a2e] text-white`}>
             <Wand2 className="h-4 w-4" />{busy === `opt${r.agentId}` ? 'Working…' : 'Best order'}
           </button>
-          {url && <a href={url} target="_blank" rel="noreferrer" className={`${btn} inline-flex items-center gap-1 border border-[#e5e7eb] bg-white`}><RouteIcon className="h-4 w-4" />Map</a>}
+          {url && <a href={url} target="_blank" rel="noreferrer" className={`${btn} inline-flex items-center gap-1 border border-[#e5e7eb] bg-white`}><RouteIcon className="h-4 w-4" />Google Maps</a>}
         </div>
       </div>
 
       {r.stops.length === 0 && <p className="mt-3 text-sm text-[#697586]">No visits planned for this day.</p>}
 
-      <div className="mt-3 space-y-2" onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
+      <div className="mt-3 grid gap-4 lg:grid-cols-2 lg:items-start">
+      <div className="space-y-2" onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
         {list.map((s, i) => (
           <div key={s.leadId} ref={el => { rows.current[s.leadId] = el }}
             className={`rounded-2xl border p-3 ${dragging === s.leadId ? 'border-[#f0b429] bg-amber-50 shadow-lg' : s.done ? 'border-green-200 bg-green-50' : 'border-[#e5e7eb] bg-white'}`}>
@@ -342,6 +372,13 @@ function RouteCard({ r, board, date, busy, session, act }: {
           </div>
         ))}
       </div>
+      {mapStops.length > 0 && (
+        <div className="overflow-hidden rounded-2xl border border-[#e5e7eb] lg:sticky lg:top-20">
+          <RouteMap bare start={startPt} startLabel="START" stops={mapStops} nextId={nextStop?.id} roads={roads} />
+        </div>
+      )}
+      </div>
+      </>)}
     </div>
   )
 }
