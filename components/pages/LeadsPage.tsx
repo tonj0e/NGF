@@ -191,7 +191,7 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
       // Fetch CSRF token
       const csrfRes = await fetch('/api/csrf', { headers: { Authorization: `Bearer ${session.token}` } })
       const csrfJson = await csrfRes.json()
-      const csrfToken = csrfJson.data?.csrfToken
+      const csrfToken = csrfJson.csrfToken || csrfJson.data?.csrfToken
       
       const res = await fetch(`/api/leads/${leadId}`, {
         method: 'PATCH', 
