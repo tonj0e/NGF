@@ -12,6 +12,7 @@ import { csrfProtection } from '@/lib/csrf'
 import { notifyBranchOfLead } from '@/lib/routes'
 import { getBranchAccess, canSeeBranch } from '@/lib/branchAccess'
 import { checkRenewalEligibility, customerForRenewalLead, isPermanentlyBlockedAadhaar } from '@/lib/renewalRules'
+import { getTodayIST, addDaysIST } from '@/lib/dateUtils'
 
 // GET /api/leads
 //   ?tab=new|history|renewal   which list (new = still in progress, history = Converted or Rejected, renewal = renewal requests)
@@ -27,6 +28,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const branch = searchParams.get('branch') || ''
   const cheque = searchParams.get('cheque') === '1'
   const text = cleanSearch(searchParams.get('q'))
+  const dayParam = /^\d{4}-\d{2}-\d{2}$/.test(searchParams.get('day') || '') ? searchParams.get('day')! : ''   // one submitted day (History, by week and day)
 
   // who may see which leads: a guarantor their own, an agent their assigned, Staff their branches' guarantors
   let scope = await scopeOf(session)
@@ -56,8 +58,19 @@ export const GET = apiHandler(async (req: NextRequest) => {
     if (cheque) q = q.neq('cheque_number', '').not('cheque_number', 'is', null).in('status', ['Approved', 'Converted'])
     if (branch && branch !== 'none') q = q.in('guarantor_id', activeLinks.filter(x => x['Branch ID'] === branch).map(x => x['Guarantor ID']).concat('__none__'))
     else if (branch === 'none') q = q.not('guarantor_id', 'in', `(${Array.from(branchOf.keys()).concat('__none__').join(',')})`)
+    if (dayParam) q = q.eq('submitted_date', dayParam)
     if (text) q = q.or(`customer_name.ilike.%${text}%,phone.ilike.%${text}%,aadhaar_no.ilike.%${text}%,lead_id.ilike.%${text}%`)
     return q
+  }
+
+  // History by week: how many leads were submitted on each day of the last N weeks (the screen groups them Monday to Friday)
+  if (searchParams.get('days') === '1') {
+    const weeks = Math.min(Math.max(Number(searchParams.get('weeks')) || 12, 1), 104)
+    const since = addDaysIST(getTodayIST(), -7 * weeks)
+    const dated = await selectAll('Leads', qb => filters(qb).gte('submitted_date', since))
+    const perDay: Record<string, number> = {}
+    for (const l of dated) { const d = String(l['Submitted Date'] || '').slice(0, 10); if (d) perDay[d] = (perDay[d] || 0) + 1 }
+    return ok({ perDay, since })
   }
 
   const r = await pageQuery('Leads', {
@@ -181,6 +194,10 @@ export const POST = apiHandler(async (req: NextRequest) => {
   const existingConverted = body.aadhaarNo ? (await selectRows('Leads', qb => qb.eq('aadhaar_no', body.aadhaarNo!).eq('status', 'Converted').limit(1))).rows[0] || null : null
 
   const leadId = makeId('LEAD')
+  // the day the lead was taken: today by default, or an earlier day (not in the future, not older than 90 days)
+  const today = getTodayIST()
+  if (body.submittedDate && (body.submittedDate > today || body.submittedDate < addDaysIST(today, -90))) return err('Choose a day from the last 90 days, up to today.')
+  const leadDate = body.submittedDate || today
 
   let folderId = ''
   let customerPhotoUrl = '', aadhaarFrontUrl = '', aadhaarBackUrl = ''
@@ -211,7 +228,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
 
   await appendRow('Leads', {
     'Lead ID': leadId,
-    'Submitted Date': nowIso().slice(0, 10),
+    'Submitted Date': leadDate,
     'Guarantor ID': guarantorId,
     'Guarantor User ID': session.userId,
     'Customer Name': body.customerName || '',

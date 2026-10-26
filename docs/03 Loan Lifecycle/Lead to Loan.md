@@ -59,3 +59,9 @@ Statuses in the order the code uses them (enum `lead_status`, `supabase_schema.s
 
 ## Related
 [[Loan Lifecycle Brain]] [[Loan Products and Math]] [[Verification and Documents]] [[Renewals]] [[Customers and Import]] [[Roles and Permissions]] [[Enums and Status Values]] [[Repayments and Collections]] [[Data Access Layer]]
+
+## Leads History by week and day (2026-10-26)
+- The History tab groups leads by week (Monday to Friday, label like "Oct 26 – 30"). Open a week to see its days, open a day to see that day's leads. Saturday/Sunday rows appear only if a lead was taken then. "Show older weeks" loads 12 more weeks.
+- Code: `components/pages/LeadsHistoryWeeks.tsx`; server `GET /api/leads?tab=history&days=1&weeks=N` (counts per day) and `&day=YYYY-MM-DD` (that day's leads). Search and branch filters apply.
+- A guarantor picks a **Lead day** when submitting (today by default, back to 30 days in the form; the server accepts today back to 90 days, never a future day) so a lead taken earlier lands in the right week. Field: `submittedDate`.
+- On phones the Leads tabs scroll sideways in one row, short labels ("Renewal"), and the search/branch/delete controls stack.

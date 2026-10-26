@@ -6,6 +6,7 @@ import StatusPill from '@/components/ui/StatusPill'
 import DriveImage from '@/components/ui/DriveImage'
 import SubmitLeadPage from './SubmitLeadPage'
 import RenewalModal from './RenewalModal'
+import LeadsHistoryWeeks from './LeadsHistoryWeeks'
 import RenewalApproveModal from './RenewalApproveModal'
 import DisburseQueue from './DisburseQueue'
 import { buildLeadNoteData, buildPromissoryHtml, PROMISSORY_TEMPLATE_KEY, DEFAULT_PROMISSORY_BODY } from '@/lib/promissoryNote'
@@ -459,93 +460,7 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
   const branchOptions: [string, string][] = branchList.map(b => [b.branchId, b.name])
   const visibleLeads = leads
 
-  if (showSubmit) return (
-    <SubmitLeadPage session={session} onDone={() => { setShowSubmit(false); load() }} />
-  )
-
-  return (
-    <div className="space-y-4">
-      {showRenewal && (
-        <RenewalModal session={session} onClose={() => setShowRenewal(false)} onDone={() => { setShowRenewal(false); load() }} />
-      )}
-      {approving && <RenewalApproveModal session={session} lead={approving} onClose={() => setApproving(null)} onDone={m => { setApproving(null); showToast(m); load() }} />}
-      {toast && <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-2xl bg-[#1a1a2e] px-5 py-3 text-sm font-medium text-white shadow-lg">{toast}</div>}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex gap-2 flex-wrap">
-          {(isManager || session.role === 'Guarantor') && (
-            <button onClick={() => { setTab('new'); setDeleteMode(false); setSelected(new Set()) }}
-              className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${tab === 'new' ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
-              {isManager ? 'New Leads' : 'In Progress'} {newLeads.length > 0 && <span className={`ml-1.5 rounded-full px-2 py-0.5 text-xs font-bold ${tab === 'new' ? 'bg-white/20' : 'bg-[#f4f5f7]'}`}>{newLeads.length}</span>}
-            </button>
-          )}
-          <button onClick={() => { setTab('history'); setDeleteMode(false); setSelected(new Set()) }}
-            className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${tab === 'history' ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
-            History {historyLeads.length > 0 && <span className={`ml-1.5 rounded-full px-2 py-0.5 text-xs font-bold ${tab === 'history' ? 'bg-white/20' : 'bg-[#f4f5f7]'}`}>{historyLeads.length}</span>}
-          </button>
-          {isManager && (can('leadsRenew') || can('leadsApprove')) && (
-            <button onClick={() => { setTab('renewal'); setDeleteMode(false); setSelected(new Set()) }}
-              className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${tab === 'renewal' ? 'bg-green-600 text-white' : 'border border-green-200 bg-white text-green-700 hover:bg-green-50'}`}>
-              Renewal Requests {renewalLeads.length > 0 && <span className={`ml-1.5 rounded-full px-2 py-0.5 text-xs font-bold ${tab === 'renewal' ? 'bg-white/20' : 'bg-green-100'}`}>{renewalLeads.length}</span>}
-            </button>
-          )}
-          {isManager && can('leadsDisburse') && (
-            <button onClick={() => { setTab('disbursements'); setDeleteMode(false); setSelected(new Set()) }}
-              className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${tab === 'disbursements' ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
-              Disbursements {counts.approved > 0 && <span className={`ml-1.5 rounded-full px-2 py-0.5 text-xs font-bold ${tab === 'disbursements' ? 'bg-white/20' : 'bg-amber-100 text-amber-700'}`}>{counts.approved} to disburse</span>}
-            </button>
-          )}
-        </div>
-        {session.role === 'Guarantor' && (
-          <div className="flex gap-2">
-            <button onClick={() => setShowSubmit(true)}
-              className="rounded-2xl bg-[#f0b429] px-4 py-2 text-sm font-semibold text-[#1a1400] hover:opacity-90 transition">
-              + New Lead
-            </button>
-            <button onClick={() => setShowRenewal(true)}
-              className="rounded-2xl bg-green-500 px-4 py-2 text-sm font-semibold text-white hover:bg-green-600 transition">
-              + Renewal
-            </button>
-          </div>
-        )}
-      </div>
-      {isManager && tab !== 'disbursements' && (
-        <div className="flex items-center gap-3 flex-wrap">
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name, phone, Aadhaar…" data-no-upper
-            className="min-w-[200px] max-w-xs flex-1 rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2.5 text-sm outline-none focus:border-[#1a1a2e]" />
-          <select value={branchFilter} onChange={e => setBranchFilter(e.target.value)}
-            className="rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2.5 text-sm font-medium">
-            <option value="">All branches</option>
-            {branchOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-            <option value="none">No branch</option>
-          </select>
-          {can('leadsDelete') && !deleteMode && (
-            <button onClick={() => { setDeleteMode(true); setSelected(new Set()) }}
-              className="rounded-2xl border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-600">
-              Delete
-            </button>
-          )}
-          {deleteMode && (
-            <span>
-              <span className="text-sm text-[#697586]">{selected.size} selected</span>
-              <button onClick={deleteSelected} disabled={!selected.size}
-                className="rounded-2xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-40">
-                Confirm Delete
-              </button>
-              <button onClick={() => { setDeleteMode(false); setSelected(new Set()) }}
-                className="rounded-2xl border border-[#e5e7eb] px-4 py-2.5 text-sm font-semibold">
-                Cancel
-              </button>
-            </span>
-          )}
-        </div>
-      )}
-      {tab === 'disbursements' ? <DisbursementsView session={session} /> : (
-      <>
-        {visibleLeads.length === 0 && <p className="p-8 text-center text-sm text-[#697586]">{tab === 'new' ? 'No new leads.' : tab === 'history' ? 'No leads history yet.' : 'No renewal requests yet.'}</p>}
-        <div className="px-5 pb-4"><Pager page={page} totalPages={totalPages} total={totalLeads} noun="leads" pageSize={LEADS_PAGE} onPage={setPage} /></div>
-        <div className="overflow-hidden rounded-[1.75rem] border border-white/70 bg-white shadow-panel divide-y divide-black/5">
-          <div className="overflow-x-auto">
-            {visibleLeads.map((l, i) => (
+  const renderLead = (l: Lead, i: number) => (
               <div key={l.leadId || i}
                 onClick={() => deleteMode && toggleSelect(l.leadId)}
                 className={`p-4 sm:p-5 transition ${deleteMode ? 'cursor-pointer' : ''} ${selected.has(l.leadId) ? 'bg-red-50' : ''}`}>
@@ -635,7 +550,97 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
               </div>}
             </div>
           </div>
-        ))}
+  )
+
+  if (showSubmit) return (
+    <SubmitLeadPage session={session} onDone={() => { setShowSubmit(false); load() }} />
+  )
+
+  return (
+    <div className="space-y-4">
+      {showRenewal && (
+        <RenewalModal session={session} onClose={() => setShowRenewal(false)} onDone={() => { setShowRenewal(false); load() }} />
+      )}
+      {approving && <RenewalApproveModal session={session} lead={approving} onClose={() => setApproving(null)} onDone={m => { setApproving(null); showToast(m); load() }} />}
+      {toast && <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-2xl bg-[#1a1a2e] px-5 py-3 text-sm font-medium text-white shadow-lg">{toast}</div>}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {(isManager || session.role === 'Guarantor') && (
+            <button onClick={() => { setTab('new'); setDeleteMode(false); setSelected(new Set()) }}
+              className={`shrink-0 whitespace-nowrap rounded-2xl px-3 py-2 text-[13px] font-medium transition sm:px-4 sm:text-sm ${tab === 'new' ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
+              {isManager ? 'New Leads' : 'In Progress'} {newLeads.length > 0 && <span className={`ml-1.5 rounded-full px-2 py-0.5 text-xs font-bold ${tab === 'new' ? 'bg-white/20' : 'bg-[#f4f5f7]'}`}>{newLeads.length}</span>}
+            </button>
+          )}
+          <button onClick={() => { setTab('history'); setDeleteMode(false); setSelected(new Set()) }}
+            className={`shrink-0 whitespace-nowrap rounded-2xl px-3 py-2 text-[13px] font-medium transition sm:px-4 sm:text-sm ${tab === 'history' ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
+            History {historyLeads.length > 0 && <span className={`ml-1.5 rounded-full px-2 py-0.5 text-xs font-bold ${tab === 'history' ? 'bg-white/20' : 'bg-[#f4f5f7]'}`}>{historyLeads.length}</span>}
+          </button>
+          {isManager && (can('leadsRenew') || can('leadsApprove')) && (
+            <button onClick={() => { setTab('renewal'); setDeleteMode(false); setSelected(new Set()) }}
+              className={`shrink-0 whitespace-nowrap rounded-2xl px-3 py-2 text-[13px] font-medium transition sm:px-4 sm:text-sm ${tab === 'renewal' ? 'bg-green-600 text-white' : 'border border-green-200 bg-white text-green-700 hover:bg-green-50'}`}>
+              Renewal<span className="hidden sm:inline"> Requests</span> {renewalLeads.length > 0 && <span className={`ml-1.5 rounded-full px-2 py-0.5 text-xs font-bold ${tab === 'renewal' ? 'bg-white/20' : 'bg-green-100'}`}>{renewalLeads.length}</span>}
+            </button>
+          )}
+          {isManager && can('leadsDisburse') && (
+            <button onClick={() => { setTab('disbursements'); setDeleteMode(false); setSelected(new Set()) }}
+              className={`shrink-0 whitespace-nowrap rounded-2xl px-3 py-2 text-[13px] font-medium transition sm:px-4 sm:text-sm ${tab === 'disbursements' ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
+              Disbursements {counts.approved > 0 && <span className={`ml-1.5 rounded-full px-2 py-0.5 text-xs font-bold ${tab === 'disbursements' ? 'bg-white/20' : 'bg-amber-100 text-amber-700'}`}>{counts.approved}<span className="hidden sm:inline"> to disburse</span></span>}
+            </button>
+          )}
+        </div>
+        {session.role === 'Guarantor' && (
+          <div className="grid grid-cols-2 gap-2 sm:flex">
+            <button onClick={() => setShowSubmit(true)}
+              className="rounded-2xl bg-[#f0b429] px-4 py-2.5 text-sm font-semibold text-[#1a1400] hover:opacity-90 transition">
+              + New Lead
+            </button>
+            <button onClick={() => setShowRenewal(true)}
+              className="rounded-2xl bg-green-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-green-600 transition">
+              + Renewal
+            </button>
+          </div>
+        )}
+      </div>
+      {isManager && tab !== 'disbursements' && (
+        <div className="grid grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap sm:gap-3 [&>input]:col-span-2 sm:[&>input]:w-72">
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name, phone, Aadhaar…" data-no-upper
+            className="w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2.5 text-sm outline-none focus:border-[#1a1a2e]" />
+          <select value={branchFilter} onChange={e => setBranchFilter(e.target.value)}
+            className="rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2.5 text-sm font-medium">
+            <option value="">All branches</option>
+            {branchOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+            <option value="none">No branch</option>
+          </select>
+          {can('leadsDelete') && !deleteMode && (
+            <button onClick={() => { setDeleteMode(true); setSelected(new Set()) }}
+              className="rounded-2xl border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-600">
+              Delete
+            </button>
+          )}
+          {deleteMode && (
+            <span>
+              <span className="text-sm text-[#697586]">{selected.size} selected</span>
+              <button onClick={deleteSelected} disabled={!selected.size}
+                className="rounded-2xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-40">
+                Confirm Delete
+              </button>
+              <button onClick={() => { setDeleteMode(false); setSelected(new Set()) }}
+                className="rounded-2xl border border-[#e5e7eb] px-4 py-2.5 text-sm font-semibold">
+                Cancel
+              </button>
+            </span>
+          )}
+        </div>
+      )}
+      {tab === 'disbursements' ? <DisbursementsView session={session} /> : tab === 'history' ? (
+        <LeadsHistoryWeeks session={session} search={search} branch={branchFilter} version={counts.history} renderLead={renderLead} />
+      ) : (
+      <>
+        {visibleLeads.length === 0 && <p className="p-8 text-center text-sm text-[#697586]">{tab === 'new' ? 'No new leads.' : 'No renewal requests yet.'}</p>}
+        <div className="px-5 pb-4"><Pager page={page} totalPages={totalPages} total={totalLeads} noun="leads" pageSize={LEADS_PAGE} onPage={setPage} /></div>
+        <div className="overflow-hidden rounded-[1.75rem] border border-white/70 bg-white shadow-panel divide-y divide-black/5">
+          <div className="overflow-x-auto">
+            {visibleLeads.map(renderLead)}
       </div>
     </div>
   </>

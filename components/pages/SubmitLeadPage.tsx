@@ -48,9 +48,23 @@ async function fileToPayload(file: File) {
   })
 }
 
+// the days a lead can be filed under: today and the 30 days before it (so a lead taken earlier lands in the right week)
+function lastDays(count: number) {
+  const out: { value: string; label: string }[] = []
+  const now = new Date()
+  for (let i = 0; i < count; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i)
+    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    const text = d.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' })
+    out.push({ value, label: i === 0 ? `Today, ${text}` : i === 1 ? `Yesterday, ${text}` : text })
+  }
+  return out
+}
+
 export default function SubmitLeadPage({ session, onDone }: { session: Session; onDone: () => void }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [dayOptions] = useState(() => lastDays(31))
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -64,6 +78,7 @@ export default function SubmitLeadPage({ session, onDone }: { session: Session; 
         customerName: g('customerName'), phone: g('phone'), place: g('place'),
         aadhaarNo: g('aadhaarNo'), address: g('address'),
         loanProduct: g('loanProduct'),
+        submittedDate: g('submittedDate') || undefined,
       }
       const photoFields = ['customerPhoto','aadhaarFront']
       for (const key of photoFields) {
@@ -106,6 +121,13 @@ export default function SubmitLeadPage({ session, onDone }: { session: Session; 
         {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">{error}</p>}
 
         <div className="grid gap-4 sm:grid-cols-2">
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-[#697586]">Lead day</span>
+            <select name="submittedDate" defaultValue={dayOptions[0].value}
+              className="w-full rounded-2xl border border-[#e5e7eb] bg-[#f4f5f7] px-4 py-3 text-sm outline-none focus:border-[#1a1a2e] focus:bg-white transition">
+              {dayOptions.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
+            </select>
+          </label>
           <label className="block">
             <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-[#697586]">Loan Product *</span>
             <select name="loanProduct" required

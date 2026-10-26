@@ -69,6 +69,7 @@ export const createLeadSchema = z.object({
   notes: z.string().optional(),
   guarantorId: z.string().optional(),
   pinnedLocation: z.string().optional(),
+  submittedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),   // the day the lead was taken (today or an earlier day)
   customerPhoto: z.string().optional(),
   aadhaarFront: z.string().optional(),
   aadhaarBack: z.string().optional(),
