@@ -57,6 +57,7 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
   const [loading, setLoading] = useState(true)
   const loadedOnce = useRef(false)
   const [tab, setTab] = useState<LeadTab>(isCollectionAgent ? 'history' : 'new')
+  const [progressView, setProgressView] = useState<'pending' | 'done'>('pending')   // guarantor In Progress: Not completed / Completed
   const [showSubmit, setShowSubmit] = useState(false)
   const [showRenewal, setShowRenewal] = useState(false)
   const [approving, setApproving] = useState<Lead | null>(null)
@@ -642,21 +643,29 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
         {visibleLeads.length === 0 && !(session.role === 'Guarantor' && tab === 'new') && <p className="p-8 text-center text-sm text-[#697586]">{tab === 'new' ? 'No new leads.' : 'No renewal requests yet.'}</p>}
         <div className="px-5 pb-4"><Pager page={page} totalPages={totalPages} total={totalLeads} noun="leads" pageSize={LEADS_PAGE} onPage={setPage} /></div>
         {session.role === 'Guarantor' && tab === 'new' ? (
-          // Guarantor: "Not completed" (waiting for the agent) and "Completed" (the agent has finished the verification)
-          [['Not completed', visibleLeads.filter(l => !DONE_STATUSES.includes(l.status)), 'bg-amber-100 text-amber-700'],
-           ['Completed', visibleLeads.filter(l => DONE_STATUSES.includes(l.status)), 'bg-green-100 text-green-700']].map(([title, rows, pill]) => (
-            <section key={title as string} className="space-y-2">
-              <div className="flex items-center gap-2 px-1">
-                <h3 className="text-sm font-semibold">{title as string}</h3>
-                <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${pill}`}>{(rows as Lead[]).length}</span>
-              </div>
-              <div className="overflow-hidden rounded-[1.75rem] border border-white/70 bg-white shadow-panel divide-y divide-black/5">
-                {(rows as Lead[]).length === 0
-                  ? <p className="p-5 text-center text-xs text-[#697586]">{title === 'Completed' ? 'Nothing completed yet.' : 'Nothing waiting.'}</p>
-                  : (rows as Lead[]).map(renderLead)}
-              </div>
-            </section>
-          ))
+          // Guarantor: two tabs side by side. "Not completed" = waiting for the agent; "Completed" = the agent has finished the verification
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-2 rounded-2xl bg-white p-1.5 shadow-panel">
+              {([['pending', 'Not completed', visibleLeads.filter(l => !DONE_STATUSES.includes(l.status)).length, 'bg-amber-100 text-amber-700'],
+                 ['done', 'Completed', visibleLeads.filter(l => DONE_STATUSES.includes(l.status)).length, 'bg-green-100 text-green-700']] as const).map(([key, title, n, pill]) => (
+                <button key={key} onClick={() => setProgressView(key)}
+                  className={`flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${progressView === key ? 'bg-[#1a1a2e] text-white' : 'text-[#697586]'}`}>
+                  {title}
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${progressView === key ? 'bg-white/20 text-white' : pill}`}>{n}</span>
+                </button>
+              ))}
+            </div>
+            {(() => {
+              const rows = visibleLeads.filter(l => DONE_STATUSES.includes(l.status) === (progressView === 'done'))
+              return (
+                <div className="overflow-hidden rounded-[1.75rem] border border-white/70 bg-white shadow-panel divide-y divide-black/5">
+                  {rows.length === 0
+                    ? <p className="p-6 text-center text-sm text-[#697586]">{progressView === 'done' ? 'Nothing completed yet.' : 'Nothing waiting for the agent.'}</p>
+                    : rows.map(renderLead)}
+                </div>
+              )
+            })()}
+          </div>
         ) : (
         <div className="overflow-hidden rounded-[1.75rem] border border-white/70 bg-white shadow-panel divide-y divide-black/5">
           <div className="overflow-x-auto">

@@ -66,4 +66,4 @@ Statuses in the order the code uses them (enum `lead_status`, `supabase_schema.s
 - A guarantor picks a **Lead day** when submitting (today by default, or a weekday up to the end of next week, so a lead taken late in the week is filed on next week; the server accepts up to 14 days ahead) so a lead taken earlier lands in the right week. Field: `submittedDate`.
 - On phones the Leads tabs scroll sideways in one row, short labels ("Renewal"), and the search/branch/delete controls stack.
 
-- Guarantor "In Progress" page now has two sections under the New Lead / Renewal buttons: **Not completed** (Pending, Agent Assigned) and **Completed** (agent submitted the verification, or Approved). A lead moves to Completed by itself when the agent finishes; Converted/Rejected go to History.
+- Guarantor "In Progress" page now has two side-by-side tabs under the New Lead / Renewal buttons (tap one to show only that list): **Not completed** (Pending, Agent Assigned) and **Completed** (agent submitted the verification, or Approved). A lead moves to Completed by itself when the agent finishes; Converted/Rejected go to History.
