@@ -7,7 +7,7 @@ import { fetchRoads } from '@/lib/clientRoads'
 import { ALT_PHONE_LABELS } from '@/lib/phone'
 
 type Stop = {
-  leadId: string; customerName: string; phone: string; altPhone: string; altPhoneLabel: string; place: string; address: string; landmark: string; status: string; submittedDate: string
+  leadId: string; customerName: string; phone: string; altPhone: string; altPhoneLabel: string; place: string; address: string; landmark: string; houseName: string; status: string; submittedDate: string
   guarantorName: string; branchId: string; branchName: string; agentId: string
   visitLat: number | null; visitLng: number | null; visitPlace: string; visitDate: string; visitWindow: string; visitNote: string
   callOutcome: string; visitStatus: string; seq: number | null; pin: string; legKm: number | null; legMin: number | null
@@ -73,11 +73,13 @@ export default function VisitRoutesPage({ session }: { session: Session }) {
 
   useEffect(() => { load() }, [load])
 
-  async function act(label: string, body: Record<string, unknown>, okMsg: string) {
+  async function act(label: string, body: Record<string, unknown>, okMsg: string): Promise<boolean> {
     setBusy(label)
-    try { await api(session, '/api/routes', body); flash(okMsg); await load(true) }
+    let done = false
+    try { await api(session, '/api/routes', body); flash(okMsg); await load(true); done = true }
     catch (e) { flash(e instanceof Error ? e.message : 'Failed') }
     setBusy('')
+    return done
   }
 
   if (error && !board) return <div className={card}><p className="text-sm text-red-600">{error}</p></div>
@@ -136,6 +138,46 @@ export default function VisitRoutesPage({ session }: { session: Session }) {
 }
 
 // ─── A lead waiting for the phone call / location ────────────────────────────
+
+// Edit a planned stop in place: phone numbers, location and the other details the agent needs
+function StopEditor({ s, busy, onSave }: { s: Stop; busy: string; onSave: (b: Record<string, unknown>) => Promise<void> | void }) {
+  const [name, setName] = useState(s.customerName)
+  const [phone, setPhone] = useState(s.phone)
+  const [altLabel, setAltLabel] = useState(s.altPhoneLabel || 'Husband')
+  const [altPhone, setAltPhone] = useState(s.altPhone)
+  const [link, setLink] = useState('')
+  const [place, setPlace] = useState(s.visitPlace || s.place)
+  const [house, setHouse] = useState(s.houseName)
+  const [address, setAddress] = useState(s.address)
+  const [landmark, setLandmark] = useState(s.landmark)
+  const [note, setNote] = useState(s.visitNote)
+  const lab = 'text-xs font-semibold uppercase tracking-wider text-soft'
+  return (
+    <div className="mt-3 space-y-3 border-t border-black/5 pt-3">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className={lab}>Customer name<input value={name} onChange={e => setName(e.target.value)} className={`${input} mt-1`} /></label>
+        <label className={lab}>Phone number<input value={phone} onChange={e => setPhone(e.target.value)} inputMode="tel" data-no-upper className={`${input} mt-1`} /></label>
+        <label className={lab}>Another contact: whose number
+          <select value={altLabel} onChange={e => setAltLabel(e.target.value)} className={`${input} mt-1`}>{ALT_PHONE_LABELS.map(o => <option key={o} value={o}>{o}</option>)}</select>
+        </label>
+        <label className={lab}>Their phone number<input value={altPhone} onChange={e => setAltPhone(e.target.value)} inputMode="tel" placeholder="10-digit mobile (empty to remove)" data-no-upper className={`${input} mt-1`} /></label>
+      </div>
+      <label className={`${lab} block`}>New location (Google Maps link or lat,lng). Leave empty to keep the current one
+        <input value={link} onChange={e => setLink(e.target.value)} placeholder="Paste the link the customer sends" data-no-upper className={`${input} mt-1`} />
+      </label>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className={lab}>Place name<input value={place} onChange={e => setPlace(e.target.value)} className={`${input} mt-1`} /></label>
+        <label className={lab}>House name<input value={house} onChange={e => setHouse(e.target.value)} className={`${input} mt-1`} /></label>
+        <label className={lab}>Address<input value={address} onChange={e => setAddress(e.target.value)} className={`${input} mt-1`} /></label>
+        <label className={lab}>Landmark<input value={landmark} onChange={e => setLandmark(e.target.value)} className={`${input} mt-1`} /></label>
+      </div>
+      <label className={`${lab} block`}>Note for the agent<input value={note} onChange={e => setNote(e.target.value)} className={`${input} mt-1`} /></label>
+      <button disabled={busy === `visit${s.leadId}`} onClick={() => onSave({ customerName: name, phone, altPhone, altPhoneLabel: altPhone ? altLabel : '', mapsLink: link, place, houseName: house, address, landmark, note })} className={`${btn} w-full bg-gold text-[#1a1400]`}>
+        {busy === `visit${s.leadId}` ? 'Saving…' : 'Save details'}
+      </button>
+    </div>
+  )
+}
 
 function PlanCard({ s, board, date, busy, onSave, onAssign }: {
   s: Stop; board: Board; date: string; busy: string
@@ -248,10 +290,11 @@ function PlanCard({ s, board, date, busy, onSave, onAssign }: {
 
 function RouteCard({ r, board, date, busy, session, act, startOpen }: {
   r: AgentRoute; board: Board; date: string; busy: string; session: Session; startOpen: boolean
-  act: (label: string, body: Record<string, unknown>, okMsg: string) => Promise<void>
+  act: (label: string, body: Record<string, unknown>, okMsg: string) => Promise<boolean>
 }) {
   const [order, setOrder] = useState<string[]>(r.stops.map(s => s.leadId))
   const [dragging, setDragging] = useState('')
+  const [editing, setEditing] = useState('')
   const rows = useRef<Record<string, HTMLDivElement | null>>({})
   const startOrder = useRef('')
   const [open, setOpen] = useState(startOpen)
@@ -392,8 +435,12 @@ function RouteCard({ r, board, date, busy, session, act, startOpen }: {
                   {board.routes.filter(x => x.agentId !== r.agentId).map(x => <option key={x.agentId} value={x.agentId}>{x.name}</option>)}
                 </select>
                 <a href={`https://www.google.com/maps?q=${s.visitLat},${s.visitLng}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-semibold text-blue-700"><Navigation className="h-3 w-3" />Map</a>
+                <button onClick={() => setEditing(editing === s.leadId ? '' : s.leadId)} className="font-semibold text-blue-700">{editing === s.leadId ? 'Close edit' : 'Edit details'}</button>
                 <button onClick={() => act(`un${s.leadId}`, { action: 'unplan', leadId: s.leadId }, 'Removed from the route')} className="ml-auto inline-flex items-center gap-1 font-semibold text-red-600"><X className="h-3 w-3" />Remove</button>
               </div>
+            )}
+            {editing === s.leadId && !s.done && (
+              <StopEditor s={s} busy={busy} onSave={b => act(`visit${s.leadId}`, { action: 'setVisit', leadId: s.leadId, ...b }, 'Details saved').then(ok => { if (ok) setEditing('') })} />
             )}
           </div>
         ))}

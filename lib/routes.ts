@@ -329,6 +329,7 @@ export async function board(session: Session, q: { branchId?: string; date?: str
 
 export async function setVisit(session: Session, b: {
   leadId: string; mapsLink?: string; lat?: number; lng?: number; place?: string; altPhone?: string; altPhoneLabel?: string; date?: string; window?: string; note?: string; callOutcome?: string
+  customerName?: string; phone?: string; address?: string; landmark?: string; houseName?: string
 }) {
   const a = await getRouteAccess(session); needPlanner(a); const cfg = await requireEnabled()
   const lead = await loadLead(b.leadId)
@@ -352,6 +353,20 @@ export async function setVisit(session: Session, b: {
       patch.alt_phone = m; patch.alt_phone_label = String(b.altPhoneLabel || 'Other').trim().slice(0, 30) || 'Other'
     }
   }
+  // details of the customer itself (the planner can correct what was typed in the lead)
+  if (b.phone !== undefined) {
+    const m = normalizeIndianMobile(String(b.phone).trim())
+    if (!m) throw new RouteError('The phone number must be a valid 10-digit mobile number')
+    patch.phone = m
+  }
+  if (b.customerName !== undefined) {
+    const n = String(b.customerName).trim().slice(0, 120)
+    if (!n) throw new RouteError('The customer name cannot be empty')
+    patch.customer_name = n
+  }
+  if (b.address !== undefined) patch.address = String(b.address).trim().slice(0, 300) || null
+  if (b.landmark !== undefined) patch.landmark = String(b.landmark).trim().slice(0, 200) || null
+  if (b.houseName !== undefined) patch.house_name = String(b.houseName).trim().slice(0, 120) || null
   if (b.place !== undefined) patch.visit_place = String(b.place).trim().slice(0, 120) || null
   if (b.note !== undefined) patch.visit_note = String(b.note).trim().slice(0, 500) || null
   if (b.date !== undefined) {
