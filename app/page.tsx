@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import Login from '@/components/Login'
 import AppShell from '@/components/AppShell'
+import SplashLogo from '@/components/SplashLogo'
 import { Session } from '@/types'
 
 function AttendanceModal({ session, onDone }: { session: Session; onDone: () => void }) {
@@ -134,6 +135,7 @@ export default function Home() {
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
   const [showAttendance, setShowAttendance] = useState(false)
+  const [splash, setSplash] = useState(false)   // animated logo for a moment right after signing in
 
   useEffect(() => {
     let cancelled = false
@@ -162,6 +164,8 @@ export default function Home() {
 
   const onLogin = (s: Session) => {
     localStorage.setItem('ngf_token', s.token)
+    setSplash(true)
+    setTimeout(() => setSplash(false), 3200)
     if (s.role === 'NGF AGENT') {
       setShowAttendance(true)
     } else {
@@ -219,8 +223,8 @@ export default function Home() {
       }
       return null
     })()
-    if (tempSession) return <AttendanceModal session={tempSession} onDone={onAttendanceDone} />
+    if (tempSession) return <>{splash && <SplashLogo overlay />}<AttendanceModal session={tempSession} onDone={onAttendanceDone} /></>
   }
   
-  return <AppShell session={session!} onLogout={onLogout} />
+  return <>{splash && <SplashLogo overlay />}<AppShell session={session!} onLogout={onLogout} /></>
 }
