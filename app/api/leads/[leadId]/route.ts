@@ -43,6 +43,16 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
   const { action } = rawBody
 
   if (action === 'update') {
+    // The edit form sends every box, with spaces, upper-case words or nothing at all: tidy that up so one odd box does not reject the whole save
+    for (const k of Object.keys(rawBody)) if (typeof rawBody[k] === 'string') { rawBody[k] = rawBody[k].trim(); if (!rawBody[k]) delete rawBody[k] }
+    if (rawBody.aadhaarNo) rawBody.aadhaarNo = String(rawBody.aadhaarNo).replace(/\D/g, '')
+    if (rawBody.riskLevel) rawBody.riskLevel = String(rawBody.riskLevel).charAt(0).toUpperCase() + String(rawBody.riskLevel).slice(1).toLowerCase()
+    for (const k of ['phone', 'nomineePhone'] as const) {
+      if (!rawBody[k]) continue
+      const m = normalizeIndianMobile(rawBody[k])
+      if (!m) return err(`${k === 'phone' ? 'Phone' : 'Nominee phone'} must be a valid 10-digit mobile number`, 400)
+      rawBody[k] = m
+    }
     const validation = updateLeadSchema.safeParse(rawBody)
     if (!validation.success) {
       const errors = validation.error.issues.map(e => `${e.path.join('.')}: ${e.message}`).join('; ')

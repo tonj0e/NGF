@@ -242,10 +242,14 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
     const fields = ['customerName','phone','aadhaarNo','address','houseName','place','landmark','nomineeName','nomineePhone','occupation','panNo','chequeNumber','riskLevel']
     const payload: any = { action: 'update' }
     fields.forEach(k => { const el = f.elements.namedItem(k) as HTMLInputElement; if (el) payload[k] = el.value })
-    await fetch(`/api/leads/${detail!.leadId}`, {
+    const res = await fetch(`/api/leads/${detail!.leadId}`, {
       method: 'PATCH', headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     })
+    const out = await res.json().catch(() => null)
+    if (!res.ok || out?.success === false) { showToast(out?.error || 'Could not save. Please check the details and try again.'); return }
+    // show the saved values straight away (the detail view is a copy taken when the lead was opened)
+    setDetail(d => d ? { ...d, ...Object.fromEntries(fields.filter(k => payload[k]).map(k => [k, k === 'riskLevel' ? payload[k].charAt(0).toUpperCase() + payload[k].slice(1).toLowerCase() : payload[k]])) } : d)
     showToast('Saved.'); setEditing(false); load()
   }
 
