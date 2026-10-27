@@ -54,8 +54,16 @@ export const GET = apiHandler(async (req: NextRequest) => {
     t === 'new' ? qb.not('status', 'in', HISTORY).neq('loan_product', 'RENEWAL')
     : t === 'history' ? qb.in('status', ['Converted', 'Rejected']).neq('loan_product', 'RENEWAL')
     : t === 'renewal' ? qb.eq('loan_product', 'RENEWAL') : qb
+  // New Leads is split in three: not yet assigned, with an agent, and verified (waiting for the decision)
+  const STAGE_ASSIGNED = ['Agent Assigned', 'Verification In Progress'], STAGE_DONE = ['Verification Submitted', 'Approved']
+  const inStage = (qb: any, s: string) =>
+    s === 'assigned' ? qb.in('status', STAGE_ASSIGNED)
+    : s === 'completed' ? qb.in('status', STAGE_DONE)
+    : s === 'new' ? qb.not('status', 'in', `(${['Converted', 'Rejected', ...STAGE_ASSIGNED, ...STAGE_DONE].join(',')})`) : qb
+  const stage = tab === 'new' ? (searchParams.get('stage') || '') : ''
   const filters = (qb: any) => {
     let q = inTab(scoped(qb), tab)
+    if (stage) q = inStage(q, stage)
     if (status) q = q.eq('status', status)
     if (cheque) q = q.neq('cheque_number', '').not('cheque_number', 'is', null).in('status', ['Approved', 'Converted'])
     if (branch && branch !== 'none') q = q.in('guarantor_id', activeLinks.filter(x => x['Branch ID'] === branch).map(x => x['Guarantor ID']).concat('__none__'))
@@ -87,6 +95,8 @@ export const GET = apiHandler(async (req: NextRequest) => {
     Promise.all([
       countRows('Leads', qb => inTab(scoped(qb), 'new')), countRows('Leads', qb => inTab(scoped(qb), 'history')),
       countRows('Leads', qb => inTab(scoped(qb), 'renewal')), countRows('Leads', qb => scoped(qb).eq('status', 'Approved')),
+      countRows('Leads', qb => inStage(inTab(scoped(qb), 'new'), 'new')), countRows('Leads', qb => inStage(inTab(scoped(qb), 'new'), 'assigned')),
+      countRows('Leads', qb => inStage(inTab(scoped(qb), 'new'), 'completed')),
     ]),
   ])
   const gById = new Map(guarantors.map(g => [g['Guarantor ID'], g]))
@@ -133,7 +143,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
   return ok({
     rows: enriched,
     pagination: { page: r.page, pageSize: r.pageSize, total: r.total, totalPages: Math.ceil(r.total / r.pageSize) },
-    counts: { new: counts[0], history: counts[1], renewal: counts[2], approved: counts[3] },
+    counts: { new: counts[0], history: counts[1], renewal: counts[2], approved: counts[3], stageNew: counts[4], stageAssigned: counts[5], stageCompleted: counts[6] },
     branches: visibleBranches,
   })
 })

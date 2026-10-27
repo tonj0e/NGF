@@ -75,7 +75,8 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
   const [page, setPage] = useState(1)
   const [totalLeads, setTotalLeads] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
-  const [counts, setCounts] = useState({ new: 0, history: 0, renewal: 0, approved: 0 })
+  const [counts, setCounts] = useState({ new: 0, history: 0, renewal: 0, approved: 0, stageNew: 0, stageAssigned: 0, stageCompleted: 0 })
+  const [stage, setStage] = useState<'new' | 'assigned' | 'completed'>('new')
   const [branchList, setBranchList] = useState<{ branchId: string; name: string }[]>([])
   const [search, setSearch] = useState('')
   const LEADS_PAGE = 20
@@ -112,12 +113,12 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
   }
 
   // the current tab, page, search and branch, read at call time so the 15-second refresh never uses stale values
-  const queryRef = useRef({ tab: 'new', page: 1, q: '', branch: '' })
+  const queryRef = useRef({ tab: 'new', page: 1, q: '', branch: '', stage: '' })
   const loadSeq = useRef(0)
   async function loadLeads() {
     const seq = ++loadSeq.current
-    const { tab: t, page: p, q, branch } = queryRef.current
-    const url = `/api/leads?tab=${t === 'disbursements' ? 'new' : t}&page=${p}&pageSize=${LEADS_PAGE}&q=${encodeURIComponent(q.trim())}&branch=${encodeURIComponent(branch)}`
+    const { tab: t, page: p, q, branch, stage: sg } = queryRef.current
+    const url = `/api/leads?tab=${t === 'disbursements' ? 'new' : t}&page=${p}&pageSize=${LEADS_PAGE}&q=${encodeURIComponent(q.trim())}&branch=${encodeURIComponent(branch)}${sg ? `&stage=${sg}` : ''}`
     const res = await fetch(url, { headers: { Authorization: `Bearer ${session.token}` } })
     const json = await res.json()
     if (seq !== loadSeq.current || !json.success) return   // a newer request replaced this one
@@ -143,14 +144,14 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
   useEffect(() => { load(true) }, [])
 
   // a new tab, search or branch starts again at page 1; the search is sent after a short pause
-  useEffect(() => { setPage(1) }, [tab, search, branchFilter])
+  useEffect(() => { setPage(1) }, [tab, search, branchFilter, stage])
   useEffect(() => {
-    queryRef.current = { tab, page, q: search, branch: branchFilter }
+    queryRef.current = { tab, page, q: search, branch: branchFilter, stage: isManager && tab === 'new' ? stage : '' }
     if (!loadedOnce.current) return   // the first load is done above
     const t = setTimeout(() => { loadLeads() }, search ? 300 : 0)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, page, search, branchFilter])
+  }, [tab, page, search, branchFilter, stage])
 
   // Memoize idle state to avoid dependency array churn
   const isIdle = useMemo(() => !(
@@ -473,7 +474,7 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
               <div key={l.leadId || i}
                 onClick={() => deleteMode && toggleSelect(l.leadId)}
                 className={`p-4 sm:p-5 transition ${deleteMode ? 'cursor-pointer' : ''} ${selected.has(l.leadId) ? 'bg-red-50' : ''}`}>
-                <div className="flex items-start justify-between gap-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               {deleteMode && (
                 <div className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${selected.has(l.leadId) ? 'border-red-500 bg-red-500' : 'border-line'}`}>
                   {selected.has(l.leadId) && <span className="text-white text-[10px] font-bold">✓</span>}
@@ -482,7 +483,7 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
               {/* Left: customer info */}
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="font-semibold text-sm">{l.customerName}</p>
+                  <p className="break-words text-sm font-semibold">{l.customerName}</p>
                   <StatusPill status={l.status} />
                   {isManager && <span className="rounded-lg bg-sky-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-sky-700">{l.branchName || 'No branch'}</span>}
                 </div>
@@ -503,11 +504,11 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
                 }
               </div>
               {/* Right: actions */}
-              {!deleteMode && <div className="flex flex-wrap items-center justify-end gap-2">
+              {!deleteMode && <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                 {session.role !== 'Guarantor' && <button onClick={() => setDetail(l)} className="rounded-xl border border-line px-3 py-1.5 text-xs font-semibold">View</button>}
                 {isManager && <button onClick={() => printNote(l)} className="rounded-xl border border-line px-3 py-1.5 text-xs font-semibold">Print Note</button>}
                 {isManager && can('leadsApprove') && l.loanProduct === 'RENEWAL' && l.status === 'Pending' && (
-                  <span>
+                  <span className="inline-flex flex-wrap items-center gap-2">
                     <button onClick={() => setApproving(l)} disabled={busy !== null}
                       className="flex items-center justify-center gap-1.5 rounded-xl bg-green-600 px-4 py-1.5 text-xs font-semibold text-white disabled:opacity-60">
                       Approve (OTP)
@@ -518,7 +519,7 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
                 )}
                 {isManager && can('leadsAssign') && l.loanProduct !== 'RENEWAL' && l.status === 'Pending' && (
                   agents.length > 0 ? (
-                    <span>
+                    <span className="inline-flex flex-wrap items-center gap-2">
                       <select key={l.leadId+'-sel'} defaultValue=""
                         onChange={e => { const v = e.target.value; if (v) assignFromTable(l.leadId, v) }}
                         className="rounded-xl border border-line bg-white px-2 py-1.5 text-xs max-w-[130px]">
@@ -530,7 +531,7 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
                   ) : <span className="rounded-xl border border-orange-200 bg-orange-50 px-2 py-1 text-[10px] text-orange-600">No agents yet</span>
                 )}
                 {isManager && can('leadsAssign') && l.status === 'Agent Assigned' && agents.length > 0 && (
-                  <span>
+                  <span className="inline-flex flex-wrap items-center gap-2">
                     <select key={l.leadId+'-re'} defaultValue=""
                       onChange={e => { const v = e.target.value; if (v) assignFromTable(l.leadId, v) }}
                       className="rounded-xl border border-line bg-white px-2 py-1.5 text-xs max-w-[130px]">
@@ -541,7 +542,7 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
                   </span>
                 )}
                 {isManager && can('leadsApprove') && l.status === 'Verification Submitted' && (
-                  <span>
+                  <span className="inline-flex flex-wrap items-center gap-2">
                     <button onClick={() => review(l.leadId, 'Approve Loan')} disabled={busy !== null}
                       className="flex w-24 items-center justify-center gap-1.5 rounded-xl bg-ink px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60">
                       {busy === l.leadId + 'Approve Loan' ? <span><span className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />...</span> : 'Approve'}
@@ -641,11 +642,24 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
           )}
         </div>
       )}
+      {isManager && tab === 'new' && (
+        <div className="grid grid-cols-3 gap-2 rounded-2xl bg-white p-1.5 shadow-panel">
+          {([['new', 'New leads', counts.stageNew, 'bg-amber-100 text-amber-700'],
+             ['assigned', 'Assigned leads', counts.stageAssigned, 'bg-blue-100 text-blue-700'],
+             ['completed', 'Completed leads', counts.stageCompleted, 'bg-green-100 text-green-700']] as const).map(([key, title, n, pill]) => (
+            <button key={key} onClick={() => setStage(key)}
+              className={`flex flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-xl px-2 py-2.5 text-[13px] font-semibold transition sm:text-sm ${stage === key ? 'bg-ink text-white' : 'text-soft'}`}>
+              {title}
+              <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${stage === key ? 'bg-white/20 text-white' : pill}`}>{n}</span>
+            </button>
+          ))}
+        </div>
+      )}
       {tab === 'disbursements' ? <DisbursementsView session={session} /> : tab === 'history' ? (
         <LeadsHistoryWeeks session={session} search={search} branch={branchFilter} version={counts.history} renderLead={renderLead} />
       ) : (
       <>
-        {visibleLeads.length === 0 && !(session.role === 'Guarantor' && tab === 'new') && <p className="p-8 text-center text-sm text-soft">{tab === 'new' ? 'No new leads.' : 'No renewal requests yet.'}</p>}
+        {visibleLeads.length === 0 && !(session.role === 'Guarantor' && tab === 'new') && <p className="p-8 text-center text-sm text-soft">{tab === 'new' ? (isManager ? (stage === 'assigned' ? 'No assigned leads.' : stage === 'completed' ? 'No completed leads.' : 'No new leads.') : 'No new leads.') : 'No renewal requests yet.'}</p>}
         <div className="px-5 pb-4"><Pager page={page} totalPages={totalPages} total={totalLeads} noun="leads" pageSize={LEADS_PAGE} onPage={setPage} /></div>
         {session.role === 'Guarantor' && tab === 'new' ? (
           // Guarantor: two tabs side by side. "Not completed" = waiting for the agent; "Completed" = the agent has finished the verification
