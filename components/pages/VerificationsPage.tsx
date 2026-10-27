@@ -335,16 +335,18 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
           </div>
         </div>
       ) : (
+        <div>
+        {/* stays pinned at the top of the scrolling page area while the form scrolls */}
+        <div className="sticky top-0 z-10 -mx-1 mb-3 flex items-center justify-between gap-2 rounded-2xl border border-line bg-white/95 px-3 py-2 shadow-sm backdrop-blur">
+          <button type="button" onClick={() => { setActive(null); setPreviews({}); setPhotoFiles({}); if (embedded) onClose?.() }} className="rounded-2xl border border-line bg-white px-4 py-2 text-sm font-semibold">← Back</button>
+          <NetworkLight status={net} compact />
+        </div>
         <div className="rounded-[1.75rem] border border-white/70 bg-white shadow-panel">
           <div className="border-b border-black/5 px-6 py-5">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xl font-semibold">{active.customerName}</p>
                 <p className="mt-1 text-sm text-soft">{active.phone}{active.altPhone ? <> &bull; {active.altPhoneLabel || 'Other'}: {active.altPhone}</> : null} &bull; {active.leadId}</p>
-              </div>
-              <div className="flex flex-wrap items-center justify-end gap-2">
-                <NetworkLight status={net} compact />
-                <button onClick={() => { setActive(null); setPreviews({}); setPhotoFiles({}); if (embedded) onClose?.() }} className="rounded-2xl border border-line px-4 py-2 text-sm font-semibold">Back</button>
               </div>
             </div>
           </div>
@@ -456,6 +458,7 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
               </button>
             </div>
           </form>
+        </div>
         </div>
       )}
 

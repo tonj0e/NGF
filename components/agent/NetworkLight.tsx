@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 // Green / orange / red light for field agents: can this phone send a verification (details + photos) right now?
 // It times a tiny request and a small upload to our own server every few seconds, so it reflects the real
@@ -32,40 +32,67 @@ async function timed(url: string, init: RequestInit, timeoutMs: number): Promise
   } catch { return null } finally { clearTimeout(timer) }
 }
 
-export function useNetworkLight(everyMs = 8000): NetStatus & { recheck: () => void } {
-  const [st, setSt] = useState<NetStatus>({ level: 'checking', latencyMs: null, upKbps: null })
-  const busy = useRef(false)
-  const body = useRef<Blob | null>(null)
+// One shared check for the whole app: the header light and the verification form read the same answer, and the
+// phone is tested once per interval however many lights are on screen.
+type Listener = () => void
+const listeners = new Set<Listener>()
+let current: NetStatus = { level: 'checking', latencyMs: null, upKbps: null }
+let timer: ReturnType<typeof setInterval> | null = null
+let busy = false
+let body: Blob | null = null
 
-  async function check() {
-    if (busy.current) return
-    busy.current = true
-    try {
-      if (!navigator.onLine) { setSt({ level: 'offline', latencyMs: null, upKbps: null }); return }
-      const rtt = await timed('/api/ping', {}, 6000)
-      if (rtt === null) { setSt({ level: navigator.onLine ? 'poor' : 'offline', latencyMs: null, upKbps: null }); return }
-      let up: number | null = null
-      // upload test only when the connection is not already obviously bad (it would just waste a bad connection)
-      if (rtt < AVERAGE_RTT) {
-        if (!body.current) body.current = new Blob([new Uint8Array(PROBE_BYTES)])
-        const ms = await timed('/api/ping', { method: 'POST', body: body.current, headers: { 'Content-Type': 'application/octet-stream' } }, 8000)
-        up = ms === null ? 0 : Math.round((PROBE_BYTES * 8) / 1000 / Math.max(0.05, (ms - rtt * 0.5) / 1000))
-      }
-      setSt({ level: classify(rtt, up), latencyMs: Math.round(rtt), upKbps: up })
-    } finally { busy.current = false }
+function publish(st: NetStatus) { current = st; listeners.forEach(l => l()) }
+
+export async function recheckNetwork() {
+  if (busy) return
+  busy = true
+  try {
+    if (!navigator.onLine) { publish({ level: 'offline', latencyMs: null, upKbps: null }); return }
+    const rtt = await timed('/api/ping', {}, 6000)
+    if (rtt === null) { publish({ level: navigator.onLine ? 'poor' : 'offline', latencyMs: null, upKbps: null }); return }
+    let up: number | null = null
+    // upload test only when the connection is not already obviously bad (it would just waste a bad connection)
+    if (rtt < AVERAGE_RTT) {
+      if (!body) body = new Blob([new Uint8Array(PROBE_BYTES)])
+      const ms = await timed('/api/ping', { method: 'POST', body, headers: { 'Content-Type': 'application/octet-stream' } }, 8000)
+      up = ms === null ? 0 : Math.round((PROBE_BYTES * 8) / 1000 / Math.max(0.05, (ms - rtt * 0.5) / 1000))
+    }
+    publish({ level: classify(rtt, up), latencyMs: Math.round(rtt), upKbps: up })
+  } finally { busy = false }
+}
+
+const onOnline = () => { recheckNetwork() }
+const onOffline = () => publish({ level: 'offline', latencyMs: null, upKbps: null })
+
+function subscribe(l: Listener) {
+  listeners.add(l)
+  if (listeners.size === 1) {
+    recheckNetwork()
+    timer = setInterval(recheckNetwork, 8000)
+    window.addEventListener('online', onOnline)
+    window.addEventListener('offline', onOffline)
   }
+  return () => {
+    listeners.delete(l)
+    if (listeners.size === 0) {
+      if (timer) clearInterval(timer)
+      timer = null
+      window.removeEventListener('online', onOnline)
+      window.removeEventListener('offline', onOffline)
+    }
+  }
+}
 
-  useEffect(() => {
-    check()
-    const id = setInterval(check, everyMs)
-    const on = () => check()
-    const off = () => setSt({ level: 'offline', latencyMs: null, upKbps: null })
-    window.addEventListener('online', on)
-    window.addEventListener('offline', off)
-    return () => { clearInterval(id); window.removeEventListener('online', on); window.removeEventListener('offline', off) }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+export function useNetworkLight(): NetStatus & { recheck: () => void } {
+  const [st, setSt] = useState<NetStatus>(current)
+  useEffect(() => { setSt(current); return subscribe(() => setSt(current)) }, [])
+  return { ...st, recheck: recheckNetwork }
+}
 
-  return { ...st, recheck: check }
+// The light as it sits in the page header (always visible for field agents)
+export function HeaderNetworkLight() {
+  const net = useNetworkLight()
+  return <NetworkLight status={net} compact />
 }
 
 const LOOK: Record<NetLevel, { dot: string; text: string; label: string; hint: string }> = {

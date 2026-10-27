@@ -11,6 +11,7 @@ import { Menu, X, Bell, User, LogOut, LayoutDashboard, Users, FileText, Truck, B
 import Dashboard from './pages/Dashboard'
 const LeadsPage = dynamic(() => import('./pages/LeadsPage'), { loading: () => <PageLoading /> })
 import InstallAppButton from './InstallAppButton'
+import { HeaderNetworkLight } from './agent/NetworkLight'
 import { hasAnyLead, hasAnyCustomer, hasAnyCollection } from '@/lib/features'
 const StaffPage = dynamic(() => import('./pages/StaffPage'), { loading: () => <PageLoading /> })
 const RepayPage = dynamic(() => import('./pages/RepayPage'), { loading: () => <PageLoading /> })
@@ -505,6 +506,7 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
                   </DropdownMenu>
                 </div>
               </div>
+            {session.role === 'NGF AGENT' && <div className="flex justify-end border-t border-line/60 px-3 py-1.5"><HeaderNetworkLight /></div>}
             </header>
 
             {/* Desktop Header */}
@@ -565,6 +567,7 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
                   </DropdownMenu>
                 </div>
               </div>
+            {session.role === 'NGF AGENT' && <div className="flex justify-end border-t border-line/60 px-3 py-1.5"><HeaderNetworkLight /></div>}
             </header>
             <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 lg:px-8 pb-8 md:pb-4 lg:pb-0">
               {renderPage()}
