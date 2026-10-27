@@ -24,6 +24,7 @@ export function parseLatLng(text: string): LatLng | null {
   const patterns = [
     /!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/,           // place pin inside data=
     /@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/,               // map centre
+    /\/maps\/(?:search|place|dir)\/(?:[^/?]*\/)?(-?\d+\.\d+)[, +]+(-?\d+\.\d+)(?:[/?#]|$)/, // short links now open /maps/search/9.87,+76.32
     /[?&](?:q|ll|query|destination|daddr|center)=(-?\d+(?:\.\d+)?)[, +]+(-?\d+(?:\.\d+)?)/,
     /^(-?\d+(?:\.\d+)?)\s*[, ]\s*(-?\d+(?:\.\d+)?)$/,     // bare "10.12, 76.34"
   ]
