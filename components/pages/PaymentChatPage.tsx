@@ -92,7 +92,7 @@ function Thumb({ session, url }: { session: Session; url: string }) {
   return (
     <>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={src} alt="Payment screenshot" onClick={() => setBig(true)} className="max-h-56 w-auto cursor-zoom-in rounded-xl border border-[#e5e7eb] object-contain" />
+      <img src={src} alt="Payment screenshot" onClick={() => setBig(true)} className="max-h-56 w-auto cursor-zoom-in rounded-xl border border-line object-contain" />
       {big && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4" onClick={() => setBig(false)}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -110,8 +110,8 @@ function Bubble({ m, session, me, onFix, onApprove, busy }: { m: Msg; session: S
   if (m.kind === 'note') {
     return (
       <div className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-        <div className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-sm ${mine ? 'bg-[#1a1a2e] text-white' : 'bg-white ring-1 ring-black/5'}`}>
-          <p className={`text-[10px] font-semibold ${mine ? 'text-white/60' : 'text-[#697586]'}`}>{m.createdByName} · {when(m.createdAt)}</p>
+        <div className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-sm ${mine ? 'bg-ink text-white' : 'bg-white ring-1 ring-black/5'}`}>
+          <p className={`text-[10px] font-semibold ${mine ? 'text-white/60' : 'text-soft'}`}>{m.createdByName} · {when(m.createdAt)}</p>
           <p className="mt-0.5 whitespace-pre-wrap">{m.note}</p>
         </div>
       </div>
@@ -121,32 +121,32 @@ function Bubble({ m, session, me, onFix, onApprove, busy }: { m: Msg; session: S
     <div className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
       <div className="w-full max-w-[92%] space-y-2 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-black/5 sm:max-w-md">
         <div className="flex items-center justify-between gap-2">
-          <p className="text-[11px] font-semibold text-[#697586]">{m.createdByName} · {when(m.createdAt)} · {m.mode === 'multi' ? 'Multi payment' : 'Single payment'}</p>
+          <p className="text-[11px] font-semibold text-soft">{m.createdByName} · {when(m.createdAt)} · {m.mode === 'multi' ? 'Multi payment' : 'Single payment'}</p>
           <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-bold ring-1 ${TONE[m.status] || 'bg-gray-50 text-gray-600 ring-gray-200'}`}>{LABEL[m.status] || m.status}</span>
         </div>
         <Thumb session={session} url={m.imageUrl} />
         <div className="space-y-1">
           {m.lines.map(l => (
-            <div key={l.repaymentId} className="flex items-center justify-between gap-2 rounded-xl bg-[#f4f5f7] px-3 py-1.5 text-sm">
+            <div key={l.repaymentId} className="flex items-center justify-between gap-2 rounded-xl bg-mist px-3 py-1.5 text-sm">
               <span><b className="font-mono">{l.payCode}</b> · {l.name}</span><span className="font-semibold">{money(l.amount)}</span>
             </div>
           ))}
         </div>
         {(m.utr || m.amountRead != null) && (
-          <p className="text-xs text-[#697586]">
-            {m.manual ? 'Typed by the guarantor' : m.amountRead != null ? 'Read from screenshot' : 'Confirmed by the office'}: {m.amountRead != null && <b className="text-[#1a1a2e]">{money(m.amountRead)}</b>}{m.utr && <> · UTR <b className="font-mono text-[#1a1a2e]">{m.utr}</b></>}{m.txnDate && <> · {m.txnDate}{m.txnTime ? ` ${m.txnTime}` : ''}</>}{m.payApp && <> · {m.payApp}</>}
+          <p className="text-xs text-soft">
+            {m.manual ? 'Typed by the guarantor' : m.amountRead != null ? 'Read from screenshot' : 'Confirmed by the office'}: {m.amountRead != null && <b className="text-ink">{money(m.amountRead)}</b>}{m.utr && <> · UTR <b className="font-mono text-ink">{m.utr}</b></>}{m.txnDate && <> · {m.txnDate}{m.txnTime ? ` ${m.txnTime}` : ''}</>}{m.payApp && <> · {m.payApp}</>}
           </p>
         )}
         {m.problem && <p className={`rounded-xl px-3 py-2 text-sm ${m.needsFix ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-800'}`}>{m.problem}</p>}
         {m.needsFix && mine && (
           <div className="grid grid-cols-2 gap-2">
-            <button onClick={() => onFix(m, 'image')} className="rounded-xl bg-[#1a1a2e] px-3 py-2 text-xs font-semibold text-white">Send a new screenshot</button>
-            <button onClick={() => onFix(m, 'customer')} className="rounded-xl border border-[#e5e7eb] px-3 py-2 text-xs font-semibold">Change customer</button>
+            <button onClick={() => onFix(m, 'image')} className="rounded-xl bg-ink px-3 py-2 text-xs font-semibold text-white">Send a new screenshot</button>
+            <button onClick={() => onFix(m, 'customer')} className="rounded-xl border border-line px-3 py-2 text-xs font-semibold">Change customer</button>
           </div>
         )}
         {m.status === 'Pending Staff' && staffView && me.access.canChat && (
           <div className="flex gap-2">
-            <input value={utr} onChange={e => setUtr(e.target.value)} placeholder="Transaction ID from the screenshot" className="min-w-0 flex-1 rounded-xl border border-[#e5e7eb] px-3 py-2 text-xs font-mono" />
+            <input value={utr} onChange={e => setUtr(e.target.value)} placeholder="Transaction ID from the screenshot" className="min-w-0 flex-1 rounded-xl border border-line px-3 py-2 text-xs font-mono" />
             <button disabled={busy || !utr.trim()} onClick={() => onApprove(m, utr)} className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Record</button>
           </div>
         )}
@@ -257,7 +257,7 @@ export default function PaymentChatPage({ session, onOpenHistory }: { session: S
     catch (e) { flash(e instanceof Error ? e.message : 'Failed') }
   }
 
-  if (!me) return <div className="p-8 text-center text-sm text-[#697586]">{error || 'Loading…'}</div>
+  if (!me) return <div className="p-8 text-center text-sm text-soft">{error || 'Loading…'}</div>
 
   return (
     <div className="mx-auto flex h-[calc(100dvh-10rem)] min-h-[30rem] max-w-3xl flex-col gap-3">
@@ -266,7 +266,7 @@ export default function PaymentChatPage({ session, onOpenHistory }: { session: S
         <div className="flex justify-end"><button onClick={onOpenHistory} className="rounded-full bg-white px-4 py-2 text-xs font-semibold ring-1 ring-black/10">Payment history →</button></div>
       )}
       {!isG && (
-        <select value={gid} onChange={e => setGid(e.target.value)} className="rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2.5 text-sm">
+        <select value={gid} onChange={e => setGid(e.target.value)} className="rounded-2xl border border-line bg-white px-4 py-2.5 text-sm">
           <option value="">All guarantors</option>
           {me.guarantors.map(g => <option key={g.guarantorId} value={g.guarantorId}>{g.name} ({g.code})</option>)}
         </select>
@@ -274,7 +274,7 @@ export default function PaymentChatPage({ session, onOpenHistory }: { session: S
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto rounded-[1.75rem] bg-[#eef0f5] p-3 sm:p-4">
         {error && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
-        {!msgs.length && !error && <p className="py-10 text-center text-sm text-[#697586]">{isG ? 'No payments sent yet. Tap Single payment or Multi payment below.' : 'No screenshots yet.'}</p>}
+        {!msgs.length && !error && <p className="py-10 text-center text-sm text-soft">{isG ? 'No payments sent yet. Tap Single payment or Multi payment below.' : 'No screenshots yet.'}</p>}
         {msgs.map(m => <Bubble key={m.messageId} m={m} session={session} me={me} onFix={startFix} onApprove={approve} busy={busy} />)}
         <div ref={endRef} />
       </div>
@@ -284,15 +284,15 @@ export default function PaymentChatPage({ session, onOpenHistory }: { session: S
       <div className="space-y-2">
         {me.access.canChat && (isG || gid) && (
           <div className="grid grid-cols-2 gap-2">
-            <button disabled={openIssue && isG} onClick={() => startNew('single')} className="rounded-2xl bg-[#1a1a2e] px-4 py-3 text-sm font-semibold text-white disabled:opacity-40">Single payment</button>
-            <button disabled={openIssue && isG} onClick={() => startNew('multi')} className="rounded-2xl bg-[#f0b429] px-4 py-3 text-sm font-semibold text-[#1a1a2e] disabled:opacity-40">Multi payment</button>
+            <button disabled={openIssue && isG} onClick={() => startNew('single')} className="rounded-2xl bg-ink px-4 py-3 text-sm font-semibold text-white disabled:opacity-40">Single payment</button>
+            <button disabled={openIssue && isG} onClick={() => startNew('multi')} className="rounded-2xl bg-[#f0b429] px-4 py-3 text-sm font-semibold text-ink disabled:opacity-40">Multi payment</button>
           </div>
         )}
         {me.access.canChat === false && isG && <p className="rounded-2xl bg-amber-50 px-4 py-2 text-sm text-amber-800">The chat is not switched on for you yet. Ask an Admin to switch it on.</p>}
         {(isG || gid) && (
           <div className="flex gap-2">
-            <input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendNote()} placeholder="Write a message…" className="min-w-0 flex-1 rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2.5 text-sm" />
-            <button onClick={sendNote} className="rounded-2xl border border-[#e5e7eb] bg-white px-4 text-sm font-semibold">Send</button>
+            <input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendNote()} placeholder="Write a message…" className="min-w-0 flex-1 rounded-2xl border border-line bg-white px-4 py-2.5 text-sm" />
+            <button onClick={sendNote} className="rounded-2xl border border-line bg-white px-4 text-sm font-semibold">Send</button>
           </div>
         )}
       </div>
@@ -302,31 +302,31 @@ export default function PaymentChatPage({ session, onOpenHistory }: { session: S
           <div className="max-h-[92dvh] w-full max-w-lg space-y-3 overflow-y-auto rounded-t-[1.75rem] bg-white p-5 shadow-panel sm:rounded-[1.75rem]" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <p className="text-base font-semibold">{fixId ? 'Fix this payment' : mode === 'multi' ? 'Multi payment' : 'Single payment'}</p>
-              <button disabled={sending} onClick={() => setOpen(false)} className="text-sm text-[#697586]">Close</button>
+              <button disabled={sending} onClick={() => setOpen(false)} className="text-sm text-soft">Close</button>
             </div>
 
             {fixKind !== 'image' && (
               <div className="space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-wider text-[#697586]">{mode === 'multi' ? 'Customers (add each one)' : 'Customer'}</p>
-                <input autoFocus value={q} onChange={e => setQ(e.target.value)} inputMode="search" placeholder="Search the 4-digit ID or name" className="w-full rounded-2xl border border-[#e5e7eb] px-4 py-3 text-sm outline-none focus:border-[#1a1a2e]" />
+                <p className="text-xs font-semibold uppercase tracking-wider text-soft">{mode === 'multi' ? 'Customers (add each one)' : 'Customer'}</p>
+                <input autoFocus value={q} onChange={e => setQ(e.target.value)} inputMode="search" placeholder="Search the 4-digit ID or name" className="w-full rounded-2xl border border-line px-4 py-3 text-sm outline-none focus:border-ink" />
                 {(q.trim() || (mode === 'multi' && picked.length > 0) || !picked.length) && results.length > 0 && (
-                  <div className="max-h-48 overflow-y-auto rounded-2xl border border-[#e5e7eb]">
+                  <div className="max-h-48 overflow-y-auto rounded-2xl border border-line">
                     {results.map(r => (
-                      <button key={r.repaymentId} onClick={() => pick(r)} className="flex w-full items-center justify-between gap-2 border-b border-[#f0f1f4] px-4 py-2.5 text-left text-sm last:border-0 hover:bg-[#f4f5f7]">
-                        <span><b className="font-mono">{r.payCode}</b> · {r.name}<span className="ml-1 text-xs text-[#697586]">{r.weekNo ? `week ${r.weekNo}` : ''}{r.dueDate ? ` · due ${r.dueDate.slice(5).split('-').reverse().join('/')}` : ''}</span>{r.overdue && <span className="ml-1 text-xs text-red-600">overdue</span>}</span>
+                      <button key={r.repaymentId} onClick={() => pick(r)} className="flex w-full items-center justify-between gap-2 border-b border-[#f0f1f4] px-4 py-2.5 text-left text-sm last:border-0 hover:bg-mist">
+                        <span><b className="font-mono">{r.payCode}</b> · {r.name}<span className="ml-1 text-xs text-soft">{r.weekNo ? `week ${r.weekNo}` : ''}{r.dueDate ? ` · due ${r.dueDate.slice(5).split('-').reverse().join('/')}` : ''}</span>{r.overdue && <span className="ml-1 text-xs text-red-600">overdue</span>}</span>
                         <span className="font-semibold">{money(r.amount)}</span>
                       </button>
                     ))}
                   </div>
                 )}
-                {q.trim() && results.length === 0 && <p className="text-xs text-[#697586]">No unpaid customer found for that.</p>}
+                {q.trim() && results.length === 0 && <p className="text-xs text-soft">No unpaid customer found for that.</p>}
               </div>
             )}
 
             {picked.length > 0 && (
               <div className="space-y-1">
                 {picked.map(p => (
-                  <div key={p.repaymentId} className="flex items-center justify-between gap-2 rounded-xl bg-[#f4f5f7] px-3 py-2 text-sm">
+                  <div key={p.repaymentId} className="flex items-center justify-between gap-2 rounded-xl bg-mist px-3 py-2 text-sm">
                     <span><b className="font-mono">{p.payCode}</b> · {p.name}</span>
                     <span className="flex items-center gap-2"><b>{money(p.amount)}</b>
                       {fixKind !== 'image' && <button onClick={() => setPicked(picked.filter(x => x.repaymentId !== p.repaymentId))} className="text-red-600" aria-label="Remove">✕</button>}</span>
@@ -335,17 +335,17 @@ export default function PaymentChatPage({ session, onOpenHistory }: { session: S
                 <p className="text-right text-sm font-semibold">Total to match: {money(total)}</p>
               </div>
             )}
-            {mode === 'multi' && picked.length > 0 && fixKind !== 'image' && <p className="text-xs text-[#697586]">Add another customer by searching again. The screenshot amount must equal the total.</p>}
+            {mode === 'multi' && picked.length > 0 && fixKind !== 'image' && <p className="text-xs text-soft">Add another customer by searching again. The screenshot amount must equal the total.</p>}
 
             {picked.length > 0 && fixKind !== 'customer' && (
               <div className="space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-wider text-[#697586]">Payment screenshot</p>
-                <label className="flex cursor-pointer items-center justify-center rounded-2xl border-2 border-dashed border-[#d6d9e0] px-4 py-5 text-sm font-semibold text-[#1a1a2e]">
+                <p className="text-xs font-semibold uppercase tracking-wider text-soft">Payment screenshot</p>
+                <label className="flex cursor-pointer items-center justify-center rounded-2xl border-2 border-dashed border-[#d6d9e0] px-4 py-5 text-sm font-semibold text-ink">
                   {img ? 'Change screenshot' : 'Upload screenshot'}
                   <input type="file" accept="image/*" className="hidden" onChange={e => onFile(e.target.files?.[0])} />
                 </label>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                {img && <img src={img.preview} alt="Selected screenshot" className="mx-auto max-h-56 rounded-xl border border-[#e5e7eb]" />}
+                {img && <img src={img.preview} alt="Selected screenshot" className="mx-auto max-h-56 rounded-xl border border-line" />}
               </div>
             )}
 
@@ -355,14 +355,14 @@ export default function PaymentChatPage({ session, onOpenHistory }: { session: S
                 <input value={manualUtr} onChange={e => setManualUtr(e.target.value.toUpperCase())} placeholder="Transaction ID (UTR) from the screenshot" className="w-full rounded-xl border border-amber-200 bg-white px-3 py-2.5 font-mono text-sm" />
               </div>
             )}
-            <button disabled={sending || !picked.length || (fixKind !== 'customer' && !img) || (!!stats?.manualMode && manualUtr.trim().length < 8)} onClick={send} className="w-full rounded-2xl bg-[#1a1a2e] px-4 py-3 text-sm font-semibold text-white disabled:opacity-40">
+            <button disabled={sending || !picked.length || (fixKind !== 'customer' && !img) || (!!stats?.manualMode && manualUtr.trim().length < 8)} onClick={send} className="w-full rounded-2xl bg-ink px-4 py-3 text-sm font-semibold text-white disabled:opacity-40">
               {sending ? (stats?.manualMode ? 'Recording…' : 'Reading the screenshot…') : 'Send'}
             </button>
           </div>
         </div>
       )}
 
-      {toast && <div className="fixed bottom-6 left-1/2 z-[70] max-w-[90vw] -translate-x-1/2 rounded-2xl bg-[#1a1a2e] px-4 py-3 text-sm text-white shadow-lg">{toast}</div>}
+      {toast && <div className="fixed bottom-6 left-1/2 z-[70] max-w-[90vw] -translate-x-1/2 rounded-2xl bg-ink px-4 py-3 text-sm text-white shadow-lg">{toast}</div>}
     </div>
   )
 }
@@ -379,38 +379,38 @@ export function ChatSettings({ session }: { session: Session }) {
   const inr = (usd: number) => `₹${(usd * INR_PER_USD).toFixed(usd * INR_PER_USD < 10 ? 2 : 0)}`
   return (
     <div className="rounded-2xl bg-white p-3 ring-1 ring-black/5">
-      <button onClick={() => setOpen(o => !o)} className="flex w-full items-center justify-between text-sm font-semibold">Screenshot reading: cost and limits <span className="text-[#697586]">{open ? '▲' : '▼'}</span></button>
+      <button onClick={() => setOpen(o => !o)} className="flex w-full items-center justify-between text-sm font-semibold">Screenshot reading: cost and limits <span className="text-soft">{open ? '▲' : '▼'}</span></button>
       {open && d && (
         <div className="mt-3 space-y-3 text-sm">
           <div className="grid grid-cols-3 gap-2 text-center">
             {([['Today', d.usage.today], ['7 days', d.usage.week], ['30 days', d.usage.month]] as const).map(([k, u]) => (
-              <div key={k} className="rounded-xl bg-[#f4f5f7] p-2"><p className="text-[10px] font-semibold uppercase text-[#697586]">{k}</p><p className="font-bold">{inr(u.usd)}</p><p className="text-xs text-[#697586]">{u.reads} read</p></div>
+              <div key={k} className="rounded-xl bg-mist p-2"><p className="text-[10px] font-semibold uppercase text-soft">{k}</p><p className="font-bold">{inr(u.usd)}</p><p className="text-xs text-soft">{u.reads} read</p></div>
             ))}
           </div>
-          <p className="text-xs text-[#697586]">Estimated from Claude&apos;s published prices ({d.settings.model}). The real bill is in your Anthropic account, where you should also set a monthly spending limit. {d.settings.keyPresent ? '' : 'No reader key is set yet, so reading is off and every screenshot goes to the office.'}</p>
-          <div className="space-y-2 rounded-xl bg-[#f4f5f7] p-3">
-            <p className="text-xs font-semibold uppercase tracking-wider text-[#697586]">Reader</p>
-            <select value={d.settings.provider} onChange={e => save({ provider: e.target.value })} className="w-full rounded-xl border border-[#e5e7eb] bg-white px-3 py-2 text-sm">
+          <p className="text-xs text-soft">Estimated from Claude&apos;s published prices ({d.settings.model}). The real bill is in your Anthropic account, where you should also set a monthly spending limit. {d.settings.keyPresent ? '' : 'No reader key is set yet, so reading is off and every screenshot goes to the office.'}</p>
+          <div className="space-y-2 rounded-xl bg-mist p-3">
+            <p className="text-xs font-semibold uppercase tracking-wider text-soft">Reader</p>
+            <select value={d.settings.provider} onChange={e => save({ provider: e.target.value })} className="w-full rounded-xl border border-line bg-white px-3 py-2 text-sm">
               <option value="auto">Automatic (Claude if its key is set, otherwise NVIDIA)</option>
               <option value="claude">Claude (paid, most accurate)</option>
               <option value="nvidia">NVIDIA Nemotron (free, for testing)</option>
             </select>
-            <p className="text-xs text-[#697586]">Claude key: <b>{d.settings.keys.claude ? 'set' : 'not set'}</b> · NVIDIA key: <b>{d.settings.keys.nvidia ? 'set' : 'not set'}</b> · NVIDIA model: <span className="font-mono">{d.settings.nvidiaModel}</span></p>
-            <p className="text-xs text-[#697586]">Keys and the NVIDIA model are entered in Dev &gt; AI Reader.</p>
-            <p className="text-xs text-[#697586]">The NVIDIA free service is meant for trying things out and has its own speed limits. The picture is sent to NVIDIA for reading. Use it to test, then switch to Claude for real use.</p>
+            <p className="text-xs text-soft">Claude key: <b>{d.settings.keys.claude ? 'set' : 'not set'}</b> · NVIDIA key: <b>{d.settings.keys.nvidia ? 'set' : 'not set'}</b> · NVIDIA model: <span className="font-mono">{d.settings.nvidiaModel}</span></p>
+            <p className="text-xs text-soft">Keys and the NVIDIA model are entered in Dev &gt; AI Reader.</p>
+            <p className="text-xs text-soft">The NVIDIA free service is meant for trying things out and has its own speed limits. The picture is sent to NVIDIA for reading. Use it to test, then switch to Claude for real use.</p>
             <ReaderTest session={session} keys={d.settings.keys} />
           </div>
           <label className="flex items-center gap-2"><input type="checkbox" checked={d.settings.enabled} onChange={e => save({ enabled: e.target.checked })} /> Automatic reading is on</label>
           <div className="grid grid-cols-2 gap-2">
-            <label className="text-xs">Daily limit (all)<input type="number" defaultValue={d.settings.dailyCap} onBlur={e => save({ dailyCap: Number(e.target.value) })} className="mt-1 w-full rounded-xl border border-[#e5e7eb] px-3 py-2 text-sm" /></label>
-            <label className="text-xs">Daily limit per guarantor<input type="number" defaultValue={d.settings.guarantorCap} onBlur={e => save({ guarantorCap: Number(e.target.value) })} className="mt-1 w-full rounded-xl border border-[#e5e7eb] px-3 py-2 text-sm" /></label>
+            <label className="text-xs">Daily limit (all)<input type="number" defaultValue={d.settings.dailyCap} onBlur={e => save({ dailyCap: Number(e.target.value) })} className="mt-1 w-full rounded-xl border border-line px-3 py-2 text-sm" /></label>
+            <label className="text-xs">Daily limit per guarantor<input type="number" defaultValue={d.settings.guarantorCap} onBlur={e => save({ guarantorCap: Number(e.target.value) })} className="mt-1 w-full rounded-xl border border-line px-3 py-2 text-sm" /></label>
           </div>
           <label className="block text-xs">Payments must go to (name or UPI id, comma separated, empty = do not check)
-            <input defaultValue={d.settings.payee} onBlur={e => save({ payee: e.target.value })} placeholder="e.g. NGF, ngf@okbank" className="mt-1 w-full rounded-xl border border-[#e5e7eb] px-3 py-2 text-sm" /></label>
-          {msg && <p className="text-xs text-[#697586]">{msg}</p>}
+            <input defaultValue={d.settings.payee} onBlur={e => save({ payee: e.target.value })} placeholder="e.g. NGF, ngf@okbank" className="mt-1 w-full rounded-xl border border-line px-3 py-2 text-sm" /></label>
+          {msg && <p className="text-xs text-soft">{msg}</p>}
         </div>
       )}
-      {open && !d && <p className="mt-2 text-xs text-[#697586]">{msg || 'Loading…'}</p>}
+      {open && !d && <p className="mt-2 text-xs text-soft">{msg || 'Loading…'}</p>}
     </div>
   )
 }
@@ -433,30 +433,30 @@ function ReaderTest({ session, keys }: { session: Session; keys: { claude: boole
     setBusy('')
   }
   return (
-    <div className="space-y-2 border-t border-[#e5e7eb] pt-2">
-      <p className="text-xs font-semibold uppercase tracking-wider text-[#697586]">Test a screenshot (nothing is recorded)</p>
+    <div className="space-y-2 border-t border-line pt-2">
+      <p className="text-xs font-semibold uppercase tracking-wider text-soft">Test a screenshot (nothing is recorded)</p>
       <label className="flex cursor-pointer items-center justify-center rounded-xl border-2 border-dashed border-[#d6d9e0] bg-white px-3 py-3 text-sm font-semibold">
         {img ? 'Change screenshot' : 'Choose a payment screenshot'}
         <input type="file" accept="image/*" className="hidden" onChange={async e => { const f = e.target.files?.[0]; if (f) { try { setImg(await prepareImage(f)); setRes([]) } catch { setErr('Could not open that picture') } } }} />
       </label>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      {img && <img src={img.preview} alt="Test screenshot" className="mx-auto max-h-40 rounded-lg border border-[#e5e7eb]" />}
-      {img && keys.nvidia && <input value={model} onChange={e => setModel(e.target.value)} placeholder="NVIDIA model to try (empty = the saved one)" className="w-full rounded-xl border border-[#e5e7eb] bg-white px-3 py-2 font-mono text-xs" />}
+      {img && <img src={img.preview} alt="Test screenshot" className="mx-auto max-h-40 rounded-lg border border-line" />}
+      {img && keys.nvidia && <input value={model} onChange={e => setModel(e.target.value)} placeholder="NVIDIA model to try (empty = the saved one)" className="w-full rounded-xl border border-line bg-white px-3 py-2 font-mono text-xs" />}
       {img && (
         <div className="flex flex-wrap gap-2">
-          <button disabled={!!busy || !keys.nvidia} onClick={() => run(['nvidia'])} className="rounded-xl bg-[#1a1a2e] px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">Read with NVIDIA</button>
-          <button disabled={!!busy || !keys.claude} onClick={() => run(['claude'])} className="rounded-xl bg-[#1a1a2e] px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">Read with Claude</button>
-          <button disabled={!!busy || !keys.claude || !keys.nvidia} onClick={() => run(['nvidia', 'claude'])} className="rounded-xl border border-[#1a1a2e] px-3 py-2 text-xs font-semibold disabled:opacity-40">Compare both</button>
+          <button disabled={!!busy || !keys.nvidia} onClick={() => run(['nvidia'])} className="rounded-xl bg-ink px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">Read with NVIDIA</button>
+          <button disabled={!!busy || !keys.claude} onClick={() => run(['claude'])} className="rounded-xl bg-ink px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">Read with Claude</button>
+          <button disabled={!!busy || !keys.claude || !keys.nvidia} onClick={() => run(['nvidia', 'claude'])} className="rounded-xl border border-ink px-3 py-2 text-xs font-semibold disabled:opacity-40">Compare both</button>
         </div>
       )}
-      {busy && <p className="text-xs text-[#697586]">Reading…</p>}
+      {busy && <p className="text-xs text-soft">Reading…</p>}
       {err && <p className="text-xs text-red-600">{err}</p>}
       {res.map(r => (
         <div key={r.provider} className="rounded-xl bg-white p-3 text-xs ring-1 ring-black/5">
-          <p className="font-semibold">{r.provider === 'nvidia' ? 'NVIDIA' : 'Claude'} <span className="font-mono font-normal text-[#697586]">{r.model}</span> · {(r.ms / 1000).toFixed(1)} s{r.costUsd ? ` · about ₹${(r.costUsd * INR_PER_USD).toFixed(2)}` : ' · free'}</p>
+          <p className="font-semibold">{r.provider === 'nvidia' ? 'NVIDIA' : 'Claude'} <span className="font-mono font-normal text-soft">{r.model}</span> · {(r.ms / 1000).toFixed(1)} s{r.costUsd ? ` · about ₹${(r.costUsd * INR_PER_USD).toFixed(2)}` : ' · free'}</p>
           {r.ok && r.reading ? (
             <dl className="mt-1 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
-              {Object.entries(r.reading).map(([k, v]) => (<Fragment key={k}><dt className="text-[#697586]">{k}</dt><dd className="font-mono break-all">{v === null ? '—' : String(v)}</dd></Fragment>))}
+              {Object.entries(r.reading).map(([k, v]) => (<Fragment key={k}><dt className="text-soft">{k}</dt><dd className="font-mono break-all">{v === null ? '—' : String(v)}</dd></Fragment>))}
             </dl>
           ) : <p className="mt-1 text-red-600">{r.error}</p>}
         </div>

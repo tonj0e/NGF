@@ -19,9 +19,9 @@ export default function InstallAppButton() {
       {help && (
         <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/30 p-4 sm:items-center" onClick={() => setHelp(false)}>
           <div className="relative w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl" onClick={e => e.stopPropagation()}>
-            <button onClick={() => setHelp(false)} aria-label="Close" className="absolute right-3 top-3 rounded-full p-1.5 text-[#697586] hover:bg-[#f4f5f7]"><X className="h-4 w-4" /></button>
+            <button onClick={() => setHelp(false)} aria-label="Close" className="absolute right-3 top-3 rounded-full p-1.5 text-soft hover:bg-mist"><X className="h-4 w-4" /></button>
             <p className="text-base font-semibold">Install NGF FINCORP</p>
-            <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-[#1a1a2e]">
+            <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-ink">
               <li>Open this page in <b>Safari</b>.</li>
               <li>Tap <Share className="mx-0.5 inline h-4 w-4 align-text-bottom" /> <b>Share</b>.</li>
               <li>Choose <b>Add to Home Screen</b>, then <b>Add</b>.</li>

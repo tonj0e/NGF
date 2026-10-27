@@ -92,10 +92,10 @@ export default function RenewalModal({ session, onClose, onDone }: {
         <div className="px-6 py-4 border-b border-black/5 flex items-center justify-between">
           <div>
             <p className="font-semibold text-sm">Request Renewal</p>
-            <p className="text-xs text-[#697586] mt-0.5">Search your customer to check eligibility</p>
+            <p className="text-xs text-soft mt-0.5">Search your customer to check eligibility</p>
           </div>
           <button onClick={onClose}
-            className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-[#f4f5f7] text-[#697586] hover:text-[#1a1a2e] transition text-lg font-bold">
+            className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-mist text-soft hover:text-ink transition text-lg font-bold">
             ✕
           </button>
         </div>
@@ -106,7 +106,7 @@ export default function RenewalModal({ session, onClose, onDone }: {
             value={search} onChange={e => setSearch(e.target.value)} autoFocus
             placeholder="Name, phone, Aadhaar last 4, or Loan ID last 4…"
             data-no-upper
-            className="w-full rounded-2xl border border-[#e5e7eb] bg-[#f4f5f7] px-4 py-3 text-sm outline-none focus:border-[#1a1a2e] focus:bg-white transition"
+            className="w-full rounded-2xl border border-line bg-mist px-4 py-3 text-sm outline-none focus:border-ink focus:bg-white transition"
           />
         </div>
 
@@ -114,14 +114,14 @@ export default function RenewalModal({ session, onClose, onDone }: {
         <div className="px-6 pb-6 space-y-3 max-h-96 overflow-y-auto">
           {loading && (
             <div className="flex justify-center py-6">
-              <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" />
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-ink border-t-transparent" />
             </div>
           )}
           {!loading && !q && (
-            <p className="py-4 text-center text-xs text-[#697586]">Type to search your customers</p>
+            <p className="py-4 text-center text-xs text-soft">Type to search your customers</p>
           )}
           {!loading && q && filtered.length === 0 && (
-            <p className="py-4 text-center text-sm text-[#697586]">No customer found.</p>
+            <p className="py-4 text-center text-sm text-soft">No customer found.</p>
           )}
           {!loading && filtered.map(c => {
             const ev = evals[c.customerId]
@@ -129,18 +129,18 @@ export default function RenewalModal({ session, onClose, onDone }: {
             const eligible = !!ev && !ev.loading && ev.eligible
             const isDone = submitted === c.customerId
             return (
-              <div key={c.customerId} className={`rounded-2xl border p-4 space-y-3 ${checking ? 'border-[#e5e7eb] bg-[#f9fafb]' : eligible ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
+              <div key={c.customerId} className={`rounded-2xl border p-4 space-y-3 ${checking ? 'border-line bg-[#f9fafb]' : eligible ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="font-semibold text-sm">{c.name}</p>
-                    <p className="text-xs text-[#697586]">{c.phone}</p>
+                    <p className="text-xs text-soft">{c.phone}</p>
                     <div className="mt-0.5"><NgfScoreBadge value={c.ngfScore} band={c.ngfBand} reviews={c.ngfReviews} average={c.ngfAverage} /></div>
-                    {c.activeLoanId && <p className="font-mono text-[11px] text-[#697586] mt-0.5">{c.activeLoanId}</p>}
+                    {c.activeLoanId && <p className="font-mono text-[11px] text-soft mt-0.5">{c.activeLoanId}</p>}
                     {c.principal && (
-                      <p className="text-xs text-[#697586]">Principal: {currency(Number(c.principal))} · {c.loanStatus}</p>
+                      <p className="text-xs text-soft">Principal: {currency(Number(c.principal))} · {c.loanStatus}</p>
                     )}
                   </div>
-                  <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${checking ? 'bg-[#f4f5f7] text-[#697586]' : eligible ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
+                  <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${checking ? 'bg-mist text-soft' : eligible ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
                     {checking ? 'Checking…' : eligible ? 'Eligible' : 'Not Eligible'}
                   </span>
                 </div>
@@ -148,12 +148,12 @@ export default function RenewalModal({ session, onClose, onDone }: {
                 {/* Rating / review summary */}
                 {!checking && (
                   ev.reviewCount > 0 ? (
-                    <p className="flex items-center gap-1.5 text-xs text-[#697586]">
+                    <p className="flex items-center gap-1.5 text-xs text-soft">
                       <span className="text-amber-400">{'★'.repeat(Math.round(ev.rating))}{'☆'.repeat(5 - Math.round(ev.rating))}</span>
                       {ev.rating.toFixed(1)}/5 · {ev.reviewCount} review{ev.reviewCount !== 1 ? 's' : ''}
                     </p>
                   ) : (
-                    <p className="text-xs text-[#697586]">No reviews on record</p>
+                    <p className="text-xs text-soft">No reviews on record</p>
                   )
                 )}
 
@@ -168,7 +168,7 @@ export default function RenewalModal({ session, onClose, onDone }: {
                 {eligible && !isDone && (
                   <div className="flex gap-2">
                     <button onClick={onClose}
-                      className="flex-1 rounded-xl border border-[#e5e7eb] bg-white py-2 text-xs font-semibold hover:bg-[#f4f5f7] transition">
+                      className="flex-1 rounded-xl border border-line bg-white py-2 text-xs font-semibold hover:bg-mist transition">
                       Close
                     </button>
                     <button onClick={() => requestRenewal(c)} disabled={submitting === c.customerId}

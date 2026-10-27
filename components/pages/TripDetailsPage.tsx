@@ -68,34 +68,34 @@ export default function TripDetailsPage({ session }: { session: Session }) {
     return { totalKm, totalTrips, totalAmount }
   }, [trips, selectedWeek])
 
-  if (loading && !loadedOnce.current) return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" /></div>
+  if (loading && !loadedOnce.current) return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-ink border-t-transparent" /></div>
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex gap-2 flex-wrap">
           <select value={selectedWeek} onChange={e => setSelectedWeek(e.target.value)}
-            className="rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium outline-none focus:border-[#1a1a2e]">
+            className="rounded-2xl border border-line bg-white px-4 py-2 text-sm font-medium outline-none focus:border-ink">
             {weeks.map(w => (
               <option key={w} value={w}>{weekRangeLabel(w)}</option>
             ))}
             {weeks.length === 0 && <option value="">No trips yet</option>}
           </select>
         </div>
-        <div className="flex gap-2 text-sm text-[#697586]">
+        <div className="flex gap-2 text-sm text-soft">
           <span>Total: {weeklyStats.totalTrips} trips</span>
           <span>{weeklyStats.totalKm.toFixed(2)} km</span>
-          <span className="font-semibold text-[#1a1a2e]">{currencyInr(weeklyStats.totalAmount)}</span>
+          <span className="font-semibold text-ink">{currencyInr(weeklyStats.totalAmount)}</span>
         </div>
       </div>
 
       <div className="overflow-hidden rounded-[1.75rem] border border-white/70 bg-white shadow-panel divide-y divide-black/5">
         {filteredTrips.length === 0 ? (
-          <p className="p-8 text-center text-sm text-[#697586]">No trips recorded for this week.</p>
+          <p className="p-8 text-center text-sm text-soft">No trips recorded for this week.</p>
         ) : (
           <div>
             <div className="border-b border-black/5 px-5 py-3 bg-[#f9fafb]">
-              <div className="grid grid-cols-[1fr_80px_100px_100px_80px] gap-3 text-xs font-semibold uppercase tracking-wider text-[#697586]">
+              <div className="grid grid-cols-[1fr_80px_100px_100px_80px] gap-3 text-xs font-semibold uppercase tracking-wider text-soft">
                 <span>Date / Lead</span>
                 <span className="text-right">Distance</span>
                 <span className="text-right">Amount</span>
@@ -107,14 +107,14 @@ export default function TripDetailsPage({ session }: { session: Session }) {
               <div key={t.tripId || i} className="grid grid-cols-[1fr_80px_100px_100px_80px] gap-3 px-5 py-3 hover:bg-[#fafafa]">
                 <div className="min-w-0">
                   <p className="font-medium truncate">{t.leadId ? `Lead: ${t.leadId}` : 'Manual Entry'}</p>
-                  <p className="text-xs text-[#697586]">{t.tripDate}</p>
+                  <p className="text-xs text-soft">{t.tripDate}</p>
                 </div>
                 <div className="text-right font-medium">{t.distanceKm.toFixed(2)} km</div>
                 <div className="text-right font-medium text-green-700">{currencyInr(t.distanceKm * 10)}</div>
-                <div className="text-right text-xs text-[#697586]">
+                <div className="text-right text-xs text-soft">
                   {t.startLatitude.toFixed(4)},{t.startLongitude.toFixed(4)} → {t.endLatitude.toFixed(4)},{t.endLongitude.toFixed(4)}
                 </div>
-                <div className="text-xs text-[#697586]">{new Date(t.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</div>
+                <div className="text-xs text-soft">{new Date(t.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</div>
               </div>
             ))}
           </div>
@@ -137,11 +137,11 @@ export default function TripDetailsPage({ session }: { session: Session }) {
                 <div key={w} className="flex items-center justify-between gap-4 px-5 py-4 hover:bg-[#fafafa]">
                   <div>
                     <p className="font-medium">{weekRangeLabel(w)}</p>
-                    <p className="text-xs text-[#697586]">{totalTrips} trips • {totalKm.toFixed(2)} km</p>
+                    <p className="text-xs text-soft">{totalTrips} trips • {totalKm.toFixed(2)} km</p>
                   </div>
                   <div className="text-right">
                     <p className="font-semibold text-green-700">{currencyInr(totalAmount)}</p>
-                    <p className="text-xs text-[#697586]">@ ₹10/km</p>
+                    <p className="text-xs text-soft">@ ₹10/km</p>
                   </div>
                 </div>
               )

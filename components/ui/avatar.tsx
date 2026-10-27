@@ -36,7 +36,7 @@ const AvatarFallback = React.forwardRef<
     ref={ref}
     delayMs={delayMs}
     className={cn(
-      'flex h-full w-full items-center justify-center rounded-full bg-[#1a1a2e] text-white font-medium',
+      'flex h-full w-full items-center justify-center rounded-full bg-ink text-white font-medium',
       className
     )}
     {...props}

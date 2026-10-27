@@ -21,7 +21,7 @@ type Board = {
 }
 
 const card = 'rounded-[1.75rem] border border-white/70 bg-white shadow-panel p-4 sm:p-5'
-const input = 'w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 py-3 text-sm outline-none focus:border-[#1a1a2e]'
+const input = 'w-full rounded-2xl border border-line bg-white px-4 py-3 text-sm outline-none focus:border-ink'
 const btn = 'rounded-2xl px-4 py-2.5 text-sm font-semibold transition disabled:opacity-40'
 
 async function api(session: Session, path: string, body?: unknown) {
@@ -89,17 +89,17 @@ export default function VisitRoutesPage({ session }: { session: Session }) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex gap-2">
           {([['plan', `To plan${needCall.length + ready.length ? ` (${needCall.length + ready.length})` : ''}`], ['routes', 'Agent routes']] as const).map(([k, label]) => (
-            <button key={k} onClick={() => setTab(k)} className={`${btn} !py-2 ${tab === k ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586]'}`}>{label}</button>
+            <button key={k} onClick={() => setTab(k)} className={`${btn} !py-2 ${tab === k ? 'bg-ink text-white' : 'border border-line bg-white text-soft'}`}>{label}</button>
           ))}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-1" title="Visit day">
-            <button className="rounded-xl border border-[#e5e7eb] bg-white px-2.5 py-1.5 text-sm" onClick={() => setDate(shift(date, -1))}>‹</button>
-            <input type="date" value={date} onChange={e => e.target.value && setDate(e.target.value)} className="rounded-xl border border-[#e5e7eb] bg-white px-2.5 py-1.5 text-sm font-medium text-[#1a1a2e]" />
-            <button className="rounded-xl border border-[#e5e7eb] bg-white px-2.5 py-1.5 text-sm" onClick={() => setDate(shift(date, 1))}>›</button>
+            <button className="rounded-xl border border-line bg-white px-2.5 py-1.5 text-sm" onClick={() => setDate(shift(date, -1))}>‹</button>
+            <input type="date" value={date} onChange={e => e.target.value && setDate(e.target.value)} className="rounded-xl border border-line bg-white px-2.5 py-1.5 text-sm font-medium text-ink" />
+            <button className="rounded-xl border border-line bg-white px-2.5 py-1.5 text-sm" onClick={() => setDate(shift(date, 1))}>›</button>
           </div>
           {board && board.branches.length > 1 && (
-            <select value={branchId} onChange={e => setBranchId(e.target.value)} className="rounded-xl border border-[#e5e7eb] bg-white px-2.5 py-1.5 text-sm font-medium text-[#1a1a2e]">
+            <select value={branchId} onChange={e => setBranchId(e.target.value)} className="rounded-xl border border-line bg-white px-2.5 py-1.5 text-sm font-medium text-ink">
               <option value="">All branches</option>
               {board.branches.map(b => <option key={b.branchId} value={b.branchId}>{b.name}</option>)}
             </select>
@@ -110,26 +110,26 @@ export default function VisitRoutesPage({ session }: { session: Session }) {
         <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">Google road distances are not set up yet, so distances are straight-line estimates (about 1.4x). Add the Google key to get real road distances.</p>
       )}
 
-      {loading && <p className="p-8 text-center text-sm text-[#697586]">Loading…</p>}
+      {loading && <p className="p-8 text-center text-sm text-soft">Loading…</p>}
 
       {board && tab === 'plan' && (
         <div className="space-y-4">
-          {!loading && !needCall.length && !ready.length && <p className="p-8 text-center text-sm text-[#697586]">No leads waiting for a visit plan.</p>}
-          {needCall.length > 0 && <p className="text-xs font-semibold uppercase tracking-wider text-[#697586]">Call the customer and fix the location ({needCall.length})</p>}
+          {!loading && !needCall.length && !ready.length && <p className="p-8 text-center text-sm text-soft">No leads waiting for a visit plan.</p>}
+          {needCall.length > 0 && <p className="text-xs font-semibold uppercase tracking-wider text-soft">Call the customer and fix the location ({needCall.length})</p>}
           {needCall.map(s => <PlanCard key={s.leadId} s={s} board={board} date={date} busy={busy} onSave={(b) => act(`visit${s.leadId}`, { action: 'setVisit', leadId: s.leadId, ...b }, 'Visit saved')} onAssign={(agentId) => act(`assign${s.leadId}`, { action: 'assign', leadId: s.leadId, agentId, date: s.visitDate || date }, 'Added to the agent\'s route')} />)}
-          {ready.length > 0 && <p className="pt-2 text-xs font-semibold uppercase tracking-wider text-[#697586]">Location fixed, choose an agent ({ready.length})</p>}
+          {ready.length > 0 && <p className="pt-2 text-xs font-semibold uppercase tracking-wider text-soft">Location fixed, choose an agent ({ready.length})</p>}
           {ready.map(s => <PlanCard key={s.leadId} s={s} board={board} date={date} busy={busy} onSave={(b) => act(`visit${s.leadId}`, { action: 'setVisit', leadId: s.leadId, ...b }, 'Visit saved')} onAssign={(agentId) => act(`assign${s.leadId}`, { action: 'assign', leadId: s.leadId, agentId, date: s.visitDate || date }, 'Added to the agent\'s route')} />)}
         </div>
       )}
 
       {board && tab === 'routes' && (
         <div className="space-y-4">
-          {board.routes.length === 0 && <p className="p-8 text-center text-sm text-[#697586]">No agents in this branch.</p>}
+          {board.routes.length === 0 && <p className="p-8 text-center text-sm text-soft">No agents in this branch.</p>}
           {board.routes.map((r, i) => <RouteCard key={r.agentId + date} r={r} board={board} date={date} busy={busy} session={session} act={act} startOpen={i === board.routes.findIndex(x => x.stops.length > 0)} />)}
         </div>
       )}
 
-      {toast && <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-2xl bg-[#1a1a2e] px-5 py-3 text-sm font-medium text-white shadow-lg">{toast}</div>}
+      {toast && <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-2xl bg-ink px-5 py-3 text-sm font-medium text-white shadow-lg">{toast}</div>}
     </div>
   )
 }
@@ -155,10 +155,10 @@ function PlanCard({ s, board, date, busy, onSave, onAssign }: {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="font-semibold">{s.customerName}</p>
-          <p className="mt-0.5 text-xs text-[#697586]">
+          <p className="mt-0.5 text-xs text-soft">
             {s.guarantorName && <>Guarantor {s.guarantorName} · </>}{s.branchName && <span className="font-semibold text-sky-700">{s.branchName}</span>}
           </p>
-          <p className="mt-0.5 text-xs text-[#697586]">{[s.place, s.landmark].filter(Boolean).join(' · ')}</p>
+          <p className="mt-0.5 text-xs text-soft">{[s.place, s.landmark].filter(Boolean).join(' · ')}</p>
         </div>
         <div className="flex shrink-0 gap-2">
           {s.phone && <a href={`tel:${s.phone}`} className="inline-flex items-center gap-1 rounded-2xl bg-green-600 px-3 py-2 text-sm font-semibold text-white"><Phone className="h-4 w-4" />Call</a>}
@@ -169,7 +169,7 @@ function PlanCard({ s, board, date, busy, onSave, onAssign }: {
       {s.hasLocation && (
         <p className="mt-2 flex flex-wrap items-center gap-2 text-xs">
           <span className="inline-flex items-center gap-1 rounded-lg bg-green-100 px-2 py-0.5 font-semibold text-green-700"><MapPin className="h-3 w-3" />{s.visitPlace || 'Location fixed'}</span>
-          {s.visitDate && <span className="text-[#697586]">{s.visitDate}</span>}
+          {s.visitDate && <span className="text-soft">{s.visitDate}</span>}
           {s.visitWindow && <span className="rounded-lg bg-violet-100 px-2 py-0.5 font-semibold text-violet-700">{s.visitWindow}</span>}
           <a href={`https://www.google.com/maps?q=${s.visitLat},${s.visitLng}`} target="_blank" rel="noreferrer" className="font-semibold text-blue-700 underline">Open map</a>
         </p>
@@ -181,7 +181,7 @@ function PlanCard({ s, board, date, busy, onSave, onAssign }: {
             <option value="">Choose agent…</option>
             {board.routes.map(r => <option key={r.agentId} value={r.agentId}>{r.name} ({r.stops.length} stops on {s.visitDate})</option>)}
           </select>
-          <button disabled={!agent || busy === `assign${s.leadId}`} onClick={() => onAssign(agent)} className={`${btn} bg-[#1a1a2e] text-white`}>Assign</button>
+          <button disabled={!agent || busy === `assign${s.leadId}`} onClick={() => onAssign(agent)} className={`${btn} bg-ink text-white`}>Assign</button>
         </div>
       )}
 
@@ -190,35 +190,35 @@ function PlanCard({ s, board, date, busy, onSave, onAssign }: {
       {open && (
         <div className="mt-3 space-y-3 border-t border-black/5 pt-3">
           <div>
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-[#697586]">Customer location (Google Maps link or lat,lng)</span>
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-soft">Customer location (Google Maps link or lat,lng)</span>
             <input value={link} onChange={e => setLink(e.target.value)} placeholder="Paste the link the customer sends" data-no-upper className={input} />
             {s.guarantorPin && !link && (
               <button type="button" className="mt-1 text-xs font-semibold text-blue-700 underline" onClick={() => setLink(`${s.guarantorPin!.lat},${s.guarantorPin!.lng}`)}>Use the pin the guarantor gave</button>
             )}
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <label className="text-xs font-semibold uppercase tracking-wider text-[#697586]">Place name
+            <label className="text-xs font-semibold uppercase tracking-wider text-soft">Place name
               <input value={place} onChange={e => setPlace(e.target.value)} className={`${input} mt-1`} />
             </label>
-            <label className="text-xs font-semibold uppercase tracking-wider text-[#697586]">Visit date
+            <label className="text-xs font-semibold uppercase tracking-wider text-soft">Visit date
               <input type="date" value={vDate} onChange={e => setVDate(e.target.value)} className={`${input} mt-1`} />
             </label>
             {board.config.windows && (
-              <label className="text-xs font-semibold uppercase tracking-wider text-[#697586]">Time window
+              <label className="text-xs font-semibold uppercase tracking-wider text-soft">Time window
                 <select value={win} onChange={e => setWin(e.target.value)} className={`${input} mt-1`}>
                   <option value="">Any time</option>
                   {board.windows.map(w => <option key={w} value={w}>{w}</option>)}
                 </select>
               </label>
             )}
-            <label className="text-xs font-semibold uppercase tracking-wider text-[#697586]">Call result
+            <label className="text-xs font-semibold uppercase tracking-wider text-soft">Call result
               <select value={outcome} onChange={e => setOutcome(e.target.value)} className={`${input} mt-1`}>
                 <option value="">Not called</option>
                 {['Reached', 'Not reachable', 'Call back later'].map(o => <option key={o}>{o}</option>)}
               </select>
             </label>
           </div>
-          <label className="block text-xs font-semibold uppercase tracking-wider text-[#697586]">Note for the agent
+          <label className="block text-xs font-semibold uppercase tracking-wider text-soft">Note for the agent
             <input value={note} onChange={e => setNote(e.target.value)} placeholder="House behind the temple, call at the junction" className={`${input} mt-1`} />
           </label>
           <button disabled={busy === `visit${s.leadId}`} onClick={() => onSave({ mapsLink: link, place, date: vDate, window: win, note, callOutcome: outcome })} className={`${btn} w-full bg-[#f0b429] text-[#1a1400]`}>
@@ -319,61 +319,61 @@ function RouteCard({ r, board, date, busy, session, act, startOpen }: {
       <button type="button" onClick={() => { setOpen(o => !o); setSeen(true) }} aria-expanded={open} className="flex w-full items-center justify-between gap-3 text-left">
         <div className="min-w-0">
           <p className="font-semibold">{r.name}</p>
-          <p className="text-xs text-[#697586]">
+          <p className="text-xs text-soft">
             {r.stops.length} {r.stops.length === 1 ? 'stop' : 'stops'}
             {r.plan?.totalKm != null && r.stops.length > 0 && <> · {r.plan.totalKm} km · {hm(r.plan.totalMin)}</>}
             {r.plan?.manual && <> · <span className="font-semibold text-violet-700">Hand-ordered</span></>}
             {dirty && <> · <span className="font-semibold text-amber-600">Not saved yet</span></>}
           </p>
         </div>
-        <ChevronDown className={`h-5 w-5 shrink-0 text-[#697586] transition-transform ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`h-5 w-5 shrink-0 text-soft transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
       {seen && (<div className={open ? '' : 'hidden'}>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs text-[#697586]">
+        <p className="text-xs text-soft">
           {r.plan?.startSource ? <>Starts from: {r.plan.startSource}</> : 'Start point unknown until the agent marks attendance'}
           {r.plan?.source && <> · {r.plan.source}</>}
         </p>
         <div className="flex flex-wrap gap-2">
-          <button disabled={!r.stops.length || busy === `opt${r.agentId}`} onClick={() => act(`opt${r.agentId}`, { action: 'optimize', agentId: r.agentId, date }, 'Best order applied')} className={`${btn} inline-flex items-center gap-1 bg-[#1a1a2e] text-white`}>
+          <button disabled={!r.stops.length || busy === `opt${r.agentId}`} onClick={() => act(`opt${r.agentId}`, { action: 'optimize', agentId: r.agentId, date }, 'Best order applied')} className={`${btn} inline-flex items-center gap-1 bg-ink text-white`}>
             <Wand2 className="h-4 w-4" />{busy === `opt${r.agentId}` ? 'Working…' : 'Best order'}
           </button>
-          {dirty && <button onClick={() => setOrder(savedIds)} className={`${btn} border border-[#e5e7eb] bg-white text-[#697586]`}>Undo</button>}
-          {dirty && <button disabled={busy === `reorder${r.agentId}`} onClick={saveOrder} className={`${btn} bg-[#f0b429] text-[#1a1a2e] shadow-md`}>{busy === `reorder${r.agentId}` ? 'Saving…' : 'Save order'}</button>}
-          {url && <a href={url} target="_blank" rel="noreferrer" className={`${btn} inline-flex items-center gap-1 border border-[#e5e7eb] bg-white`}><RouteIcon className="h-4 w-4" />Google Maps</a>}
+          {dirty && <button onClick={() => setOrder(savedIds)} className={`${btn} border border-line bg-white text-soft`}>Undo</button>}
+          {dirty && <button disabled={busy === `reorder${r.agentId}`} onClick={saveOrder} className={`${btn} bg-[#f0b429] text-ink shadow-md`}>{busy === `reorder${r.agentId}` ? 'Saving…' : 'Save order'}</button>}
+          {url && <a href={url} target="_blank" rel="noreferrer" className={`${btn} inline-flex items-center gap-1 border border-line bg-white`}><RouteIcon className="h-4 w-4" />Google Maps</a>}
         </div>
       </div>
 
-      {r.stops.length === 0 && <p className="mt-3 text-sm text-[#697586]">No visits planned for this day.</p>}
+      {r.stops.length === 0 && <p className="mt-3 text-sm text-soft">No visits planned for this day.</p>}
 
       <div className="mt-3 grid gap-4 lg:h-[calc(100vh-12rem)] lg:min-h-[460px] lg:grid-cols-2">
       <div className="space-y-2 lg:min-h-0 lg:overflow-y-auto lg:pr-1" onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
         {list.map((s, i) => (
           <div key={s.leadId} ref={el => { rows.current[s.leadId] = el }}
-            className={`rounded-2xl border p-3 ${dragging === s.leadId ? 'border-[#f0b429] bg-amber-50 shadow-lg' : s.done ? 'border-green-200 bg-green-50' : 'border-[#e5e7eb] bg-white'}`}>
+            className={`rounded-2xl border p-3 ${dragging === s.leadId ? 'border-[#f0b429] bg-amber-50 shadow-lg' : s.done ? 'border-green-200 bg-green-50' : 'border-line bg-white'}`}>
             <div className="flex items-start gap-2">
               <button type="button" aria-label="Drag to reorder" disabled={s.done}
                 onPointerDown={e => onDown(e, s.leadId)} style={{ touchAction: 'none' }}
                 className="mt-0.5 shrink-0 cursor-grab rounded-lg p-1 text-[#9ca3af] disabled:opacity-30"><GripVertical className="h-5 w-5" /></button>
-              <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#1a1a2e] text-xs font-bold text-white">{i + 1}</span>
+              <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-ink text-xs font-bold text-white">{i + 1}</span>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold">{s.customerName} {s.done && <span className="ml-1 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-bold text-green-700">{s.visitStatus === 'Absent' ? 'ABSENT' : 'DONE'}</span>}</p>
-                <p className="text-xs text-[#697586]">{s.visitPlace || s.place}{s.visitWindow && <> · <span className="font-semibold text-violet-700">{s.visitWindow}</span></>}</p>
-                {s.legKm != null && <p className="text-xs text-[#697586]">{i === 0 ? 'From start' : 'From previous'}: {s.legKm} km · {hm(s.legMin)}</p>}
+                <p className="text-xs text-soft">{s.visitPlace || s.place}{s.visitWindow && <> · <span className="font-semibold text-violet-700">{s.visitWindow}</span></>}</p>
+                {s.legKm != null && <p className="text-xs text-soft">{i === 0 ? 'From start' : 'From previous'}: {s.legKm} km · {hm(s.legMin)}</p>}
                 {s.visitStatus && !s.done && <p className="text-xs font-semibold text-blue-700">{s.visitStatus}</p>}
-                {s.visitNote && <p className="mt-0.5 text-xs italic text-[#697586]">{s.visitNote}</p>}
+                {s.visitNote && <p className="mt-0.5 text-xs italic text-soft">{s.visitNote}</p>}
               </div>
               <div className="flex shrink-0 flex-col">
-                <button type="button" aria-label="Move up" disabled={s.done || i === 0} onClick={() => move(i, -1)} className="rounded p-0.5 text-[#697586] disabled:opacity-25"><ChevronUp className="h-5 w-5" /></button>
-                <button type="button" aria-label="Move down" disabled={s.done || i === list.length - 1} onClick={() => move(i, 1)} className="rounded p-0.5 text-[#697586] disabled:opacity-25"><ChevronDown className="h-5 w-5" /></button>
+                <button type="button" aria-label="Move up" disabled={s.done || i === 0} onClick={() => move(i, -1)} className="rounded p-0.5 text-soft disabled:opacity-25"><ChevronUp className="h-5 w-5" /></button>
+                <button type="button" aria-label="Move down" disabled={s.done || i === list.length - 1} onClick={() => move(i, 1)} className="rounded p-0.5 text-soft disabled:opacity-25"><ChevronDown className="h-5 w-5" /></button>
               </div>
             </div>
             {!s.done && (
               <div className="mt-2 flex flex-wrap items-center gap-2 pl-9 text-xs">
-                <button onClick={() => act(`pin${s.leadId}`, { action: 'pin', leadId: s.leadId, pin: s.pin === 'first' ? '' : 'first' }, s.pin === 'first' ? 'Unpinned' : 'Pinned first')} className={`rounded-lg border px-2 py-1 font-semibold ${s.pin === 'first' ? 'border-violet-300 bg-violet-100 text-violet-700' : 'border-[#e5e7eb] text-[#697586]'}`}>Must be first</button>
-                <button onClick={() => act(`pin${s.leadId}`, { action: 'pin', leadId: s.leadId, pin: s.pin === 'last' ? '' : 'last' }, s.pin === 'last' ? 'Unpinned' : 'Pinned last')} className={`rounded-lg border px-2 py-1 font-semibold ${s.pin === 'last' ? 'border-violet-300 bg-violet-100 text-violet-700' : 'border-[#e5e7eb] text-[#697586]'}`}>Must be last</button>
-                <select defaultValue="" onChange={e => { const v = e.target.value; e.target.value = ''; if (v) act(`mv${s.leadId}`, { action: 'assign', leadId: s.leadId, agentId: v, date }, 'Moved') }} className="rounded-lg border border-[#e5e7eb] bg-white px-2 py-1 font-semibold text-[#697586]">
+                <button onClick={() => act(`pin${s.leadId}`, { action: 'pin', leadId: s.leadId, pin: s.pin === 'first' ? '' : 'first' }, s.pin === 'first' ? 'Unpinned' : 'Pinned first')} className={`rounded-lg border px-2 py-1 font-semibold ${s.pin === 'first' ? 'border-violet-300 bg-violet-100 text-violet-700' : 'border-line text-soft'}`}>Must be first</button>
+                <button onClick={() => act(`pin${s.leadId}`, { action: 'pin', leadId: s.leadId, pin: s.pin === 'last' ? '' : 'last' }, s.pin === 'last' ? 'Unpinned' : 'Pinned last')} className={`rounded-lg border px-2 py-1 font-semibold ${s.pin === 'last' ? 'border-violet-300 bg-violet-100 text-violet-700' : 'border-line text-soft'}`}>Must be last</button>
+                <select defaultValue="" onChange={e => { const v = e.target.value; e.target.value = ''; if (v) act(`mv${s.leadId}`, { action: 'assign', leadId: s.leadId, agentId: v, date }, 'Moved') }} className="rounded-lg border border-line bg-white px-2 py-1 font-semibold text-soft">
                   <option value="">Move to agent…</option>
                   {board.routes.filter(x => x.agentId !== r.agentId).map(x => <option key={x.agentId} value={x.agentId}>{x.name}</option>)}
                 </select>
@@ -385,7 +385,7 @@ function RouteCard({ r, board, date, busy, session, act, startOpen }: {
         ))}
       </div>
       {mapStops.length > 0 && (
-        <div className="overflow-hidden rounded-2xl border border-[#e5e7eb] lg:h-full">
+        <div className="overflow-hidden rounded-2xl border border-line lg:h-full">
           <RouteMap bare heightClass="h-[480px] lg:h-[calc(100vh-12rem-2.5rem)] lg:min-h-[420px]" start={startPt} startLabel="START" stops={mapStops} nextId={nextStop?.id} roads={roads} />
         </div>
       )}

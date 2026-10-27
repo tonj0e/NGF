@@ -226,7 +226,7 @@ td.mono{font-family:monospace;font-size:10px;color:#697586}
 
   if (loading && !summary && !loadError) return (
     <div className="flex h-40 items-center justify-center">
-      <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" />
+      <div className="h-6 w-6 animate-spin rounded-full border-2 border-ink border-t-transparent" />
     </div>
   )
 
@@ -259,9 +259,9 @@ td.mono{font-family:monospace;font-size:10px;color:#697586}
             <div className="flex items-center justify-between px-5 py-4 border-b border-black/5">
               <div>
                 <p className="font-semibold">Payout Receipt</p>
-                <p className="text-xs font-mono text-[#697586] mt-0.5">{receipt.payoutId}</p>
+                <p className="text-xs font-mono text-soft mt-0.5">{receipt.payoutId}</p>
               </div>
-              <button onClick={() => setReceipt(null)} className="rounded-full p-1.5 hover:bg-[#f4f5f7] transition">
+              <button onClick={() => setReceipt(null)} className="rounded-full p-1.5 hover:bg-mist transition">
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
@@ -269,14 +269,14 @@ td.mono{font-family:monospace;font-size:10px;color:#697586}
             {/* Receipt body */}
             <div className="px-5 py-4 space-y-3">
               <div className="grid grid-cols-2 gap-3 text-xs">
-                <div><p className="text-[#697586] font-medium uppercase tracking-wide text-[9px]">Guarantor</p><p className="font-semibold mt-0.5">{session.name}</p></div>
-                <div><p className="text-[#697586] font-medium uppercase tracking-wide text-[9px]">Amount</p><p className="font-bold text-green-700 mt-0.5 text-base">{formatINR(receipt.amount)}</p></div>
-                <div><p className="text-[#697586] font-medium uppercase tracking-wide text-[9px]">Period From</p><p className="font-semibold mt-0.5">{formatDateIN(receipt.periodFrom)}</p></div>
-                <div><p className="text-[#697586] font-medium uppercase tracking-wide text-[9px]">Payout date</p><p className="font-semibold mt-0.5">{formatDateIN(receipt.periodTo)}</p></div>
+                <div><p className="text-soft font-medium uppercase tracking-wide text-[9px]">Guarantor</p><p className="font-semibold mt-0.5">{session.name}</p></div>
+                <div><p className="text-soft font-medium uppercase tracking-wide text-[9px]">Amount</p><p className="font-bold text-green-700 mt-0.5 text-base">{formatINR(receipt.amount)}</p></div>
+                <div><p className="text-soft font-medium uppercase tracking-wide text-[9px]">Period From</p><p className="font-semibold mt-0.5">{formatDateIN(receipt.periodFrom)}</p></div>
+                <div><p className="text-soft font-medium uppercase tracking-wide text-[9px]">Payout date</p><p className="font-semibold mt-0.5">{formatDateIN(receipt.periodTo)}</p></div>
               </div>
 
               {/* Loan breakdown */}
-              <div className="rounded-2xl bg-[#f4f5f7] divide-y divide-black/5 overflow-hidden">
+              <div className="rounded-2xl bg-mist divide-y divide-black/5 overflow-hidden">
                 {receipt.loans.map(l => (
                   <div key={l.loanId} className="flex justify-between items-center px-3 py-2 text-xs">
                     <span className="font-medium">{l.customerName}</span>
@@ -291,21 +291,21 @@ td.mono{font-family:monospace;font-size:10px;color:#697586}
 
               {/* QR code */}
               <div className="flex flex-col items-center py-2">
-                <img src={receipt.qrDataUrl} width={160} height={160} alt="Payout QR" className="rounded-xl border border-[#e5e7eb]" />
-                <p className="text-[10px] text-[#697586] mt-2 text-center">Admin scans this QR to record payment</p>
+                <img src={receipt.qrDataUrl} width={160} height={160} alt="Payout QR" className="rounded-xl border border-line" />
+                <p className="text-[10px] text-soft mt-2 text-center">Admin scans this QR to record payment</p>
               </div>
 
-              <p className="text-center text-[10px] text-[#697586]">Status: Pending Admin Approval</p>
+              <p className="text-center text-[10px] text-soft">Status: Pending Admin Approval</p>
             </div>
 
             {/* Modal footer */}
             <div className="flex gap-3 px-5 py-4 border-t border-black/5">
               <button onClick={downloadReceipt}
-                className="flex-1 rounded-2xl bg-[#1a1a2e] py-2.5 text-sm font-semibold text-white hover:bg-[#2d2d4e] transition">
+                className="flex-1 rounded-2xl bg-ink py-2.5 text-sm font-semibold text-white hover:bg-[#2d2d4e] transition">
                 Download / Print
               </button>
               <button onClick={() => setReceipt(null)}
-                className="rounded-2xl border border-[#e5e7eb] px-5 py-2.5 text-sm font-semibold hover:bg-[#f4f5f7] transition">
+                className="rounded-2xl border border-line px-5 py-2.5 text-sm font-semibold hover:bg-mist transition">
                 Close
               </button>
             </div>
@@ -315,8 +315,8 @@ td.mono{font-family:monospace;font-size:10px;color:#697586}
 
       {/* Header row */}
       <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold text-[#697586]">Commission Overview</p>
-        <button onClick={load} disabled={refreshing} className="flex items-center disabled:opacity-60 gap-1.5 rounded-2xl border border-[#e5e7eb] bg-white px-4 py-1.5 text-xs font-semibold text-[#697586] hover:bg-[#f4f5f7] transition">
+        <p className="text-sm font-semibold text-soft">Commission Overview</p>
+        <button onClick={load} disabled={refreshing} className="flex items-center disabled:opacity-60 gap-1.5 rounded-2xl border border-line bg-white px-4 py-1.5 text-xs font-semibold text-soft hover:bg-mist transition">
           <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
           {refreshing ? 'Refreshing…' : 'Refresh'}
         </button>
@@ -325,20 +325,20 @@ td.mono{font-family:monospace;font-size:10px;color:#697586}
       {/* Summary cards */}
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-[1.5rem] border border-white/70 bg-white p-5 shadow-panel">
-          <p className="text-xs text-[#697586]">Total Earned</p>
+          <p className="text-xs text-soft">Total Earned</p>
           <p className="mt-2 text-3xl font-semibold">{formatINRShort(totalEarned)}</p>
-          <p className="mt-1 text-xs text-[#697586]">Across {loans.length} loan{loans.length !== 1 ? 's' : ''}</p>
+          <p className="mt-1 text-xs text-soft">Across {loans.length} loan{loans.length !== 1 ? 's' : ''}</p>
         </div>
         <div className="rounded-[1.5rem] border border-white/70 bg-white p-5 shadow-panel">
-          <p className="text-xs text-[#697586]">Available for Payout</p>
+          <p className="text-xs text-soft">Available for Payout</p>
           <p className={`mt-2 text-3xl font-semibold ${availableAmount > 0 ? 'text-green-700' : ''}`}>{formatINR(availableAmount)}</p>
-          <p className="mt-1 text-xs text-[#697586]">{pastCycles.length} completed cycle{pastCycles.length !== 1 ? 's' : ''}</p>
+          <p className="mt-1 text-xs text-soft">{pastCycles.length} completed cycle{pastCycles.length !== 1 ? 's' : ''}</p>
           {pendingAmount > 0 && <p className="mt-0.5 text-xs font-medium text-amber-700">Pending request: {formatINR(pendingAmount)}</p>}
         </div>
         <div className="rounded-[1.5rem] border border-white/70 bg-white p-5 shadow-panel">
-          <p className="text-xs text-[#697586]">Locked until payout date</p>
+          <p className="text-xs text-soft">Locked until payout date</p>
           <p className="mt-2 text-3xl font-semibold text-amber-600">{formatINR(lockedCommission)}</p>
-          <p className="mt-1 text-xs text-[#697586]">
+          <p className="mt-1 text-xs text-soft">
             {currentCycle ? `Payout date ${nextPayout ? formatDateIN(nextPayout) : ''} · ${daysUntilPayout} day${daysUntilPayout !== 1 ? 's' : ''}` : 'No active cycle'}
           </p>
         </div>
@@ -355,7 +355,7 @@ td.mono{font-family:monospace;font-size:10px;color:#697586}
             </div>
             <div className="flex-1">
               <p className="font-semibold text-amber-700">Payout Request Pending</p>
-              <p className="text-sm text-[#697586] mt-0.5">
+              <p className="text-sm text-soft mt-0.5">
                 Your request of {formatINR(pendingPayout?.amount || 0)} is under review. You will be notified once processed.
               </p>
             </div>
@@ -376,7 +376,7 @@ td.mono{font-family:monospace;font-size:10px;color:#697586}
             </div>
             <div className="flex-1">
               <p className="font-semibold text-red-700">Payout Request Rejected</p>
-              <p className="text-sm text-[#697586] mt-0.5">
+              <p className="text-sm text-soft mt-0.5">
                 {latestPayout?.rejectionReason || latestPayout?.notes || 'Your payout request was rejected.'}
               </p>
             </div>
@@ -397,9 +397,9 @@ td.mono{font-family:monospace;font-size:10px;color:#697586}
         ) : canRequestPayout ? (
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
             <div className="flex-1">
-              <p className="text-xs text-[#697586] mb-1">Withdraw Amount</p>
+              <p className="text-xs text-soft mb-1">Withdraw Amount</p>
               <p className="text-3xl font-bold text-green-700">{formatINR(availableAmount)}</p>
-              <p className="text-sm text-[#697586] mt-1">
+              <p className="text-sm text-soft mt-1">
                 From {eligibleRows.length} loan{eligibleRows.length !== 1 ? 's' : ''} · {pastCycles.length} completed cycle{pastCycles.length !== 1 ? 's' : ''}
               </p>
             </div>
@@ -415,7 +415,7 @@ td.mono{font-family:monospace;font-size:10px;color:#697586}
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
             <div>
               <p className="font-semibold">No payout available yet</p>
-              <p className="text-sm text-[#697586] mt-0.5">
+              <p className="text-sm text-soft mt-0.5">
                 {currentCycle
                   ? `Next payout date ${nextPayout ? formatDateIN(nextPayout) : ''} (${daysUntilPayout} day${daysUntilPayout !== 1 ? 's' : ''})`
                   : loans.length === 0
@@ -432,7 +432,7 @@ td.mono{font-family:monospace;font-size:10px;color:#697586}
         <div className="flex flex-col gap-3 border-b border-black/5 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-semibold">Commission Ledger</p>
-            <p className="text-xs text-[#697586] mt-0.5">
+            <p className="text-xs text-soft mt-0.5">
               {currentCycle
                 ? `Cycle ${currentCycleIdx + 1} · started ${formatDateIN(currentCycle.start)} · payout date ${formatDateIN(currentCycle.end)}`
                 : 'Commission pay cycles'}
@@ -440,12 +440,12 @@ td.mono{font-family:monospace;font-size:10px;color:#697586}
           </div>
           <div className="flex gap-2">
             <select value={monthFilter} onChange={e => setMonthFilter(e.target.value)} aria-label="Filter by month"
-              className="rounded-2xl border border-[#e5e7eb] bg-white px-3 py-1.5 text-xs font-semibold text-[#697586]">
+              className="rounded-2xl border border-line bg-white px-3 py-1.5 text-xs font-semibold text-soft">
               <option value="all">All months</option>
               {months.map(m => <option key={m} value={m}>{monthLabel(m)}</option>)}
             </select>
             <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} aria-label="Filter by status"
-              className="rounded-2xl border border-[#e5e7eb] bg-white px-3 py-1.5 text-xs font-semibold text-[#697586]">
+              className="rounded-2xl border border-line bg-white px-3 py-1.5 text-xs font-semibold text-soft">
               <option value="all">All status</option>
               <option value="eligible">Eligible</option>
               <option value="locked">Locked</option>
@@ -454,7 +454,7 @@ td.mono{font-family:monospace;font-size:10px;color:#697586}
         </div>
         <div className="overflow-x-auto">
         <table className="w-full min-w-[640px] text-left text-sm">
-          <thead className="border-b border-black/5 bg-[#fafafa] text-[#697586]">
+          <thead className="border-b border-black/5 bg-[#fafafa] text-soft">
             <tr>
               {['Customer', 'Loan ID', 'Commission', 'Loan Status', 'Start Date', 'Cycle'].map(h => (
                 <th key={h} className="px-5 py-3 font-medium text-xs">{h}</th>
@@ -463,19 +463,19 @@ td.mono{font-family:monospace;font-size:10px;color:#697586}
           </thead>
           <tbody className="divide-y divide-black/5">
             {visibleRows.length === 0 && (
-              <tr><td colSpan={6} className="px-5 py-8 text-center text-sm text-[#697586]">{enriched.length === 0 ? 'No commissions recorded yet.' : 'No loans match the filters.'}</td></tr>
+              <tr><td colSpan={6} className="px-5 py-8 text-center text-sm text-soft">{enriched.length === 0 ? 'No commissions recorded yet.' : 'No loans match the filters.'}</td></tr>
             )}
             {visibleRows.map(l => (
               <tr key={l.loanId} className="hover:bg-[#fafafa]">
                 <td className="px-5 py-3 font-medium">{l.customerName}</td>
-                <td className="px-5 py-3 font-mono text-xs text-[#697586]">{l.loanId?.slice(-9)}</td>
+                <td className="px-5 py-3 font-mono text-xs text-soft">{l.loanId?.slice(-9)}</td>
                 <td className="px-5 py-3 font-semibold text-green-700">{formatINR(Number(l.guarantorCommission || 0))}</td>
                 <td className="px-5 py-3">
-                  <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${l.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-[#f4f5f7] text-[#697586]'}`}>
+                  <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${l.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-mist text-soft'}`}>
                     {l.status}
                   </span>
                 </td>
-                <td className="px-5 py-3 text-[#697586] text-xs">{l.startDate ? formatDateIN(l.startDate) : '—'}</td>
+                <td className="px-5 py-3 text-soft text-xs">{l.startDate ? formatDateIN(l.startDate) : '—'}</td>
                 <td className="px-5 py-3">
                   {l.inCurrentCycle ? (
                     <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-700">Locked</span>
@@ -489,7 +489,7 @@ td.mono{font-family:monospace;font-size:10px;color:#697586}
           {visibleRows.length > 0 && (
             <tfoot className="border-t border-black/10 bg-[#fafafa]">
               <tr>
-                <td className="px-5 py-3 text-xs font-semibold text-[#697586]" colSpan={2}>Total ({visibleRows.length} loan{visibleRows.length !== 1 ? 's' : ''})</td>
+                <td className="px-5 py-3 text-xs font-semibold text-soft" colSpan={2}>Total ({visibleRows.length} loan{visibleRows.length !== 1 ? 's' : ''})</td>
                 <td className="px-5 py-3 font-bold text-green-700">{formatINR(visibleTotal)}</td>
                 <td colSpan={3} />
               </tr>
@@ -507,7 +507,7 @@ td.mono{font-family:monospace;font-size:10px;color:#697586}
           </div>
           <div className="overflow-x-auto">
           <table className="w-full min-w-[640px] text-left text-sm">
-            <thead className="border-b border-black/5 bg-[#fafafa] text-[#697586]">
+            <thead className="border-b border-black/5 bg-[#fafafa] text-soft">
               <tr>
                 {['Request ID', 'Amount', 'Status', 'Requested On', 'Processed On'].map(h => (
                   <th key={h} className="px-5 py-3 font-medium text-xs">{h}</th>
@@ -517,7 +517,7 @@ td.mono{font-family:monospace;font-size:10px;color:#697586}
             <tbody className="divide-y divide-black/5">
               {payouts.map(p => (
                 <tr key={p.payoutId} className="hover:bg-[#fafafa]">
-                  <td className="px-5 py-3 font-mono text-xs text-[#697586]">{p.payoutId}</td>
+                  <td className="px-5 py-3 font-mono text-xs text-soft">{p.payoutId}</td>
                   <td className="px-5 py-3 font-semibold">{formatINR(p.amount)}</td>
                   <td className="px-5 py-3">
                     <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
@@ -526,8 +526,8 @@ td.mono{font-family:monospace;font-size:10px;color:#697586}
                       : 'bg-red-100 text-red-700'
                     }`}>{p.status}</span>
                   </td>
-                  <td className="px-5 py-3 text-[#697586]">{p.requestedAt ? formatDateIN(p.requestedAt) : '—'}</td>
-                  <td className="px-5 py-3 text-[#697586]">
+                  <td className="px-5 py-3 text-soft">{p.requestedAt ? formatDateIN(p.requestedAt) : '—'}</td>
+                  <td className="px-5 py-3 text-soft">
                     {p.processedAt ? formatDateIN(p.processedAt) : '—'}
                     {p.status === 'Rejected' && (p.rejectionReason || p.notes) && (
                       <p className="mt-1 text-xs text-red-600">Reason: {p.rejectionReason || p.notes}</p>

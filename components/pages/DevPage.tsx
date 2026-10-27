@@ -533,55 +533,55 @@ export default function DevPage({ session }: { session: Session }) {
     <div className="space-y-4">
       <div className="flex gap-2">
         <button onClick={() => setSubTab('refreshToken')}
-          className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${subTab === 'refreshToken' ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
+          className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${subTab === 'refreshToken' ? 'bg-ink text-white' : 'border border-line bg-white text-soft hover:text-ink'}`}>
           Refresh Token
         </button>
         <button onClick={() => setSubTab('capital')}
-          className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${subTab === 'capital' ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
+          className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${subTab === 'capital' ? 'bg-ink text-white' : 'border border-line bg-white text-soft hover:text-ink'}`}>
           Capital
         </button>
         <button onClick={() => setSubTab('calculator')}
-          className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${subTab === 'calculator' ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
+          className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${subTab === 'calculator' ? 'bg-ink text-white' : 'border border-line bg-white text-soft hover:text-ink'}`}>
           Calculator
         </button>
         <button onClick={() => setSubTab('testing')}
-          className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${subTab === 'testing' ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
+          className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${subTab === 'testing' ? 'bg-ink text-white' : 'border border-line bg-white text-soft hover:text-ink'}`}>
           Testing
         </button>
         <button onClick={() => setSubTab('sms')}
-          className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${subTab === 'sms' ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
+          className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${subTab === 'sms' ? 'bg-ink text-white' : 'border border-line bg-white text-soft hover:text-ink'}`}>
           SMS
         </button>
         <button onClick={() => setSubTab('whatsapp')}
-          className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${subTab === 'whatsapp' ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
+          className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${subTab === 'whatsapp' ? 'bg-ink text-white' : 'border border-line bg-white text-soft hover:text-ink'}`}>
           WhatsApp
         </button>
         <button onClick={() => setSubTab('payments')}
-          className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${subTab === 'payments' ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
+          className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${subTab === 'payments' ? 'bg-ink text-white' : 'border border-line bg-white text-soft hover:text-ink'}`}>
           Payments
         </button>
         <button onClick={() => setSubTab('aiReader')}
-          className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${subTab === 'aiReader' ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
+          className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${subTab === 'aiReader' ? 'bg-ink text-white' : 'border border-line bg-white text-soft hover:text-ink'}`}>
           AI Reader
         </button>
         <button onClick={() => setSubTab('monitor')}
-          className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${subTab === 'monitor' ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
+          className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${subTab === 'monitor' ? 'bg-ink text-white' : 'border border-line bg-white text-soft hover:text-ink'}`}>
           Error tracking
         </button>
         <button onClick={() => setSubTab('note')}
-          className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${subTab === 'note' ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
+          className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${subTab === 'note' ? 'bg-ink text-white' : 'border border-line bg-white text-soft hover:text-ink'}`}>
           Promissory Note
         </button>
         <button onClick={() => setSubTab('branches')}
-          className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${subTab === 'branches' ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
+          className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${subTab === 'branches' ? 'bg-ink text-white' : 'border border-line bg-white text-soft hover:text-ink'}`}>
           Branches
         </button>
         <button onClick={() => setSubTab('products')}
-          className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${subTab === 'products' ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
+          className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${subTab === 'products' ? 'bg-ink text-white' : 'border border-line bg-white text-soft hover:text-ink'}`}>
           Loan Products
         </button>
         <button onClick={() => setSubTab('userReset')}
-          className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${subTab === 'userReset' ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
+          className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${subTab === 'userReset' ? 'bg-ink text-white' : 'border border-line bg-white text-soft hover:text-ink'}`}>
           User Password Reset
         </button>
         <button onClick={() => setSubTab('clearData')}
@@ -594,25 +594,25 @@ export default function DevPage({ session }: { session: Session }) {
         <div className="rounded-[1.75rem] border border-white/70 bg-white shadow-panel p-6 space-y-6">
           <div>
             <p className="text-sm font-semibold">Google OAuth Refresh Token</p>
-            <p className="mt-1 text-xs text-[#697586]">
+            <p className="mt-1 text-xs text-soft">
               Used to access Google Drive for loading and uploading customer documents.
-              If images stop loading with an <span className="font-mono bg-[#f4f5f7] px-1 rounded">invalid_grant</span> error, generate a new token here.
+              If images stop loading with an <span className="font-mono bg-mist px-1 rounded">invalid_grant</span> error, generate a new token here.
             </p>
           </div>
 
           {status === 'idle' && (
             <button onClick={generateToken}
-              className="rounded-2xl bg-[#1a1a2e] px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90 transition">
+              className="rounded-2xl bg-ink px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90 transition">
               Generate New Token
             </button>
           )}
 
           {status === 'waiting' && (
-            <div className="flex items-center gap-3 rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] px-4 py-3">
-              <div className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" />
-              <p className="flex-1 text-sm text-[#697586]">Complete the Google sign-in in the popup window…</p>
+            <div className="flex items-center gap-3 rounded-2xl border border-line bg-[#f9fafb] px-4 py-3">
+              <div className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-ink border-t-transparent" />
+              <p className="flex-1 text-sm text-soft">Complete the Google sign-in in the popup window…</p>
               <button onClick={() => setStatus('idle')}
-                className="rounded-xl border border-[#e5e7eb] bg-white px-3 py-1.5 text-xs font-semibold">
+                className="rounded-xl border border-line bg-white px-3 py-1.5 text-xs font-semibold">
                 Cancel
               </button>
             </div>
@@ -625,13 +625,13 @@ export default function DevPage({ session }: { session: Session }) {
               </div>
 
               <div>
-                <p className="mb-2 text-[0.7rem] font-semibold uppercase tracking-wider text-[#697586]">New Refresh Token</p>
+                <p className="mb-2 text-[0.7rem] font-semibold uppercase tracking-wider text-soft">New Refresh Token</p>
                 <div className="flex items-start gap-2">
-                  <div className="flex-1 break-all rounded-xl border border-[#e5e7eb] bg-[#f9fafb] px-4 py-3 font-mono text-xs text-[#1a1a2e]">
+                  <div className="flex-1 break-all rounded-xl border border-line bg-[#f9fafb] px-4 py-3 font-mono text-xs text-ink">
                     {token}
                   </div>
                   <button onClick={copyToken}
-                    className={`shrink-0 rounded-xl px-4 py-3 text-xs font-semibold transition ${copied ? 'bg-green-600 text-white' : 'bg-[#1a1a2e] text-white hover:opacity-90'}`}>
+                    className={`shrink-0 rounded-xl px-4 py-3 text-xs font-semibold transition ${copied ? 'bg-green-600 text-white' : 'bg-ink text-white hover:opacity-90'}`}>
                     {copied ? 'Copied!' : 'Copy'}
                   </button>
                 </div>
@@ -645,7 +645,7 @@ export default function DevPage({ session }: { session: Session }) {
               </div>
 
               <button onClick={() => { setStatus('idle'); setToken(null) }}
-                className="rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2.5 text-sm font-semibold hover:bg-[#f4f5f7] transition">
+                className="rounded-2xl border border-line bg-white px-4 py-2.5 text-sm font-semibold hover:bg-mist transition">
                 Generate Another
               </button>
             </div>
@@ -657,21 +657,21 @@ export default function DevPage({ session }: { session: Session }) {
           {/* Totals */}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-[1.5rem] border border-white/70 bg-white shadow-panel p-5">
-              <p className="text-xs font-semibold uppercase tracking-wider text-[#697586]">Total Capital</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-soft">Total Capital</p>
               <p className="mt-1 text-2xl font-bold">{capTotals ? capCurrency(capTotals.totalCapital) : '—'}</p>
             </div>
             <div className="rounded-[1.5rem] border border-white/70 bg-white shadow-panel p-5">
-              <p className="text-xs font-semibold uppercase tracking-wider text-[#697586]">Available Capital</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-soft">Available Capital</p>
               <p className={`mt-1 text-2xl font-bold ${capTotals && capTotals.availableCapital < 0 ? 'text-red-600' : 'text-green-700'}`}>
                 {capTotals ? capCurrency(capTotals.availableCapital) : '—'}
               </p>
             </div>
             <div className="rounded-[1.5rem] border border-white/70 bg-white shadow-panel p-5">
-              <p className="text-xs font-semibold uppercase tracking-wider text-[#697586]">Interest</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-soft">Interest</p>
               <p className="mt-1 text-2xl font-bold text-amber-600">{capTotals ? capCurrency(capTotals.totalInterest) : '—'}</p>
             </div>
             <div className="rounded-[1.5rem] border border-white/70 bg-white shadow-panel p-5">
-              <p className="text-xs font-semibold uppercase tracking-wider text-[#697586]">Investor Money</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-soft">Investor Money</p>
               <p className="mt-1 text-2xl font-bold">{capTotals ? capCurrency(capTotals.investorMoney) : '—'}</p>
             </div>
           </div>
@@ -681,32 +681,32 @@ export default function DevPage({ session }: { session: Session }) {
             <p className="text-sm font-semibold">Add Capital</p>
             <div className="flex gap-2">
               <button onClick={() => setCapType('Own')}
-                className={`flex-1 rounded-2xl border px-4 py-2.5 text-sm font-semibold transition ${capType === 'Own' ? 'border-[#1a1a2e] bg-[#1a1a2e] text-white' : 'border-[#e5e7eb] bg-white text-[#697586]'}`}>
+                className={`flex-1 rounded-2xl border px-4 py-2.5 text-sm font-semibold transition ${capType === 'Own' ? 'border-ink bg-ink text-white' : 'border-line bg-white text-soft'}`}>
                 My Capital
               </button>
               <button onClick={() => setCapType('Investor')}
-                className={`flex-1 rounded-2xl border px-4 py-2.5 text-sm font-semibold transition ${capType === 'Investor' ? 'border-[#1a1a2e] bg-[#1a1a2e] text-white' : 'border-[#e5e7eb] bg-white text-[#697586]'}`}>
+                className={`flex-1 rounded-2xl border px-4 py-2.5 text-sm font-semibold transition ${capType === 'Investor' ? 'border-ink bg-ink text-white' : 'border-line bg-white text-soft'}`}>
                 Investor
               </button>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="block">
-                <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-[#697586]">{capType === 'Investor' ? 'Investor Name *' : 'Name (optional)'}</span>
+                <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-soft">{capType === 'Investor' ? 'Investor Name *' : 'Name (optional)'}</span>
                 <input value={capContributor} onChange={e => setCapContributor(e.target.value)}
                   placeholder={capType === 'Investor' ? 'Investor name' : 'Owner'}
-                  className="w-full rounded-2xl border border-[#e5e7eb] bg-[#f4f5f7] px-4 py-2.5 text-sm outline-none focus:border-[#1a1a2e] focus:bg-white" />
+                  className="w-full rounded-2xl border border-line bg-mist px-4 py-2.5 text-sm outline-none focus:border-ink focus:bg-white" />
               </label>
               <label className="block">
-                <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-[#697586]">Amount *</span>
+                <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-soft">Amount *</span>
                 <input type="number" value={capAmount} onChange={e => setCapAmount(e.target.value)} data-no-upper
                   placeholder="0"
-                  className="w-full rounded-2xl border border-[#e5e7eb] bg-[#f4f5f7] px-4 py-2.5 text-sm outline-none focus:border-[#1a1a2e] focus:bg-white" />
+                  className="w-full rounded-2xl border border-line bg-mist px-4 py-2.5 text-sm outline-none focus:border-ink focus:bg-white" />
               </label>
             </div>
             <label className="block">
-              <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-[#697586]">Notes (optional)</span>
+              <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-soft">Notes (optional)</span>
               <input value={capNotes} onChange={e => setCapNotes(e.target.value)}
-                className="w-full rounded-2xl border border-[#e5e7eb] bg-[#f4f5f7] px-4 py-2.5 text-sm outline-none focus:border-[#1a1a2e] focus:bg-white" />
+                className="w-full rounded-2xl border border-line bg-mist px-4 py-2.5 text-sm outline-none focus:border-ink focus:bg-white" />
             </label>
             <button onClick={addCapital} disabled={capSaving}
               className="rounded-2xl bg-green-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50 transition">
@@ -721,10 +721,10 @@ export default function DevPage({ session }: { session: Session }) {
             </div>
             {capLoading ? (
               <div className="flex h-24 items-center justify-center">
-                <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" />
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-ink border-t-transparent" />
               </div>
             ) : capEntries.length === 0 ? (
-              <p className="p-6 text-center text-sm text-[#697586]">No capital added yet.</p>
+              <p className="p-6 text-center text-sm text-soft">No capital added yet.</p>
             ) : (
               <div className="divide-y divide-black/5">
                 {capEntries.map(e => (
@@ -734,7 +734,7 @@ export default function DevPage({ session }: { session: Session }) {
                         <span className="font-medium">{e.contributor || (e.type === 'Own' ? 'Owner' : '—')}</span>
                         <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${e.type === 'Investor' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>{e.type}</span>
                       </div>
-                      <p className="text-xs text-[#697586]">{e.date}{e.notes ? ` · ${e.notes}` : ''}</p>
+                      <p className="text-xs text-soft">{e.date}{e.notes ? ` · ${e.notes}` : ''}</p>
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
                       <span className="font-semibold">{capCurrency(e.amount)}</span>
@@ -754,7 +754,7 @@ export default function DevPage({ session }: { session: Session }) {
           <div className="rounded-[1.75rem] border border-white/70 bg-white shadow-panel p-6 space-y-4">
             <div>
               <p className="text-sm font-semibold">Return Calculator</p>
-              <p className="mt-1 text-xs text-[#697586]">Compounding model — re-lends collections each week. Profit = interest taken upfront per loan.</p>
+              <p className="mt-1 text-xs text-soft">Compounding model — re-lends collections each week. Profit = interest taken upfront per loan.</p>
             </div>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {([
@@ -764,17 +764,17 @@ export default function DevPage({ session }: { session: Session }) {
                 ['Term (weeks)', calcTerm, setCalcTerm],
               ] as const).map(([label, val, set]) => (
                 <label key={label} className="block">
-                  <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-[#697586]">{label}</span>
+                  <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-soft">{label}</span>
                   <input type="number" value={val} onChange={e => set(e.target.value)} data-no-upper
-                    className="w-full rounded-2xl border border-[#e5e7eb] bg-[#f4f5f7] px-4 py-2.5 text-sm outline-none focus:border-[#1a1a2e] focus:bg-white" />
+                    className="w-full rounded-2xl border border-line bg-mist px-4 py-2.5 text-sm outline-none focus:border-ink focus:bg-white" />
                 </label>
               ))}
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-semibold uppercase tracking-wider text-[#697586]">Mode</span>
+              <span className="text-xs font-semibold uppercase tracking-wider text-soft">Mode</span>
               {([['all', 'Compound (lend all)'], ['fixed', 'Fixed / week'], ['none', 'No reinvest']] as const).map(([k, l]) => (
                 <button key={k} onClick={() => setCalcMode(k)}
-                  className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${calcMode === k ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586]'}`}>{l}</button>
+                  className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${calcMode === k ? 'bg-ink text-white' : 'border border-line bg-white text-soft'}`}>{l}</button>
               ))}
               <button onClick={runCalc} disabled={calcLoading}
                 className="ml-auto rounded-2xl bg-green-600 px-5 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50 transition">
@@ -786,7 +786,7 @@ export default function DevPage({ session }: { session: Session }) {
           {/* Results */}
           {calcResult && (
             <>
-              <div className="rounded-[1.75rem] border border-white/70 bg-gradient-to-br from-[#1a1a2e] to-[#3b1d5e] p-6 text-white shadow-panel">
+              <div className="rounded-[1.75rem] border border-white/70 bg-gradient-to-br from-ink to-[#3b1d5e] p-6 text-white shadow-panel">
                 <div className="flex items-end justify-between flex-wrap gap-3">
                   <div>
                     <p className="text-xs text-white/60">1-Year Return</p>
@@ -809,7 +809,7 @@ export default function DevPage({ session }: { session: Session }) {
                 <div className="border-b border-black/5 px-5 py-3"><p className="text-sm font-semibold">Weekly Projection</p></div>
                 <div className="max-h-72 overflow-y-auto">
                   <table className="w-full text-sm">
-                    <thead className="sticky top-0 bg-[#f4f5f7] text-xs uppercase tracking-wider text-[#697586]">
+                    <thead className="sticky top-0 bg-mist text-xs uppercase tracking-wider text-soft">
                       <tr><th className="px-5 py-2 text-left">Week</th><th className="px-5 py-2 text-right">Collection</th><th className="px-5 py-2 text-right">New Loans</th><th className="px-5 py-2 text-right">Cum. Profit</th></tr>
                     </thead>
                     <tbody className="divide-y divide-black/5">
@@ -833,13 +833,13 @@ export default function DevPage({ session }: { session: Session }) {
         <div className="rounded-[1.75rem] border border-white/70 bg-white shadow-panel p-6 space-y-5">
           <div>
             <p className="text-sm font-semibold">Testing Flags</p>
-            <p className="mt-1 text-xs text-[#697586]">Temporary switches for testing. Turn these off before going live. Stored on this device only.</p>
+            <p className="mt-1 text-xs text-soft">Temporary switches for testing. Turn these off before going live. Stored on this device only.</p>
           </div>
 
-          <div className="flex items-center justify-between gap-4 rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] px-5 py-4">
+          <div className="flex items-center justify-between gap-4 rounded-2xl border border-line bg-[#f9fafb] px-5 py-4">
             <div className="min-w-0">
               <p className="text-sm font-semibold">Unlock payment day</p>
-              <p className="mt-0.5 text-xs text-[#697586]">
+              <p className="mt-0.5 text-xs text-soft">
                 Allow recording collection payments on any day, bypassing the Saturday-only rule.
               </p>
             </div>
@@ -853,16 +853,16 @@ export default function DevPage({ session }: { session: Session }) {
             </button>
           </div>
 
-          <div className={`rounded-2xl px-4 py-3 text-xs font-medium ${paymentUnlock ? 'bg-amber-50 text-amber-800 border border-amber-200' : 'bg-[#f4f5f7] text-[#697586]'}`}>
+          <div className={`rounded-2xl px-4 py-3 text-xs font-medium ${paymentUnlock ? 'bg-amber-50 text-amber-800 border border-amber-200' : 'bg-mist text-soft'}`}>
             {paymentUnlock
               ? 'Payment day is UNLOCKED — agents can record payments any day. Remember to turn this off for production.'
               : 'Payment day lock is active — payments can only be recorded on Saturday.'}
           </div>
 
-          <div className="flex items-center justify-between gap-4 rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] px-5 py-4">
+          <div className="flex items-center justify-between gap-4 rounded-2xl border border-line bg-[#f9fafb] px-5 py-4">
             <div className="min-w-0">
               <p className="text-sm font-semibold">Dark mode</p>
-              <p className="mt-0.5 text-xs text-[#697586]">
+              <p className="mt-0.5 text-xs text-soft">
                 Switch the interface to a dark theme. Applies on this device; photos and QR codes stay normal.
               </p>
             </div>
@@ -877,10 +877,10 @@ export default function DevPage({ session }: { session: Session }) {
           </div>
 
           {/* QR-secured login per portal */}
-          <div className="rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] px-5 py-4 space-y-3">
+          <div className="rounded-2xl border border-line bg-[#f9fafb] px-5 py-4 space-y-3">
             <div>
               <p className="text-sm font-semibold">QR-secured login</p>
-              <p className="mt-0.5 text-xs text-[#697586]">
+              <p className="mt-0.5 text-xs text-soft">
                 When on, these portals must scan their ID-card QR after entering their password. Admin is never asked. Applies to all devices.
               </p>
             </div>
@@ -900,16 +900,16 @@ export default function DevPage({ session }: { session: Session }) {
           </div>
 
           {/* Password recovery test mailbox */}
-          <div className="rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] px-5 py-4 space-y-3">
+          <div className="rounded-2xl border border-line bg-[#f9fafb] px-5 py-4 space-y-3">
             <div>
               <p className="text-sm font-semibold">Recovery codes to one test mailbox</p>
-              <p className="mt-0.5 text-xs text-[#697586]">
+              <p className="mt-0.5 text-xs text-soft">
                 Testing only. While on, every "Forgot password" code, for any user ID, is emailed to the address below instead of the user&apos;s own. It switches itself off after 24 hours. Turn it off when testing ends.
               </p>
             </div>
             <input type="email" value={recovery.testEmail} onChange={e => setRecovery(p => ({ ...p, testEmail: e.target.value }))}
               placeholder="your email address" data-no-upper
-              className="w-full rounded-xl border border-[#e5e7eb] bg-white px-3 py-2 text-sm outline-none focus:border-[#1a1a2e]" />
+              className="w-full rounded-xl border border-line bg-white px-3 py-2 text-sm outline-none focus:border-ink" />
             <div className="flex items-center justify-between gap-4">
               <span className="text-sm font-medium">{recovery.testOn ? `On until ${new Date(recovery.testUntil).toLocaleString()}` : 'Off'}</span>
               <button type="button" role="switch" aria-checked={recovery.testOn} onClick={() => saveRecovery(!recovery.testOn)}
@@ -917,14 +917,14 @@ export default function DevPage({ session }: { session: Session }) {
                 <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${recovery.testOn ? 'left-6' : 'left-1'}`} />
               </button>
             </div>
-            {recMsg && <p className="text-xs text-[#697586]">{recMsg}</p>}
+            {recMsg && <p className="text-xs text-soft">{recMsg}</p>}
           </div>
 
           {/* Verification route planning */}
-          <div className="rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] px-5 py-4 space-y-3">
+          <div className="rounded-2xl border border-line bg-[#f9fafb] px-5 py-4 space-y-3">
             <div>
               <p className="text-sm font-semibold">Verification routes</p>
-              <p className="mt-0.5 text-xs text-[#697586]">
+              <p className="mt-0.5 text-xs text-soft">
                 Lets branch staff fix visit locations and order each agent's day by road distance. Road distances come from Google ({routeCfg.googleReady ? 'key found' : 'no key yet, using straight-line estimates'}).
               </p>
             </div>
@@ -940,33 +940,33 @@ export default function DevPage({ session }: { session: Session }) {
           </div>
 
           {/* Agent Trip Testing */}
-          <div className="rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] px-5 py-4 space-y-3">
+          <div className="rounded-2xl border border-line bg-[#f9fafb] px-5 py-4 space-y-3">
             <div>
               <p className="text-sm font-semibold">Agent Trip Testing</p>
-              <p className="mt-0.5 text-xs text-[#697586]">
+              <p className="mt-0.5 text-xs text-soft">
                 Manually set a fake previous location for trip distance testing. When enabled, this location will be used as the "last location" for the first verification.
               </p>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <label className="block">
-                <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-[#697586]">Latitude</span>
+                <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-soft">Latitude</span>
                 <input type="number" step="any" value={testLocation.lat} data-no-upper
                   onChange={e => setTestLocation(d => ({ ...d, lat: Number(e.target.value) }))}
                   placeholder="e.g. 9.813315"
-                  className="w-full rounded-xl border border-[#e5e7eb] bg-white px-3 py-2 text-sm outline-none focus:border-[#1a1a2e]" />
+                  className="w-full rounded-xl border border-line bg-white px-3 py-2 text-sm outline-none focus:border-ink" />
               </label>
               <label className="block">
-                <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-[#697586]">Longitude</span>
+                <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-soft">Longitude</span>
                 <input type="number" step="any" value={testLocation.lng} data-no-upper
                   onChange={e => setTestLocation(d => ({ ...d, lng: Number(e.target.value) }))}
                   placeholder="e.g. 76.297821"
-                  className="w-full rounded-xl border border-[#e5e7eb] bg-white px-3 py-2 text-sm outline-none focus:border-[#1a1a2e]" />
+                  className="w-full rounded-xl border border-line bg-white px-3 py-2 text-sm outline-none focus:border-ink" />
               </label>
             </div>
             <div className="flex items-center justify-between gap-4">
               <div className="min-w-0">
                 <p className="text-sm font-medium">Enable test location</p>
-                <p className="mt-0.5 text-xs text-[#697586]">Use these coordinates instead of real GPS/attendance location.</p>
+                <p className="mt-0.5 text-xs text-soft">Use these coordinates instead of real GPS/attendance location.</p>
               </div>
               <button type="button" role="switch" aria-checked={testLocation.enabled}
                 onClick={() => { const next = !testLocation.enabled; setTestLocation(d => ({ ...d, enabled: next })); if (next) applyTestLocation() }}
@@ -974,7 +974,7 @@ export default function DevPage({ session }: { session: Session }) {
                 <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${testLocation.enabled ? 'left-6' : 'left-1'}`} />
               </button>
             </div>
-            <div className={`rounded-2xl px-4 py-3 text-xs font-medium ${testLocation.enabled ? 'bg-amber-50 text-amber-800 border border-amber-200' : 'bg-[#f4f5f7] text-[#697586]'}`}>
+            <div className={`rounded-2xl px-4 py-3 text-xs font-medium ${testLocation.enabled ? 'bg-amber-50 text-amber-800 border border-amber-200' : 'bg-mist text-soft'}`}>
               {testLocation.enabled
                 ? `Test location ACTIVE: ${testLocation.lat.toFixed(6)}, ${testLocation.lng.toFixed(6)} — will be used as previous location for next verification.`
                 : 'Test location disabled — real GPS/attendance location will be used.'}
@@ -991,7 +991,7 @@ export default function DevPage({ session }: { session: Session }) {
       {subTab === 'payments' && <GatewayPanel session={session} />}
       {subTab === 'aiReader' && (
         <div className="rounded-[1.75rem] border border-white/70 bg-white p-6 shadow-panel space-y-3">
-          <div><p className="text-sm font-semibold">AI screenshot reader</p><p className="text-xs text-[#697586]">Keys for reading payment screenshots in Payments. Saved encrypted; the keys are never shown again. To choose which one is used, and to test a screenshot, open Payments &gt; Settings.</p></div>
+          <div><p className="text-sm font-semibold">AI screenshot reader</p><p className="text-xs text-soft">Keys for reading payment screenshots in Payments. Saved encrypted; the keys are never shown again. To choose which one is used, and to test a screenshot, open Payments &gt; Settings.</p></div>
           <IntegrationFields session={session} group="ai" />
         </div>
       )}
@@ -1002,7 +1002,7 @@ export default function DevPage({ session }: { session: Session }) {
         <div className="rounded-[1.75rem] border border-white/70 bg-white shadow-panel p-6 space-y-4">
           <div>
             <p className="text-sm font-semibold">Promissory Note Template</p>
-            <p className="mt-1 text-xs text-[#697586]">
+            <p className="mt-1 text-xs text-soft">
               Edit the body text printed on a lead&apos;s promissory note. The title, amount, place/date,
               signature and witnesses layout are fixed. Use the placeholders below — they are filled from the lead.
               Saved on this device.
@@ -1011,7 +1011,7 @@ export default function DevPage({ session }: { session: Session }) {
 
           <div className="flex flex-wrap gap-1.5">
             {PROMISSORY_PLACEHOLDERS.map(p => (
-              <code key={p} className="rounded-lg bg-[#f4f5f7] px-2 py-1 text-[11px] font-mono text-[#1a1a2e]">{p}</code>
+              <code key={p} className="rounded-lg bg-mist px-2 py-1 text-[11px] font-mono text-ink">{p}</code>
             ))}
           </div>
 
@@ -1019,16 +1019,16 @@ export default function DevPage({ session }: { session: Session }) {
             value={noteTemplate}
             onChange={e => setNoteTemplate(e.target.value)}
             rows={12}
-            className="w-full rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] px-4 py-3 text-sm font-mono leading-relaxed outline-none focus:border-[#1a1a2e] focus:bg-white resize-y"
+            className="w-full rounded-2xl border border-line bg-[#f9fafb] px-4 py-3 text-sm font-mono leading-relaxed outline-none focus:border-ink focus:bg-white resize-y"
           />
 
           <div className="flex items-center gap-2">
             <button onClick={saveNoteTemplate}
-              className={`rounded-2xl px-5 py-2.5 text-sm font-semibold text-white transition ${noteSaved ? 'bg-green-600' : 'bg-[#1a1a2e] hover:opacity-90'}`}>
+              className={`rounded-2xl px-5 py-2.5 text-sm font-semibold text-white transition ${noteSaved ? 'bg-green-600' : 'bg-ink hover:opacity-90'}`}>
               {noteSaved ? 'Saved ✓' : 'Save Template'}
             </button>
             <button onClick={resetNoteTemplate}
-              className="rounded-2xl border border-[#e5e7eb] bg-white px-5 py-2.5 text-sm font-semibold hover:bg-[#f4f5f7] transition">
+              className="rounded-2xl border border-line bg-white px-5 py-2.5 text-sm font-semibold hover:bg-mist transition">
               Reset to Default
             </button>
           </div>
@@ -1040,21 +1040,21 @@ export default function DevPage({ session }: { session: Session }) {
           <div className="rounded-[1.75rem] border border-white/70 bg-white shadow-panel p-6 space-y-4">
             <div>
               <p className="text-sm font-semibold">Branches</p>
-              <p className="mt-1 text-xs text-[#697586]">Create branches and assign each Staff account to one. Staff see all data; access to each feature is controlled below.</p>
+              <p className="mt-1 text-xs text-soft">Create branches and assign each Staff account to one. Staff see all data; access to each feature is controlled below.</p>
             </div>
             <div className="flex gap-2">
               <input value={newBranch} onChange={e => setNewBranch(e.target.value)} onKeyDown={e => e.key === 'Enter' && addBranch()}
                 placeholder="New branch name (e.g. Chammanad)"
-                className="flex-1 rounded-2xl border border-[#e5e7eb] bg-[#f4f5f7] px-4 py-2.5 text-sm outline-none focus:border-[#1a1a2e] focus:bg-white" />
+                className="flex-1 rounded-2xl border border-line bg-mist px-4 py-2.5 text-sm outline-none focus:border-ink focus:bg-white" />
               <button onClick={addBranch} disabled={!newBranch.trim()}
-                className="rounded-2xl bg-[#1a1a2e] px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-40">Add</button>
+                className="rounded-2xl bg-ink px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-40">Add</button>
             </div>
             {branches.length === 0 ? (
-              <p className="text-xs text-[#697586]">No branches yet.</p>
+              <p className="text-xs text-soft">No branches yet.</p>
             ) : (
               <div className="flex flex-wrap gap-2">
                 {branches.map(b => (
-                  <span key={b.branchId} className="inline-flex items-center gap-2 rounded-full bg-[#f4f5f7] px-3 py-1.5 text-sm">
+                  <span key={b.branchId} className="inline-flex items-center gap-2 rounded-full bg-mist px-3 py-1.5 text-sm">
                     {b.name}
                     <button onClick={() => deleteBranch(b.branchId)} className="text-red-500 hover:text-red-700 font-bold">×</button>
                   </span>
@@ -1067,23 +1067,23 @@ export default function DevPage({ session }: { session: Session }) {
           <div className="rounded-[1.75rem] border border-white/70 bg-white shadow-panel p-6 space-y-4">
             <div>
               <p className="text-sm font-semibold">Staff Access</p>
-              <p className="mt-1 text-xs text-[#697586]">Field agents only. Staff and guarantor permissions are now set in NGF Branches: open the branch and use the edit icon on the person. Agents only use the Payment Matching options.</p>
+              <p className="mt-1 text-xs text-soft">Field agents only. Staff and guarantor permissions are now set in NGF Branches: open the branch and use the edit icon on the person. Agents only use the Payment Matching options.</p>
             </div>
             {staffList.filter(u => u.role === 'NGF AGENT').length === 0 ? (
-              <p className="text-xs text-[#697586]">No field agents yet. Staff and guarantor permissions are in NGF Branches.</p>
+              <p className="text-xs text-soft">No field agents yet. Staff and guarantor permissions are in NGF Branches.</p>
             ) : (
               <div className="space-y-4">
                 {staffList.filter(u => u.role === 'NGF AGENT').map(u => {
                   const a = accessMap[u.userId] || { branchId: '', permissions: [] }
                   return (
-                    <div key={u.userId} className="rounded-2xl border border-[#e5e7eb] p-4 space-y-3">
+                    <div key={u.userId} className="rounded-2xl border border-line p-4 space-y-3">
                       <div className="flex items-center justify-between gap-3 flex-wrap">
                         <div>
                           <p className="text-sm font-semibold">{u.name}</p>
-                          <p className="text-xs text-[#697586]">{u.username}{u.role === 'NGF AGENT' ? ' · Agent' : ''}</p>
+                          <p className="text-xs text-soft">{u.username}{u.role === 'NGF AGENT' ? ' · Agent' : ''}</p>
                         </div>
                         <select value={a.branchId} onChange={e => patchAccess(u.userId, { branchId: e.target.value })}
-                          className="rounded-xl border border-[#e5e7eb] bg-white px-3 py-2 text-sm outline-none focus:border-[#1a1a2e]">
+                          className="rounded-xl border border-line bg-white px-3 py-2 text-sm outline-none focus:border-ink">
                           <option value="">No branch</option>
                           {branches.map(b => <option key={b.branchId} value={b.branchId}>{b.name}</option>)}
                         </select>
@@ -1093,14 +1093,14 @@ export default function DevPage({ session }: { session: Session }) {
                           const on = a.permissions.includes(f.key)
                           return (
                             <button key={f.key} type="button" onClick={() => togglePerm(u.userId, f.key)}
-                              className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition border ${on ? 'bg-green-600 border-green-600 text-white' : 'bg-white border-[#e5e7eb] text-[#697586] hover:bg-[#f4f5f7]'}`}>
+                              className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition border ${on ? 'bg-green-600 border-green-600 text-white' : 'bg-white border-line text-soft hover:bg-mist'}`}>
                               {on ? '✓ ' : ''}{f.label}
                             </button>
                           )
                         })}
                       </div>
                       <button onClick={() => saveAccess(u.userId)}
-                        className={`rounded-xl px-4 py-2 text-xs font-semibold text-white transition ${savedUser === u.userId ? 'bg-green-600' : 'bg-[#1a1a2e] hover:opacity-90'}`}>
+                        className={`rounded-xl px-4 py-2 text-xs font-semibold text-white transition ${savedUser === u.userId ? 'bg-green-600' : 'bg-ink hover:opacity-90'}`}>
                         {savedUser === u.userId ? 'Saved ✓' : 'Save Access'}
                       </button>
                     </div>
@@ -1117,7 +1117,7 @@ export default function DevPage({ session }: { session: Session }) {
           <div className="rounded-[1.75rem] border border-white/70 bg-white shadow-panel p-6 space-y-4">
             <div>
               <p className="text-sm font-semibold">Add Loan Product</p>
-              <p className="mt-1 text-xs text-[#697586]">
+              <p className="mt-1 text-xs text-soft">
                 Supports a different final-week amount. Example: ₹20,000 · ₹1,400/week · 15 weeks · last week ₹400 · ₹2,000 upfront deduction.
               </p>
             </div>
@@ -1132,20 +1132,20 @@ export default function DevPage({ session }: { session: Session }) {
                 ['guarantorCommission', 'Guarantor commission', 'number'],
               ] as [keyof typeof pForm, string, string][]).map(([k, l, t]) => (
                 <label key={k} className="block">
-                  <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-[#697586]">{l}</span>
+                  <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-soft">{l}</span>
                   <input type={t} value={pForm[k]} data-no-upper
                     onChange={e => setPForm(f => ({ ...f, [k]: e.target.value }))}
                     placeholder={k === 'lastWeekCollection' ? 'defaults to weekly' : ''}
-                    className="w-full rounded-2xl border border-[#e5e7eb] bg-[#f4f5f7] px-4 py-2.5 text-sm outline-none focus:border-[#1a1a2e] focus:bg-white" />
+                    className="w-full rounded-2xl border border-line bg-mist px-4 py-2.5 text-sm outline-none focus:border-ink focus:bg-white" />
                 </label>
               ))}
             </div>
             <div className="flex flex-wrap items-center gap-4 rounded-2xl bg-[#f9fafb] px-4 py-3 text-sm">
-              <span className="text-[#697586]">Total collection: <b className="text-[#1a1a2e]">{capCurrency(pTotal || 0)}</b></span>
-              <span className="text-[#697586]">Net disbursed: <b className="text-green-700">{capCurrency(pNet || 0)}</b></span>
+              <span className="text-soft">Total collection: <b className="text-ink">{capCurrency(pTotal || 0)}</b></span>
+              <span className="text-soft">Net disbursed: <b className="text-green-700">{capCurrency(pNet || 0)}</b></span>
             </div>
             <button onClick={addProduct} disabled={pSaving}
-              className="rounded-2xl bg-[#1a1a2e] px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50">
+              className="rounded-2xl bg-ink px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50">
               {pSaving ? 'Adding…' : 'Add Product'}
             </button>
           </div>
@@ -1154,10 +1154,10 @@ export default function DevPage({ session }: { session: Session }) {
           <div className="rounded-[1.75rem] border border-white/70 bg-white shadow-panel overflow-hidden">
             <div className="border-b border-black/5 px-5 py-3"><p className="text-sm font-semibold">Loan Products</p></div>
             {products.length === 0 ? (
-              <p className="p-6 text-center text-sm text-[#697586]">No products.</p>
+              <p className="p-6 text-center text-sm text-soft">No products.</p>
             ) : (
               <table className="w-full text-left text-sm">
-                <thead className="border-b border-black/5 bg-[#fafafa] text-[#697586]">
+                <thead className="border-b border-black/5 bg-[#fafafa] text-soft">
                   <tr>{['Product', 'Principal', 'Schedule', 'Upfront', 'Total', 'Net', ''].map(h => <th key={h} className="px-4 py-3 font-medium text-xs">{h}</th>)}</tr>
                 </thead>
                 <tbody className="divide-y divide-black/5">
@@ -1165,7 +1165,7 @@ export default function DevPage({ session }: { session: Session }) {
                     <tr key={p.key} className="hover:bg-[#fafafa]">
                       <td className="px-4 py-3 font-medium">{p.label}</td>
                       <td className="px-4 py-3">{capCurrency(p.principal)}</td>
-                      <td className="px-4 py-3 text-[#697586] text-xs">
+                      <td className="px-4 py-3 text-soft text-xs">
                         {capCurrency(p.weeklyCollection)} × {p.durationWeeks - 1}w
                         {p.lastWeekCollection !== p.weeklyCollection ? ` + ${capCurrency(p.lastWeekCollection)}` : ` + last`}
                       </td>
@@ -1184,17 +1184,17 @@ export default function DevPage({ session }: { session: Session }) {
         </div>
       )}
       {subTab === 'userReset' && (
-        <div className="rounded-[1.75rem] border border-[#e5e7eb] bg-white shadow-panel p-6 space-y-5">
+        <div className="rounded-[1.75rem] border border-line bg-white shadow-panel p-6 space-y-5">
           <div>
             <p className="text-sm font-semibold">User Password Reset <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-700">Development only</span></p>
-            <p className="mt-1 text-xs text-[#697586]">
+            <p className="mt-1 text-xs text-soft">
               Sets a new password for any user (including Admin) and signs out their existing sessions. Recorded in the audit log.
               Disabled by the server in production.
             </p>
           </div>
-          {pwAvail === 'checking' && <p className="text-xs text-[#697586]">Checking availability…</p>}
+          {pwAvail === 'checking' && <p className="text-xs text-soft">Checking availability…</p>}
           {pwAvail === 'no' && (
-            <p role="status" className="rounded-xl bg-[#f4f5f7] px-4 py-3 text-sm text-[#697586]">
+            <p role="status" className="rounded-xl bg-mist px-4 py-3 text-sm text-soft">
               This utility is not available in this environment.
             </p>
           )}
@@ -1202,19 +1202,19 @@ export default function DevPage({ session }: { session: Session }) {
             <form onSubmit={submitUserReset} className="space-y-3 max-w-md">
               <label className="block text-xs font-medium">Username
                 <input name="resetUsername" value={pwUser} onChange={e => setPwUser(e.target.value)} data-no-upper autoComplete="off"
-                  className="mt-1 w-full rounded-xl border border-[#e5e7eb] bg-[#f4f5f7] px-3 py-2 text-sm outline-none focus:border-[#1a1a2e] focus:bg-white" />
+                  className="mt-1 w-full rounded-xl border border-line bg-mist px-3 py-2 text-sm outline-none focus:border-ink focus:bg-white" />
               </label>
               <label className="block text-xs font-medium">New password
                 <input name="resetNewPassword" type="password" value={pwNew} onChange={e => setPwNew(e.target.value)} data-no-upper autoComplete="new-password"
-                  className="mt-1 w-full rounded-xl border border-[#e5e7eb] bg-[#f4f5f7] px-3 py-2 text-sm outline-none focus:border-[#1a1a2e] focus:bg-white" />
+                  className="mt-1 w-full rounded-xl border border-line bg-mist px-3 py-2 text-sm outline-none focus:border-ink focus:bg-white" />
               </label>
               <label className="block text-xs font-medium">
                 Type <span className="font-mono">RESET {pwUser.trim() || '<username>'}</span> to confirm
                 <input name="resetConfirm" value={pwConfirm} onChange={e => setPwConfirm(e.target.value)} data-no-upper autoComplete="off"
-                  className="mt-1 w-full rounded-xl border border-[#e5e7eb] bg-[#f4f5f7] px-3 py-2 text-sm outline-none focus:border-[#1a1a2e] focus:bg-white" />
+                  className="mt-1 w-full rounded-xl border border-line bg-mist px-3 py-2 text-sm outline-none focus:border-ink focus:bg-white" />
               </label>
               <button type="submit" disabled={pwBusy || !pwUser.trim() || !pwNew || pwConfirm !== `RESET ${pwUser.trim()}`}
-                className="rounded-xl bg-[#1a1a2e] px-4 py-2 text-sm font-semibold text-white hover:bg-black disabled:opacity-50">
+                className="rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white hover:bg-black disabled:opacity-50">
                 {pwBusy ? 'Resetting…' : 'Reset password'}
               </button>
               {pwMsg && <p role="status" className={`text-sm ${pwMsg.ok ? 'text-green-700' : 'text-red-600'}`}>{pwMsg.text}</p>}
@@ -1227,7 +1227,7 @@ export default function DevPage({ session }: { session: Session }) {
         <div className="rounded-[1.75rem] border border-red-200 bg-white shadow-panel p-6 space-y-6">
           <div>
             <p className="text-sm font-semibold text-red-700">Clear Test Data</p>
-            <p className="mt-1 text-xs text-[#697586]">
+            <p className="mt-1 text-xs text-soft">
               Permanently deletes all rows from selected sheets. Header rows are preserved.
               <span className="font-semibold text-red-600"> Users cannot be cleared</span> — admin login is always kept.
             </p>
@@ -1236,17 +1236,17 @@ export default function DevPage({ session }: { session: Session }) {
           {/* Transaction Data group */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold uppercase tracking-wider text-[#697586]">Transaction Data</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-soft">Transaction Data</p>
               <div className="flex gap-2">
                 <button onClick={() => selectGroup(TRANSACTION_TABLES, true)}
                   className="text-[10px] font-semibold text-blue-600 hover:underline">All</button>
                 <button onClick={() => selectGroup(TRANSACTION_TABLES, false)}
-                  className="text-[10px] font-semibold text-[#697586] hover:underline">None</button>
+                  className="text-[10px] font-semibold text-soft hover:underline">None</button>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2">
               {TRANSACTION_TABLES.map(t => (
-                <label key={t} className="flex items-center gap-2.5 rounded-xl border border-[#e5e7eb] px-3 py-2 cursor-pointer hover:bg-[#f9fafb]">
+                <label key={t} className="flex items-center gap-2.5 rounded-xl border border-line px-3 py-2 cursor-pointer hover:bg-[#f9fafb]">
                   <input type="checkbox" checked={selected.has(t)} onChange={() => toggleTable(t)}
                     className="h-3.5 w-3.5 accent-red-600" />
                   <span className="text-xs font-medium">{t}</span>
@@ -1258,17 +1258,17 @@ export default function DevPage({ session }: { session: Session }) {
           {/* Staff & Config group */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold uppercase tracking-wider text-[#697586]">Staff &amp; Config</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-soft">Staff &amp; Config</p>
               <div className="flex gap-2">
                 <button onClick={() => selectGroup(STAFF_CONFIG_TABLES, true)}
                   className="text-[10px] font-semibold text-blue-600 hover:underline">All</button>
                 <button onClick={() => selectGroup(STAFF_CONFIG_TABLES, false)}
-                  className="text-[10px] font-semibold text-[#697586] hover:underline">None</button>
+                  className="text-[10px] font-semibold text-soft hover:underline">None</button>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2">
               {STAFF_CONFIG_TABLES.map(t => (
-                <label key={t} className="flex items-center gap-2.5 rounded-xl border border-[#e5e7eb] px-3 py-2 cursor-pointer hover:bg-[#f9fafb]">
+                <label key={t} className="flex items-center gap-2.5 rounded-xl border border-line px-3 py-2 cursor-pointer hover:bg-[#f9fafb]">
                   <input type="checkbox" checked={selected.has(t)} onChange={() => toggleTable(t)}
                     className="h-3.5 w-3.5 accent-red-600" />
                   <span className="text-xs font-medium">{t}</span>
@@ -1286,15 +1286,15 @@ export default function DevPage({ session }: { session: Session }) {
 
           {/* Confirmation */}
           <div className="space-y-2">
-            <p className="text-xs text-[#697586]">
-              Type <span className="font-mono font-semibold bg-[#f4f5f7] px-1.5 py-0.5 rounded">CLEAR ALL</span> to confirm
+            <p className="text-xs text-soft">
+              Type <span className="font-mono font-semibold bg-mist px-1.5 py-0.5 rounded">CLEAR ALL</span> to confirm
             </p>
             <input
               type="text"
               value={confirmText}
               onChange={e => { setConfirmText(e.target.value); setClearStatus('idle') }}
               placeholder="CLEAR ALL"
-              className="w-full rounded-xl border border-[#e5e7eb] bg-[#f9fafb] px-4 py-2.5 text-sm font-mono focus:outline-none focus:border-red-400"
+              className="w-full rounded-xl border border-line bg-[#f9fafb] px-4 py-2.5 text-sm font-mono focus:outline-none focus:border-red-400"
             />
           </div>
 

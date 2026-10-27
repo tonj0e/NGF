@@ -35,7 +35,7 @@ const EVENT_LABEL: Record<string, string> = {
 }
 
 const card = 'rounded-[1.75rem] border border-white/70 bg-white shadow-panel p-4 sm:p-6'
-const input = 'w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 py-3 text-sm outline-none focus:border-[#1a1a2e]'
+const input = 'w-full rounded-2xl border border-line bg-white px-4 py-3 text-sm outline-none focus:border-ink'
 
 async function api(session: Session, path: string, body?: unknown) {
   const res = await fetch(path, {
@@ -49,7 +49,7 @@ async function api(session: Session, path: string, body?: unknown) {
 }
 
 function Pill({ tone, children }: { tone: 'green' | 'amber' | 'red' | 'violet' | 'gray' | 'blue'; children: React.ReactNode }) {
-  const c = { green: 'bg-green-100 text-green-700', amber: 'bg-amber-100 text-amber-800', red: 'bg-red-100 text-red-700', violet: 'bg-violet-100 text-violet-700', gray: 'bg-[#f4f5f7] text-[#697586]', blue: 'bg-blue-100 text-blue-700' }[tone]
+  const c = { green: 'bg-green-100 text-green-700', amber: 'bg-amber-100 text-amber-800', red: 'bg-red-100 text-red-700', violet: 'bg-violet-100 text-violet-700', gray: 'bg-mist text-soft', blue: 'bg-blue-100 text-blue-700' }[tone]
   return <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${c}`}>{children}</span>
 }
 
@@ -76,7 +76,7 @@ function Proof({ session, url }: { session: Session; url: string }) {
     <div>
       <button type="button" onClick={() => setOpen(o => !o)} className="text-xs font-semibold text-blue-700 underline">{open ? 'Hide screenshot' : 'View screenshot'}</button>
       {open && (src === 'error' ? <p className="mt-1 text-xs text-red-600">Could not load the screenshot.</p>
-        : src ? <img src={src} alt="Payment screenshot" className="mt-2 max-h-80 rounded-xl border border-[#e5e7eb]" /> : <p className="mt-1 text-xs text-[#697586]">Loading…</p>)}
+        : src ? <img src={src} alt="Payment screenshot" className="mt-2 max-h-80 rounded-xl border border-line" /> : <p className="mt-1 text-xs text-soft">Loading…</p>)}
     </div>
   )
 }
@@ -86,7 +86,7 @@ function History({ g }: { g: Group }) {
   if (!g.events.length) return null
   return (
     <div>
-      <button type="button" onClick={() => setOpen(o => !o)} className="text-xs font-semibold text-[#697586] underline">{open ? 'Hide history' : `History (${g.events.length})`}</button>
+      <button type="button" onClick={() => setOpen(o => !o)} className="text-xs font-semibold text-soft underline">{open ? 'Hide history' : `History (${g.events.length})`}</button>
       {open && (
         <ul className="mt-2 space-y-1 text-xs text-[#4b5563]">
           {g.events.map((e, i) => (
@@ -108,11 +108,11 @@ function GroupCard({ g, session, me, onChanged }: { g: Group; session: Session; 
   const flagged = g.status === 'Flagged'
   const canAct = me.access.canMark
   return (
-    <div className={`rounded-2xl border p-3 sm:p-4 space-y-3 ${flagged ? 'border-amber-300 bg-amber-50/40' : 'border-[#e5e7eb] bg-white'}`}>
+    <div className={`rounded-2xl border p-3 sm:p-4 space-y-3 ${flagged ? 'border-amber-300 bg-amber-50/40' : 'border-line bg-white'}`}>
       <div className="flex flex-wrap items-center gap-2">
         {flagged ? <Pill tone="amber">⚠ Flagged</Pill> : g.status === 'Overridden' ? <Pill tone="violet">Override approved</Pill> : <Pill tone="green">Verified</Pill>}
         <BankPill g={g} />
-        <span className="ml-auto text-xs text-[#697586]">{g.guarantorName ? `${g.guarantorName} · ` : ''}{g.markedByName} · {when(g.createdAt)}</span>
+        <span className="ml-auto text-xs text-soft">{g.guarantorName ? `${g.guarantorName} · ` : ''}{g.markedByName} · {when(g.createdAt)}</span>
       </div>
       <PaymentDiagram utr={g.utr} mode={g.mode} total={g.total} status={g.status}
         lines={g.lines.map(l => ({ name: l.name, payCode: l.payCode, amount: l.amount, hidden: l.hidden }))} />
@@ -147,7 +147,7 @@ function FlagFix({ g, session, me, canAct, onChanged }: { g: Group; session: Ses
   return (
     <div className="space-y-3 rounded-2xl border border-amber-200 bg-white p-3">
       <p className="text-sm font-semibold text-amber-900">This UTR is already used on another payment.</p>
-      {g.conflicts.length === 0 && <p className="text-xs text-[#697586]">{g.flagReason}</p>}
+      {g.conflicts.length === 0 && <p className="text-xs text-soft">{g.flagReason}</p>}
       {g.conflicts.map(c => (
         <div key={c.groupId} className="space-y-2 rounded-xl bg-[#f9fafb] p-3">
           <p className="text-xs text-[#4b5563]">
@@ -160,22 +160,22 @@ function FlagFix({ g, session, me, canAct, onChanged }: { g: Group; session: Ses
               <div className="flex gap-2">
                 <input className={input} placeholder="Correct UTR for that payment" value={fixUtr} onChange={e => setFixUtr(e.target.value)} />
                 <button disabled={!!busy || !fixUtr.trim()} onClick={() => run('fix', { action: 'editUtr', groupId: c.groupId, utr: fixUtr })}
-                  className="shrink-0 rounded-2xl bg-[#1a1a2e] px-4 text-sm font-semibold text-white disabled:opacity-50">{busy === 'fix' ? '…' : 'Save'}</button>
+                  className="shrink-0 rounded-2xl bg-ink px-4 text-sm font-semibold text-white disabled:opacity-50">{busy === 'fix' ? '…' : 'Save'}</button>
               </div>
             ) : (
               <button onClick={() => { setFixId(c.groupId); setFixUtr('') }} className="text-xs font-semibold text-blue-700 underline">Edit the UTR on that earlier payment</button>
             )
-          ) : <p className="text-xs text-[#697586]">To correct the earlier payment ask a manager with override permission.</p>)}
+          ) : <p className="text-xs text-soft">To correct the earlier payment ask a manager with override permission.</p>)}
         </div>
       ))}
       {canAct && (
         <>
           <div>
-            <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-[#697586]">Edit with the original UTR</p>
+            <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-soft">Edit with the original UTR</p>
             <div className="flex gap-2">
               <input className={input} placeholder="Original UTR from the screenshot" value={utr} onChange={e => setUtr(e.target.value)} />
               <button disabled={!!busy || !utr.trim()} onClick={() => run('edit', { action: 'editUtr', groupId: g.groupId, utr })}
-                className="shrink-0 rounded-2xl bg-[#1a1a2e] px-4 text-sm font-semibold text-white disabled:opacity-50">{busy === 'edit' ? '…' : 'Save UTR'}</button>
+                className="shrink-0 rounded-2xl bg-ink px-4 text-sm font-semibold text-white disabled:opacity-50">{busy === 'edit' ? '…' : 'Save UTR'}</button>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -184,7 +184,7 @@ function FlagFix({ g, session, me, canAct, onChanged }: { g: Group; session: Ses
           </div>
           {me.access.canOverride && (
             <div>
-              <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-[#697586]">Approve anyway (needs a written reason)</p>
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-soft">Approve anyway (needs a written reason)</p>
               <div className="flex gap-2">
                 <input className={input} placeholder="Reason for the override" value={reason} onChange={e => setReason(e.target.value)} />
                 <button disabled={!!busy || reason.trim().length < 5} onClick={() => run('override', { action: 'override', groupId: g.groupId, reason })}
@@ -279,7 +279,7 @@ function CollectTab({ session, me, guarantorId, date, onChanged, refreshKey }: {
     finally { setSaving(false) }
   }
 
-  if (!guarantorId) return <div className={card}><p className="text-sm text-[#697586]">Choose a guarantor above to see their customers for this Saturday.</p></div>
+  if (!guarantorId) return <div className={card}><p className="text-sm text-soft">Choose a guarantor above to see their customers for this Saturday.</p></div>
 
   return (
     <div className="space-y-4">
@@ -293,12 +293,12 @@ function CollectTab({ session, me, guarantorId, date, onChanged, refreshKey }: {
       <div className={card}>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm font-semibold">Customers due · {rows.filter(r => r.dueDate === date).length}</p>
-          <p className="text-xs text-[#697586]">Expected {money(expected)} · {paidCount} paid</p>
+          <p className="text-xs text-soft">Expected {money(expected)} · {paidCount} paid</p>
         </div>
         <input className={input} inputMode="search" placeholder="Search 4-digit code, name or phone" value={q} onChange={e => setQ(e.target.value)} />
         {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
-        {loading && <p className="mt-3 text-sm text-[#697586]">Loading…</p>}
-        {!loading && !error && visible.length === 0 && <p className="mt-3 text-sm text-[#697586]">No customers match.</p>}
+        {loading && <p className="mt-3 text-sm text-soft">Loading…</p>}
+        {!loading && !error && visible.length === 0 && <p className="mt-3 text-sm text-soft">No customers match.</p>}
         <ul className="mt-3 divide-y divide-[#f0f1f3]">
           {visible.map(r => {
             const on = picked.includes(r.repaymentId)
@@ -307,11 +307,11 @@ function CollectTab({ session, me, guarantorId, date, onChanged, refreshKey }: {
               <li key={r.repaymentId}>
                 <button type="button" onClick={() => toggle(r)} disabled={done}
                   className={`flex w-full items-center gap-3 py-3 text-left transition ${on ? 'bg-blue-50/70' : ''} ${done ? 'opacity-75' : ''}`}>
-                  <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border text-xs font-bold ${on ? 'border-[#1a1a2e] bg-[#1a1a2e] text-white' : 'border-[#d1d5db] text-transparent'}`}>✓</span>
-                  <span className="shrink-0 rounded-lg bg-[#f4f5f7] px-2 py-1 font-mono text-sm font-semibold text-[#1a1a2e]">{r.payCode || '----'}</span>
+                  <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border text-xs font-bold ${on ? 'border-ink bg-ink text-white' : 'border-[#d1d5db] text-transparent'}`}>✓</span>
+                  <span className="shrink-0 rounded-lg bg-mist px-2 py-1 font-mono text-sm font-semibold text-ink">{r.payCode || '----'}</span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-semibold">{r.name}</span>
-                    <span className="block text-xs text-[#697586]">Week {r.weekNo ?? '-'}{r.overdue ? ` · due ${r.dueDate}` : ''}</span>
+                    <span className="block text-xs text-soft">Week {r.weekNo ?? '-'}{r.overdue ? ` · due ${r.dueDate}` : ''}</span>
                   </span>
                   <span className="shrink-0 text-right">
                     <span className="block text-sm font-bold">{money(r.amount)}</span>
@@ -327,16 +327,16 @@ function CollectTab({ session, me, guarantorId, date, onChanged, refreshKey }: {
       </div>
 
       {picked.length > 0 && (
-        <div className={`${card} sticky bottom-3 z-10 space-y-3 border-[#1a1a2e]/20`}>
+        <div className={`${card} sticky bottom-3 z-10 space-y-3 border-ink/20`}>
           <div className="flex flex-wrap items-center gap-2">
             {pickedRows.map(r => (
-              <span key={r.repaymentId} className="inline-flex items-center gap-1 rounded-full bg-[#f4f5f7] py-1 pl-3 pr-1 text-xs font-semibold">
+              <span key={r.repaymentId} className="inline-flex items-center gap-1 rounded-full bg-mist py-1 pl-3 pr-1 text-xs font-semibold">
                 {r.name} · {money(r.amount)}
-                <button type="button" aria-label={`Remove ${r.name}`} onClick={() => setPicked(p => p.filter(x => x !== r.repaymentId))} className="flex h-5 w-5 items-center justify-center rounded-full text-[#697586] hover:bg-white">×</button>
+                <button type="button" aria-label={`Remove ${r.name}`} onClick={() => setPicked(p => p.filter(x => x !== r.repaymentId))} className="flex h-5 w-5 items-center justify-center rounded-full text-soft hover:bg-white">×</button>
               </span>
             ))}
           </div>
-          <p className="text-xs text-[#697586]">To add another customer to this same payment, search their code above and tap them.</p>
+          <p className="text-xs text-soft">To add another customer to this same payment, search their code above and tap them.</p>
           <div className="grid gap-3 sm:grid-cols-2">
             <select className={input} value={mode} onChange={e => setMode(e.target.value)}>
               <option value="UPI">UPI / QR</option><option value="Cash">Cash</option><option value="Bank">Bank transfer</option><option value="Cheque">Cheque</option><option value="Other">Other</option>
@@ -355,11 +355,11 @@ function CollectTab({ session, me, guarantorId, date, onChanged, refreshKey }: {
             </div>
           )}
           <input className={input} placeholder="Note (optional)" value={notes} onChange={e => setNotes(e.target.value)} />
-          <label className="block text-xs text-[#697586]">Screenshot (optional proof)
+          <label className="block text-xs text-soft">Screenshot (optional proof)
             <input type="file" accept="image/*" className="mt-1 block w-full text-xs" onChange={e => setShot(e.target.files?.[0] || null)} />
           </label>
           <button type="button" onClick={save} disabled={saving}
-            className="w-full rounded-2xl bg-[#1a1a2e] px-4 py-3 text-sm font-semibold text-white disabled:opacity-60">
+            className="w-full rounded-2xl bg-ink px-4 py-3 text-sm font-semibold text-white disabled:opacity-60">
             {saving ? 'Saving…' : `Save ${money(total)} for ${picked.length} customer${picked.length > 1 ? 's' : ''}`}
           </button>
         </div>
@@ -386,14 +386,14 @@ function RecordsTab({ session, me, guarantorId, date, refreshKey, onChanged }: {
   useEffect(() => { load() }, [load, refreshKey])
 
   if (error) return <div className={card}><p className="text-sm text-red-600">{error}</p></div>
-  if (!data) return <div className={card}><p className="text-sm text-[#697586]">{loading ? 'Loading…' : ''}</p></div>
+  if (!data) return <div className={card}><p className="text-sm text-soft">{loading ? 'Loading…' : ''}</p></div>
   const flaggedElsewhere = data.flagged.filter(f => !data.groups.some(g => g.groupId === f.groupId))
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[['UPI / bank', money(data.summary.upi)], ['Cash', money(data.summary.cash)], ['Payments', String(data.summary.payments)], ['Flagged', String(data.summary.flaggedCount)]].map(([l, v]) => (
-          <div key={l} className="rounded-2xl border border-[#e5e7eb] bg-white p-3">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-[#697586]">{l}</p>
+          <div key={l} className="rounded-2xl border border-line bg-white p-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-soft">{l}</p>
             <p className={`mt-1 text-lg font-bold ${l === 'Flagged' && v !== '0' ? 'text-amber-700' : ''}`}>{v}</p>
           </div>
         ))}
@@ -404,7 +404,7 @@ function RecordsTab({ session, me, guarantorId, date, refreshKey, onChanged }: {
           {flaggedElsewhere.map(g => <GroupCard key={g.groupId} g={g} session={session} me={me} onChanged={() => { load(); onChanged() }} />)}
         </div>
       )}
-      {data.groups.length === 0 ? <div className={card}><p className="text-sm text-[#697586]">No payments recorded for this Saturday yet.</p></div>
+      {data.groups.length === 0 ? <div className={card}><p className="text-sm text-soft">No payments recorded for this Saturday yet.</p></div>
         : <div className="space-y-3">{data.groups.map(g => <GroupCard key={g.groupId} g={g} session={session} me={me} onChanged={() => { load(); onChanged() }} />)}</div>}
     </div>
   )
@@ -445,23 +445,23 @@ function BankTab({ session, me }: { session: Session; me: Me }) {
     <div className="space-y-4">
       <div className={`${card} space-y-3`}>
         <p className="text-sm font-semibold">Upload bank statement (CSV)</p>
-        <p className="text-xs text-[#697586]">Each credit is read with its UTR (from a UTR column, or the 12-digit number in the narration). Every saved UTR payment is then checked for the same UTR and amount.</p>
+        <p className="text-xs text-soft">Each credit is read with its UTR (from a UTR column, or the 12-digit number in the narration). Every saved UTR payment is then checked for the same UTR and amount.</p>
         <input type="file" accept=".csv,text/csv" className="block w-full text-sm" onChange={e => pick(e.target.files?.[0] || null)} />
         {rows && rows.length > 0 && (
           <div className="space-y-2">
             <p className="text-sm">Found <b>{rows.length}</b> credits with a UTR. First: {rows[0].utr} · {money(rows[0].amount)}</p>
-            <button onClick={upload} disabled={busy} className="rounded-2xl bg-[#1a1a2e] px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-60">{busy ? 'Uploading…' : 'Upload and check'}</button>
+            <button onClick={upload} disabled={busy} className="rounded-2xl bg-ink px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-60">{busy ? 'Uploading…' : 'Upload and check'}</button>
           </div>
         )}
-        {msg && <p className="text-sm font-medium text-[#1a1a2e]">{msg}</p>}
+        {msg && <p className="text-sm font-medium text-ink">{msg}</p>}
       </div>
       {error && <p className="text-sm text-red-600">{error}</p>}
       {report && (
         <>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[['Bank credits on file', report.bankRows], ['Matched', report.counts.matched], ['Amount mismatch', report.counts.mismatch], ['Not in bank', report.counts.notFound]].map(([l, v]) => (
-              <div key={String(l)} className="rounded-2xl border border-[#e5e7eb] bg-white p-3">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-[#697586]">{l}</p>
+              <div key={String(l)} className="rounded-2xl border border-line bg-white p-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-soft">{l}</p>
                 <p className="mt-1 text-lg font-bold">{v}</p>
               </div>
             ))}
@@ -483,7 +483,7 @@ function BankTab({ session, me }: { session: Session; me: Me }) {
               {report.unclaimed.map((u: any) => (
                 <div key={u.utr} className="flex flex-wrap items-center justify-between gap-2 border-t border-[#f0f1f3] pt-2 text-sm">
                   <span className="font-mono text-xs">{u.utr}</span>
-                  <span className="text-xs text-[#697586]">{u.payer || u.remark || ''} {u.date}</span>
+                  <span className="text-xs text-soft">{u.payer || u.remark || ''} {u.date}</span>
                   <b>{money(u.amount)}</b>
                 </div>
               ))}
@@ -515,7 +515,7 @@ export default function PaymentMatchingPage({ session, fixedTab }: { session: Se
   }, [session, fixedTab])
 
   if (error) return <div className={card}><p className="text-sm text-red-600">{error}</p></div>
-  if (!me) return <div className={card}><p className="text-sm text-[#697586]">Loading…</p></div>
+  if (!me) return <div className={card}><p className="text-sm text-soft">Loading…</p></div>
 
   const tabs = [
     ...(me.access.canMark ? [['collect', 'Collect'] as const] : []),
@@ -530,12 +530,12 @@ export default function PaymentMatchingPage({ session, fixedTab }: { session: Se
         {!fixedTab && (<>
         <div>
           <h2 className="text-lg font-bold">{me.access.isGuarantor ? 'Payment history' : 'Payments'}</h2>
-          <p className="text-xs text-[#697586]">{me.access.isGuarantor ? (me.access.canMark ? 'Mark your customers’ UPI and cash payments by UTR, and see how each payment was received.' : 'See how each of your customers’ payments was received. View only.') : 'Mark UPI and cash payments by UTR. Each UTR can be used only once.'}</p>
+          <p className="text-xs text-soft">{me.access.isGuarantor ? (me.access.canMark ? 'Mark your customers’ UPI and cash payments by UTR, and see how each payment was received.' : 'See how each of your customers’ payments was received. View only.') : 'Mark UPI and cash payments by UTR. Each UTR can be used only once.'}</p>
         </div>
         <div className="flex gap-2 overflow-x-auto">
           {tabs.map(([k, label]) => (
             <button key={k} onClick={() => setTab(k)}
-              className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold transition ${tab === k ? 'bg-[#1a1a2e] text-white' : 'bg-[#f4f5f7] text-[#4b5563]'}`}>{label}</button>
+              className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold transition ${tab === k ? 'bg-ink text-white' : 'bg-mist text-[#4b5563]'}`}>{label}</button>
           ))}
         </div>
         </>)}
@@ -548,9 +548,9 @@ export default function PaymentMatchingPage({ session, fixedTab }: { session: Se
               </select>
             )}
             <div className="flex items-center gap-2">
-              <button type="button" aria-label="Previous week" onClick={() => setDate(shiftDate(date, -7))} className="h-11 w-11 shrink-0 rounded-2xl border border-[#e5e7eb] text-lg">‹</button>
+              <button type="button" aria-label="Previous week" onClick={() => setDate(shiftDate(date, -7))} className="h-11 w-11 shrink-0 rounded-2xl border border-line text-lg">‹</button>
               <input type="date" className={input} value={date} onChange={e => e.target.value && setDate(e.target.value)} />
-              <button type="button" aria-label="Next week" onClick={() => setDate(shiftDate(date, 7))} className="h-11 w-11 shrink-0 rounded-2xl border border-[#e5e7eb] text-lg">›</button>
+              <button type="button" aria-label="Next week" onClick={() => setDate(shiftDate(date, 7))} className="h-11 w-11 shrink-0 rounded-2xl border border-line text-lg">›</button>
             </div>
           </div>
         )}

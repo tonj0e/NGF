@@ -42,7 +42,7 @@ export default function RouteSketch({ start, startLabel, stops, nextId, onPick, 
   const done = stops.filter(s => s.done).length
 
   return (
-    <div className={`mx-auto w-full overflow-hidden bg-gradient-to-br from-[#1a1a2e] via-[#20204a] to-[#2b2461] p-4 text-white ${bare ? '' : 'max-w-[520px] rounded-[1.75rem] shadow-panel'}`}>
+    <div className={`mx-auto w-full overflow-hidden bg-gradient-to-br from-ink via-[#20204a] to-[#2b2461] p-4 text-white ${bare ? '' : 'max-w-[520px] rounded-[1.75rem] shadow-panel'}`}>
       {!bare && (
       <div className="mb-1 flex items-end justify-between gap-3">
         <div>

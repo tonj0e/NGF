@@ -31,15 +31,15 @@ export default function WhatsAppPanel({ session }: { session: Session }) {
     <div className="space-y-4">
       <div className="rounded-[1.75rem] border border-white/70 bg-white p-6 shadow-panel space-y-4">
         <div className="flex items-center justify-between gap-3">
-          <div><p className="text-sm font-semibold">WhatsApp messages</p><p className="text-xs text-[#697586]">Payment links are sent to the customer automatically from the server.</p></div>
+          <div><p className="text-sm font-semibold">WhatsApp messages</p><p className="text-xs text-soft">Payment links are sent to the customer automatically from the server.</p></div>
           {st && <span className={`rounded-full px-3 py-1 text-xs font-bold ${connected ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>{connected ? `Connected: ${st.provider.toUpperCase()}` : 'Not connected'}</span>}
         </div>
         {error && <p className="rounded-xl bg-red-50 px-3 py-2 text-xs text-red-600">{error}</p>}
         {st && !connected && st.chosen && st.missing.length > 0 && <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900">Provider <b>{st.chosen}</b> is chosen but these are missing: <b>{st.missing.join(', ')}</b>.</p>}
         {st && connected && !st.templateSet && <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900">Add the approved message template below. WhatsApp only allows business-started messages through an approved template.</p>}
         <IntegrationFields session={session} group="whatsapp" onChanged={load} />
-        <div className="rounded-2xl bg-[#f9fafb] p-3 text-xs text-[#697586] space-y-1">
-          <p className="font-semibold text-[#1a1a2e]">Template to get approved (utility category)</p>
+        <div className="rounded-2xl bg-[#f9fafb] p-3 text-xs text-soft space-y-1">
+          <p className="font-semibold text-ink">Template to get approved (utility category)</p>
           <p className="font-mono">Hello {'{{1}}'}, your NGF FINCORP loan {'{{2}}'} payment of {'{{3}}'} is due. Pay securely: {'{{4}}'} (valid till {'{{5}}'})</p>
           <p>Variables in order: customer name, loan number, amount, payment link, valid-until time.</p>
         </div>
@@ -51,7 +51,7 @@ export default function WhatsAppPanel({ session }: { session: Session }) {
             <p className="text-sm font-semibold">Usage today</p>
             <span className={`rounded-full px-3 py-1 text-xs font-bold ${st.usage.today >= st.usage.cap ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>{st.usage.today} of {st.usage.cap} messages</span>
           </div>
-          <ul className="text-xs text-[#697586] space-y-1">
+          <ul className="text-xs text-soft space-y-1">
             <li>Each payment link can be sent at most 3 times.</li>
             <li>Each staff login: 60 automatic messages per hour.</li>
             <li>Whole system: {st.usage.cap} per day (change it with the daily limit above). Staff can still use the manual WhatsApp button.</li>
@@ -61,11 +61,11 @@ export default function WhatsAppPanel({ session }: { session: Session }) {
 
       <div className="rounded-[1.75rem] border border-white/70 bg-white p-6 shadow-panel space-y-3">
         <p className="text-sm font-semibold">Send a test message</p>
-        <p className="text-xs text-[#697586]">Sends a sample message to your own number. Limited to 3 tests per 10 minutes.</p>
+        <p className="text-xs text-soft">Sends a sample message to your own number. Limited to 3 tests per 10 minutes.</p>
         <div className="flex flex-wrap gap-2">
-          <input value={phone} onChange={e => setPhone(e.target.value.replace(/[^\d+\s]/g, ''))} inputMode="tel" data-no-upper placeholder="Your mobile, 10 digits" className="w-56 rounded-2xl border border-[#e5e7eb] bg-[#f4f5f7] px-4 py-3 text-sm outline-none focus:border-[#1a1a2e] focus:bg-white" />
-          <button onClick={test} disabled={busy || !connected || phone.replace(/\D/g, '').length < 10} className="rounded-2xl bg-[#1a1a2e] px-5 py-3 text-sm font-semibold text-white disabled:opacity-40">{busy ? 'Sending…' : 'Send test message'}</button>
-          <button onClick={load} className="rounded-2xl border border-[#e5e7eb] px-4 py-3 text-sm font-semibold">Re-check</button>
+          <input value={phone} onChange={e => setPhone(e.target.value.replace(/[^\d+\s]/g, ''))} inputMode="tel" data-no-upper placeholder="Your mobile, 10 digits" className="w-56 rounded-2xl border border-line bg-mist px-4 py-3 text-sm outline-none focus:border-ink focus:bg-white" />
+          <button onClick={test} disabled={busy || !connected || phone.replace(/\D/g, '').length < 10} className="rounded-2xl bg-ink px-5 py-3 text-sm font-semibold text-white disabled:opacity-40">{busy ? 'Sending…' : 'Send test message'}</button>
+          <button onClick={load} className="rounded-2xl border border-line px-4 py-3 text-sm font-semibold">Re-check</button>
         </div>
         {msg && <p className={`rounded-xl px-3 py-2 text-xs ${msg.ok ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>{msg.text}</p>}
       </div>

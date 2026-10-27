@@ -36,16 +36,16 @@ export default function PaymentDiagram({ utr, mode, total, status, lines }: {
   return (
     <div className="flex items-center">
       <div className={`w-[38%] max-w-[190px] shrink-0 rounded-2xl border p-3 ${tone.node}`}>
-        <div className="flex items-center gap-1.5 text-xs font-semibold text-[#1a1a2e]">
+        <div className="flex items-center gap-1.5 text-xs font-semibold text-ink">
           <ModeIcon mode={mode} /> {mode === 'UPI' ? 'UPI payment' : mode}
         </div>
-        <p className="mt-1 text-lg font-bold leading-none text-[#1a1a2e]">{currency(total)}</p>
+        <p className="mt-1 text-lg font-bold leading-none text-ink">{currency(total)}</p>
         {utr ? (
           <p className="mt-1.5 break-all font-mono text-[10px] leading-tight text-[#4b5563]">UTR {utr}</p>
         ) : (
-          <p className="mt-1.5 text-[10px] text-[#697586]">No UTR</p>
+          <p className="mt-1.5 text-[10px] text-soft">No UTR</p>
         )}
-        {lines.length > 1 && <p className="mt-1 text-[10px] font-semibold text-[#697586]">Split across {lines.length} customers</p>}
+        {lines.length > 1 && <p className="mt-1 text-[10px] font-semibold text-soft">Split across {lines.length} customers</p>}
       </div>
 
       <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="shrink-0" aria-hidden>
@@ -63,11 +63,11 @@ export default function PaymentDiagram({ utr, mode, total, status, lines }: {
       <div className="flex min-w-0 flex-1 flex-col" style={{ gap: GAP }}>
         {lines.map((l, i) => (
           <div key={i} style={{ height: ROW }}
-            className={`flex items-center gap-2 rounded-2xl border px-3 ${l.hidden ? 'border-dashed border-[#d1d5db] bg-[#f9fafb]' : 'border-[#e5e7eb] bg-white'}`}>
+            className={`flex items-center gap-2 rounded-2xl border px-3 ${l.hidden ? 'border-dashed border-[#d1d5db] bg-[#f9fafb]' : 'border-line bg-white'}`}>
             <div className="min-w-0 flex-1">
-              <p className={`line-clamp-2 break-words text-[13px] font-semibold leading-tight ${l.hidden ? 'text-[#697586]' : 'text-[#1a1a2e]'}`}>{l.name || 'Customer'}</p>
-              <p className="mt-0.5 text-xs text-[#697586]">
-                {l.payCode ? <span className="font-mono">#{l.payCode} · </span> : null}<span className="font-bold text-[#1a1a2e]">{currency(l.amount)}</span>
+              <p className={`line-clamp-2 break-words text-[13px] font-semibold leading-tight ${l.hidden ? 'text-soft' : 'text-ink'}`}>{l.name || 'Customer'}</p>
+              <p className="mt-0.5 text-xs text-soft">
+                {l.payCode ? <span className="font-mono">#{l.payCode} · </span> : null}<span className="font-bold text-ink">{currency(l.amount)}</span>
               </p>
             </div>
           </div>

@@ -47,33 +47,33 @@ export default function Login({ onLogin }: { onLogin: (s: Session) => void }) {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#f4f5f7] px-4">
+    <div className="flex min-h-screen items-center justify-center bg-mist px-4">
       <div className="w-full max-w-md rounded-[2rem] border border-white/70 bg-white p-8 shadow-panel">
         <div className="text-center">
-          <div className="inline-flex rounded-full bg-[#f4f5f7] px-4 py-2 text-xs font-semibold uppercase tracking-widest text-[#697586]">
+          <div className="inline-flex rounded-full bg-mist px-4 py-2 text-xs font-semibold uppercase tracking-widest text-soft">
             NGF FINCORP
           </div>
           <h1 className="mt-4 text-3xl font-semibold tracking-tight">Sign in</h1>
-          <p className="mt-2 text-sm text-[#697586]">Finance operations platform</p>
+          <p className="mt-2 text-sm text-soft">Finance operations platform</p>
         </div>
         <form onSubmit={handleSubmit} className="mt-8 space-y-4 no-upper-form" data-no-upper-form>
           <label className="block">
             <span className="mb-2 block text-sm font-medium">Username</span>
             <input name="username" required autoCapitalize="none" autoCorrect="off" autoComplete="username" data-no-upper
-              className="w-full rounded-2xl border border-[#e5e7eb] bg-[#f4f5f7] px-4 py-3 text-sm outline-none focus:border-[#1a1a2e] focus:bg-white transition" />
+              className="w-full rounded-2xl border border-line bg-mist px-4 py-3 text-sm outline-none focus:border-ink focus:bg-white transition" />
           </label>
           <label className="block">
             <span className="mb-2 block text-sm font-medium">Password</span>
             <input name="password" type="password" required autoComplete="current-password" data-no-upper
-              className="w-full rounded-2xl border border-[#e5e7eb] bg-[#f4f5f7] px-4 py-3 text-sm outline-none focus:border-[#1a1a2e] focus:bg-white transition" />
+              className="w-full rounded-2xl border border-line bg-mist px-4 py-3 text-sm outline-none focus:border-ink focus:bg-white transition" />
           </label>
           {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">{error}</p>}
           <button type="submit" disabled={loading}
-            className="w-full rounded-2xl bg-[#1a1a2e] px-4 py-3 text-sm font-semibold text-white transition hover:bg-black disabled:opacity-60">
+            className="w-full rounded-2xl bg-ink px-4 py-3 text-sm font-semibold text-white transition hover:bg-black disabled:opacity-60">
             {loading ? 'Signing in...' : 'Sign in'}
           </button>
           <div className="mt-4 text-center text-sm">
-            <a href="/auth/forgot-password" className="font-medium text-[#1a1a2e] hover:underline">
+            <a href="/auth/forgot-password" className="font-medium text-ink hover:underline">
               Forgot Password?
             </a>
           </div>
@@ -158,11 +158,11 @@ function QrStep({ name, preAuth, remember, setRemember, onVerified, onBack }: {
   }, [])
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#f4f5f7] px-4">
+    <div className="flex min-h-screen items-center justify-center bg-mist px-4">
       <div className="w-full max-w-md rounded-[2rem] border border-white/70 bg-white p-8 shadow-panel">
         <div className="text-center">
           <h1 className="text-2xl font-semibold tracking-tight">Scan your ID card</h1>
-          <p className="mt-2 text-sm text-[#697586]">{name ? `Hi ${name}, ` : ''}point the QR on your ID card at the camera to finish signing in.</p>
+          <p className="mt-2 text-sm text-soft">{name ? `Hi ${name}, ` : ''}point the QR on your ID card at the camera to finish signing in.</p>
         </div>
 
         <div className="mt-6 relative aspect-square overflow-hidden rounded-2xl bg-black">
@@ -176,13 +176,13 @@ function QrStep({ name, preAuth, remember, setRemember, onVerified, onBack }: {
 
         {error && <p className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">{error}</p>}
 
-        <label className="mt-4 flex items-center gap-2 text-sm text-[#1a1a2e]">
-          <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)} className="h-4 w-4 accent-[#1a1a2e]" />
+        <label className="mt-4 flex items-center gap-2 text-sm text-ink">
+          <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)} className="h-4 w-4 accent-ink" />
           Remember this device (skip QR until I log out)
         </label>
 
         <button onClick={onBack}
-          className="mt-4 w-full rounded-2xl border border-[#e5e7eb] px-4 py-3 text-sm font-semibold text-[#697586] hover:bg-[#f4f5f7] transition">
+          className="mt-4 w-full rounded-2xl border border-line px-4 py-3 text-sm font-semibold text-soft hover:bg-mist transition">
           Back
         </button>
       </div>

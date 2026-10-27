@@ -36,12 +36,12 @@ export default function LinkPanel({ session, link, onPaid }: { session: Session;
     else setSendMsg({ ok: false, text: r.error || 'Could not send' })
   }
   async function copy(text: string, what: string) { try { await navigator.clipboard.writeText(text); setCopied(what); setTimeout(() => setCopied(''), 1800) } catch { setCopied('Copy failed') } }
-  const tone = cur.status === 'Paid' ? 'bg-green-100 text-green-700' : cur.status === 'Created' ? 'bg-blue-100 text-blue-700' : cur.status === 'Failed' || cur.status === 'Mismatch' || cur.status === 'Error' ? 'bg-red-100 text-red-700' : 'bg-[#e5e7eb] text-[#697586]'
+  const tone = cur.status === 'Paid' ? 'bg-green-100 text-green-700' : cur.status === 'Created' ? 'bg-blue-100 text-blue-700' : cur.status === 'Failed' || cur.status === 'Mismatch' || cur.status === 'Error' ? 'bg-red-100 text-red-700' : 'bg-line text-soft'
 
   return (
-    <div className="space-y-3 rounded-2xl border border-[#e5e7eb] bg-white p-4">
+    <div className="space-y-3 rounded-2xl border border-line bg-white p-4">
       <div className="flex items-center justify-between gap-2">
-        <div><p className="text-sm font-semibold">{cur.kind === 'closure' ? 'Close loan by payment' : 'Weekly payment link'} · {cur.customerName}</p><p className="text-[11px] text-[#697586]">Loan {cur.loanId} · code {cur.payCode}</p></div>
+        <div><p className="text-sm font-semibold">{cur.kind === 'closure' ? 'Close loan by payment' : 'Weekly payment link'} · {cur.customerName}</p><p className="text-[11px] text-soft">Loan {cur.loanId} · code {cur.payCode}</p></div>
         <span className={`rounded-full px-3 py-1 text-xs font-bold ${tone}`}>{cur.status === 'Created' ? 'Waiting for payment' : cur.status}</span>
       </div>
 
@@ -50,25 +50,25 @@ export default function LinkPanel({ session, link, onPaid }: { session: Session;
       ) : (
         <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
           <div className="space-y-2">
-            <ul className="space-y-0.5 text-xs text-[#697586]">{cur.weeks.map(w => <li key={w.weekNo}>Week {w.weekNo} · {w.dueDate} · {inr(w.amount)}</li>)}</ul>
+            <ul className="space-y-0.5 text-xs text-soft">{cur.weeks.map(w => <li key={w.weekNo}>Week {w.weekNo} · {w.dueDate} · {inr(w.amount)}</li>)}</ul>
             <div className="rounded-xl bg-[#f9fafb] p-3 text-sm">
               <div className="flex justify-between"><span>Amount</span><b>{inr(cur.base)}</b></div>
-              {cur.fee > 0 && <div className="flex justify-between text-[#697586]"><span>Online payment fee ({cur.feePercent}%)</span><span>{inr(cur.fee)}</span></div>}
-              <div className="mt-1 flex justify-between border-t border-[#e5e7eb] pt-1 text-base"><span className="font-semibold">Customer pays</span><b>{inr(cur.total)}</b></div>
+              {cur.fee > 0 && <div className="flex justify-between text-soft"><span>Online payment fee ({cur.feePercent}%)</span><span>{inr(cur.fee)}</span></div>}
+              <div className="mt-1 flex justify-between border-t border-line pt-1 text-base"><span className="font-semibold">Customer pays</span><b>{inr(cur.total)}</b></div>
             </div>
             <div className="flex flex-wrap gap-2">
               {cur.whatsappReady && <button onClick={sendAuto} disabled={sending || (cur.whatsappSends || 0) >= 3} className="rounded-xl bg-[#25D366] px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">{sending ? 'Sending…' : (cur.whatsappSends || 0) > 0 ? 'Send again on WhatsApp' : 'Send on WhatsApp (automatic)'}</button>}
               {cur.whatsappUrl
-                ? <a href={cur.whatsappUrl} target="_blank" rel="noreferrer" className={cur.whatsappReady ? 'rounded-xl border border-[#e5e7eb] px-3 py-2 text-xs font-semibold' : 'rounded-xl bg-[#25D366] px-4 py-2 text-xs font-semibold text-white'}>{cur.whatsappReady ? 'Open in my WhatsApp' : 'Send on WhatsApp'}</a>
+                ? <a href={cur.whatsappUrl} target="_blank" rel="noreferrer" className={cur.whatsappReady ? 'rounded-xl border border-line px-3 py-2 text-xs font-semibold' : 'rounded-xl bg-[#25D366] px-4 py-2 text-xs font-semibold text-white'}>{cur.whatsappReady ? 'Open in my WhatsApp' : 'Send on WhatsApp'}</a>
                 : <span className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">No valid WhatsApp number for this customer</span>}
-              <button onClick={() => copy(cur.message, 'Message copied')} className="rounded-xl border border-[#e5e7eb] px-3 py-2 text-xs font-semibold">Copy message</button>
-              <button onClick={() => copy(cur.url, 'Link copied')} className="rounded-xl border border-[#e5e7eb] px-3 py-2 text-xs font-semibold">Copy link</button>
+              <button onClick={() => copy(cur.message, 'Message copied')} className="rounded-xl border border-line px-3 py-2 text-xs font-semibold">Copy message</button>
+              <button onClick={() => copy(cur.url, 'Link copied')} className="rounded-xl border border-line px-3 py-2 text-xs font-semibold">Copy link</button>
               {copied && <span className="self-center text-xs text-green-700">{copied}</span>}
               {sendMsg && <span className={`self-center text-xs ${sendMsg.ok ? 'text-green-700' : 'text-red-600'}`}>{sendMsg.text}</span>}
             </div>
-            <p className="text-[11px] text-[#697586]">Valid until {new Date(cur.expiresAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true })}. This page updates by itself when the customer pays.</p>
+            <p className="text-[11px] text-soft">Valid until {new Date(cur.expiresAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true })}. This page updates by itself when the customer pays.</p>
           </div>
-          {cur.qr && <div className="text-center"><img src={cur.qr} alt="Payment QR" className="mx-auto h-40 w-40 rounded-xl border border-[#e5e7eb]" /><p className="mt-1 text-[11px] text-[#697586]">Customer scans to pay</p></div>}
+          {cur.qr && <div className="text-center"><img src={cur.qr} alt="Payment QR" className="mx-auto h-40 w-40 rounded-xl border border-line" /><p className="mt-1 text-[11px] text-soft">Customer scans to pay</p></div>}
         </div>
       )}
     </div>

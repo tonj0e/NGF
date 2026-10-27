@@ -24,7 +24,7 @@ function CustomerPhoto({ url, token, name }: { url: string; token: string; name:
   }, [fid])
   if (src) return <img src={src} alt={name} className="h-12 w-12 rounded-full object-cover ring-2 ring-white" />
   return (
-    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#1a1a2e] text-white text-sm font-bold ring-2 ring-white">
+    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-ink text-white text-sm font-bold ring-2 ring-white">
       {name?.charAt(0) || '?'}
     </div>
   )
@@ -73,7 +73,7 @@ function StarBadge({ joinedDate }: { joinedDate: string }) {
   return (
     <div className="flex items-center gap-1">
       <span className="text-yellow-400 text-xs leading-none">{'★'.repeat(r.stars)}{'☆'.repeat(5 - r.stars)}</span>
-      <span className="text-[11px] text-[#697586] font-medium">{r.label}</span>
+      <span className="text-[11px] text-soft font-medium">{r.label}</span>
     </div>
   )
 }
@@ -81,7 +81,7 @@ function StarBadge({ joinedDate }: { joinedDate: string }) {
 function Field({ label, value }: { label: string; value?: string }) {
   return (
     <div>
-      <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-[#697586]">{label}</p>
+      <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-soft">{label}</p>
       <p className="mt-1 text-sm">{value || '-'}</p>
     </div>
   )
@@ -90,9 +90,9 @@ function Field({ label, value }: { label: string; value?: string }) {
 function EditField({ name, label, value, occupation }: { name: string; label: string; value?: string; occupation?: boolean }) {
   return (
     <div>
-      <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-[#697586]">{label}</p>
+      <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-soft">{label}</p>
       {occupation ? (
-        <select name={name} defaultValue={value || ''} className="mt-1 w-full rounded-xl border border-[#e5e7eb] bg-white px-3 py-2 text-sm outline-none focus:border-[#1a1a2e]">
+        <select name={name} defaultValue={value || ''} className="mt-1 w-full rounded-xl border border-line bg-white px-3 py-2 text-sm outline-none focus:border-ink">
           <option value="">Select</option>
           <option>House Wife</option>
           <option>Daily Wages</option>
@@ -100,20 +100,20 @@ function EditField({ name, label, value, occupation }: { name: string; label: st
           <option>Employed in Private Firm</option>
         </select>
       ) : (
-        <input name={name} defaultValue={value || ''} className="mt-1 w-full rounded-xl border border-[#e5e7eb] px-3 py-2 text-sm outline-none focus:border-[#1a1a2e]" />
+        <input name={name} defaultValue={value || ''} className="mt-1 w-full rounded-xl border border-line px-3 py-2 text-sm outline-none focus:border-ink" />
       )}
     </div>
   )
 }
 
 function ActivitySpinner() {
-  return <div className="flex h-32 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" /></div>
+  return <div className="flex h-32 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-ink border-t-transparent" /></div>
 }
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-[1.5rem] border border-white/70 bg-white p-5 shadow-panel">
-      <p className="text-xs text-[#697586]">{label}</p>
+      <p className="text-xs text-soft">{label}</p>
       <p className="mt-1 text-2xl font-semibold">{value}</p>
     </div>
   )
@@ -123,7 +123,7 @@ function statusClass(s: string) {
   if (s === 'Paid') return 'bg-green-100 text-green-700'
   if (s === 'Overdue' || s === 'Not Paid') return 'bg-red-100 text-red-700'
   if (s === 'Delayed') return 'bg-amber-100 text-amber-700'
-  return 'bg-[#f4f5f7] text-[#697586]'
+  return 'bg-mist text-soft'
 }
 
 type Period = 'all' | 'week' | 'month' | 'year'
@@ -150,7 +150,7 @@ function TransactionTab({ rows, loading, startDate, loanId }: {
 }) {
   const [period, setPeriod] = useState<Period>('all')
   if (loading) return <ActivitySpinner />
-  if (rows.length === 0) return <p className="rounded-2xl border border-dashed border-[#e5e7eb] bg-white p-8 text-center text-sm text-[#697586]">No transactions yet.</p>
+  if (rows.length === 0) return <p className="rounded-2xl border border-dashed border-line bg-white p-8 text-center text-sm text-soft">No transactions yet.</p>
 
   // Group repayments by loan so each loan gets its own disbursement + closure/payments.
   // A fully-paid loan is collapsed to a single "Loan Closed" line (close date + total
@@ -229,7 +229,7 @@ function TransactionTab({ rows, loading, startDate, loanId }: {
       <div className="flex gap-2 flex-wrap">
         {periods.map(([k, label]) => (
           <button key={k} type="button" onClick={() => setPeriod(k)}
-            className={`rounded-xl px-3.5 py-1.5 text-xs font-semibold transition ${period === k ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
+            className={`rounded-xl px-3.5 py-1.5 text-xs font-semibold transition ${period === k ? 'bg-ink text-white' : 'border border-line bg-white text-soft hover:text-ink'}`}>
             {label}
           </button>
         ))}
@@ -237,7 +237,7 @@ function TransactionTab({ rows, loading, startDate, loanId }: {
 
       <div className="overflow-hidden rounded-[1.75rem] border border-white/70 bg-white shadow-panel">
         <table className="w-full text-left text-sm">
-          <thead className="border-b border-black/5 bg-[#fafafa] text-[#697586]">
+          <thead className="border-b border-black/5 bg-[#fafafa] text-soft">
             <tr>
               <th className="px-5 py-3 font-medium text-xs">Date</th>
               <th className="px-5 py-3 font-medium text-xs">Description</th>
@@ -248,10 +248,10 @@ function TransactionTab({ rows, loading, startDate, loanId }: {
           </thead>
           <tbody className="divide-y divide-black/5">
             {shown.length === 0 ? (
-              <tr><td colSpan={5} className="px-5 py-8 text-center text-sm text-[#697586]">No transactions in this period.</td></tr>
+              <tr><td colSpan={5} className="px-5 py-8 text-center text-sm text-soft">No transactions in this period.</td></tr>
             ) : shown.map((t, i) => (
               <tr key={i} className="hover:bg-[#fafafa]">
-                <td className="px-5 py-3 text-[#697586] whitespace-nowrap">{t.date || '—'}</td>
+                <td className="px-5 py-3 text-soft whitespace-nowrap">{t.date || '—'}</td>
                 <td className="px-5 py-3 font-medium">{t.desc}</td>
                 <td className="px-5 py-3 text-right font-semibold text-red-600">{t.debit ? `− ${currency(t.debit)}` : '—'}</td>
                 <td className="px-5 py-3 text-right font-semibold text-green-700">{t.credit ? `+ ${currency(t.credit)}` : '—'}</td>
@@ -285,25 +285,25 @@ function ReviewsTab({ rows, loading }: { rows: any[]; loading: boolean }) {
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <StatCard label="Total Reviews" value={String(total)} />
         <div className="rounded-[1.5rem] border border-white/70 bg-white p-5 shadow-panel">
-          <p className="text-xs text-[#697586]">Average Rating</p>
+          <p className="text-xs text-soft">Average Rating</p>
           <p className="mt-1 flex items-center gap-2 text-2xl font-semibold">
             {avg.toFixed(1)}
             <span className="text-amber-400 text-base">{'★'.repeat(Math.round(avg))}{'☆'.repeat(5 - Math.round(avg))}</span>
           </p>
         </div>
         <div className="rounded-[1.5rem] border border-white/70 bg-white p-5 shadow-panel">
-          <p className="text-xs text-[#697586]">Positive (4–5★)</p>
+          <p className="text-xs text-soft">Positive (4–5★)</p>
           <p className="mt-1 text-2xl font-semibold text-green-700">{positive}</p>
         </div>
         <div className="rounded-[1.5rem] border border-white/70 bg-white p-5 shadow-panel">
-          <p className="text-xs text-[#697586]">Negative (1–2★)</p>
+          <p className="text-xs text-soft">Negative (1–2★)</p>
           <p className="mt-1 text-2xl font-semibold text-red-600">{negative}</p>
         </div>
       </div>
 
       {/* Review list */}
       {total === 0 ? (
-        <p className="rounded-2xl border border-dashed border-[#e5e7eb] bg-white p-8 text-center text-sm text-[#697586]">No reviews recorded yet. Reviews are added with a star rating when an agent records a payment.</p>
+        <p className="rounded-2xl border border-dashed border-line bg-white p-8 text-center text-sm text-soft">No reviews recorded yet. Reviews are added with a star rating when an agent records a payment.</p>
       ) : (
       <div className="overflow-hidden rounded-[1.75rem] border border-white/70 bg-white shadow-panel divide-y divide-black/5">
         {reviews.map(({ r, rev }) => (
@@ -311,14 +311,14 @@ function ReviewsTab({ rows, loading }: { rows: any[]; loading: boolean }) {
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <span className="text-amber-400 text-base leading-none">{'★'.repeat(rev.rating)}{'☆'.repeat(5 - rev.rating)}</span>
-                <span className="text-xs font-semibold text-[#1a1a2e]">{rev.rating}/5</span>
+                <span className="text-xs font-semibold text-ink">{rev.rating}/5</span>
               </div>
               {rev.label && <p className="mt-1 text-sm font-medium">{rev.label}</p>}
-              <p className="mt-1 text-xs text-[#697586]">
+              <p className="mt-1 text-xs text-soft">
                 {r['Loan ID']} · Week {r['Week No']} · {currency(Number(r['Amount'] || 0))}
               </p>
             </div>
-            <p className="shrink-0 text-xs text-[#697586]">{r['Paid Date'] || r['Due Date']}</p>
+            <p className="shrink-0 text-xs text-soft">{r['Paid Date'] || r['Due Date']}</p>
           </div>
         ))}
       </div>
@@ -358,43 +358,43 @@ return (
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div className="min-w-0">
             <p className="text-lg font-semibold truncate">{loanId}</p>
-            <p className="text-sm text-[#697586] mt-0.5 truncate">
+            <p className="text-sm text-soft mt-0.5 truncate">
               {startDate} to {endDate} · {duration} weeks · ₹{weekly}/week
             </p>
           </div>
           <div className="flex flex-col md:flex-row md:items-center gap-3 w-full md:w-auto">
             <StatusPill status={status} />
             <div className="w-full md:w-40 flex flex-col items-start md:items-end">
-              <div className="w-full h-2 bg-[#e5e7eb] rounded-full overflow-hidden">
+              <div className="w-full h-2 bg-line rounded-full overflow-hidden">
                 <div className="h-full bg-green-600 transition-all" style={{ width: `${progress}%` }} />
               </div>
-              <p className="text-xs text-[#697586] mt-1 text-center md:text-right">{progress}% collected</p>
+              <p className="text-xs text-soft mt-1 text-center md:text-right">{progress}% collected</p>
             </div>
           </div>
         </div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 mt-4 text-sm">
         <div className="p-3 bg-[#f9fafb] rounded-xl">
-          <p className="text-[#697586] text-xs uppercase tracking-wider">Principal</p>
+          <p className="text-soft text-xs uppercase tracking-wider">Principal</p>
           <p className="font-semibold mt-1">{currency(principal)}</p>
         </div>
         <div className="p-3 bg-[#f9fafb] rounded-xl">
-          <p className="text-[#697586] text-xs uppercase tracking-wider">Collected</p>
+          <p className="text-soft text-xs uppercase tracking-wider">Collected</p>
           <p className="font-semibold text-green-700 mt-1">{currency(totalPaid)}</p>
         </div>
         <div className="p-3 bg-[#f9fafb] rounded-xl">
-          <p className="text-[#697586] text-xs uppercase tracking-wider">Pending</p>
+          <p className="text-soft text-xs uppercase tracking-wider">Pending</p>
           <p className="font-semibold text-red-600 mt-1">{currency(totalPending)}</p>
         </div>
         <div className="col-span-1 lg:col-span-3 p-3 bg-[#f9fafb] rounded-xl">
-          <p className="text-[#697586] text-xs uppercase tracking-wider">Guarantor / Agent</p>
+          <p className="text-soft text-xs uppercase tracking-wider">Guarantor / Agent</p>
           <p className="font-semibold mt-1 truncate">{guarantorName} · {agentName}</p>
         </div>
       </div>
 
     <div className="overflow-x-auto">
       <table className="w-full text-sm min-w-[600px]">
-        <thead className="border-b border-black/5 bg-[#fafafa] text-[#697586]">
+        <thead className="border-b border-black/5 bg-[#fafafa] text-soft">
           <tr>
             <th className="px-3 md:px-5 py-2 font-medium text-xs">Week</th>
             <th className="px-3 md:px-5 py-2 font-medium text-xs">Due Date</th>
@@ -411,12 +411,12 @@ return (
             .map((r, i) => (
             <tr key={r['Repayment ID'] || i} className="hover:bg-[#fafafa]">
               <td className="px-3 md:px-5 py-2 font-medium">{r['Week No']}</td>
-              <td className="px-3 md:px-5 py-2 text-[#697586]">{r['Due Date'] || '—'}</td>
+              <td className="px-3 md:px-5 py-2 text-soft">{r['Due Date'] || '—'}</td>
               <td className="px-3 md:px-5 py-2">{r['Paid Date'] || (r['Status'] === 'Paid' ? 'Paid' : '—')}</td>
               <td className="px-3 md:px-5 py-2 text-right font-semibold">{currency(Number(r['Amount'] || 0))}</td>
               <td className="px-3 md:px-5 py-2"><StatusPill status={r['Status']} /></td>
-              <td className="px-3 md:px-5 py-2 text-[#697586]">{r['Payment Mode'] || '—'}</td>
-              <td className="px-3 md:px-5 py-2 text-[#697586] text-sm max-w-xs truncate">{r['Notes'] || '—'}</td>
+              <td className="px-3 md:px-5 py-2 text-soft">{r['Payment Mode'] || '—'}</td>
+              <td className="px-3 md:px-5 py-2 text-soft text-sm max-w-xs truncate">{r['Notes'] || '—'}</td>
             </tr>
           ))}
         </tbody>
@@ -443,7 +443,7 @@ function LoansTab({ rows, loading }: { rows: any[]; loading: boolean }) {
   }
 
   if (byLoan.size === 0) {
-    return <p className="rounded-2xl border border-dashed border-[#e5e7eb] bg-white p-8 text-center text-sm text-[#697586]">No loan history found.</p>
+    return <p className="rounded-2xl border border-dashed border-line bg-white p-8 text-center text-sm text-soft">No loan history found.</p>
   }
 
   return (
@@ -592,7 +592,7 @@ export default function CustomersPage({ session, perms }: { session: Session; pe
     <div className="flex gap-2 flex-wrap mb-1">
       {TABS.map(t => (
         <button key={t.key} onClick={() => { setTab(t.key); setDetail(null); setEditing(false) }}
-          className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${tab === t.key ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
+          className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${tab === t.key ? 'bg-ink text-white' : 'border border-line bg-white text-soft hover:text-ink'}`}>
           {t.label}
         </button>
       ))}
@@ -611,17 +611,17 @@ export default function CustomersPage({ session, perms }: { session: Session; pe
   if (detail) return (
     <div className="space-y-5">
       {tabBar}
-      {toast && <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-2xl bg-[#1a1a2e] px-5 py-3 text-sm font-medium text-white shadow-lg">{toast}</div>}
+      {toast && <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-2xl bg-ink px-5 py-3 text-sm font-medium text-white shadow-lg">{toast}</div>}
       <div className="flex items-center gap-3">
-        <button onClick={() => { setDetail(null); setEditing(false) }} className="rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-semibold">Back</button>
+        <button onClick={() => { setDetail(null); setEditing(false) }} className="rounded-2xl border border-line bg-white px-4 py-2 text-sm font-semibold">Back</button>
         <CustomerPhoto url={detail.customerPhotoUrl} token={session.token} name={detail.name} />
         <div className="flex-1">
           <p className="text-lg font-semibold">{detail.name}</p>
-          {detail.activeLoanId && <p className="font-mono text-sm text-[#697586]">{detail.activeLoanId}{detail.loanAccountNo && <span className="ml-2 text-xs">· {detail.loanAccountNo}</span>}</p>}
+          {detail.activeLoanId && <p className="font-mono text-sm text-soft">{detail.activeLoanId}{detail.loanAccountNo && <span className="ml-2 text-xs">· {detail.loanAccountNo}</span>}</p>}
           <StarBadge joinedDate={detail.joinedDate} />
           <div className="mt-1"><NgfScoreBadge size="lg" value={detail.ngfScore} band={detail.ngfBand} reviews={detail.ngfReviews} average={detail.ngfAverage} /></div>
         </div>
-        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${detail.isOverdue ? 'bg-red-100 text-red-700' : detail.loanStatus === 'Active' ? 'bg-green-100 text-green-700' : 'bg-[#f4f5f7] text-[#697586]'}`}>
+        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${detail.isOverdue ? 'bg-red-100 text-red-700' : detail.loanStatus === 'Active' ? 'bg-green-100 text-green-700' : 'bg-mist text-soft'}`}>
           {detail.isOverdue ? 'Overdue' : detail.loanStatus === 'Active' ? 'Active' : 'Inactive'}
         </span>
       </div>
@@ -663,7 +663,7 @@ export default function CustomersPage({ session, perms }: { session: Session; pe
       <div className="flex gap-2 flex-wrap">
         {([['details', 'Customer Details'], ['transaction', 'Transaction'], ['reviews', 'Reviews'], ['loans', 'Loans & Payments'], ['history', 'History & Score']] as const).filter(([k]) => k !== 'history' || can('customersHistory')).map(([k, label]) => (
           <button key={k} type="button" onClick={() => setDetailTab(k)}
-            className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${detailTab === k ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
+            className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${detailTab === k ? 'bg-ink text-white' : 'border border-line bg-white text-soft hover:text-ink'}`}>
             {label}
           </button>
         ))}
@@ -679,18 +679,18 @@ export default function CustomersPage({ session, perms }: { session: Session; pe
           <div className="rounded-[1.75rem] border border-white/70 bg-white shadow-panel flex items-center justify-between px-6 py-4">
             <p className="text-sm font-semibold">Customer Details</p>
             {can('customersEdit') && !editing && (
-              <button type="button" onClick={() => setEditing(true)} className="rounded-xl bg-[#f4f5f7] px-3 py-2 text-xs font-semibold">Edit</button>
+              <button type="button" onClick={() => setEditing(true)} className="rounded-xl bg-mist px-3 py-2 text-xs font-semibold">Edit</button>
             )}
             {editing && (
               <div className="flex gap-2">
-                <button type="submit" className="rounded-xl bg-[#1a1a2e] px-4 py-2 text-xs font-semibold text-white">Save</button>
-                <button type="button" onClick={() => setEditing(false)} className="rounded-xl border border-[#e5e7eb] px-4 py-2 text-xs font-semibold">Cancel</button>
+                <button type="submit" className="rounded-xl bg-ink px-4 py-2 text-xs font-semibold text-white">Save</button>
+                <button type="button" onClick={() => setEditing(false)} className="rounded-xl border border-line px-4 py-2 text-xs font-semibold">Cancel</button>
               </div>
             )}
           </div>
 
           <div className="rounded-[1.75rem] border border-white/70 bg-white shadow-panel p-6 space-y-4">
-            <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-[#697586]">Personal</p>
+            <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-soft">Personal</p>
             <div className="grid gap-4 grid-cols-2 lg:grid-cols-3">
               {editing ? (
                 <>
@@ -717,7 +717,7 @@ export default function CustomersPage({ session, perms }: { session: Session; pe
               {detail.joinedDate && <Field label="Joined Date" value={detail.joinedDate} />}
               {detail.joinedDate && (
                 <div>
-                  <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-[#697586]">KYC Expiry</p>
+                  <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-soft">KYC Expiry</p>
                   <p className={`mt-1 text-sm font-semibold ${isKycExpired(detail.joinedDate) ? 'text-orange-600' : 'text-green-700'}`}>
                     {kycExpiry(detail.joinedDate)}
                     <span className={`ml-2 rounded-full px-2 py-0.5 text-[10px] font-bold ${isKycExpired(detail.joinedDate) ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'}`}>
@@ -731,7 +731,7 @@ export default function CustomersPage({ session, perms }: { session: Session; pe
 
           {(detail.nomineeName || detail.nomineePhone) && (
             <div className="rounded-[1.75rem] border border-white/70 bg-white shadow-panel p-6 space-y-4">
-              <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-[#697586]">Nominee</p>
+              <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-soft">Nominee</p>
               <div className="grid gap-4 grid-cols-2 lg:grid-cols-3">
                 <Field label="Nominee Name" value={detail.nomineeName} />
                 <Field label="Nominee Phone" value={detail.nomineePhone} />
@@ -740,7 +740,7 @@ export default function CustomersPage({ session, perms }: { session: Session; pe
           )}
 
           <div className="rounded-[1.75rem] border border-white/70 bg-white shadow-panel p-6 space-y-4">
-            <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-[#697586]">Address</p>
+            <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-soft">Address</p>
             <div className="grid gap-4 grid-cols-2 lg:grid-cols-3">
               {editing ? (
                 <>
@@ -760,7 +760,7 @@ export default function CustomersPage({ session, perms }: { session: Session; pe
 
           {detail.activeLoanId && (
             <div className="rounded-[1.75rem] border border-white/70 bg-white shadow-panel p-6 space-y-4">
-              <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-[#697586]">Active Loan</p>
+              <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-soft">Active Loan</p>
               <div className="grid gap-4 grid-cols-2 lg:grid-cols-3">
                 <Field label="Loan ID" value={detail.activeLoanId} />
                 <Field label="Weekly EMI" value={currency(Number(detail.weeklyAmount))} />
@@ -770,9 +770,9 @@ export default function CustomersPage({ session, perms }: { session: Session; pe
                 <Field label="Loan Status" value={detail.loanStatus} />
                 {detail.mapsLink && (
                   <div>
-                    <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-[#697586] mb-2">Location</p>
+                    <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-soft mb-2">Location</p>
                     <a href={detail.mapsLink} target="_blank" rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 rounded-xl bg-[#1a1a2e] px-4 py-2 text-xs font-semibold text-white">
+                      className="inline-flex items-center gap-2 rounded-xl bg-ink px-4 py-2 text-xs font-semibold text-white">
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
                       </svg>
@@ -785,7 +785,7 @@ export default function CustomersPage({ session, perms }: { session: Session; pe
           )}
 
           <div className="rounded-[1.75rem] border border-white/70 bg-white shadow-panel p-6 space-y-4">
-            <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-[#697586]">Documents</p>
+            <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-soft">Documents</p>
             {editing ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
                 {([
@@ -797,17 +797,17 @@ export default function CustomersPage({ session, perms }: { session: Session; pe
                   ['chequePhoto',   'Cheque Photo',   detail.chequePhotoUrl],
                 ] as [string, string, string][]).map(([key, label, currentUrl]) => (
                   <div key={key}>
-                    <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-[#697586] mb-2">{label}</p>
+                    <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-soft mb-2">{label}</p>
                     {photoUploads[key] ? (
-                      <img src={photoUploads[key]} alt={label} className="mb-2 h-32 w-full rounded-xl object-cover border border-[#e5e7eb]" />
+                      <img src={photoUploads[key]} alt={label} className="mb-2 h-32 w-full rounded-xl object-cover border border-line" />
                     ) : currentUrl ? (
-                      <div className="mb-2 h-32 w-full rounded-xl border border-[#e5e7eb] bg-[#f4f5f7] flex items-center justify-center text-xs text-[#697586]">Current image</div>
+                      <div className="mb-2 h-32 w-full rounded-xl border border-line bg-mist flex items-center justify-center text-xs text-soft">Current image</div>
                     ) : (
-                      <div className="mb-2 h-32 w-full rounded-xl border border-dashed border-[#e5e7eb] bg-[#f9fafb] flex items-center justify-center text-xs text-[#697586]">Not uploaded</div>
+                      <div className="mb-2 h-32 w-full rounded-xl border border-dashed border-line bg-[#f9fafb] flex items-center justify-center text-xs text-soft">Not uploaded</div>
                     )}
                     <input type="file" accept="image/*"
                       onChange={e => handlePhotoSelect(key, e.target.files?.[0] || null)}
-                      className="w-full rounded-xl border border-[#e5e7eb] bg-white px-3 py-2 text-xs text-[#697586]" />
+                      className="w-full rounded-xl border border-line bg-white px-3 py-2 text-xs text-soft" />
                   </div>
                 ))}
               </div>
@@ -831,15 +831,15 @@ export default function CustomersPage({ session, perms }: { session: Session; pe
   if (tab === 'renewal')   return <div className="space-y-4">{tabBar}<LoansPage session={session} defaultFilter="renewal" customers={customers} onViewCustomer={viewCustomerById} /></div>
   if (tab === 'completed') return <div className="space-y-4">{tabBar}<LoansPage session={session} defaultFilter="completed" customers={customers} onViewCustomer={viewCustomerById} /></div>
 
-  if (loading) return <div className="space-y-4">{tabBar}<div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" /></div></div>
+  if (loading) return <div className="space-y-4">{tabBar}<div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-ink border-t-transparent" /></div></div>
 
   return (
     <div className="space-y-4">
       {tabBar}
-      {toast && <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-2xl bg-[#1a1a2e] px-5 py-3 text-sm font-medium text-white shadow-lg">{toast}</div>}
+      {toast && <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-2xl bg-ink px-5 py-3 text-sm font-medium text-white shadow-lg">{toast}</div>}
       <div className="flex items-center gap-3 flex-wrap">
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name, phone, place…"
-          data-no-upper className="flex-1 min-w-0 max-w-sm rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2.5 text-sm outline-none focus:border-[#1a1a2e]" />
+          data-no-upper className="flex-1 min-w-0 max-w-sm rounded-2xl border border-line bg-white px-4 py-2.5 text-sm outline-none focus:border-ink" />
         {can('customersDelete') && !deleteMode && (
           <button onClick={() => { setDeleteMode(true); setSelected(new Set()) }}
             className="rounded-2xl border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-600">
@@ -848,13 +848,13 @@ export default function CustomersPage({ session, perms }: { session: Session; pe
         )}
         {deleteMode && (
           <>
-            <span className="text-sm text-[#697586]">{selected.size} selected</span>
+            <span className="text-sm text-soft">{selected.size} selected</span>
             <button onClick={deleteSelected} disabled={!selected.size}
               className="rounded-2xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-40">
               Confirm Delete
             </button>
             <button onClick={() => { setDeleteMode(false); setSelected(new Set()) }}
-              className="rounded-2xl border border-[#e5e7eb] px-4 py-2.5 text-sm font-semibold">
+              className="rounded-2xl border border-line px-4 py-2.5 text-sm font-semibold">
               Cancel
             </button>
           </>
@@ -869,15 +869,15 @@ export default function CustomersPage({ session, perms }: { session: Session; pe
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-3">
                 {deleteMode && (
-                  <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${selected.has(c.customerId) ? 'border-red-500 bg-red-500' : 'border-[#e5e7eb]'}`}>
+                  <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${selected.has(c.customerId) ? 'border-red-500 bg-red-500' : 'border-line'}`}>
                     {selected.has(c.customerId) && <span className="text-white text-[10px] font-bold">✓</span>}
                   </div>
                 )}
                 <CustomerPhoto url={c.customerPhotoUrl} token={session.token} name={c.name} />
                 <div>
                   <p className="font-semibold">{c.name}</p>
-                  <p className="text-xs text-[#697586]">{c.phone}</p>
-                  {c.activeLoanId && <p className="font-mono text-[11px] text-[#697586]">{c.activeLoanId}</p>}
+                  <p className="text-xs text-soft">{c.phone}</p>
+                  {c.activeLoanId && <p className="font-mono text-[11px] text-soft">{c.activeLoanId}</p>}
                   <StarBadge joinedDate={c.joinedDate} />
                   <div className="mt-1"><NgfScoreBadge value={c.ngfScore} band={c.ngfBand} reviews={c.ngfReviews} average={c.ngfAverage} /></div>
                   {isKycExpired(c.joinedDate) && (
@@ -885,37 +885,37 @@ export default function CustomersPage({ session, perms }: { session: Session; pe
                   )}
                 </div>
               </div>
-              <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${c.isOverdue ? 'bg-red-100 text-red-700' : c.loanStatus === 'Active' ? 'bg-green-100 text-green-700' : 'bg-[#f4f5f7] text-[#697586]'}`}>
+              <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${c.isOverdue ? 'bg-red-100 text-red-700' : c.loanStatus === 'Active' ? 'bg-green-100 text-green-700' : 'bg-mist text-soft'}`}>
                 {c.isOverdue ? 'Overdue' : c.loanStatus === 'Active' ? 'Active' : 'Inactive'}
               </span>
             </div>
             <div className="grid grid-cols-2 gap-2 text-xs">
-              <div><p className="text-[#697586]">Guarantor</p><p className="font-medium">{c.guarantorName || '—'} {c.guarantorCode ? `(${c.guarantorCode})` : ''}</p></div>
-              <div><p className="text-[#697586]">Agent</p><p className="font-medium">{c.agentName || '—'}</p></div>
-              <div><p className="text-[#697586]">Occupation</p><p className="font-medium">{c.occupation || '—'}</p></div>
-              <div><p className="text-[#697586]">Place</p><p className="font-medium">{c.place || '—'}</p></div>
+              <div><p className="text-soft">Guarantor</p><p className="font-medium">{c.guarantorName || '—'} {c.guarantorCode ? `(${c.guarantorCode})` : ''}</p></div>
+              <div><p className="text-soft">Agent</p><p className="font-medium">{c.agentName || '—'}</p></div>
+              <div><p className="text-soft">Occupation</p><p className="font-medium">{c.occupation || '—'}</p></div>
+              <div><p className="text-soft">Place</p><p className="font-medium">{c.place || '—'}</p></div>
               {c.activeLoanId && <>
-                <div><p className="text-[#697586]">Loan ID</p><p className="font-medium font-mono text-[11px]">{c.activeLoanId}</p></div>
-                <div><p className="text-[#697586]">Weekly EMI</p><p className="font-medium">{currency(Number(c.weeklyAmount))}</p></div>
+                <div><p className="text-soft">Loan ID</p><p className="font-medium font-mono text-[11px]">{c.activeLoanId}</p></div>
+                <div><p className="text-soft">Weekly EMI</p><p className="font-medium">{currency(Number(c.weeklyAmount))}</p></div>
               </>}
             </div>
-            {c.address && <p className="text-xs text-[#697586]">{c.houseName ? `${c.houseName}, ` : ''}{c.address}</p>}
+            {c.address && <p className="text-xs text-soft">{c.houseName ? `${c.houseName}, ` : ''}{c.address}</p>}
             {!deleteMode && (
               <div className="flex gap-2 pt-1">
-                <button onClick={() => { setDetail(c); setEditing(false) }} className="rounded-xl border border-[#e5e7eb] px-3 py-1.5 text-xs font-semibold">View</button>
-                {can('customersEdit') && <button onClick={() => { setDetail(c); setEditing(true) }} className="rounded-xl bg-[#f4f5f7] px-3 py-1.5 text-xs font-semibold">Edit</button>}
+                <button onClick={() => { setDetail(c); setEditing(false) }} className="rounded-xl border border-line px-3 py-1.5 text-xs font-semibold">View</button>
+                {can('customersEdit') && <button onClick={() => { setDetail(c); setEditing(true) }} className="rounded-xl bg-mist px-3 py-1.5 text-xs font-semibold">Edit</button>}
               </div>
             )}
           </div>
         ))}
       </div>
-      {filtered.length === 0 && <p className="py-10 text-center text-sm text-[#697586]">No customers found.</p>}
+      {filtered.length === 0 && <p className="py-10 text-center text-sm text-soft">No customers found.</p>}
       {totalCustomers > PAGE_SIZE && (
         <div className="flex items-center justify-between gap-3 pt-2">
-          <span className="text-xs text-[#697586]">{totalCustomers} customers · page {page} of {totalPages}</span>
+          <span className="text-xs text-soft">{totalCustomers} customers · page {page} of {totalPages}</span>
           <div className="flex gap-2">
-            <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-semibold disabled:opacity-40">Previous</button>
-            <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} className="rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-semibold disabled:opacity-40">Next</button>
+            <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="rounded-2xl border border-line bg-white px-4 py-2 text-sm font-semibold disabled:opacity-40">Previous</button>
+            <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} className="rounded-2xl border border-line bg-white px-4 py-2 text-sm font-semibold disabled:opacity-40">Next</button>
           </div>
         </div>
       )}

@@ -19,7 +19,7 @@ function DriveImg({ url, token, name }: { url: string; token: string; name: stri
   }, [fid, token])
   if (src) return <img src={src} alt={name} className="h-full w-full object-cover" />
   return (
-    <div className="flex h-full w-full items-center justify-center bg-[#1a1a2e] text-white text-sm font-bold">
+    <div className="flex h-full w-full items-center justify-center bg-ink text-white text-sm font-bold">
       {name?.charAt(0) || '?'}
     </div>
   )
@@ -150,7 +150,7 @@ export default function LoansPage({ session, defaultFilter = 'active', customers
 
   return (
     <div className="space-y-4">
-      {toast && <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-2xl bg-[#1a1a2e] px-5 py-3 text-sm font-medium text-white shadow-lg">{toast}</div>}
+      {toast && <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-2xl bg-ink px-5 py-3 text-sm font-medium text-white shadow-lg">{toast}</div>}
 
       {/* Custom confirm dialog */}
       {confirmDialog && (
@@ -158,15 +158,15 @@ export default function LoansPage({ session, defaultFilter = 'active', customers
           <div className="w-full max-w-sm rounded-[1.75rem] border border-white/70 bg-white shadow-2xl p-6 space-y-4">
             <div className="space-y-1">
               <p className="font-semibold text-base">{confirmDialog.message}</p>
-              {confirmDialog.sub && <p className="text-sm text-[#697586]">{confirmDialog.sub}</p>}
+              {confirmDialog.sub && <p className="text-sm text-soft">{confirmDialog.sub}</p>}
             </div>
             <div className="flex gap-3">
               <button onClick={confirmDialog.onConfirm}
-                className="flex-1 rounded-2xl bg-[#1a1a2e] px-4 py-3 text-sm font-semibold text-white hover:opacity-90 transition">
+                className="flex-1 rounded-2xl bg-ink px-4 py-3 text-sm font-semibold text-white hover:opacity-90 transition">
                 Confirm
               </button>
               <button onClick={() => setConfirmDialog(null)}
-                className="flex-1 rounded-2xl border border-[#e5e7eb] px-4 py-3 text-sm font-semibold hover:bg-[#f4f5f7] transition">
+                className="flex-1 rounded-2xl border border-line px-4 py-3 text-sm font-semibold hover:bg-mist transition">
                 Cancel
               </button>
             </div>
@@ -187,45 +187,45 @@ export default function LoansPage({ session, defaultFilter = 'active', customers
             {/* Header */}
             <div className="border-b border-black/5 px-6 py-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full border border-[#e5e7eb]">
+                <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full border border-line">
                   <DriveImg url={photoUrl} token={session.token} name={closeModal.customerName} />
                 </div>
                 <div>
                   <p className="font-semibold">{closeModal.customerName}</p>
-                  <p className="font-mono text-xs text-[#697586]">{closeModal.loanId}</p>
-                  <p className="text-[10px] text-[#697586]">ID: {closeModal.customerId}</p>
+                  <p className="font-mono text-xs text-soft">{closeModal.loanId}</p>
+                  <p className="text-[10px] text-soft">ID: {closeModal.customerId}</p>
                 </div>
               </div>
-              <button onClick={() => setCloseModal(null)} className="rounded-xl border border-[#e5e7eb] px-3 py-1.5 text-xs font-semibold">✕</button>
+              <button onClick={() => setCloseModal(null)} className="rounded-xl border border-line px-3 py-1.5 text-xs font-semibold">✕</button>
             </div>
 
             <div className="p-6 space-y-4">
               {/* Summary cards */}
               <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-2xl bg-[#f4f5f7] p-4 text-center">
-                  <p className="text-xs text-[#697586]">Weeks Paid</p>
-                  <p className="mt-1 text-2xl font-bold">{closeModal.paidWeeks}<span className="text-sm font-normal text-[#697586]">/{closeModal.totalWeeks}</span></p>
+                <div className="rounded-2xl bg-mist p-4 text-center">
+                  <p className="text-xs text-soft">Weeks Paid</p>
+                  <p className="mt-1 text-2xl font-bold">{closeModal.paidWeeks}<span className="text-sm font-normal text-soft">/{closeModal.totalWeeks}</span></p>
                 </div>
-                <div className="rounded-2xl bg-[#f4f5f7] p-4 text-center">
-                  <p className="text-xs text-[#697586]">Weeks Remaining</p>
+                <div className="rounded-2xl bg-mist p-4 text-center">
+                  <p className="text-xs text-soft">Weeks Remaining</p>
                   <p className="mt-1 text-2xl font-bold text-orange-600">{remaining}</p>
                 </div>
-                <div className="rounded-2xl bg-[#f4f5f7] p-4 text-center">
-                  <p className="text-xs text-[#697586]">Amount Collected</p>
+                <div className="rounded-2xl bg-mist p-4 text-center">
+                  <p className="text-xs text-soft">Amount Collected</p>
                   <p className="mt-1 text-lg font-bold">{currency(closeModal.paidWeeks * Number(closeModal.weeklyAmount))}</p>
                 </div>
                 <div className="rounded-2xl bg-red-50 border border-red-100 p-4 text-center">
-                  <p className="text-xs text-[#697586]">Amount Remaining</p>
+                  <p className="text-xs text-soft">Amount Remaining</p>
                   <p className="mt-1 text-lg font-bold text-red-600">{currency(remaining * Number(closeModal.weeklyAmount))}</p>
                 </div>
               </div>
 
               {/* Payment behaviour */}
               {modalRepsLoading ? (
-                <div className="flex justify-center py-2"><div className="h-4 w-4 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" /></div>
+                <div className="flex justify-center py-2"><div className="h-4 w-4 animate-spin rounded-full border-2 border-ink border-t-transparent" /></div>
               ) : (
-                <div className="rounded-2xl border border-[#e5e7eb] p-4 space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-[#697586]">Payment Behaviour</p>
+                <div className="rounded-2xl border border-line p-4 space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-soft">Payment Behaviour</p>
                   <div className="grid grid-cols-3 gap-2 text-center">
                     <div className="rounded-xl bg-green-50 border border-green-100 py-2">
                       <p className="text-lg font-bold text-green-700">{paidCount}</p>
@@ -263,15 +263,15 @@ export default function LoansPage({ session, defaultFilter = 'active', customers
               {/* Action buttons */}
               <div className="space-y-2 pt-1">
                 <button onClick={() => handleForeclose(closeModal.loanId)} disabled={closing !== null}
-                  className="w-full rounded-2xl bg-[#1a1a2e] px-4 py-3 text-sm font-semibold text-white disabled:opacity-50 hover:opacity-90 transition">
+                  className="w-full rounded-2xl bg-ink px-4 py-3 text-sm font-semibold text-white disabled:opacity-50 hover:opacity-90 transition">
                   {closing === 'foreclose' ? 'Processing…' : '✓ Foreclose Loan'}
                 </button>
-                <p className="text-center text-[10px] text-[#697586]">Waives remaining weeks — customer becomes renewal eligible</p>
+                <p className="text-center text-[10px] text-soft">Waives remaining weeks — customer becomes renewal eligible</p>
                 <button onClick={() => handleCloseAccount(closeModal.loanId)} disabled={closing !== null}
                   className="w-full rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 disabled:opacity-50 hover:bg-red-100 transition">
                   {closing === 'account' ? 'Processing…' : '✕ Close Account'}
                 </button>
-                <p className="text-center text-[10px] text-[#697586]">Permanently closes the account — cheque return & closing procedures apply</p>
+                <p className="text-center text-[10px] text-soft">Permanently closes the account — cheque return & closing procedures apply</p>
               </div>
               </>}
             </div>
@@ -281,10 +281,10 @@ export default function LoansPage({ session, defaultFilter = 'active', customers
       })()}
 
       <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name, phone, loan ID…"
-        data-no-upper className="w-full max-w-sm rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2.5 text-sm outline-none focus:border-[#1a1a2e]" />
+        data-no-upper className="w-full max-w-sm rounded-2xl border border-line bg-white px-4 py-2.5 text-sm outline-none focus:border-ink" />
 
       {loading
-        ? <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" /></div>
+        ? <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-ink border-t-transparent" /></div>
         : (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {filtered.map(l => {
@@ -293,39 +293,39 @@ export default function LoansPage({ session, defaultFilter = 'active', customers
               <div key={l.loanId} className="rounded-[1.75rem] border border-white/70 bg-white p-5 shadow-panel space-y-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full border border-[#e5e7eb]">
+                    <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full border border-line">
                       <DriveImg url={photoUrl} token={session.token} name={l.customerName} />
                     </div>
                     <div>
                       <p className="font-semibold">{l.customerName}</p>
-                      <p className="font-mono text-xs text-[#697586]">{l.loanId}</p>
+                      <p className="font-mono text-xs text-soft">{l.loanId}</p>
                     </div>
                   </div>
-                  <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${l.isOverdue ? 'bg-red-100 text-red-700' : l.isRenewalEligible ? 'bg-blue-100 text-blue-700' : l.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-[#f4f5f7] text-[#697586]'}`}>
+                  <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${l.isOverdue ? 'bg-red-100 text-red-700' : l.isRenewalEligible ? 'bg-blue-100 text-blue-700' : l.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-mist text-soft'}`}>
                     {l.isOverdue ? 'Overdue' : l.isRenewalEligible ? 'Renewal Ready' : l.status}
                   </span>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div><p className="text-[#697586]">Guarantor</p><p className="font-medium">{l.guarantorName} {l.guarantorCode ? `(${l.guarantorCode})` : ''}</p></div>
-                  <div><p className="text-[#697586]">Agent</p><p className="font-medium">{l.agentName || '—'}</p></div>
-                  <div><p className="text-[#697586]">Principal</p><p className="font-medium">{currency(Number(l.principal))}</p></div>
-                  <div><p className="text-[#697586]">Weekly EMI</p><p className="font-medium">{currency(Number(l.weeklyAmount))}</p></div>
-                  <div><p className="text-[#697586]">Start Date</p><p className="font-medium">{l.startDate}</p></div>
-                  <div><p className="text-[#697586]">End Date</p><p className="font-medium">{l.endDate}</p></div>
+                  <div><p className="text-soft">Guarantor</p><p className="font-medium">{l.guarantorName} {l.guarantorCode ? `(${l.guarantorCode})` : ''}</p></div>
+                  <div><p className="text-soft">Agent</p><p className="font-medium">{l.agentName || '—'}</p></div>
+                  <div><p className="text-soft">Principal</p><p className="font-medium">{currency(Number(l.principal))}</p></div>
+                  <div><p className="text-soft">Weekly EMI</p><p className="font-medium">{currency(Number(l.weeklyAmount))}</p></div>
+                  <div><p className="text-soft">Start Date</p><p className="font-medium">{l.startDate}</p></div>
+                  <div><p className="text-soft">End Date</p><p className="font-medium">{l.endDate}</p></div>
                 </div>
-                <div className="rounded-2xl bg-[#f4f5f7] px-3 py-2">
+                <div className="rounded-2xl bg-mist px-3 py-2">
                   <div className="flex justify-between text-xs mb-1">
-                    <span className="text-[#697586]">Progress</span>
+                    <span className="text-soft">Progress</span>
                     <span className="font-medium">{l.paidWeeks}/{l.totalWeeks} weeks</span>
                   </div>
-                  <div className="h-1.5 rounded-full bg-[#e5e7eb]">
-                    <div className="h-1.5 rounded-full bg-[#1a1a2e]" style={{ width: `${Math.round((l.paidWeeks / Math.max(l.totalWeeks, 1)) * 100)}%` }} />
+                  <div className="h-1.5 rounded-full bg-line">
+                    <div className="h-1.5 rounded-full bg-ink" style={{ width: `${Math.round((l.paidWeeks / Math.max(l.totalWeeks, 1)) * 100)}%` }} />
                   </div>
                 </div>
                 <div className="flex gap-2">
                   {onViewCustomer && (
                     <button onClick={() => onViewCustomer(l.customerId)}
-                      className="flex-1 rounded-xl border border-[#e5e7eb] px-3 py-2 text-xs font-semibold hover:bg-[#f4f5f7] transition">
+                      className="flex-1 rounded-xl border border-line px-3 py-2 text-xs font-semibold hover:bg-mist transition">
                       View Customer
                     </button>
                   )}
@@ -343,14 +343,14 @@ export default function LoansPage({ session, defaultFilter = 'active', customers
       }
       {totalLoans > PAGE_SIZE && (
         <div className="flex items-center justify-between gap-3 pt-2">
-          <span className="text-xs text-[#697586]">{totalLoans} loans · page {page} of {totalPages}</span>
+          <span className="text-xs text-soft">{totalLoans} loans · page {page} of {totalPages}</span>
           <div className="flex gap-2">
-            <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-semibold disabled:opacity-40">Previous</button>
-            <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} className="rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-semibold disabled:opacity-40">Next</button>
+            <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="rounded-2xl border border-line bg-white px-4 py-2 text-sm font-semibold disabled:opacity-40">Previous</button>
+            <button disabled={page >= totalPages} onClick={() => setPage(p => p + 1)} className="rounded-2xl border border-line bg-white px-4 py-2 text-sm font-semibold disabled:opacity-40">Next</button>
           </div>
         </div>
       )}
-      {!loading && filtered.length === 0 && <p className="py-10 text-center text-sm text-[#697586]">{search ? 'No results found.' : 'No loans found.'}</p>}
+      {!loading && filtered.length === 0 && <p className="py-10 text-center text-sm text-soft">{search ? 'No results found.' : 'No loans found.'}</p>}
     </div>
   )
 }

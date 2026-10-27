@@ -194,7 +194,7 @@ export default function RouteMap({ start, startLabel, stops, nextId, onPick, roa
     <div className={bare ? 'w-full' : 'mx-auto w-full overflow-hidden rounded-[1.75rem] bg-white shadow-panel ring-1 ring-black/5'}>
       <style>{`.rm-label{background:rgba(255,255,255,.94);padding:2px 8px;border-radius:999px;box-shadow:0 1px 4px rgba(0,0,0,.22);white-space:nowrap}`}</style>
       {!bare && (
-        <div className="flex items-end justify-between gap-3 bg-gradient-to-br from-[#1a1a2e] via-[#20204a] to-[#2b2461] px-4 py-3 text-white">
+        <div className="flex items-end justify-between gap-3 bg-gradient-to-br from-ink via-[#20204a] to-[#2b2461] px-4 py-3 text-white">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/55">Today at a glance</p>
             <p className="mt-0.5 text-lg font-bold leading-tight">{done} of {stops.length} done</p>
@@ -206,11 +206,11 @@ export default function RouteMap({ start, startLabel, stops, nextId, onPick, roa
       )}
       <div className="relative">
         <div ref={box} className={`${heightClass || 'h-[420px]'} w-full bg-[#e8eaf0]`} aria-label="Map of today's visits" />
-        <button type="button" onClick={() => setSat(v => !v)} className="absolute left-2 top-2 rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-[#1a1a2e] shadow-md ring-1 ring-black/10">{sat ? 'Map' : 'Satellite'}</button>
+        <button type="button" onClick={() => setSat(v => !v)} className="absolute left-2 top-2 rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-ink shadow-md ring-1 ring-black/10">{sat ? 'Map' : 'Satellite'}</button>
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-2 text-[11px] text-[#697586]">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-2 text-[11px] text-soft">
         <span className="inline-flex items-center gap-3">
-          <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full border-2 border-[#1a1a2e] bg-white" />To visit</span>
+          <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full border-2 border-ink bg-white" />To visit</span>
           <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-[#f0b429]" />Next</span>
           <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-green-600" />Done</span>
         </span>

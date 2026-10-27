@@ -137,8 +137,8 @@ export default function MyRoutePage({ session, active = true }: { session: Sessi
         )}
       </div>
 
-      {loading && <p className="p-8 text-center text-sm text-[#697586]">Loading…</p>}
-      {!loading && !stops.length && <p className="p-8 text-center text-sm text-[#697586]">No visits planned for this day.</p>}
+      {loading && <p className="p-8 text-center text-sm text-soft">Loading…</p>}
+      {!loading && !stops.length && <p className="p-8 text-center text-sm text-soft">No visits planned for this day.</p>}
 
       <div className="space-y-3">
         {stops.map((s, i) => {
@@ -147,12 +147,12 @@ export default function MyRoutePage({ session, active = true }: { session: Sessi
           return (
             <div key={s.leadId} id={`stop-${s.leadId}`} className={`${card} ${isNext ? 'ring-2 ring-[#f0b429]' : ''} ${s.done ? 'opacity-70' : ''}`}>
               <div className="flex items-start gap-3">
-                <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold ${s.done ? 'bg-green-600 text-white' : 'bg-[#1a1a2e] text-white'}`}>{s.done ? '✓' : i + 1}</span>
+                <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold ${s.done ? 'bg-green-600 text-white' : 'bg-ink text-white'}`}>{s.done ? '✓' : i + 1}</span>
                 <div className="min-w-0 flex-1">
                   <p className="font-semibold">{s.customerName}</p>
-                  <p className="text-xs text-[#697586]"><MapPin className="mr-0.5 inline h-3 w-3" />{s.visitPlace || s.place}{s.landmark && <> · {s.landmark}</>}</p>
-                  <p className="mt-0.5 text-xs text-[#697586]">
-                    {s.legKm != null && <>{i === 0 ? 'From start' : 'From previous stop'}: <span className="font-semibold text-[#1a1a2e]">{s.legKm} km · {hm(s.legMin)}</span></>}
+                  <p className="text-xs text-soft"><MapPin className="mr-0.5 inline h-3 w-3" />{s.visitPlace || s.place}{s.landmark && <> · {s.landmark}</>}</p>
+                  <p className="mt-0.5 text-xs text-soft">
+                    {s.legKm != null && <>{i === 0 ? 'From start' : 'From previous stop'}: <span className="font-semibold text-ink">{s.legKm} km · {hm(s.legMin)}</span></>}
                     {s.visitWindow && <> · <span className="font-semibold text-violet-700">{s.visitWindow}</span></>}
                   </p>
                   {s.visitNote && <p className="mt-1 rounded-xl bg-amber-50 px-3 py-1.5 text-xs text-amber-900">{s.visitNote}</p>}
@@ -161,11 +161,11 @@ export default function MyRoutePage({ session, active = true }: { session: Sessi
               </div>
               {!s.done && (
                 <div className="mt-3 grid grid-cols-2 gap-2">
-                  {nav && <a href={nav} target="_blank" rel="noreferrer" onClick={() => s.visitStatus !== 'On the way' && setStatus(s.leadId, 'On the way')} className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-[#1a1a2e] px-3 py-3 text-sm font-semibold text-white"><Navigation className="h-4 w-4" />Navigate</a>}
+                  {nav && <a href={nav} target="_blank" rel="noreferrer" onClick={() => s.visitStatus !== 'On the way' && setStatus(s.leadId, 'On the way')} className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-ink px-3 py-3 text-sm font-semibold text-white"><Navigation className="h-4 w-4" />Navigate</a>}
                   {s.phone && <a href={`tel:${s.phone}`} className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-green-600 px-3 py-3 text-sm font-semibold text-white"><Phone className="h-4 w-4" />Call</a>}
                   {s.visitStatus === 'Reached'
                     ? <button onClick={() => setVerifyId(s.leadId)} className="rounded-2xl bg-[#f0b429] px-3 py-3 text-sm font-bold text-[#1a1400]">Start verification</button>
-                    : <button onClick={() => setStatus(s.leadId, 'Reached')} disabled={!!busy} className="rounded-2xl border border-[#e5e7eb] px-3 py-3 text-sm font-semibold disabled:opacity-40">I have reached</button>}
+                    : <button onClick={() => setStatus(s.leadId, 'Reached')} disabled={!!busy} className="rounded-2xl border border-line px-3 py-3 text-sm font-semibold disabled:opacity-40">I have reached</button>}
                   <button onClick={() => { if (confirm('Mark the customer as not at home? The branch will be told to reschedule.')) setStatus(s.leadId, 'Absent') }} disabled={!!busy} className="rounded-2xl border border-red-200 px-3 py-3 text-sm font-semibold text-red-600 disabled:opacity-40">Not at home</button>
                 </div>
               )}
@@ -175,11 +175,11 @@ export default function MyRoutePage({ session, active = true }: { session: Sessi
       </div>
       {verifyId && (
         // the verification form opens over this page; the map underneath stays loaded
-        <div className="fixed inset-0 z-40 overflow-y-auto bg-[#f4f5f7] px-3 pb-8 pt-[max(0.75rem,env(safe-area-inset-top))]">
+        <div className="fixed inset-0 z-40 overflow-y-auto bg-mist px-3 pb-8 pt-[max(0.75rem,env(safe-area-inset-top))]">
           <VerificationsPage session={session} embedded leadId={verifyId} onClose={() => setVerifyId('')} onDone={() => { setVerifyId(''); load(true) }} />
         </div>
       )}
-      {toast && <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-2xl bg-[#1a1a2e] px-5 py-3 text-sm font-medium text-white shadow-lg">{toast}</div>}
+      {toast && <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-2xl bg-ink px-5 py-3 text-sm font-medium text-white shadow-lg">{toast}</div>}
     </div>
   )
 }

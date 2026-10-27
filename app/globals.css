@@ -1,10 +1,46 @@
 @import "tailwindcss";
 
+/* NGF colour palette: calm navy with a gold accent. Change the look of the whole app here.
+   Components use the names (text-ink, bg-mist, border-line, text-soft, text-gold ...), never hex codes. */
 :root {
-  --ink: #1a1a2e;
-  --soft: #697586;
-  --line: #e5e7eb;
-  --mist: #f4f5f7;
+  --ink: #14213d;      /* deep navy: text, main buttons, active items */
+  --soft: #5b6b82;     /* quiet slate: secondary text, icons */
+  --line: #e3e8ef;     /* hairlines and borders */
+  --mist: #f2f5f9;     /* page background and soft panels */
+  --gold: #c9a227;     /* accent: highlights, small marks */
+  --gold-soft: #fbf4dc;
+}
+
+@theme inline {
+  --color-ink: var(--ink);
+  --color-soft: var(--soft);
+  --color-line: var(--line);
+  --color-mist: var(--mist);
+  --color-gold: var(--gold);
+  --color-gold-soft: var(--gold-soft);
+}
+
+/* Cooler greys (slate) and calmer status greens across the app */
+@theme {
+  --color-gray-50: var(--color-slate-50);
+  --color-gray-100: var(--color-slate-100);
+  --color-gray-200: var(--color-slate-200);
+  --color-gray-300: var(--color-slate-300);
+  --color-gray-400: var(--color-slate-400);
+  --color-gray-500: var(--color-slate-500);
+  --color-gray-600: var(--color-slate-600);
+  --color-gray-700: var(--color-slate-700);
+  --color-gray-800: var(--color-slate-800);
+  --color-gray-900: var(--color-slate-900);
+  --color-green-50: var(--color-emerald-50);
+  --color-green-100: var(--color-emerald-100);
+  --color-green-200: var(--color-emerald-200);
+  --color-green-300: var(--color-emerald-300);
+  --color-green-400: var(--color-emerald-400);
+  --color-green-500: var(--color-emerald-500);
+  --color-green-600: var(--color-emerald-600);
+  --color-green-700: var(--color-emerald-700);
+  --color-green-800: var(--color-emerald-800);
 }
 
 body {

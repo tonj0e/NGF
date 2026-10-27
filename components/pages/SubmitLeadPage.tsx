@@ -104,19 +104,19 @@ export default function SubmitLeadPage({ session, onDone }: { session: Session; 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {[['customerName','Full Name *'],['phone','Phone *'],['aadhaarNo','Aadhaar (12 digits)'],['address','Address'],['place','Place *']].map(([k,l]) => (
             <label key={k} className="block">
-              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-[#697586]">{l}</span>
-              <input name={k} required={l.endsWith('*')} className="w-full rounded-2xl border border-[#e5e7eb] bg-[#f4f5f7] px-4 py-3 text-sm outline-none focus:border-[#1a1a2e] focus:bg-white transition" />
+              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-soft">{l}</span>
+              <input name={k} required={l.endsWith('*')} className="w-full rounded-2xl border border-line bg-mist px-4 py-3 text-sm outline-none focus:border-ink focus:bg-white transition" />
             </label>
           ))}
         </div>
 
         <div>
-          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-[#697586]">Photos (optional)</p>
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-soft">Photos (optional)</p>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {[['customerPhoto','Customer Photo'],['aadhaarFront','Aadhaar Front']].map(([k,l]) => (
               <label key={k} className="block">
-                <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-[#697586]">{l}</span>
-                <input name={k} type="file" accept="image/*" className="w-full rounded-2xl border border-[#e5e7eb] px-3 py-2 text-sm" />
+                <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-soft">{l}</span>
+                <input name={k} type="file" accept="image/*" className="w-full rounded-2xl border border-line px-3 py-2 text-sm" />
               </label>
             ))}
           </div>
@@ -126,16 +126,16 @@ export default function SubmitLeadPage({ session, onDone }: { session: Session; 
 
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block">
-            <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-[#697586]">Lead day</span>
+            <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-soft">Lead day</span>
             <select name="submittedDate" defaultValue={(dayOptions.find(d => !/^Today, (Saturday|Sunday)/.test(d.label)) || dayOptions[0]).value}
-              className="w-full rounded-2xl border border-[#e5e7eb] bg-[#f4f5f7] px-4 py-3 text-sm outline-none focus:border-[#1a1a2e] focus:bg-white transition">
+              className="w-full rounded-2xl border border-line bg-mist px-4 py-3 text-sm outline-none focus:border-ink focus:bg-white transition">
               {dayOptions.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
             </select>
           </label>
           <label className="block">
-            <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-[#697586]">Loan Product *</span>
+            <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-soft">Loan Product *</span>
             <select name="loanProduct" required
-              className="w-full rounded-2xl border border-[#e5e7eb] bg-[#f4f5f7] px-4 py-3 text-sm outline-none focus:border-[#1a1a2e] focus:bg-white transition">
+              className="w-full rounded-2xl border border-line bg-mist px-4 py-3 text-sm outline-none focus:border-ink focus:bg-white transition">
               <option value="">Select loan product</option>
               {APP_CONFIG.LOAN_PRODUCTS.map(p => (
                 <option key={p.key} value={p.key}>
@@ -147,7 +147,7 @@ export default function SubmitLeadPage({ session, onDone }: { session: Session; 
         </div>
 
         <div className="flex gap-3 pt-2">
-          <button type="button" onClick={onDone} className="flex-1 rounded-2xl border border-[#e5e7eb] px-4 py-3 text-sm font-semibold">Cancel</button>
+          <button type="button" onClick={onDone} className="flex-1 rounded-2xl border border-line px-4 py-3 text-sm font-semibold">Cancel</button>
           <button type="submit" disabled={loading} className="flex-1 rounded-2xl bg-[#f0b429] px-4 py-3 text-sm font-semibold text-[#1a1400] disabled:opacity-60">
             {loading ? 'Submitting...' : 'Submit Lead'}
           </button>

@@ -65,18 +65,18 @@ function CategorySection({ cat, options, token, onAdded, onChanged, onError }: {
           onChange={e => setLabel(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && add()}
           placeholder="Add review option..."
-          className="flex-1 rounded-xl border border-[#e5e7eb] bg-[#f4f5f7] px-4 py-2.5 text-sm outline-none focus:border-[#1a1a2e] focus:bg-white transition"
+          className="flex-1 rounded-xl border border-line bg-mist px-4 py-2.5 text-sm outline-none focus:border-ink focus:bg-white transition"
         />
         <button onClick={add} disabled={saving || !label.trim()}
-          className="rounded-xl bg-[#1a1a2e] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-40">
+          className="rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-40">
           Add
         </button>
       </div>
       <div className="space-y-2">
         {options.length === 0 ? (
-          <p className="text-xs text-[#697586] text-center py-3">No options yet.</p>
+          <p className="text-xs text-soft text-center py-3">No options yet.</p>
         ) : options.map(o => (
-          <div key={o['Option ID']} className="rounded-xl bg-[#f4f5f7] px-4 py-2.5">
+          <div key={o['Option ID']} className="rounded-xl bg-mist px-4 py-2.5">
             {editingId === o['Option ID'] ? (
               <div className="flex gap-2">
                 <input
@@ -84,14 +84,14 @@ function CategorySection({ cat, options, token, onAdded, onChanged, onError }: {
                   onChange={e => setEditLabel(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && save(o['Option ID'])}
                   autoFocus
-                  className="flex-1 rounded-lg border border-[#e5e7eb] bg-white px-3 py-1.5 text-sm outline-none focus:border-[#1a1a2e]"
+                  className="flex-1 rounded-lg border border-line bg-white px-3 py-1.5 text-sm outline-none focus:border-ink"
                 />
                 <button onClick={() => save(o['Option ID'])}
-                  className="rounded-lg bg-[#1a1a2e] px-3 py-1.5 text-xs font-semibold text-white">
+                  className="rounded-lg bg-ink px-3 py-1.5 text-xs font-semibold text-white">
                   Save
                 </button>
                 <button onClick={() => setEditingId(null)}
-                  className="rounded-lg border border-[#e5e7eb] px-3 py-1.5 text-xs font-semibold text-[#697586]">
+                  className="rounded-lg border border-line px-3 py-1.5 text-xs font-semibold text-soft">
                   Cancel
                 </button>
               </div>
@@ -100,7 +100,7 @@ function CategorySection({ cat, options, token, onAdded, onChanged, onError }: {
                 <span className="text-sm font-medium">{o['Label']}</span>
                 <div className="flex gap-2">
                   <button onClick={() => startEdit(o)}
-                    className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-1 text-xs font-semibold text-[#1a1a2e] hover:bg-[#f4f5f7] transition">
+                    className="rounded-lg border border-line bg-white px-3 py-1 text-xs font-semibold text-ink hover:bg-mist transition">
                     Edit
                   </button>
                   <button onClick={() => remove(o['Option ID'])}
@@ -138,18 +138,18 @@ export default function ReviewOptionsPage({ session }: { session: Session }) {
 
   if (loading && !loadedOnce.current) return (
     <div className="flex h-40 items-center justify-center">
-      <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" />
+      <div className="h-6 w-6 animate-spin rounded-full border-2 border-ink border-t-transparent" />
     </div>
   )
 
   return (
     <div className="space-y-5">
       {toast && (
-        <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-2xl bg-[#1a1a2e] px-5 py-3 text-sm font-medium text-white shadow-lg">
+        <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-2xl bg-ink px-5 py-3 text-sm font-medium text-white shadow-lg">
           {toast}
         </div>
       )}
-      <p className="text-sm text-[#697586]">Manage the review options agents pick from when recording a payment, alongside the star rating.</p>
+      <p className="text-sm text-soft">Manage the review options agents pick from when recording a payment, alongside the star rating.</p>
       <div className="max-w-xl">
         <CategorySection
           cat={REVIEW_CATEGORY}

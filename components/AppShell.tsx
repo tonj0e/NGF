@@ -248,7 +248,7 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
         key={item.key}
         onClick={() => onPick(item.key)}
         variant={view === item.key ? 'default' : 'ghost'}
-        className={`w-full justify-start gap-3 rounded-xl px-3 text-sm font-medium transition-all ${nested && !collapsed ? 'py-2 pl-8' : 'py-2.5'} ${collapsed ? 'justify-center px-2' : ''}`}
+        className={`w-full justify-start gap-3 rounded-xl px-3 text-sm font-medium transition-all ${view === item.key ? "shadow-[inset_3px_0_0_0_var(--gold)] " : ""}${nested && !collapsed ? 'py-2 pl-8' : 'py-2.5'} ${collapsed ? 'justify-center px-2' : ''}`}
         title={collapsed ? item.label : undefined}
       >
         <MenuIcon name={item.key} />
@@ -272,7 +272,7 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
               <MenuIcon name="features" />
               {!collapsed && <><span className="flex-1 truncate text-left">Features</span><ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${featuresOpen ? 'rotate-180' : ''}`} /></>}
             </Button>
-            {featuresOpen && <div className={`mt-0.5 space-y-0.5 ${collapsed ? '' : 'ml-3 border-l border-[#e5e7eb] pl-1'}`}>{featureItems.map(i => btn(i, true))}</div>}
+            {featuresOpen && <div className={`mt-0.5 space-y-0.5 ${collapsed ? '' : 'ml-3 border-l border-line pl-1'}`}>{featureItems.map(i => btn(i, true))}</div>}
           </div>
         )}
         {pick(ADMIN_TOP_AFTER).map(i => btn(i))}
@@ -285,7 +285,7 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
     if (session.role === 'Guarantor' && staffPerms.includes('pages:custom')
       && (MENUS.Guarantor || []).some(m => m.key === view) && !guarantorMenu.some(m => m.key === view)) {
       const home = guarantorMenu.find(m => m.key === 'dashboard')
-      return home ? <Dashboard session={session} /> : <div className="rounded-2xl border border-[#e5e7eb] bg-white p-6 text-sm text-[#697586]">You do not have access to this page.</div>
+      return home ? <Dashboard session={session} /> : <div className="rounded-2xl border border-line bg-white p-6 text-sm text-soft">You do not have access to this page.</div>
     }
     switch (view) {
       case 'dashboard':    return <Dashboard session={session} />
@@ -326,7 +326,7 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
       case 'location':       return <AgentLocationPage session={session} />
       case 'dev':           return <DevPage session={session} />
       case 'financialAnalytics': return <Dashboard session={session} />
-      default: return <div className="p-6 text-sm text-[#697586]">Coming soon.</div>
+      default: return <div className="p-6 text-sm text-soft">Coming soon.</div>
     }
   }
 
@@ -335,16 +335,16 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
   }
 
   return (
-    <div className="flex h-screen w-full bg-[#f4f5f7]">
+    <div className="flex h-screen w-full bg-mist">
       {session.role === 'NGF AGENT' && <AgentTracker session={session} />}
 {/* Mobile Sheet */}
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
         <SheetContent side="left" hideClose className="h-dvh w-[80vw] max-w-[320px] p-0 lg:hidden">
           <div className="flex h-full flex-col">
-            <div className="border-b border-[#e5e7eb] px-4 py-4 flex items-center justify-between">
+            <div className="border-b border-line px-4 py-4 flex items-center justify-between">
               <div>
                 <h1 className="text-xl font-bold leading-tight tracking-wide">NGF FINCORP</h1>
-                <p className="mt-0.5 text-xs text-[#697586]">{session.role} portal</p>
+                <p className="mt-0.5 text-xs text-soft">{session.role} portal</p>
               </div>
               <SheetClose
                 className="inline-flex items-center justify-center rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition"
@@ -358,7 +358,7 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
                 {navItems(k => { setView(k); setMobileOpen(false) }, false)}
               </div>
             </nav>
-            <div className="border-t border-[#e5e7eb] p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+            <div className="border-t border-line p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
               <div className="flex items-center gap-3">
                 <Avatar className="h-9 w-9">
                   <AvatarImage src={session.photo} alt={session.name} />
@@ -366,7 +366,7 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
                 </Avatar>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{session.name}</p>
-                  <p className="text-xs text-[#697586] truncate">{session.username}</p>
+                  <p className="text-xs text-soft truncate">{session.username}</p>
                 </div>
               </div>
               <Button
@@ -385,15 +385,15 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
       <div className="flex h-screen w-full flex-1">
         {/* Desktop Sidebar */}
         <aside
-          className={`glass-panel flex flex-col transition-all duration-250 border-r border-[#e5e7eb] hidden lg:flex ${sidebarCollapsed ? 'w-14' : 'w-64'}`}
+          className={`glass-panel flex flex-col transition-all duration-250 border-r border-line hidden lg:flex ${sidebarCollapsed ? 'w-14' : 'w-64'}`}
           onMouseEnter={() => setSidebarHovered(true)}
           onMouseLeave={() => setSidebarHovered(false)}
         >
-          <div className={`border-b border-[#e5e7eb] px-3 py-4 transition-all duration-250 ${sidebarCollapsed ? 'justify-center' : ''}`}>
+          <div className={`border-b border-line px-3 py-4 transition-all duration-250 ${sidebarCollapsed ? 'justify-center' : ''}`}>
             {!sidebarCollapsed ? (
               <>
                 <h1 className="text-xl font-bold leading-tight tracking-wide">NGF FINCORP</h1>
-                <p className="mt-0.5 text-xs text-[#697586]">{session.role} portal</p>
+                <p className="mt-0.5 text-xs text-soft">{session.role} portal</p>
               </>
             ) : (
               <h1 className="text-xl font-bold leading-tight tracking-wide text-center">NGF</h1>
@@ -405,7 +405,7 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
             </div>
           </nav>
           {!sidebarCollapsed && (
-            <div className="border-t border-[#e5e7eb] p-4">
+            <div className="border-t border-line p-4">
               <div className="flex items-center gap-3">
                 <Avatar className="h-9 w-9">
                   <AvatarImage src={session.photo} alt={session.name} />
@@ -413,7 +413,7 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
                 </Avatar>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{session.name}</p>
-                  <p className="text-xs text-[#697586] truncate">{session.username}</p>
+                  <p className="text-xs text-soft truncate">{session.username}</p>
                 </div>
               </div>
               <div className="flex gap-2 mt-3">
@@ -443,7 +443,7 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
           {/* Main */}
           <main className="flex min-w-0 flex-1 flex-col">
             {/* Mobile Header */}
-            <header className="sticky top-0 z-20 border-b border-[#e5e7eb] bg-white/90 pt-[env(safe-area-inset-top)] backdrop-blur-md lg:hidden">
+            <header className="sticky top-0 z-20 border-b border-line bg-white/90 pt-[env(safe-area-inset-top)] backdrop-blur-md lg:hidden">
               <div className="flex items-center justify-between gap-2 px-3 py-2.5">
                 <div className="flex items-center gap-2 min-w-0 flex-1">
                   <Button variant="ghost" size="icon" onClick={() => setMobileOpen(true)} aria-label="Open menu">
@@ -451,7 +451,7 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
                   </Button>
                   <div className="min-w-0">
                     <h1 className="text-lg font-bold leading-tight tracking-wide truncate">NGF FINCORP</h1>
-                    <p className="mt-0.5 text-[10px] text-[#697586] truncate">{session.role} portal</p>
+                    <p className="mt-0.5 text-[10px] text-soft truncate">{session.role} portal</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
@@ -479,7 +479,7 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
                         </Avatar>
                         <div>
                           <p className="font-medium">{session.name}</p>
-                          <p className="text-xs text-[#697586]">{session.role}</p>
+                          <p className="text-xs text-soft">{session.role}</p>
                         </div>
                       </DropdownMenuLabel>
                       <DropdownMenuSeparator />
@@ -503,7 +503,7 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
             </header>
 
             {/* Desktop Header */}
-            <header className="sticky top-0 z-30 border-b border-[#e5e7eb] bg-white/90 pt-[env(safe-area-inset-top)] backdrop-blur-md hidden lg:block">
+            <header className="sticky top-0 z-30 border-b border-line bg-white/90 pt-[env(safe-area-inset-top)] backdrop-blur-md hidden lg:block">
               <div className="flex items-center justify-between gap-4 px-4 py-3 sm:px-6">
                 <div className="flex items-center gap-3">
                   <div>
@@ -539,7 +539,7 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
                         </Avatar>
                         <div>
                           <p className="font-medium">{session.name}</p>
-                          <p className="text-xs text-[#697586]">{session.role}</p>
+                          <p className="text-xs text-soft">{session.role}</p>
                         </div>
                       </DropdownMenuLabel>
                       <DropdownMenuSeparator />

@@ -27,7 +27,7 @@ export default function PaymentsPage({ session }: { session: Session }) {
   }, [session])
 
   if (error) return <div className="rounded-2xl bg-white p-6 text-sm text-red-600">{error}</div>
-  if (!access) return <div className="p-8 text-center text-sm text-[#697586]">Loading…</div>
+  if (!access) return <div className="p-8 text-center text-sm text-soft">Loading…</div>
 
   const tabs: [Tab, string][] = [
     ...(access.canChat ? [['chat', 'Chat'] as [Tab, string]] : []),
@@ -36,7 +36,7 @@ export default function PaymentsPage({ session }: { session: Session }) {
     ...(access.canBank ? [['bank', 'Bank check'] as [Tab, string]] : []),
     ...(access.isAdmin ? [['settings', 'Settings'] as [Tab, string]] : []),
   ]
-  if (!tabs.length) return <div className="rounded-2xl bg-white p-6 text-sm text-[#697586]">Payments is not switched on for you yet. Ask an Admin.</div>
+  if (!tabs.length) return <div className="rounded-2xl bg-white p-6 text-sm text-soft">Payments is not switched on for you yet. Ask an Admin.</div>
   const current = tabs.some(([k]) => k === tab) ? tab : tabs[0][0]
 
   return (
@@ -44,7 +44,7 @@ export default function PaymentsPage({ session }: { session: Session }) {
       {tabs.length > 1 && (
         <div className="flex gap-2 overflow-x-auto">
           {tabs.map(([k, label]) => (
-            <button key={k} onClick={() => setTab(k)} className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold transition ${current === k ? 'bg-[#1a1a2e] text-white' : 'bg-white text-[#4b5563] ring-1 ring-black/5'}`}>{label}</button>
+            <button key={k} onClick={() => setTab(k)} className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold transition ${current === k ? 'bg-ink text-white' : 'bg-white text-[#4b5563] ring-1 ring-black/5'}`}>{label}</button>
           ))}
         </div>
       )}

@@ -25,18 +25,18 @@ export default function RenewalApproveModal({ session, lead, onClose, onDone }: 
         <div className="flex items-center justify-between border-b border-black/5 px-6 py-4">
           <div>
             <p className="text-sm font-semibold">Approve renewal</p>
-            <p className="mt-0.5 text-xs text-[#697586]">{lead.customerName} · {lead.phone} · guarantor {lead.guarantorName}</p>
+            <p className="mt-0.5 text-xs text-soft">{lead.customerName} · {lead.phone} · guarantor {lead.guarantorName}</p>
           </div>
-          <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-full text-lg font-bold text-[#697586] hover:bg-[#f4f5f7]">✕</button>
+          <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-full text-lg font-bold text-soft hover:bg-mist">✕</button>
         </div>
         <div className="space-y-4 p-6">
           <OtpPanel token={session.token} leadId={lead.leadId} purpose="renewal_approval" onChange={setOtp} />
           {error && <p className="rounded-xl bg-red-50 px-3 py-2 text-xs text-red-600">{error}</p>}
           <div className="flex gap-2">
             <button onClick={approve} disabled={!ready || busy} className="flex-1 rounded-2xl bg-green-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-40">{busy ? 'Approving…' : 'Approve renewal'}</button>
-            <button onClick={onClose} className="rounded-2xl border border-[#e5e7eb] px-4 py-3 text-sm font-semibold">Cancel</button>
+            <button onClick={onClose} className="rounded-2xl border border-line px-4 py-3 text-sm font-semibold">Cancel</button>
           </div>
-          {!ready && <p className="text-center text-xs text-[#697586]">Approval unlocks after the customer&apos;s OTP is verified.</p>}
+          {!ready && <p className="text-center text-xs text-soft">Approval unlocks after the customer&apos;s OTP is verified.</p>}
         </div>
       </div>
     </div>

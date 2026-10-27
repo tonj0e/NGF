@@ -341,33 +341,33 @@ export default function SettlementsPage({ session }: { session: Session }) {
     })
     const totalUpi = allCollectors.reduce((a, b) => a + b.upi, 0)
     return (
-      <div className="rounded-[1.6rem] border border-[#e5e7eb] bg-white overflow-hidden shadow-sm">
-        <div className="grid grid-cols-2 divide-x divide-[#e5e7eb] border-b border-[#e5e7eb]">
+      <div className="rounded-[1.6rem] border border-line bg-white overflow-hidden shadow-sm">
+        <div className="grid grid-cols-2 divide-x divide-line border-b border-line">
           <div className="p-5">
-            <p className="text-xs text-[#697586] mb-1">Total Collection</p>
-            <p className="text-2xl font-bold text-[#1a1a2e]">{currency(summary.totalDue)}</p>
+            <p className="text-xs text-soft mb-1">Total Collection</p>
+            <p className="text-2xl font-bold text-ink">{currency(summary.totalDue)}</p>
           </div>
           <div className="p-5">
-            <p className="text-xs text-[#697586] mb-1">Balance to Collect / Unpaid</p>
+            <p className="text-xs text-soft mb-1">Balance to Collect / Unpaid</p>
             <p className={`text-2xl font-bold ${summary.unpaid > 0 ? 'text-red-600' : 'text-green-600'}`}>{currency(summary.unpaid)}</p>
           </div>
         </div>
-        <div className="grid grid-cols-3 divide-x divide-[#e5e7eb] border-b border-[#e5e7eb] bg-[#f9fafb]">
+        <div className="grid grid-cols-3 divide-x divide-line border-b border-line bg-[#f9fafb]">
           <div className="p-4 text-center">
-            <p className="text-xs text-[#697586] mb-1">Cash Due</p>
-            <p className="text-lg font-bold text-[#1a1a2e]">{currency(summary.cashDue)}</p>
+            <p className="text-xs text-soft mb-1">Cash Due</p>
+            <p className="text-lg font-bold text-ink">{currency(summary.cashDue)}</p>
           </div>
           <div className="p-4 text-center">
-            <p className="text-xs text-[#697586] mb-1">UPI / QR</p>
-            <p className="text-lg font-bold text-[#1a1a2e]">{currency(totalUpi)}</p>
+            <p className="text-xs text-soft mb-1">UPI / QR</p>
+            <p className="text-lg font-bold text-ink">{currency(totalUpi)}</p>
           </div>
           <div className="p-4 text-center">
-            <p className="text-xs text-[#697586] mb-1">Not Paid</p>
-            <p className={`text-lg font-bold ${summary.unpaid > 0 ? 'text-red-600' : 'text-[#697586]'}`}>{currency(summary.unpaid)}</p>
+            <p className="text-xs text-soft mb-1">Not Paid</p>
+            <p className={`text-lg font-bold ${summary.unpaid > 0 ? 'text-red-600' : 'text-soft'}`}>{currency(summary.unpaid)}</p>
           </div>
         </div>
         {sorted.length === 0 ? (
-          <p className="p-6 text-sm text-center text-[#697586]">No payment breakdown available.</p>
+          <p className="p-6 text-sm text-center text-soft">No payment breakdown available.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm border-collapse">
@@ -375,26 +375,26 @@ export default function SettlementsPage({ session }: { session: Session }) {
                 <tr>
                   {sorted.map(sb => (
                     <th key={sb.collectorUserId || sb.collectorName}
-                      className="px-4 py-3 text-left bg-[#f4f5f7] border-b border-r border-[#e5e7eb] last:border-r-0 min-w-[150px] align-top">
-                      <p className="text-sm font-bold text-[#1a1a2e] leading-tight">{sb.collectorName}</p>
-                      {sb.collectorCode && <p className="text-xs text-[#697586] font-normal mt-0.5">{sb.collectorCode}</p>}
+                      className="px-4 py-3 text-left bg-mist border-b border-r border-line last:border-r-0 min-w-[150px] align-top">
+                      <p className="text-sm font-bold text-ink leading-tight">{sb.collectorName}</p>
+                      {sb.collectorCode && <p className="text-xs text-soft font-normal mt-0.5">{sb.collectorCode}</p>}
                       <span className={`inline-block mt-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${roleBadge[sb.collectorRole] ?? roleBadge['Other']}`}>
                         {roleLabel[sb.collectorRole] ?? 'Staff'}
                       </span>
-                      <div className="mt-2 pt-2 border-t border-[#e5e7eb]">
+                      <div className="mt-2 pt-2 border-t border-line">
                         <div className="flex items-end gap-5">
                           <div>
-                            <p className="text-[10px] text-[#697586] uppercase tracking-wide mb-1">Total</p>
-                            <p className="font-bold text-base text-[#1a1a2e]">{currency(sb.cash + sb.upi)}</p>
+                            <p className="text-[10px] text-soft uppercase tracking-wide mb-1">Total</p>
+                            <p className="font-bold text-base text-ink">{currency(sb.cash + sb.upi)}</p>
                           </div>
                           <div className="flex gap-4 pb-px">
                             <div>
-                              <p className="text-[10px] text-[#697586] uppercase tracking-wide mb-1">Cash</p>
-                              <p className={`text-sm font-bold ${sb.cash > 0 ? 'text-[#1a1a2e]' : 'text-[#9ca3af]'}`}>{currency(sb.cash)}</p>
+                              <p className="text-[10px] text-soft uppercase tracking-wide mb-1">Cash</p>
+                              <p className={`text-sm font-bold ${sb.cash > 0 ? 'text-ink' : 'text-[#9ca3af]'}`}>{currency(sb.cash)}</p>
                             </div>
                             <div>
-                              <p className="text-[10px] text-[#697586] uppercase tracking-wide mb-1">UPI / QR</p>
-                              <p className={`text-sm font-bold ${sb.upi > 0 ? 'text-[#1a1a2e]' : 'text-[#9ca3af]'}`}>{currency(sb.upi)}</p>
+                              <p className="text-[10px] text-soft uppercase tracking-wide mb-1">UPI / QR</p>
+                              <p className={`text-sm font-bold ${sb.upi > 0 ? 'text-ink' : 'text-[#9ca3af]'}`}>{currency(sb.upi)}</p>
                             </div>
                           </div>
                         </div>
@@ -407,21 +407,21 @@ export default function SettlementsPage({ session }: { session: Session }) {
                 <tr>
                   {sorted.map(sb => (
                     <td key={sb.collectorUserId || sb.collectorName}
-                      className="px-0 border-r border-[#e5e7eb] last:border-r-0 align-top">
+                      className="px-0 border-r border-line last:border-r-0 align-top">
                       {sb.transactions.length === 0 ? (
                         <p className="px-4 py-3 text-xs text-[#9ca3af]">No transactions</p>
                       ) : (
-                        <div className="divide-y divide-[#f4f5f7]">
+                        <div className="divide-y divide-mist">
                           {sb.transactions.map((tx, i) => {
                             const isUpi = tx.paymentMode.toLowerCase().includes('upi') || tx.paymentMode.toLowerCase().includes('qr') || tx.paymentMode.toLowerCase().includes('bank')
                             return (
                               <div key={i} className="px-4 py-3">
-                                <p className="text-sm font-semibold text-[#1a1a2e] leading-tight">{tx.customerName}</p>
+                                <p className="text-sm font-semibold text-ink leading-tight">{tx.customerName}</p>
                                 <div className="flex items-center gap-2 mt-1">
                                   <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${isUpi ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>
                                     {tx.paymentMode}
                                   </span>
-                                  <span className="text-sm font-bold text-[#1a1a2e]">{currency(tx.amount)}</span>
+                                  <span className="text-sm font-bold text-ink">{currency(tx.amount)}</span>
                                 </div>
                                 {tx.paidAt && (
                                   <p className="text-[10px] text-[#9ca3af] mt-1">
@@ -447,7 +447,7 @@ export default function SettlementsPage({ session }: { session: Session }) {
   function renderHistory() {
     if (histLoading) return (
       <div className="flex h-40 items-center justify-center">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" />
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-ink border-t-transparent" />
       </div>
     )
 
@@ -458,37 +458,37 @@ export default function SettlementsPage({ session }: { session: Session }) {
         <div className="space-y-4">
           <div className="flex items-center gap-3">
             <button onClick={() => setHistWeekDetail(null)}
-              className="rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-semibold flex items-center gap-1.5 hover:bg-[#f4f5f7] transition">
+              className="rounded-2xl border border-line bg-white px-4 py-2 text-sm font-semibold flex items-center gap-1.5 hover:bg-mist transition">
               ← Back
             </button>
             <div>
-              <p className="font-bold text-base text-[#1a1a2e]">{ws.guarantorName}</p>
-              <p className="text-xs text-[#697586]">{ws.guarantorCode} &bull; {wstl['Saturday Date']}</p>
+              <p className="font-bold text-base text-ink">{ws.guarantorName}</p>
+              <p className="text-xs text-soft">{ws.guarantorCode} &bull; {wstl['Saturday Date']}</p>
             </div>
           </div>
           {renderCollectorTable(ws)}
-          <div className="rounded-[1.6rem] border border-[#e5e7eb] bg-white p-5 space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wider text-[#697586]">Settlement Record</p>
+          <div className="rounded-[1.6rem] border border-line bg-white p-5 space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-soft">Settlement Record</p>
             <div className="grid grid-cols-3 gap-3">
-              <div className="rounded-xl bg-[#f4f5f7] p-3 text-center">
-                <p className="text-xs text-[#697586] mb-1">Submitted</p>
+              <div className="rounded-xl bg-mist p-3 text-center">
+                <p className="text-xs text-soft mb-1">Submitted</p>
                 <p className="font-bold text-sm">{currency(Number(wstl['Amount Submitted']))}</p>
               </div>
-              <div className="rounded-xl bg-[#f4f5f7] p-3 text-center">
-                <p className="text-xs text-[#697586] mb-1">Balance</p>
+              <div className="rounded-xl bg-mist p-3 text-center">
+                <p className="text-xs text-soft mb-1">Balance</p>
                 <p className={`font-bold text-sm ${Number(wstl['Balance']) > 0 ? 'text-red-600' : 'text-green-600'}`}>
                   {currency(Number(wstl['Balance']))}
                 </p>
               </div>
-              <div className="rounded-xl bg-[#f4f5f7] p-3 text-center">
-                <p className="text-xs text-[#697586] mb-1">Status</p>
+              <div className="rounded-xl bg-mist p-3 text-center">
+                <p className="text-xs text-soft mb-1">Status</p>
                 <p className={`font-bold text-sm ${wstl['Status'] === 'Settled' ? 'text-green-700' : 'text-amber-600'}`}>
                   {wstl['Status']}
                 </p>
               </div>
             </div>
-            {wstl['Notes'] && <p className="text-xs text-[#697586] pt-1">{wstl['Notes']}</p>}
-            <p className="text-xs text-[#697586]">Recorded by {wstl['Recorded By']} &bull; {wstl['Created At']?.slice(0, 16)}</p>
+            {wstl['Notes'] && <p className="text-xs text-soft pt-1">{wstl['Notes']}</p>}
+            <p className="text-xs text-soft">Recorded by {wstl['Recorded By']} &bull; {wstl['Created At']?.slice(0, 16)}</p>
           </div>
         </div>
       )
@@ -501,16 +501,16 @@ export default function SettlementsPage({ session }: { session: Session }) {
         <div className="space-y-4">
           <div className="flex items-center gap-3">
             <button onClick={() => setHistView(null)}
-              className="rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-semibold flex items-center gap-1.5 hover:bg-[#f4f5f7] transition">
+              className="rounded-2xl border border-line bg-white px-4 py-2 text-sm font-semibold flex items-center gap-1.5 hover:bg-mist transition">
               ← Back
             </button>
             <div>
-              <p className="font-bold text-base text-[#1a1a2e]">{histView.name}</p>
-              <p className="text-xs text-[#697586]">{histView.code} &bull; {histView.phone}</p>
+              <p className="font-bold text-base text-ink">{histView.name}</p>
+              <p className="text-xs text-soft">{histView.code} &bull; {histView.phone}</p>
             </div>
           </div>
           {weeks.length === 0 ? (
-            <p className="rounded-2xl border border-dashed border-[#e5e7eb] bg-white p-8 text-center text-sm text-[#697586]">
+            <p className="rounded-2xl border border-dashed border-line bg-white p-8 text-center text-sm text-soft">
               No settlements found for this guarantor.
             </p>
           ) : (
@@ -523,40 +523,40 @@ export default function SettlementsPage({ session }: { session: Session }) {
                   <div key={stl['Settlement ID']} className="rounded-2xl border border-white/70 bg-white px-4 py-3 shadow-panel space-y-2">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-3">
-                        <div className="shrink-0 rounded-xl bg-[#f4f5f7] px-3 py-2 text-center">
-                          <p className="text-[10px] text-[#697586] leading-none uppercase">
+                        <div className="shrink-0 rounded-xl bg-mist px-3 py-2 text-center">
+                          <p className="text-[10px] text-soft leading-none uppercase">
                             {satDate.toLocaleDateString('en-IN', { month: 'short' })}
                           </p>
-                          <p className="font-bold text-lg text-[#1a1a2e] leading-none mt-0.5">
+                          <p className="font-bold text-lg text-ink leading-none mt-0.5">
                             {satDate.getDate()}
                           </p>
-                          <p className="text-[10px] text-[#697586] leading-none mt-0.5">
+                          <p className="text-[10px] text-soft leading-none mt-0.5">
                             {satDate.getFullYear()}
                           </p>
                         </div>
                         <div>
                           <p className="text-sm font-semibold leading-tight">{stl['Saturday Date']}</p>
-                          <p className="text-xs text-[#697586]">Submitted: {currency(Number(stl['Amount Submitted']))}</p>
+                          <p className="text-xs text-soft">Submitted: {currency(Number(stl['Amount Submitted']))}</p>
                         </div>
                       </div>
                       <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold shrink-0 ${isSettled ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
                         {stl['Status']}
                       </span>
                     </div>
-                    <div className="grid grid-cols-2 gap-1.5 rounded-xl bg-[#f4f5f7] px-2 py-2">
+                    <div className="grid grid-cols-2 gap-1.5 rounded-xl bg-mist px-2 py-2">
                       <div className="text-center">
-                        <p className="text-[10px] text-[#697586]">Cash Due</p>
+                        <p className="text-[10px] text-soft">Cash Due</p>
                         <p className="font-semibold text-xs">{currency(Number(stl['Total Cash Due']))}</p>
                       </div>
                       <div className="text-center">
-                        <p className="text-[10px] text-[#697586]">Balance</p>
+                        <p className="text-[10px] text-soft">Balance</p>
                         <p className={`font-semibold text-xs ${balance > 0 ? 'text-red-600' : 'text-green-600'}`}>{currency(balance)}</p>
                       </div>
                     </div>
                     <button
                       onClick={() => loadHistWeekDetail(stl)}
                       disabled={histWeekLoading}
-                      className="w-full rounded-xl border border-[#e5e7eb] bg-[#f4f5f7] px-3 py-1.5 text-xs font-semibold text-[#697586] hover:bg-[#1a1a2e] hover:text-white transition disabled:opacity-50">
+                      className="w-full rounded-xl border border-line bg-mist px-3 py-1.5 text-xs font-semibold text-soft hover:bg-ink hover:text-white transition disabled:opacity-50">
                       {histWeekLoading ? 'Loading...' : 'View'}
                     </button>
                   </div>
@@ -572,8 +572,8 @@ export default function SettlementsPage({ session }: { session: Session }) {
     if (histGuarantors.length === 0) return (
       <div className="space-y-3">
         <input value={guarantorSearch} onChange={e => setGuarantorSearch(e.target.value)} placeholder="Search guarantor name or code…" data-no-upper
-          className="w-full max-w-sm rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2.5 text-sm outline-none focus:border-[#1a1a2e]" />
-        <p className="rounded-2xl border border-dashed border-[#e5e7eb] bg-white p-8 text-center text-sm text-[#697586]">
+          className="w-full max-w-sm rounded-2xl border border-line bg-white px-4 py-2.5 text-sm outline-none focus:border-ink" />
+        <p className="rounded-2xl border border-dashed border-line bg-white p-8 text-center text-sm text-soft">
           {histLoading ? 'Loading…' : 'No guarantors found.'}
         </p>
       </div>
@@ -581,7 +581,7 @@ export default function SettlementsPage({ session }: { session: Session }) {
     return (
       <div className="space-y-3">
       <input value={guarantorSearch} onChange={e => setGuarantorSearch(e.target.value)} placeholder="Search guarantor name or code…" data-no-upper
-        className="w-full max-w-sm rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2.5 text-sm outline-none focus:border-[#1a1a2e]" />
+        className="w-full max-w-sm rounded-2xl border border-line bg-white px-4 py-2.5 text-sm outline-none focus:border-ink" />
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {histGuarantors.map(g => {
           return (
@@ -589,12 +589,12 @@ export default function SettlementsPage({ session }: { session: Session }) {
               <div className="flex items-center justify-between gap-2">
                 <div>
                   <p className="text-sm font-semibold leading-tight">{g.name}</p>
-                  <p className="text-xs text-[#697586]">{g.code} &bull; {g.phone}</p>
+                  <p className="text-xs text-soft">{g.code} &bull; {g.phone}</p>
                 </div>
               </div>
               <button
                 onClick={() => { setHistView(g); setHistWeekDetail(null); setAllSettlements([]); loadGuarantorHistory(g.guarantorId) }}
-                className="w-full rounded-xl border border-[#e5e7eb] bg-[#f4f5f7] px-3 py-1.5 text-xs font-semibold text-[#697586] hover:bg-[#1a1a2e] hover:text-white transition">
+                className="w-full rounded-xl border border-line bg-mist px-3 py-1.5 text-xs font-semibold text-soft hover:bg-ink hover:text-white transition">
                 View
               </button>
             </div>
@@ -612,38 +612,38 @@ export default function SettlementsPage({ session }: { session: Session }) {
       <div className="space-y-4">
         <div className="flex items-center gap-3">
           <button onClick={() => setDetailSummary(null)}
-            className="rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-semibold flex items-center gap-1.5 hover:bg-[#f4f5f7] transition">
+            className="rounded-2xl border border-line bg-white px-4 py-2 text-sm font-semibold flex items-center gap-1.5 hover:bg-mist transition">
             ← Back
           </button>
           <div>
-            <p className="font-bold text-base text-[#1a1a2e]">{detailSummary.guarantorName}</p>
-            <p className="text-xs text-[#697586]">{detailSummary.guarantorCode} &bull; {saturday}</p>
+            <p className="font-bold text-base text-ink">{detailSummary.guarantorName}</p>
+            <p className="text-xs text-soft">{detailSummary.guarantorCode} &bull; {saturday}</p>
           </div>
         </div>
         {renderCollectorTable(detailSummary)}
         {stl && (
-          <div className="rounded-[1.6rem] border border-[#e5e7eb] bg-white p-5 space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wider text-[#697586]">Settlement Record</p>
+          <div className="rounded-[1.6rem] border border-line bg-white p-5 space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-soft">Settlement Record</p>
             <div className="grid grid-cols-3 gap-3">
-              <div className="rounded-xl bg-[#f4f5f7] p-3 text-center">
-                <p className="text-xs text-[#697586] mb-1">Submitted</p>
+              <div className="rounded-xl bg-mist p-3 text-center">
+                <p className="text-xs text-soft mb-1">Submitted</p>
                 <p className="font-bold text-sm">{currency(Number(stl['Amount Submitted']))}</p>
               </div>
-              <div className="rounded-xl bg-[#f4f5f7] p-3 text-center">
-                <p className="text-xs text-[#697586] mb-1">Balance</p>
+              <div className="rounded-xl bg-mist p-3 text-center">
+                <p className="text-xs text-soft mb-1">Balance</p>
                 <p className={`font-bold text-sm ${Number(stl['Balance']) > 0 ? 'text-red-600' : 'text-green-600'}`}>
                   {currency(Number(stl['Balance']))}
                 </p>
               </div>
-              <div className="rounded-xl bg-[#f4f5f7] p-3 text-center">
-                <p className="text-xs text-[#697586] mb-1">Status</p>
+              <div className="rounded-xl bg-mist p-3 text-center">
+                <p className="text-xs text-soft mb-1">Status</p>
                 <p className={`font-bold text-sm ${stl['Status'] === 'Settled' ? 'text-green-700' : 'text-amber-600'}`}>
                   {stl['Status']}
                 </p>
               </div>
             </div>
-            {stl['Notes'] && <p className="text-xs text-[#697586] pt-1">{stl['Notes']}</p>}
-            <p className="text-xs text-[#697586]">Recorded by {stl['Recorded By']} &bull; {stl['Created At']?.slice(0, 16)}</p>
+            {stl['Notes'] && <p className="text-xs text-soft pt-1">{stl['Notes']}</p>}
+            <p className="text-xs text-soft">Recorded by {stl['Recorded By']} &bull; {stl['Created At']?.slice(0, 16)}</p>
           </div>
         )}
       </div>
@@ -653,38 +653,38 @@ export default function SettlementsPage({ session }: { session: Session }) {
   return (
     <div className="space-y-5">
       {toast && (
-        <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-2xl bg-[#1a1a2e] px-5 py-3 text-sm font-medium text-white shadow-lg">
+        <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-2xl bg-ink px-5 py-3 text-sm font-medium text-white shadow-lg">
           {toast}
         </div>
       )}
 
       <div className="flex gap-2">
         <button onClick={() => setTab('today')}
-          className={`rounded-2xl px-5 py-2.5 text-sm font-semibold transition ${tab === 'today' ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586]'}`}>
+          className={`rounded-2xl px-5 py-2.5 text-sm font-semibold transition ${tab === 'today' ? 'bg-ink text-white' : 'border border-line bg-white text-soft'}`}>
           This Saturday
         </button>
         <button onClick={() => setTab('unsettled')}
-          className={`rounded-2xl px-5 py-2.5 text-sm font-semibold transition ${tab === 'unsettled' ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586]'}`}>
+          className={`rounded-2xl px-5 py-2.5 text-sm font-semibold transition ${tab === 'unsettled' ? 'bg-ink text-white' : 'border border-line bg-white text-soft'}`}>
           Unsettled
         </button>
         <button onClick={() => setTab('history')}
-          className={`rounded-2xl px-5 py-2.5 text-sm font-semibold transition ${tab === 'history' ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586]'}`}>
+          className={`rounded-2xl px-5 py-2.5 text-sm font-semibold transition ${tab === 'history' ? 'bg-ink text-white' : 'border border-line bg-white text-soft'}`}>
           History
         </button>
       </div>
 
       {(tab === 'today' || tab === 'unsettled') && (
         <input value={guarantorSearch} onChange={e => setGuarantorSearch(e.target.value)} placeholder="Search guarantor name or code…" data-no-upper
-          className="w-full max-w-sm rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2.5 text-sm outline-none focus:border-[#1a1a2e]" />
+          className="w-full max-w-sm rounded-2xl border border-line bg-white px-4 py-2.5 text-sm outline-none focus:border-ink" />
       )}
       {tab === 'today' && (
-        <p className="text-sm text-[#697586]">
-          Showing settlements for <span className="font-semibold text-[#1a1a2e]">{saturday}</span>
+        <p className="text-sm text-soft">
+          Showing settlements for <span className="font-semibold text-ink">{saturday}</span>
         </p>
       )}
 
       {tab === 'unsettled' && (
-        <p className="text-sm text-[#697586]">
+        <p className="text-sm text-soft">
           Showing all past weeks with missed or partial settlements.
         </p>
       )}
@@ -693,10 +693,10 @@ export default function SettlementsPage({ session }: { session: Session }) {
       {tab === 'today' && (
         loading ? (
           <div className="flex h-40 items-center justify-center">
-            <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" />
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-ink border-t-transparent" />
           </div>
         ) : summaries.length === 0 ? (
-          <p className="rounded-2xl border border-dashed border-[#e5e7eb] bg-white p-8 text-center text-sm text-[#697586]">
+          <p className="rounded-2xl border border-dashed border-line bg-white p-8 text-center text-sm text-soft">
             No collections found for this Saturday.
           </p>
         ) : (
@@ -710,75 +710,75 @@ export default function SettlementsPage({ session }: { session: Session }) {
                   <div className="flex items-center justify-between gap-2">
                     <div>
                       <p className="text-sm font-semibold leading-tight">{s.guarantorName}</p>
-                      <p className="text-xs text-[#697586]">{s.guarantorCode} &bull; {s.guarantorPhone}</p>
+                      <p className="text-xs text-soft">{s.guarantorCode} &bull; {s.guarantorPhone}</p>
                     </div>
-                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold shrink-0 ${isSettled ? 'bg-green-100 text-green-700' : stl ? 'bg-amber-100 text-amber-700' : 'bg-[#f4f5f7] text-[#697586]'}`}>
+                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold shrink-0 ${isSettled ? 'bg-green-100 text-green-700' : stl ? 'bg-amber-100 text-amber-700' : 'bg-mist text-soft'}`}>
                       {isSettled ? 'Settled' : stl ? 'Partial' : 'Pending'}
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-4 gap-1.5 rounded-xl bg-[#f4f5f7] px-2 py-2">
+                  <div className="grid grid-cols-4 gap-1.5 rounded-xl bg-mist px-2 py-2">
                     <div className="text-center">
-                      <p className="text-[10px] text-[#697586]">Cash Due</p>
+                      <p className="text-[10px] text-soft">Cash Due</p>
                       <p className="font-semibold text-xs">{currency(s.cashDue)}</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-[10px] text-[#697586]">UPI / QR</p>
+                      <p className="text-[10px] text-soft">UPI / QR</p>
                       <p className="font-semibold text-xs">{currency(s.upiDue)}</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-[10px] text-[#697586]">Collection</p>
+                      <p className="text-[10px] text-soft">Collection</p>
                       <p className="font-semibold text-xs text-green-700">{currency(s.totalDue)}</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-[10px] text-[#697586]">Unpaid</p>
-                      <p className={`font-semibold text-xs ${s.unpaid > 0 ? 'text-red-600' : 'text-[#697586]'}`}>{currency(s.unpaid)}</p>
+                      <p className="text-[10px] text-soft">Unpaid</p>
+                      <p className={`font-semibold text-xs ${s.unpaid > 0 ? 'text-red-600' : 'text-soft'}`}>{currency(s.unpaid)}</p>
                     </div>
                   </div>
 
                   <button
                     onClick={() => openDetail(s)}
-                    className="w-full rounded-xl border border-[#e5e7eb] bg-[#f4f5f7] px-3 py-1.5 text-xs font-semibold text-[#697586] hover:bg-[#1a1a2e] hover:text-white transition">
+                    className="w-full rounded-xl border border-line bg-mist px-3 py-1.5 text-xs font-semibold text-soft hover:bg-ink hover:text-white transition">
                     View Details
                   </button>
 
                   {stl && (
-                    <div className="rounded-xl bg-[#f4f5f7] px-3 py-2 text-xs space-y-1">
+                    <div className="rounded-xl bg-mist px-3 py-2 text-xs space-y-1">
                       <div className="flex justify-between">
-                        <span className="text-[#697586]">Submitted</span>
+                        <span className="text-soft">Submitted</span>
                         <span className="font-semibold">{currency(Number(stl['Amount Submitted']))}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-[#697586]">Balance</span>
+                        <span className="text-soft">Balance</span>
                         <span className={`font-semibold ${balance > 0 ? 'text-red-600' : 'text-green-600'}`}>{currency(balance)}</span>
                       </div>
-                      {stl['Notes'] && <p className="text-[10px] text-[#697586]">{stl['Notes']}</p>}
-                      <p className="text-[10px] text-[#697586]">Recorded: {stl['Created At']?.slice(0, 16)}</p>
+                      {stl['Notes'] && <p className="text-[10px] text-soft">{stl['Notes']}</p>}
+                      <p className="text-[10px] text-soft">Recorded: {stl['Created At']?.slice(0, 16)}</p>
                     </div>
                   )}
 
                   {!isSettled && (
                     openId === s.guarantorId ? (
-                      <div className="space-y-2 rounded-xl border border-[#e5e7eb] p-3">
+                      <div className="space-y-2 rounded-xl border border-line p-3">
                         <input
                           type="number" placeholder="Amount submitted"
                           value={submitAmount} onChange={e => setSubmitAmount(e.target.value)}
-                          className="w-full rounded-xl border border-[#e5e7eb] px-3 py-2 text-xs outline-none focus:border-[#1a1a2e]"
+                          className="w-full rounded-xl border border-line px-3 py-2 text-xs outline-none focus:border-ink"
                         />
                         <textarea
                           placeholder="Notes (optional)" value={submitNotes}
                           onChange={e => setSubmitNotes(e.target.value)} rows={2}
-                          className="w-full rounded-xl border border-[#e5e7eb] px-3 py-2 text-xs outline-none focus:border-[#1a1a2e] resize-none"
+                          className="w-full rounded-xl border border-line px-3 py-2 text-xs outline-none focus:border-ink resize-none"
                         />
                         <div className="flex gap-2">
                           <button
                             onClick={() => recordSettlement(s.guarantorId, s.guarantorName, s.cashDue, s.upiDue)}
                             disabled={isSaving(s.guarantorId)}
-                            className="flex-1 rounded-xl bg-[#1a1a2e] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">
+                            className="flex-1 rounded-xl bg-ink px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">
                             {isSaving(s.guarantorId) ? 'Saving...' : 'Record'}
                           </button>
                           <button onClick={() => setOpenId(null)}
-                            className="rounded-xl border border-[#e5e7eb] px-3 py-2 text-xs font-semibold text-[#697586]">
+                            className="rounded-xl border border-line px-3 py-2 text-xs font-semibold text-soft">
                             Cancel
                           </button>
                         </div>
@@ -788,7 +788,7 @@ export default function SettlementsPage({ session }: { session: Session }) {
                         {s.cashDue > 0 && (
                           <button
                             onClick={() => { setOpenId(s.guarantorId); setSubmitAmount(''); setSubmitNotes('') }}
-                            className="flex-1 rounded-xl border border-[#e5e7eb] bg-[#f4f5f7] px-3 py-1.5 text-xs font-semibold text-[#1a1a2e] hover:bg-[#1a1a2e] hover:text-white transition">
+                            className="flex-1 rounded-xl border border-line bg-mist px-3 py-1.5 text-xs font-semibold text-ink hover:bg-ink hover:text-white transition">
                             Record Cash Submission
                           </button>
                         )}
@@ -801,7 +801,7 @@ export default function SettlementsPage({ session }: { session: Session }) {
                             }
                           }}
                           disabled={isSaving(s.guarantorId)}
-                          className={`flex-1 rounded-xl px-3 py-1.5 text-xs font-semibold transition disabled:opacity-50 ${s.cashDue === 0 ? 'bg-green-600 text-white hover:bg-green-700' : 'border border-[#e5e7eb] bg-[#f4f5f7] text-[#9ca3af]'}`}>
+                          className={`flex-1 rounded-xl px-3 py-1.5 text-xs font-semibold transition disabled:opacity-50 ${s.cashDue === 0 ? 'bg-green-600 text-white hover:bg-green-700' : 'border border-line bg-mist text-[#9ca3af]'}`}>
                           {isSaving(s.guarantorId) ? 'Settling...' : s.cashDue === 0 ? 'Settle' : 'Settle (Cash Due Pending)'}
                         </button>
                       </div>
@@ -821,10 +821,10 @@ export default function SettlementsPage({ session }: { session: Session }) {
       {tab === 'unsettled' && (
         unsettledLoading ? (
           <div className="flex h-40 items-center justify-center">
-            <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" />
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-ink border-t-transparent" />
           </div>
         ) : unsettledWeeks.length === 0 ? (
-          <p className="rounded-2xl border border-dashed border-[#e5e7eb] bg-white p-8 text-center text-sm text-[#697586]">
+          <p className="rounded-2xl border border-dashed border-line bg-white p-8 text-center text-sm text-soft">
             No missed or partial settlements in past weeks.
           </p>
         ) : (
@@ -833,10 +833,10 @@ export default function SettlementsPage({ session }: { session: Session }) {
               <div key={week.saturdayDate} className="rounded-2xl border border-white/70 bg-white p-4 shadow-panel space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-semibold text-[#1a1a2e]">
+                    <p className="text-sm font-semibold text-ink">
                       Week of {new Date(week.saturdayDate).toLocaleDateString('en-IN', { weekday: 'long', day: '2-digit', month: 'short', year: 'numeric' })}
                     </p>
-                    <p className="text-xs text-[#697586]">
+                    <p className="text-xs text-soft">
                       {week.summaries.length} guarantor{week.summaries.length !== 1 ? 's' : ''} with missed or partial settlements
                     </p>
                   </div>
@@ -851,44 +851,44 @@ export default function SettlementsPage({ session }: { session: Session }) {
                         <div className="flex items-center justify-between gap-2">
                           <div>
                             <p className="text-sm font-semibold leading-tight">{s.guarantorName}</p>
-                            <p className="text-xs text-[#697586]">{s.guarantorCode} &bull; {s.guarantorPhone}</p>
+                            <p className="text-xs text-soft">{s.guarantorCode} &bull; {s.guarantorPhone}</p>
                           </div>
-                          <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold shrink-0 ${s.unpaid > 0 ? 'bg-red-100 text-red-700' : balance > 0 ? 'bg-amber-100 text-amber-700' : 'bg-[#f4f5f7] text-[#697586]'}`}>
+                          <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold shrink-0 ${s.unpaid > 0 ? 'bg-red-100 text-red-700' : balance > 0 ? 'bg-amber-100 text-amber-700' : 'bg-mist text-soft'}`}>
                             {s.unpaid > 0 ? 'Unpaid' : balance > 0 ? 'Partial' : 'Missed'}
                           </span>
                         </div>
 
-                        <div className="grid grid-cols-4 gap-1.5 rounded-xl bg-[#f4f5f7] px-2 py-2">
+                        <div className="grid grid-cols-4 gap-1.5 rounded-xl bg-mist px-2 py-2">
                           <div className="text-center">
-                            <p className="text-[10px] text-[#697586]">Cash Due</p>
+                            <p className="text-[10px] text-soft">Cash Due</p>
                             <p className="font-semibold text-xs">{currency(s.cashDue)}</p>
                           </div>
                           <div className="text-center">
-                            <p className="text-[10px] text-[#697586]">UPI / QR</p>
+                            <p className="text-[10px] text-soft">UPI / QR</p>
                             <p className="font-semibold text-xs">{currency(s.upiDue)}</p>
                           </div>
                           <div className="text-center">
-                            <p className="text-[10px] text-[#697586]">Total Due</p>
+                            <p className="text-[10px] text-soft">Total Due</p>
                             <p className="font-semibold text-xs text-green-700">{currency(s.totalDue)}</p>
                           </div>
                           <div className="text-center">
-                            <p className="text-[10px] text-[#697586]">Unpaid</p>
-                            <p className={`font-semibold text-xs ${s.unpaid > 0 ? 'text-red-600' : 'text-[#697586]'}`}>{currency(s.unpaid)}</p>
+                            <p className="text-[10px] text-soft">Unpaid</p>
+                            <p className={`font-semibold text-xs ${s.unpaid > 0 ? 'text-red-600' : 'text-soft'}`}>{currency(s.unpaid)}</p>
                           </div>
                         </div>
 
                         {stl && (
-                          <div className="rounded-xl bg-[#f4f5f7] px-3 py-2 text-xs space-y-1">
+                          <div className="rounded-xl bg-mist px-3 py-2 text-xs space-y-1">
                             <div className="flex justify-between">
-                              <span className="text-[#697586]">Submitted</span>
+                              <span className="text-soft">Submitted</span>
                               <span className="font-semibold">{currency(Number(stl['Amount Submitted']))}</span>
                             </div>
                             <div className="flex justify-between">
-                              <span className="text-[#697586]">Balance</span>
+                              <span className="text-soft">Balance</span>
                               <span className={`font-semibold ${Number(stl['Balance']) > 0 ? 'text-red-600' : 'text-green-600'}`}>{currency(Number(stl['Balance']))}</span>
                             </div>
-                            {stl['Notes'] && <p className="text-[10px] text-[#697586]">{stl['Notes']}</p>}
-                            <p className="text-[10px] text-[#697586]">Recorded: {stl['Created At']?.slice(0, 16)}</p>
+                            {stl['Notes'] && <p className="text-[10px] text-soft">{stl['Notes']}</p>}
+                            <p className="text-[10px] text-soft">Recorded: {stl['Created At']?.slice(0, 16)}</p>
                           </div>
                         )}
 
@@ -897,7 +897,7 @@ export default function SettlementsPage({ session }: { session: Session }) {
                             {s.cashDue > 0 && (
                               <button
                                 onClick={() => { setOpenId(s.guarantorId); setSubmitAmount(''); setSubmitNotes('') }}
-                                className="flex-1 rounded-xl border border-[#e5e7eb] bg-[#f4f5f7] px-3 py-1.5 text-xs font-semibold text-[#1a1a2e] hover:bg-[#1a1a2e] hover:text-white transition">
+                                className="flex-1 rounded-xl border border-line bg-mist px-3 py-1.5 text-xs font-semibold text-ink hover:bg-ink hover:text-white transition">
                                   Record Cash Submission
                                 </button>
                               )}
@@ -910,7 +910,7 @@ export default function SettlementsPage({ session }: { session: Session }) {
                                 }
                               }}
                               disabled={isSaving(s.guarantorId)}
-                              className={`flex-1 rounded-xl px-3 py-1.5 text-xs font-semibold transition disabled:opacity-50 ${s.cashDue === 0 ? 'bg-green-600 text-white hover:bg-green-700' : 'border border-[#e5e7eb] bg-[#f4f5f7] text-[#9ca3af]'}`}>
+                              className={`flex-1 rounded-xl px-3 py-1.5 text-xs font-semibold transition disabled:opacity-50 ${s.cashDue === 0 ? 'bg-green-600 text-white hover:bg-green-700' : 'border border-line bg-mist text-[#9ca3af]'}`}>
                               {isSaving(s.guarantorId) ? 'Settling...' : s.cashDue === 0 ? 'Settle' : 'Settle (Cash Due Pending)'}
                             </button>
                           </div>
@@ -926,7 +926,7 @@ export default function SettlementsPage({ session }: { session: Session }) {
       )}
 
       {tab === 'unsettled' && unsettledMore && (
-        <button onClick={() => setUnsettledPage(p => p + 1)} className="rounded-2xl border border-[#e5e7eb] bg-white px-5 py-2.5 text-sm font-semibold">Load two older weeks</button>
+        <button onClick={() => setUnsettledPage(p => p + 1)} className="rounded-2xl border border-line bg-white px-5 py-2.5 text-sm font-semibold">Load two older weeks</button>
       )}
 
       {/* HISTORY TAB */}

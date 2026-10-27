@@ -249,14 +249,14 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
     showToast('Saved.'); setEditing(false); load()
   }
 
-  if (loading) return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" /></div>
+  if (loading) return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-ink border-t-transparent" /></div>
 
   if (detail) return (
     <div className="space-y-5">
       {approving && <RenewalApproveModal session={session} lead={approving} onClose={() => setApproving(null)} onDone={m => { setApproving(null); setDetail(null); showToast(m); load() }} />}
-      {toast && <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-2xl bg-[#1a1a2e] px-5 py-3 text-sm font-medium text-white shadow-lg">{toast}</div>}
+      {toast && <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-2xl bg-ink px-5 py-3 text-sm font-medium text-white shadow-lg">{toast}</div>}
       <div className="flex flex-wrap items-center gap-3">
-        <button onClick={() => { setDetail(null); setEditing(false) }} className="rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-semibold">Back</button>
+        <button onClick={() => { setDetail(null); setEditing(false) }} className="rounded-2xl border border-line bg-white px-4 py-2 text-sm font-semibold">Back</button>
         <div className="flex-1">
           <div className="flex items-center gap-2">
             <p className="text-lg font-semibold">{detail.customerName}</p>
@@ -267,7 +267,7 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
                 : null
             }
           </div>
-          <p className="text-sm text-[#697586]">{detail.leadId} &bull; {detail.submittedDate}</p>
+          <p className="text-sm text-soft">{detail.leadId} &bull; {detail.submittedDate}</p>
         </div>
         <StatusPill status={detail.status} />
       </div>
@@ -276,8 +276,8 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
         <div className="space-y-4">
           {/* Top action bar */}
           <div className="flex items-center gap-2 flex-wrap">
-            {isManager && <button onClick={() => setEditing(true)} className="rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-semibold hover:bg-[#f4f5f7] transition">Edit Details</button>}
-            <button onClick={() => printNote(detail)} className="inline-flex items-center gap-2 rounded-2xl bg-[#1a1a2e] px-4 py-2 text-sm font-semibold text-white hover:bg-[#2d2d4e] transition">
+            {isManager && <button onClick={() => setEditing(true)} className="rounded-2xl border border-line bg-white px-4 py-2 text-sm font-semibold hover:bg-mist transition">Edit Details</button>}
+            <button onClick={() => printNote(detail)} className="inline-flex items-center gap-2 rounded-2xl bg-ink px-4 py-2 text-sm font-semibold text-white hover:bg-[#2d2d4e] transition">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
               Print Promissory Note
             </button>
@@ -348,20 +348,20 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
                   return <span>
                     {n.mapsLink && (
                       <div className="col-span-2">
-                        <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-[#697586] mb-1">Maps Link</p>
+                        <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-soft mb-1">Maps Link</p>
                         <a href={n.mapsLink} target="_blank" rel="noreferrer" className="text-sm text-blue-600 underline break-all hover:text-blue-800">{n.mapsLink}</a>
                       </div>
                     )}
                     {n.riskNotes && (
                       <div className="col-span-3">
-                        <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-[#697586] mb-1">Field Notes</p>
-                        <p className="text-sm text-[#1a1a2e] bg-[#f9fafb] rounded-xl px-4 py-3">{n.riskNotes}</p>
+                        <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-soft mb-1">Field Notes</p>
+                        <p className="text-sm text-ink bg-[#f9fafb] rounded-xl px-4 py-3">{n.riskNotes}</p>
                       </div>
                     )}
                   </span>
                 } catch { return detail.verificationNotes ? (
                   <div className="col-span-3">
-                    <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-[#697586] mb-1">Field Notes</p>
+                    <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-soft mb-1">Field Notes</p>
                     <p className="text-sm bg-[#f9fafb] rounded-xl px-4 py-3">{detail.verificationNotes}</p>
                   </div>
                 ) : null }
@@ -369,8 +369,8 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
             </InfoRow>
             {detail.adminFinalDecision && (
               <InfoRow>
-                <div className="col-span-3 rounded-xl border border-[#e5e7eb] bg-[#f9fafb] px-4 py-3">
-                  <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-[#697586] mb-1">Admin Decision</p>
+                <div className="col-span-3 rounded-xl border border-line bg-[#f9fafb] px-4 py-3">
+                  <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-soft mb-1">Admin Decision</p>
                   <p className="text-sm font-semibold">{detail.adminFinalDecision}</p>
                 </div>
               </InfoRow>
@@ -380,7 +380,7 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
           {/* Documents */}
           <DetailCard title="Documents" accent="gray"
             action={isManager && can('leadsEdit') && detail.documentFolderId
-              ? <button onClick={e => scan(detail.leadId, e.currentTarget)} className="rounded-xl bg-[#f4f5f7] px-3 py-2 text-xs font-semibold hover:bg-[#e5e7eb] transition">Scan Drive Folder</button>
+              ? <button onClick={e => scan(detail.leadId, e.currentTarget)} className="rounded-xl bg-mist px-3 py-2 text-xs font-semibold hover:bg-line transition">Scan Drive Folder</button>
               : undefined}>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <DriveImage url={detail.customerPhotoUrl} label="Customer Photo" token={session.token} />
@@ -396,9 +396,9 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
             <div className="flex flex-wrap items-center gap-2 rounded-[1.75rem] border border-white/70 bg-white px-6 py-4 shadow-panel">
               {can('leadsApprove') && detail.status === 'Verification Submitted' && <span>
                 <label className="flex items-center gap-2 text-sm">
-                  <span className="font-semibold text-[#697586]">Loan Product</span>
+                  <span className="font-semibold text-soft">Loan Product</span>
                   <select value={approveProduct} onChange={e => setApproveProduct(e.target.value)}
-                    className="rounded-2xl border border-[#e5e7eb] bg-white px-3 py-2 text-sm outline-none focus:border-[#1a1a2e]">
+                    className="rounded-2xl border border-line bg-white px-3 py-2 text-sm outline-none focus:border-ink">
                     {products.map(p => (
                       <option key={p.key} value={p.key}>
                         {p.label} — ₹{Number(p.principal).toLocaleString('en-IN')} / {p.durationWeeks}w
@@ -407,7 +407,7 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
                   </select>
                 </label>
                 <button onClick={() => review(detail.leadId, 'Approve Loan', { loanProduct: approveProduct })} disabled={busy !== null}
-                  className="flex items-center justify-center gap-1.5 rounded-2xl bg-[#1a1a2e] px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-60">
+                  className="flex items-center justify-center gap-1.5 rounded-2xl bg-ink px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-60">
                   {busy === detail.leadId + 'Approve Loan' ? <span><span className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />Approving...</span> : 'Approve'}
                 </button>
                 <button onClick={() => review(detail.leadId, 'Reject Lead')} disabled={busy !== null}
@@ -415,8 +415,8 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
                   {busy === detail.leadId + 'Reject Lead' ? <span><span className="h-3 w-3 animate-spin rounded-full border-2 border-red-400 border-t-transparent" />Rejecting...</span> : 'Reject Lead'}
                 </button>
                 <button onClick={() => review(detail.leadId, 'Request Reverification')} disabled={busy !== null}
-                  className="flex items-center justify-center gap-1.5 rounded-2xl border border-[#e5e7eb] bg-white px-5 py-2.5 text-sm font-semibold disabled:opacity-60">
-                  {busy === detail.leadId + 'Request Reverification' ? <span><span className="h-3 w-3 animate-spin rounded-full border-2 border-[#697586] border-t-transparent" />...</span> : 'Reverify'}
+                  className="flex items-center justify-center gap-1.5 rounded-2xl border border-line bg-white px-5 py-2.5 text-sm font-semibold disabled:opacity-60">
+                  {busy === detail.leadId + 'Request Reverification' ? <span><span className="h-3 w-3 animate-spin rounded-full border-2 border-soft border-t-transparent" />...</span> : 'Reverify'}
                 </button>
               </span>}
               {can('leadsApprove') && detail.status === 'Pending' && detail.loanProduct === 'RENEWAL' && <span>
@@ -430,7 +430,7 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
                 </button>
               </span>}
               {can('leadsAssign') && detail.status === 'Pending' && detail.loanProduct !== 'RENEWAL' && (
-                <select onChange={e => { if (e.target.value) assign(detail.leadId, e.target.value) }} className="rounded-2xl border border-[#e5e7eb] px-4 py-2.5 text-sm">
+                <select onChange={e => { if (e.target.value) assign(detail.leadId, e.target.value) }} className="rounded-2xl border border-line px-4 py-2.5 text-sm">
                   <option value="">Assign agent...</option>
                   {agents.map(a => <option key={a.agentId} value={a.agentId}>{a.name}</option>)}
                 </select>
@@ -445,14 +445,14 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
           <div className="grid gap-4 p-6 sm:grid-cols-2 lg:grid-cols-3">
             {[['customerName','Full Name'],['phone','Phone'],['aadhaarNo','Aadhaar No'],['occupation','Occupation'],['panNo','PAN No'],['chequeNumber','Cheque Number'],['address','Address'],['houseName','House Name'],['place','Place'],['landmark','Landmark'],['nomineeName','Nominee Name'],['nomineePhone','Nominee Phone'],['riskLevel','Risk Level']].map(([k,l]) => (
               <label key={k} className="block">
-                <span className="mb-1 block text-[0.7rem] font-semibold uppercase tracking-wider text-[#697586]">{l}</span>
-                <input name={k} defaultValue={(detail as any)[k] || ''} className="w-full rounded-2xl border border-[#e5e7eb] px-4 py-3 text-sm outline-none focus:border-[#1a1a2e]" />
+                <span className="mb-1 block text-[0.7rem] font-semibold uppercase tracking-wider text-soft">{l}</span>
+                <input name={k} defaultValue={(detail as any)[k] || ''} className="w-full rounded-2xl border border-line px-4 py-3 text-sm outline-none focus:border-ink" />
               </label>
             ))}
           </div>
           <div className="flex gap-3 border-t border-black/5 px-6 py-4">
-            <button type="submit" className="rounded-2xl bg-[#1a1a2e] px-6 py-3 text-sm font-semibold text-white">Save Changes</button>
-            <button type="button" onClick={() => setEditing(false)} className="rounded-2xl border border-[#e5e7eb] px-6 py-3 text-sm font-semibold">Cancel</button>
+            <button type="submit" className="rounded-2xl bg-ink px-6 py-3 text-sm font-semibold text-white">Save Changes</button>
+            <button type="button" onClick={() => setEditing(false)} className="rounded-2xl border border-line px-6 py-3 text-sm font-semibold">Cancel</button>
           </div>
         </form>
       )}
@@ -470,7 +470,7 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
                 className={`p-4 sm:p-5 transition ${deleteMode ? 'cursor-pointer' : ''} ${selected.has(l.leadId) ? 'bg-red-50' : ''}`}>
                 <div className="flex items-start justify-between gap-3">
               {deleteMode && (
-                <div className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${selected.has(l.leadId) ? 'border-red-500 bg-red-500' : 'border-[#e5e7eb]'}`}>
+                <div className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${selected.has(l.leadId) ? 'border-red-500 bg-red-500' : 'border-line'}`}>
                   {selected.has(l.leadId) && <span className="text-white text-[10px] font-bold">✓</span>}
                 </div>
               )}
@@ -481,11 +481,11 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
                   <StatusPill status={l.status} />
                   {isManager && <span className="rounded-lg bg-sky-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-sky-700">{l.branchName || 'No branch'}</span>}
                 </div>
-                <p className="mt-0.5 text-xs text-[#697586]">{l.phone}</p>
-                <div className="mt-1 flex flex-wrap gap-2 text-xs text-[#697586]">
-                  {l.guarantorName && <span>Guarantor: <span className="font-medium text-[#1a1a2e]">{l.guarantorName}</span></span>}
-                  {session.role !== 'Guarantor' && l.assignedAgentName && <span>Agent: <span className="font-medium text-[#1a1a2e]">{l.assignedAgentName}</span></span>}
-                  {l.riskLevel && <span>Risk: <span className="font-medium text-[#1a1a2e]">{l.riskLevel}</span></span>}
+                <p className="mt-0.5 text-xs text-soft">{l.phone}</p>
+                <div className="mt-1 flex flex-wrap gap-2 text-xs text-soft">
+                  {l.guarantorName && <span>Guarantor: <span className="font-medium text-ink">{l.guarantorName}</span></span>}
+                  {session.role !== 'Guarantor' && l.assignedAgentName && <span>Agent: <span className="font-medium text-ink">{l.assignedAgentName}</span></span>}
+                  {l.riskLevel && <span>Risk: <span className="font-medium text-ink">{l.riskLevel}</span></span>}
                 </div>
                 {l.loanProduct !== 'RENEWAL' && l.status === 'Verification Submitted' && (l.otpVerifiedAt
                   ? <span className="mt-1.5 mr-1.5 inline-block rounded-lg bg-green-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-green-700">Customer OTP verified</span>
@@ -499,8 +499,8 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
               </div>
               {/* Right: actions */}
               {!deleteMode && <div className="flex flex-wrap items-center justify-end gap-2">
-                {session.role !== 'Guarantor' && <button onClick={() => setDetail(l)} className="rounded-xl border border-[#e5e7eb] px-3 py-1.5 text-xs font-semibold">View</button>}
-                {isManager && <button onClick={() => printNote(l)} className="rounded-xl border border-[#e5e7eb] px-3 py-1.5 text-xs font-semibold">Print Note</button>}
+                {session.role !== 'Guarantor' && <button onClick={() => setDetail(l)} className="rounded-xl border border-line px-3 py-1.5 text-xs font-semibold">View</button>}
+                {isManager && <button onClick={() => printNote(l)} className="rounded-xl border border-line px-3 py-1.5 text-xs font-semibold">Print Note</button>}
                 {isManager && can('leadsApprove') && l.loanProduct === 'RENEWAL' && l.status === 'Pending' && (
                   <span>
                     <button onClick={() => setApproving(l)} disabled={busy !== null}
@@ -508,7 +508,7 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
                       Approve (OTP)
                     </button>
                     <button onClick={() => review(l.leadId, 'Reject Lead')} disabled={busy !== null}
-                      className="rounded-xl border border-[#e5e7eb] px-3 py-1.5 text-xs font-semibold text-red-600 disabled:opacity-60">Reject</button>
+                      className="rounded-xl border border-line px-3 py-1.5 text-xs font-semibold text-red-600 disabled:opacity-60">Reject</button>
                   </span>
                 )}
                 {isManager && can('leadsAssign') && l.loanProduct !== 'RENEWAL' && l.status === 'Pending' && (
@@ -516,11 +516,11 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
                     <span>
                       <select key={l.leadId+'-sel'} defaultValue=""
                         onChange={e => { const v = e.target.value; if (v) assignFromTable(l.leadId, v) }}
-                        className="rounded-xl border border-[#e5e7eb] bg-white px-2 py-1.5 text-xs max-w-[130px]">
+                        className="rounded-xl border border-line bg-white px-2 py-1.5 text-xs max-w-[130px]">
                         <option value="">Assign agent</option>
                         {agents.map((a: any) => <option key={a.agentId} value={a.agentId}>{a.name}</option>)}
                       </select>
-                      <button onClick={() => review(l.leadId, 'Reject Lead')} className="rounded-xl border border-[#e5e7eb] px-3 py-1.5 text-xs font-semibold text-red-600">Reject</button>
+                      <button onClick={() => review(l.leadId, 'Reject Lead')} className="rounded-xl border border-line px-3 py-1.5 text-xs font-semibold text-red-600">Reject</button>
                     </span>
                   ) : <span className="rounded-xl border border-orange-200 bg-orange-50 px-2 py-1 text-[10px] text-orange-600">No agents yet</span>
                 )}
@@ -528,26 +528,26 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
                   <span>
                     <select key={l.leadId+'-re'} defaultValue=""
                       onChange={e => { const v = e.target.value; if (v) assignFromTable(l.leadId, v) }}
-                      className="rounded-xl border border-[#e5e7eb] bg-white px-2 py-1.5 text-xs max-w-[130px]">
+                      className="rounded-xl border border-line bg-white px-2 py-1.5 text-xs max-w-[130px]">
                       <option value="">Change Agent</option>
                       {agents.map((a: any) => <option key={a.agentId} value={a.agentId}>{a.name}</option>)}
                     </select>
-                    <button onClick={() => review(l.leadId, 'Reject Lead')} className="rounded-xl border border-[#e5e7eb] px-3 py-1.5 text-xs font-semibold text-red-600">Reject</button>
+                    <button onClick={() => review(l.leadId, 'Reject Lead')} className="rounded-xl border border-line px-3 py-1.5 text-xs font-semibold text-red-600">Reject</button>
                   </span>
                 )}
                 {isManager && can('leadsApprove') && l.status === 'Verification Submitted' && (
                   <span>
                     <button onClick={() => review(l.leadId, 'Approve Loan')} disabled={busy !== null}
-                      className="flex w-24 items-center justify-center gap-1.5 rounded-xl bg-[#1a1a2e] px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60">
+                      className="flex w-24 items-center justify-center gap-1.5 rounded-xl bg-ink px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60">
                       {busy === l.leadId + 'Approve Loan' ? <span><span className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />...</span> : 'Approve'}
                     </button>
                     <button onClick={() => review(l.leadId, 'Reject Lead')} disabled={busy !== null}
-                      className="flex w-24 items-center justify-center gap-1.5 rounded-xl border border-[#e5e7eb] px-3 py-1.5 text-xs font-semibold text-red-600 disabled:opacity-60">
+                      className="flex w-24 items-center justify-center gap-1.5 rounded-xl border border-line px-3 py-1.5 text-xs font-semibold text-red-600 disabled:opacity-60">
                       {busy === l.leadId + 'Reject Lead' ? <span><span className="h-3 w-3 animate-spin rounded-full border-2 border-red-400 border-t-transparent" />...</span> : 'Reject'}
                     </button>
                     <button onClick={() => review(l.leadId, 'Request Reverification')} disabled={busy !== null}
-                      className="flex w-24 items-center justify-center gap-1.5 rounded-xl border border-[#e5e7eb] px-3 py-1.5 text-xs font-semibold disabled:opacity-60">
-                      {busy === l.leadId + 'Request Reverification' ? <span><span className="h-3 w-3 animate-spin rounded-full border-2 border-[#697586] border-t-transparent" />...</span> : 'Reverify'}
+                      className="flex w-24 items-center justify-center gap-1.5 rounded-xl border border-line px-3 py-1.5 text-xs font-semibold disabled:opacity-60">
+                      {busy === l.leadId + 'Request Reverification' ? <span><span className="h-3 w-3 animate-spin rounded-full border-2 border-soft border-t-transparent" />...</span> : 'Reverify'}
                     </button>
                   </span>
                 )}
@@ -566,18 +566,18 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
         <RenewalModal session={session} onClose={() => setShowRenewal(false)} onDone={() => { setShowRenewal(false); load() }} />
       )}
       {approving && <RenewalApproveModal session={session} lead={approving} onClose={() => setApproving(null)} onDone={m => { setApproving(null); showToast(m); load() }} />}
-      {toast && <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-2xl bg-[#1a1a2e] px-5 py-3 text-sm font-medium text-white shadow-lg">{toast}</div>}
+      {toast && <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-2xl bg-ink px-5 py-3 text-sm font-medium text-white shadow-lg">{toast}</div>}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {(isManager || session.role === 'Guarantor') && (
             <button onClick={() => { setTab('new'); setDeleteMode(false); setSelected(new Set()) }}
-              className={`shrink-0 whitespace-nowrap rounded-2xl px-3 py-2 text-[13px] font-medium transition sm:px-4 sm:text-sm ${tab === 'new' ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
-              {isManager ? 'New Leads' : 'In Progress'} {newLeads.length > 0 && <span className={`ml-1.5 rounded-full px-2 py-0.5 text-xs font-bold ${tab === 'new' ? 'bg-white/20' : 'bg-[#f4f5f7]'}`}>{newLeads.length}</span>}
+              className={`shrink-0 whitespace-nowrap rounded-2xl px-3 py-2 text-[13px] font-medium transition sm:px-4 sm:text-sm ${tab === 'new' ? 'bg-ink text-white' : 'border border-line bg-white text-soft hover:text-ink'}`}>
+              {isManager ? 'New Leads' : 'In Progress'} {newLeads.length > 0 && <span className={`ml-1.5 rounded-full px-2 py-0.5 text-xs font-bold ${tab === 'new' ? 'bg-white/20' : 'bg-mist'}`}>{newLeads.length}</span>}
             </button>
           )}
           <button onClick={() => { setTab('history'); setDeleteMode(false); setSelected(new Set()) }}
-            className={`shrink-0 whitespace-nowrap rounded-2xl px-3 py-2 text-[13px] font-medium transition sm:px-4 sm:text-sm ${tab === 'history' ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
-            History {historyLeads.length > 0 && <span className={`ml-1.5 rounded-full px-2 py-0.5 text-xs font-bold ${tab === 'history' ? 'bg-white/20' : 'bg-[#f4f5f7]'}`}>{historyLeads.length}</span>}
+            className={`shrink-0 whitespace-nowrap rounded-2xl px-3 py-2 text-[13px] font-medium transition sm:px-4 sm:text-sm ${tab === 'history' ? 'bg-ink text-white' : 'border border-line bg-white text-soft hover:text-ink'}`}>
+            History {historyLeads.length > 0 && <span className={`ml-1.5 rounded-full px-2 py-0.5 text-xs font-bold ${tab === 'history' ? 'bg-white/20' : 'bg-mist'}`}>{historyLeads.length}</span>}
           </button>
           {isManager && (can('leadsRenew') || can('leadsApprove')) && (
             <button onClick={() => { setTab('renewal'); setDeleteMode(false); setSelected(new Set()) }}
@@ -587,7 +587,7 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
           )}
           {isManager && can('leadsDisburse') && (
             <button onClick={() => { setTab('disbursements'); setDeleteMode(false); setSelected(new Set()) }}
-              className={`shrink-0 whitespace-nowrap rounded-2xl px-3 py-2 text-[13px] font-medium transition sm:px-4 sm:text-sm ${tab === 'disbursements' ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
+              className={`shrink-0 whitespace-nowrap rounded-2xl px-3 py-2 text-[13px] font-medium transition sm:px-4 sm:text-sm ${tab === 'disbursements' ? 'bg-ink text-white' : 'border border-line bg-white text-soft hover:text-ink'}`}>
               Disbursements {counts.approved > 0 && <span className={`ml-1.5 rounded-full px-2 py-0.5 text-xs font-bold ${tab === 'disbursements' ? 'bg-white/20' : 'bg-amber-100 text-amber-700'}`}>{counts.approved}<span className="hidden sm:inline"> to disburse</span></span>}
             </button>
           )}
@@ -608,9 +608,9 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
       {isManager && tab !== 'disbursements' && (
         <div className="grid grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap sm:gap-3 [&>input]:col-span-2 sm:[&>input]:w-72">
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name, phone, Aadhaar…" data-no-upper
-            className="w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2.5 text-sm outline-none focus:border-[#1a1a2e]" />
+            className="w-full rounded-2xl border border-line bg-white px-4 py-2.5 text-sm outline-none focus:border-ink" />
           <select value={branchFilter} onChange={e => setBranchFilter(e.target.value)}
-            className="rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2.5 text-sm font-medium">
+            className="rounded-2xl border border-line bg-white px-4 py-2.5 text-sm font-medium">
             <option value="">All branches</option>
             {branchOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
             <option value="none">No branch</option>
@@ -623,13 +623,13 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
           )}
           {deleteMode && (
             <span>
-              <span className="text-sm text-[#697586]">{selected.size} selected</span>
+              <span className="text-sm text-soft">{selected.size} selected</span>
               <button onClick={deleteSelected} disabled={!selected.size}
                 className="rounded-2xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-40">
                 Confirm Delete
               </button>
               <button onClick={() => { setDeleteMode(false); setSelected(new Set()) }}
-                className="rounded-2xl border border-[#e5e7eb] px-4 py-2.5 text-sm font-semibold">
+                className="rounded-2xl border border-line px-4 py-2.5 text-sm font-semibold">
                 Cancel
               </button>
             </span>
@@ -640,7 +640,7 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
         <LeadsHistoryWeeks session={session} search={search} branch={branchFilter} version={counts.history} renderLead={renderLead} />
       ) : (
       <>
-        {visibleLeads.length === 0 && !(session.role === 'Guarantor' && tab === 'new') && <p className="p-8 text-center text-sm text-[#697586]">{tab === 'new' ? 'No new leads.' : 'No renewal requests yet.'}</p>}
+        {visibleLeads.length === 0 && !(session.role === 'Guarantor' && tab === 'new') && <p className="p-8 text-center text-sm text-soft">{tab === 'new' ? 'No new leads.' : 'No renewal requests yet.'}</p>}
         <div className="px-5 pb-4"><Pager page={page} totalPages={totalPages} total={totalLeads} noun="leads" pageSize={LEADS_PAGE} onPage={setPage} /></div>
         {session.role === 'Guarantor' && tab === 'new' ? (
           // Guarantor: two tabs side by side. "Not completed" = waiting for the agent; "Completed" = the agent has finished the verification
@@ -649,7 +649,7 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
               {([['pending', 'Not completed', visibleLeads.filter(l => !DONE_STATUSES.includes(l.status)).length, 'bg-amber-100 text-amber-700'],
                  ['done', 'Completed', visibleLeads.filter(l => DONE_STATUSES.includes(l.status)).length, 'bg-green-100 text-green-700']] as const).map(([key, title, n, pill]) => (
                 <button key={key} onClick={() => setProgressView(key)}
-                  className={`flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${progressView === key ? 'bg-[#1a1a2e] text-white' : 'text-[#697586]'}`}>
+                  className={`flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${progressView === key ? 'bg-ink text-white' : 'text-soft'}`}>
                   {title}
                   <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${progressView === key ? 'bg-white/20 text-white' : pill}`}>{n}</span>
                 </button>
@@ -660,7 +660,7 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
               return (
                 <div className="overflow-hidden rounded-[1.75rem] border border-white/70 bg-white shadow-panel divide-y divide-black/5">
                   {rows.length === 0
-                    ? <p className="p-6 text-center text-sm text-[#697586]">{progressView === 'done' ? 'Nothing completed yet.' : 'Nothing waiting for the agent.'}</p>
+                    ? <p className="p-6 text-center text-sm text-soft">{progressView === 'done' ? 'Nothing completed yet.' : 'Nothing waiting for the agent.'}</p>
                     : rows.map(renderLead)}
                 </div>
               )
@@ -714,7 +714,7 @@ function DisbursementsView({ session }: { session: Session }) {
 
   const weekLoans = (ws: string) => (byWeek[ws] || []).map(l => ({ ...l, _date: (l.createdAt || l.startDate || '').slice(0, 10) }))
 
-  if (loading) return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" /></div>
+  if (loading) return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-ink border-t-transparent" /></div>
 
   const Section = ({ title, rows, accent }: { title: string; rows: any[]; accent: string }) => {
     const total = rows.reduce((s, l) => s + Number(l.netDisbursed || 0), 0)
@@ -724,12 +724,12 @@ function DisbursementsView({ session }: { session: Session }) {
           <div className="flex items-center gap-2">
             <span className={`h-2.5 w-2.5 rounded-full ${accent}`} />
             <p className="text-sm font-semibold">{title}</p>
-            <span className="rounded-full bg-[#f4f5f7] px-2 py-0.5 text-xs font-semibold text-[#697586]">{rows.length}</span>
+            <span className="rounded-full bg-mist px-2 py-0.5 text-xs font-semibold text-soft">{rows.length}</span>
           </div>
-          <p className="text-sm font-semibold">{currencyInr(total)} <span className="text-xs font-normal text-[#697586]">disbursed</span></p>
+          <p className="text-sm font-semibold">{currencyInr(total)} <span className="text-xs font-normal text-soft">disbursed</span></p>
         </div>
         {rows.length === 0 ? (
-          <p className="p-6 text-center text-sm text-[#697586]">No {title.toLowerCase()} this week.</p>
+          <p className="p-6 text-center text-sm text-soft">No {title.toLowerCase()} this week.</p>
         ) : (
           <div className="divide-y divide-black/5">
             {rows.map(l => {
@@ -737,14 +737,14 @@ function DisbursementsView({ session }: { session: Session }) {
                 <div key={l.loanId} className="flex items-start justify-between gap-3 px-5 py-3 hover:bg-[#fafafa]">
                   <div className="min-w-0">
                     <p className="font-medium truncate">{l.customerName}</p>
-                    <p className="font-mono text-xs text-[#697586]">{l.loanId}</p>
-                    <p className="text-xs text-[#697586] truncate">
+                    <p className="font-mono text-xs text-soft">{l.loanId}</p>
+                    <p className="text-xs text-soft truncate">
                       {l.guarantorName || '—'}{l.agentName ? ` · ${l.agentName}` : ''}
                     </p>
                   </div>
                   <div className="text-right shrink-0">
                     <p className="font-semibold text-green-700">{currencyInr(Number(l.netDisbursed || 0))}</p>
-                    <p className="text-xs text-[#697586]">{l.startDate}</p>
+                    <p className="text-xs text-soft">{l.startDate}</p>
                   </div>
                 </div>
               )
@@ -757,7 +757,7 @@ function DisbursementsView({ session }: { session: Session }) {
 
   const renderWeek = (rows: any[]) => {
     if (rows.length === 0) return (
-      <p className="rounded-2xl border border-dashed border-[#e5e7eb] bg-white p-8 text-center text-sm text-[#697586]">
+      <p className="rounded-2xl border border-dashed border-line bg-white p-8 text-center text-sm text-soft">
         This week had no new or renewal disbursements.
       </p>
     )
@@ -778,26 +778,26 @@ function DisbursementsView({ session }: { session: Session }) {
           To Disburse
         </button>
         <button onClick={() => setSubTab('current')}
-          className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${subTab === 'current' ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
+          className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${subTab === 'current' ? 'bg-ink text-white' : 'border border-line bg-white text-soft hover:text-ink'}`}>
           Current Week
         </button>
         <button onClick={() => setSubTab('history')}
-          className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${subTab === 'history' ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
+          className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${subTab === 'history' ? 'bg-ink text-white' : 'border border-line bg-white text-soft hover:text-ink'}`}>
           History
         </button>
       </div>
 
       {subTab === 'queue' ? <DisburseQueue session={session} /> : subTab === 'current' ? (
         <div className="space-y-4">
-          <p className="text-sm text-[#697586]">Current week · <span className="font-semibold text-[#1a1a2e]">{weekRangeLabel(currentWeek)}</span> (Mon–Sat)</p>
+          <p className="text-sm text-soft">Current week · <span className="font-semibold text-ink">{weekRangeLabel(currentWeek)}</span> (Mon–Sat)</p>
           {renderWeek(weekLoans(currentWeek))}
         </div>
       ) : (
         <div className="space-y-4">
           <div className="flex items-center justify-between gap-3 flex-wrap">
-            <p className="text-sm text-[#697586]">Past weeks — completed disbursement weeks.</p>
+            <p className="text-sm text-soft">Past weeks — completed disbursement weeks.</p>
             <select value={selectedHistory} onChange={e => setHistoryWeek(e.target.value)}
-              className="rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium outline-none focus:border-[#1a1a2e]">
+              className="rounded-2xl border border-line bg-white px-4 py-2 text-sm font-medium outline-none focus:border-ink">
               {historyWeeks.map(w => (
                 <option key={w} value={w}>{w === lastWeek ? `Last Week · ${weekRangeLabel(w)}` : weekRangeLabel(w)}</option>
               ))}
@@ -813,7 +813,7 @@ function DisbursementsView({ session }: { session: Session }) {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section>
-      <p className="mb-4 text-[0.7rem] font-semibold uppercase tracking-wider text-[#697586]">{title}</p>
+      <p className="mb-4 text-[0.7rem] font-semibold uppercase tracking-wider text-soft">{title}</p>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{children}</div>
     </section>
   )
@@ -822,7 +822,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function Field({ label, value }: { label: string; value?: string }) {
   return (
     <div>
-      <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-[#697586]">{label}</p>
+      <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-soft">{label}</p>
       <p className="mt-1 text-sm">{value || '-'}</p>
     </div>
   )
@@ -838,7 +838,7 @@ const accentMap: Record<string, string> = {
 }
 const accentTitle: Record<string, string> = {
   blue: 'text-blue-700', green: 'text-green-700', purple: 'text-purple-700',
-  amber: 'text-amber-700', rose: 'text-rose-700', gray: 'text-[#697586]',
+  amber: 'text-amber-700', rose: 'text-rose-700', gray: 'text-soft',
 }
 const badgeMap: Record<string, string> = {
   green: 'bg-green-100 text-green-700', red: 'bg-red-100 text-red-700',
@@ -851,7 +851,7 @@ function DetailCard({ title, accent = 'gray', children, action }: {
   return (
     <div className={`rounded-[1.75rem] border border-white/70 border-l-4 shadow-panel p-5 space-y-4 ${accentMap[accent] ?? accentMap.gray}`}>
       <div className="flex items-center justify-between">
-        <p className={`text-xs font-bold uppercase tracking-widest ${accentTitle[accent] ?? 'text-[#697586]'}`}>{title}</p>
+        <p className={`text-xs font-bold uppercase tracking-widest ${accentTitle[accent] ?? 'text-soft'}`}>{title}</p>
         {action}
       </div>
       <div className="space-y-4">{children}</div>
@@ -873,7 +873,7 @@ function InfoItem({ label, value, large, span, badge }: {
       {badge && value && value !== '-' ? (
         <span className={`inline-block rounded-full px-3 py-1 text-xs font-semibold ${badgeMap[badge] ?? badgeMap.indigo}`}>{value}</span>
       ) : (
-        <p className={`${large ? 'text-base font-semibold text-[#1a1a2e]' : 'text-sm text-[#1a1a2e]'} ${!value || value === '-' ? 'text-[#9ca3af]' : ''}`}>
+        <p className={`${large ? 'text-base font-semibold text-ink' : 'text-sm text-ink'} ${!value || value === '-' ? 'text-[#9ca3af]' : ''}`}>
           {value || '—'}
         </p>
       )}

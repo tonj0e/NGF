@@ -85,28 +85,28 @@ export default function MyIdCardPage({ session }: { session: Session }) {
     w.document.write(buildIdCardHtml(user, qr, window.location.origin + '/ngflogo.png')); w.document.close()
   }
 
-  if (loading) return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" /></div>
+  if (loading) return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-ink border-t-transparent" /></div>
 
   return (
     <div className="space-y-5 max-w-2xl">
-      {toast && <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-2xl bg-[#1a1a2e] px-5 py-3 text-sm font-medium text-white shadow-lg">{toast}</div>}
+      {toast && <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-2xl bg-ink px-5 py-3 text-sm font-medium text-white shadow-lg">{toast}</div>}
 
       <div className="rounded-[1.75rem] border border-white/70 bg-white p-6 shadow-panel space-y-5">
         <div>
           <p className="text-sm font-semibold">My ID Card</p>
-          <p className="mt-1 text-xs text-[#697586]">Upload your photo and fill these details. They print on your ID card.</p>
+          <p className="mt-1 text-xs text-soft">Upload your photo and fill these details. They print on your ID card.</p>
         </div>
 
         <div className="flex items-center gap-5">
-          <div className="h-24 w-24 shrink-0 overflow-hidden rounded-full border-2 border-[#e5e7eb] bg-[#f4f5f7] flex items-center justify-center">
+          <div className="h-24 w-24 shrink-0 overflow-hidden rounded-full border-2 border-line bg-mist flex items-center justify-center">
             {photo
               ? <img src={photo} alt="profile" className="h-full w-full object-cover" />
-              : <span className="text-3xl font-bold text-[#697586]">{(profile?.name || '?').charAt(0)}</span>}
+              : <span className="text-3xl font-bold text-soft">{(profile?.name || '?').charAt(0)}</span>}
           </div>
           <div>
             <p className="font-semibold">{profile?.name}</p>
-            <p className="text-xs text-[#697586]">{profile?.guarantorId} · ID {profile?.cardNumber}</p>
-            <label className="mt-2 inline-block cursor-pointer rounded-xl border border-[#e5e7eb] bg-white px-3 py-1.5 text-xs font-semibold hover:bg-[#f4f5f7] transition">
+            <p className="text-xs text-soft">{profile?.guarantorId} · ID {profile?.cardNumber}</p>
+            <label className="mt-2 inline-block cursor-pointer rounded-xl border border-line bg-white px-3 py-1.5 text-xs font-semibold hover:bg-mist transition">
               Upload Photo
               <input type="file" accept="image/*" className="hidden" onChange={e => onPhoto(e.target.files?.[0] || null)} />
             </label>
@@ -115,29 +115,29 @@ export default function MyIdCardPage({ session }: { session: Session }) {
 
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block">
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-[#697586]">Blood Group</span>
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-soft">Blood Group</span>
             <input value={bloodGroup} onChange={e => setBloodGroup(e.target.value)} placeholder="e.g. O+"
-              className="w-full rounded-2xl border border-[#e5e7eb] bg-[#f4f5f7] px-4 py-3 text-sm outline-none focus:border-[#1a1a2e] focus:bg-white" />
+              className="w-full rounded-2xl border border-line bg-mist px-4 py-3 text-sm outline-none focus:border-ink focus:bg-white" />
           </label>
           <label className="block">
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-[#697586]">Emergency Contact</span>
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-soft">Emergency Contact</span>
             <input value={emergencyContact} onChange={e => setEmergencyContact(e.target.value)} data-no-upper placeholder="Phone number"
-              className="w-full rounded-2xl border border-[#e5e7eb] bg-[#f4f5f7] px-4 py-3 text-sm outline-none focus:border-[#1a1a2e] focus:bg-white" />
+              className="w-full rounded-2xl border border-line bg-mist px-4 py-3 text-sm outline-none focus:border-ink focus:bg-white" />
           </label>
           <label className="block sm:col-span-2">
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-[#697586]">Place</span>
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-soft">Place</span>
             <input value={place} onChange={e => setPlace(e.target.value)} placeholder="Place / locality"
-              className="w-full rounded-2xl border border-[#e5e7eb] bg-[#f4f5f7] px-4 py-3 text-sm outline-none focus:border-[#1a1a2e] focus:bg-white" />
+              className="w-full rounded-2xl border border-line bg-mist px-4 py-3 text-sm outline-none focus:border-ink focus:bg-white" />
           </label>
         </div>
 
         <div className="flex gap-3">
           <button onClick={save} disabled={saving}
-            className="rounded-2xl bg-[#1a1a2e] px-6 py-3 text-sm font-semibold text-white disabled:opacity-50">
+            className="rounded-2xl bg-ink px-6 py-3 text-sm font-semibold text-white disabled:opacity-50">
             {saving ? 'Saving…' : 'Save Details'}
           </button>
           <button onClick={printCard}
-            className="rounded-2xl border border-[#e5e7eb] px-6 py-3 text-sm font-semibold hover:bg-[#f4f5f7] transition">
+            className="rounded-2xl border border-line px-6 py-3 text-sm font-semibold hover:bg-mist transition">
             Print ID Card
           </button>
         </div>

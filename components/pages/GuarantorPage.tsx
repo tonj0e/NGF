@@ -139,7 +139,7 @@ export default function GuarantorPage({ session }: { session: Session }) {
 
   useEffect(() => { load() }, [])
 
-  if (loading && !loadedOnce.current) return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" /></div>
+  if (loading && !loadedOnce.current) return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-ink border-t-transparent" /></div>
 
   // ── DETAIL VIEW ──
   if (selected) {
@@ -163,19 +163,19 @@ export default function GuarantorPage({ session }: { session: Session }) {
 
     return (
       <div className="space-y-5">
-        {toast && <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-2xl bg-[#1a1a2e] px-5 py-3 text-sm font-medium text-white shadow-lg">{toast}</div>}
+        {toast && <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-2xl bg-ink px-5 py-3 text-sm font-medium text-white shadow-lg">{toast}</div>}
 
         {/* Header */}
         <div className="flex items-center gap-3">
           <button onClick={() => { setSelected(null); setDetailTab('overview') }}
-            className="rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-semibold">Back</button>
+            className="rounded-2xl border border-line bg-white px-4 py-2 text-sm font-semibold">Back</button>
           <div className="flex-1">
             <div className="flex items-center gap-2">
               <p className="text-lg font-semibold">{g.name}</p>
-              <span className="rounded-full bg-[#f4f5f7] px-3 py-1 text-xs font-semibold font-mono">{g.code}</span>
+              <span className="rounded-full bg-mist px-3 py-1 text-xs font-semibold font-mono">{g.code}</span>
               <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${g.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{g.status}</span>
             </div>
-            {g.phone && <p className="text-xs text-[#697586]">{g.phone}</p>}
+            {g.phone && <p className="text-xs text-soft">{g.phone}</p>}
           </div>
         </div>
 
@@ -183,7 +183,7 @@ export default function GuarantorPage({ session }: { session: Session }) {
         <div className="flex gap-2 flex-wrap">
           {TABS.map(t => (
             <button key={t.key} onClick={() => setDetailTab(t.key)}
-              className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${detailTab === t.key ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
+              className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${detailTab === t.key ? 'bg-ink text-white' : 'border border-line bg-white text-soft hover:text-ink'}`}>
               {t.label}
             </button>
           ))}
@@ -198,7 +198,7 @@ export default function GuarantorPage({ session }: { session: Session }) {
                   <p className={`text-sm font-bold ${cycle.isOverdue ? 'text-red-700' : 'text-amber-800'}`}>
                     {cycle.isOverdue ? '⚠ Commission Settlement Overdue' : '📅 Commission Settlement Due'}
                   </p>
-                  <p className="text-xs text-[#697586]">
+                  <p className="text-xs text-soft">
                     Due: {formatDateIN(cycle.settlementDue)} · Cycle from: {formatDateIN(cycle.cycleStart)} · {cycle.loanCount} active loan(s) · Commission: {currency(cycle.totalCommission)}
                   </p>
                 </div>
@@ -209,9 +209,9 @@ export default function GuarantorPage({ session }: { session: Session }) {
             )}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div className="rounded-[1.5rem] border border-white/70 bg-white p-4 shadow-panel text-center">
-                <p className="text-xs text-[#697586]">Total Loans</p>
+                <p className="text-xs text-soft">Total Loans</p>
                 <p className="mt-1 text-2xl font-bold">{gLoans.length}</p>
-                <p className="text-[10px] text-[#697586]">{activeLoans} active</p>
+                <p className="text-[10px] text-soft">{activeLoans} active</p>
               </div>
               <div className="rounded-[1.5rem] border border-green-200 bg-green-50 p-4 shadow-panel text-center">
                 <p className="text-xs text-green-700 font-medium">Commission Earned</p>
@@ -225,11 +225,11 @@ export default function GuarantorPage({ session }: { session: Session }) {
             </div>
 
             <div className="rounded-[1.75rem] border border-white/70 bg-white shadow-panel p-6 space-y-4">
-              <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-[#697586]">Guarantor Info</p>
+              <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-soft">Guarantor Info</p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
                 {[['Name', g.name], ['Code', g.code], ['Phone', g.phone || '—'], ['Status', g.status], ['Guarantor ID', g.guarantorId]].map(([l, v]) => (
                   <div key={l}>
-                    <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-[#697586]">{l}</p>
+                    <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-soft">{l}</p>
                     <p className="mt-0.5 font-medium font-mono text-xs">{v}</p>
                   </div>
                 ))}
@@ -247,15 +247,15 @@ export default function GuarantorPage({ session }: { session: Session }) {
                     <div key={c.customerId} className="flex items-center justify-between px-5 py-3 text-xs">
                       <div>
                         <p className="font-medium">{c.name}</p>
-                        <p className="text-[#697586]">{c.phone} · <span className="font-mono">{loan?.loanId || '—'}</span></p>
+                        <p className="text-soft">{c.phone} · <span className="font-mono">{loan?.loanId || '—'}</span></p>
                       </div>
-                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${loan?.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-[#f4f5f7] text-[#697586]'}`}>
+                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${loan?.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-mist text-soft'}`}>
                         {loan?.status || '—'}
                       </span>
                     </div>
                   )
                 })}
-                {gCustomers.length === 0 && <p className="p-5 text-sm text-[#697586]">No customers.</p>}
+                {gCustomers.length === 0 && <p className="p-5 text-sm text-soft">No customers.</p>}
               </div>
             </div>
           </div>
@@ -278,26 +278,26 @@ export default function GuarantorPage({ session }: { session: Session }) {
                   </div>
                   <div className="grid grid-cols-3 gap-3 text-xs">
                     <div>
-                      <p className="text-[#697586]">Cycle Start</p>
+                      <p className="text-soft">Cycle Start</p>
                       <p className="font-semibold">{formatDateIN(cycle.cycleStart)}</p>
                     </div>
                     <div>
-                      <p className="text-[#697586]">Settlement Due (Day 35)</p>
+                      <p className="text-soft">Settlement Due (Day 35)</p>
                       <p className={`font-semibold ${cycle.isOverdue ? 'text-red-700' : 'text-amber-800'}`}>{formatDateIN(cycle.settlementDue)}</p>
                     </div>
                     <div>
-                      <p className="text-[#697586]">Active Loans</p>
+                      <p className="text-soft">Active Loans</p>
                       <p className="font-semibold">{cycle.loanCount}</p>
                     </div>
                   </div>
                   <div>
-                    <p className="text-xs text-[#697586] mb-2">Commission breakdown for active loans:</p>
+                    <p className="text-xs text-soft mb-2">Commission breakdown for active loans:</p>
                     <div className="space-y-1">
                       {cycle.cycleLoans.map(l => (
                         <div key={l.loanId} className="flex items-center justify-between rounded-xl bg-white/70 px-3 py-2 text-xs">
                           <div className="flex items-center gap-2">
                             <span className="font-medium">{l.customerName}</span>
-                            <span className="font-mono text-[#697586]">{l.loanId}</span>
+                            <span className="font-mono text-soft">{l.loanId}</span>
                           </div>
                           <span className="font-bold text-green-700">+{currency(Number(l.guarantorCommission || 0))}</span>
                         </div>
@@ -310,7 +310,7 @@ export default function GuarantorPage({ session }: { session: Session }) {
                   </div>
                 </div>
               ) : (
-                <div className="rounded-[1.75rem] border border-[#e5e7eb] bg-[#f9fafb] p-5 text-sm text-[#697586]">
+                <div className="rounded-[1.75rem] border border-line bg-[#f9fafb] p-5 text-sm text-soft">
                   No active loans — no commission cycle to settle.
                 </div>
               )}
@@ -331,7 +331,7 @@ export default function GuarantorPage({ session }: { session: Session }) {
           <div className="space-y-4">
             <div className="grid grid-cols-3 gap-4">
               <div className="rounded-[1.5rem] border border-white/70 bg-white p-4 shadow-panel text-center">
-                <p className="text-xs text-[#697586]">Total Payments</p>
+                <p className="text-xs text-soft">Total Payments</p>
                 <p className="mt-1 text-2xl font-bold">{gSettlements.length}</p>
               </div>
               <div className="rounded-[1.5rem] border border-blue-200 bg-blue-50 p-4 shadow-panel text-center">
@@ -345,7 +345,7 @@ export default function GuarantorPage({ session }: { session: Session }) {
                 <p className="text-sm font-semibold">Commission Payment Records</p>
               </div>
               {gSettlements.length === 0 ? (
-                <p className="p-5 text-sm text-[#697586]">No payments recorded yet.</p>
+                <p className="p-5 text-sm text-soft">No payments recorded yet.</p>
               ) : (
                 <div className="divide-y divide-black/5">
                   {[...gSettlements].reverse().map(s => (
@@ -355,8 +355,8 @@ export default function GuarantorPage({ session }: { session: Session }) {
                           <p className="text-sm font-semibold">{formatDateIN(s['Settlement Date'])}</p>
                           <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${s['Status'] === 'Settled' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>{s['Status']}</span>
                         </div>
-                        <p className="text-xs text-[#697586]">Payment date: {formatDateIN(s['Saturday Date'])}</p>
-                        {s['Notes'] && <p className="text-xs text-[#697586]">{s['Notes']}</p>}
+                        <p className="text-xs text-soft">Payment date: {formatDateIN(s['Saturday Date'])}</p>
+                        {s['Notes'] && <p className="text-xs text-soft">{s['Notes']}</p>}
                       </div>
                       <p className="text-base font-bold text-green-700">+{currency(Number(s['Amount Submitted'] || 0))}</p>
                     </div>
@@ -387,7 +387,7 @@ export default function GuarantorPage({ session }: { session: Session }) {
               const statuses = Array.from(new Set(gLoans.map(l => l.status || '').filter(Boolean)))
               const rows = gLoans.filter(l => (!ledgerMonth || (l.startDate || '').startsWith(ledgerMonth)) && (!ledgerStatus || l.status === ledgerStatus))
               const rowsTotal = rows.reduce((s, l) => s + Number(l.guarantorCommission || 0), 0)
-              const filterCls = 'rounded-xl border border-[#e5e7eb] bg-white px-3 py-2 text-xs outline-none focus:border-[#1a1a2e]'
+              const filterCls = 'rounded-xl border border-line bg-white px-3 py-2 text-xs outline-none focus:border-ink'
               return (
                 <div className="rounded-[1.75rem] border border-white/70 bg-white shadow-panel overflow-hidden">
                   <div className="flex flex-wrap items-center justify-between gap-2 border-b border-black/5 px-5 py-4">
@@ -405,22 +405,22 @@ export default function GuarantorPage({ session }: { session: Session }) {
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[640px] text-left text-sm">
-                      <thead className="border-b border-black/5 bg-[#fafafa] text-[#697586]">
+                      <thead className="border-b border-black/5 bg-[#fafafa] text-soft">
                         <tr>{['Customer', 'Loan ID', 'Status', 'Start date', 'Principal', 'Weeks paid', 'Commission'].map(h => <th key={h} className="px-5 py-3 text-xs font-medium">{h}</th>)}</tr>
                       </thead>
                       <tbody className="divide-y divide-black/5">
                         {rows.map(l => (
                           <tr key={l.loanId}>
                             <td className="px-5 py-3 font-medium">{l.customerName}</td>
-                            <td className="px-5 py-3 font-mono text-xs text-[#697586]">{l.loanId}</td>
-                            <td className="px-5 py-3"><span className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${l.status === 'Active' ? 'bg-green-100 text-green-700' : l.status === 'Completed' ? 'bg-blue-100 text-blue-700' : 'bg-[#f4f5f7] text-[#697586]'}`}>{l.status}</span></td>
-                            <td className="px-5 py-3 text-xs text-[#697586]">{formatDateIN(l.startDate)}</td>
+                            <td className="px-5 py-3 font-mono text-xs text-soft">{l.loanId}</td>
+                            <td className="px-5 py-3"><span className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${l.status === 'Active' ? 'bg-green-100 text-green-700' : l.status === 'Completed' ? 'bg-blue-100 text-blue-700' : 'bg-mist text-soft'}`}>{l.status}</span></td>
+                            <td className="px-5 py-3 text-xs text-soft">{formatDateIN(l.startDate)}</td>
                             <td className="px-5 py-3 text-xs">{currency(Number(l.principal || 0))}</td>
                             <td className="px-5 py-3 text-xs">{l.paidWeeks}/{l.totalWeeks}</td>
                             <td className="px-5 py-3 font-bold text-green-700">+{currency(Number(l.guarantorCommission || 0))}</td>
                           </tr>
                         ))}
-                        {rows.length === 0 && <tr><td colSpan={7} className="p-5 text-sm text-[#697586]">No commission records{gLoans.length ? ' for this filter' : ''}.</td></tr>}
+                        {rows.length === 0 && <tr><td colSpan={7} className="p-5 text-sm text-soft">No commission records{gLoans.length ? ' for this filter' : ''}.</td></tr>}
                       </tbody>
                       {rows.length > 0 && (
                         <tfoot className="border-t border-black/5 bg-[#fafafa]">
@@ -453,7 +453,7 @@ export default function GuarantorPage({ session }: { session: Session }) {
 
   return (
     <div className="space-y-4">
-      {toast && <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-2xl bg-[#1a1a2e] px-5 py-3 text-sm font-medium text-white shadow-lg">{toast}</div>}
+      {toast && <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-2xl bg-ink px-5 py-3 text-sm font-medium text-white shadow-lg">{toast}</div>}
 
       {/* Scanner modal */}
       {showScanner && (
@@ -472,9 +472,9 @@ export default function GuarantorPage({ session }: { session: Session }) {
             <div className="flex items-center justify-between px-5 py-4 border-b border-black/5">
               <div>
                 <p className="font-semibold">Record Payout</p>
-                <p className="text-xs text-[#697586] mt-0.5">{manualPayoutGuarantor.name}</p>
+                <p className="text-xs text-soft mt-0.5">{manualPayoutGuarantor.name}</p>
               </div>
-              <button onClick={() => setManualPayoutGuarantor(null)} className="rounded-full p-1.5 hover:bg-[#f4f5f7]">
+              <button onClick={() => setManualPayoutGuarantor(null)} className="rounded-full p-1.5 hover:bg-mist">
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
@@ -492,21 +492,21 @@ export default function GuarantorPage({ session }: { session: Session }) {
       {/* Header row: search + action buttons */}
       <div className="flex flex-wrap items-center gap-2">
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search guarantor name or code…"
-          data-no-upper className="flex-1 min-w-0 max-w-sm rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2.5 text-sm outline-none focus:border-[#1a1a2e]" />
+          data-no-upper className="flex-1 min-w-0 max-w-sm rounded-2xl border border-line bg-white px-4 py-2.5 text-sm outline-none focus:border-ink" />
         <button onClick={() => setShowScanner(true)}
-          className="rounded-2xl bg-[#1a1a2e] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#2d2d4e] transition shrink-0">
+          className="rounded-2xl bg-ink px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#2d2d4e] transition shrink-0">
           Scan QR
         </button>
         <div className="relative group shrink-0">
-          <button className="rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2.5 text-sm font-semibold hover:bg-[#f4f5f7] transition">
+          <button className="rounded-2xl border border-line bg-white px-4 py-2.5 text-sm font-semibold hover:bg-mist transition">
             Record Payout ▾
           </button>
-          <div className="absolute right-0 top-full mt-1 z-20 hidden group-focus-within:block group-hover:block w-56 rounded-2xl border border-[#e5e7eb] bg-white shadow-lg overflow-hidden">
+          <div className="absolute right-0 top-full mt-1 z-20 hidden group-focus-within:block group-hover:block w-56 rounded-2xl border border-line bg-white shadow-lg overflow-hidden">
             {guarantors.filter(g => g.status === 'Active').map(g => (
               <button key={g.guarantorId} onClick={() => setManualPayoutGuarantor(g)}
-                className="w-full px-4 py-2.5 text-left text-sm hover:bg-[#f4f5f7] transition">
+                className="w-full px-4 py-2.5 text-left text-sm hover:bg-mist transition">
                 <p className="font-medium">{g.name}</p>
-                <p className="text-xs text-[#697586] font-mono">{g.code}</p>
+                <p className="text-xs text-soft font-mono">{g.code}</p>
               </button>
             ))}
           </div>
@@ -526,8 +526,8 @@ export default function GuarantorPage({ session }: { session: Session }) {
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <p className="font-semibold">{g.name}</p>
-                  <p className="text-xs font-mono text-[#697586]">{g.code}</p>
-                  {g.phone && <p className="text-xs text-[#697586]">{g.phone}</p>}
+                  <p className="text-xs font-mono text-soft">{g.code}</p>
+                  {g.phone && <p className="text-xs text-soft">{g.phone}</p>}
                 </div>
                 <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${g.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{g.status}</span>
               </div>
@@ -538,30 +538,30 @@ export default function GuarantorPage({ session }: { session: Session }) {
                 </div>
               )}
               <div className="grid grid-cols-3 gap-2 text-xs">
-                <div className="rounded-xl bg-[#f4f5f7] p-2.5 text-center">
-                  <p className="text-[#697586]">Loans</p>
+                <div className="rounded-xl bg-mist p-2.5 text-center">
+                  <p className="text-soft">Loans</p>
                   <p className="font-bold mt-0.5">{gLoans.length}</p>
-                  <p className="text-[10px] text-[#697586]">{activeLoans} active</p>
+                  <p className="text-[10px] text-soft">{activeLoans} active</p>
                 </div>
                 <div className="rounded-xl bg-green-50 p-2.5 text-center">
-                  <p className="text-[#697586]">Earned</p>
+                  <p className="text-soft">Earned</p>
                   <p className="font-bold text-green-700 mt-0.5">{currency(earned)}</p>
                 </div>
                 <div className={`rounded-xl p-2.5 text-center ${balance > 0 ? 'bg-amber-50' : balance < 0 ? 'bg-gray-50' : 'bg-green-50'}`}>
-                  <p className="text-[#697586]">{balance < 0 ? 'Overpaid' : 'Due'}</p>
-                  <p className={`font-bold mt-0.5 ${balance > 0 ? 'text-amber-700' : balance < 0 ? 'text-[#697586]' : 'text-green-700'}`}>
+                  <p className="text-soft">{balance < 0 ? 'Overpaid' : 'Due'}</p>
+                  <p className={`font-bold mt-0.5 ${balance > 0 ? 'text-amber-700' : balance < 0 ? 'text-soft' : 'text-green-700'}`}>
                     {balance < 0 ? currency(Math.abs(balance)) : currency(balance)}
                   </p>
                 </div>
               </div>
               <button onClick={() => { setSelected(g); setDetailTab('overview') }}
-                className="w-full rounded-xl border border-[#e5e7eb] px-3 py-2 text-xs font-semibold hover:bg-[#f4f5f7] transition">
+                className="w-full rounded-xl border border-line px-3 py-2 text-xs font-semibold hover:bg-mist transition">
                 View
               </button>
             </div>
           )
         })}
-        {filtered.length === 0 && <p className="py-10 text-center text-sm text-[#697586]">No guarantors found.</p>}
+        {filtered.length === 0 && <p className="py-10 text-center text-sm text-soft">No guarantors found.</p>}
       </div>
     </div>
   )
@@ -683,26 +683,26 @@ function QrPayoutScanner({ guarantors, session, onClose, onDone }: {
         <div className="w-full max-w-md rounded-[1.75rem] bg-white shadow-2xl overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-black/5">
             <p className="font-semibold text-green-700">QR Decoded</p>
-            <button onClick={onClose} className="rounded-full p-1.5 hover:bg-[#f4f5f7]">
+            <button onClick={onClose} className="rounded-full p-1.5 hover:bg-mist">
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
           </div>
           <div className="p-5 space-y-4">
             <div className="rounded-2xl bg-green-50 border border-green-200 p-4 space-y-3">
               <div className="grid grid-cols-2 gap-3 text-xs">
-                <div><p className="text-[9px] font-bold uppercase tracking-wide text-[#697586]">Guarantor</p><p className="font-semibold mt-0.5">{matchedG.name}</p></div>
-                <div><p className="text-[9px] font-bold uppercase tracking-wide text-[#697586]">Amount</p><p className="font-bold text-green-700 text-base mt-0.5">{formatINR(scanned.amt)}</p></div>
+                <div><p className="text-[9px] font-bold uppercase tracking-wide text-soft">Guarantor</p><p className="font-semibold mt-0.5">{matchedG.name}</p></div>
+                <div><p className="text-[9px] font-bold uppercase tracking-wide text-soft">Amount</p><p className="font-bold text-green-700 text-base mt-0.5">{formatINR(scanned.amt)}</p></div>
                 {scanned.t === 'NGF_DEPOSIT_PAYOUT' ? (
                   <>
-                    <div><p className="text-[9px] font-bold uppercase tracking-wide text-[#697586]">Withdrawal</p><p className="font-semibold mt-0.5">{scanned.typ}</p></div>
-                    <div><p className="text-[9px] font-bold uppercase tracking-wide text-[#697586]">Date</p><p className="font-semibold mt-0.5">{formatDateIN(scanned.rd)}</p></div>
-                    <div className="col-span-2"><p className="text-[9px] font-bold uppercase tracking-wide text-[#697586]">Request ID</p><p className="font-mono text-[10px] mt-0.5">{scanned.rid}</p></div>
+                    <div><p className="text-[9px] font-bold uppercase tracking-wide text-soft">Withdrawal</p><p className="font-semibold mt-0.5">{scanned.typ}</p></div>
+                    <div><p className="text-[9px] font-bold uppercase tracking-wide text-soft">Date</p><p className="font-semibold mt-0.5">{formatDateIN(scanned.rd)}</p></div>
+                    <div className="col-span-2"><p className="text-[9px] font-bold uppercase tracking-wide text-soft">Request ID</p><p className="font-mono text-[10px] mt-0.5">{scanned.rid}</p></div>
                   </>
                 ) : (
                   <>
-                    <div><p className="text-[9px] font-bold uppercase tracking-wide text-[#697586]">Period From</p><p className="font-semibold mt-0.5">{formatDateIN(scanned.pf)}</p></div>
-                    <div><p className="text-[9px] font-bold uppercase tracking-wide text-[#697586]">Payout date</p><p className="font-semibold mt-0.5">{formatDateIN(scanned.pt)}</p></div>
-                    <div className="col-span-2"><p className="text-[9px] font-bold uppercase tracking-wide text-[#697586]">Payout ID</p><p className="font-mono text-[10px] mt-0.5">{scanned.pid}</p></div>
+                    <div><p className="text-[9px] font-bold uppercase tracking-wide text-soft">Period From</p><p className="font-semibold mt-0.5">{formatDateIN(scanned.pf)}</p></div>
+                    <div><p className="text-[9px] font-bold uppercase tracking-wide text-soft">Payout date</p><p className="font-semibold mt-0.5">{formatDateIN(scanned.pt)}</p></div>
+                    <div className="col-span-2"><p className="text-[9px] font-bold uppercase tracking-wide text-soft">Payout ID</p><p className="font-mono text-[10px] mt-0.5">{scanned.pid}</p></div>
                   </>
                 )}
               </div>
@@ -714,7 +714,7 @@ function QrPayoutScanner({ guarantors, session, onClose, onDone }: {
                 {confirming ? 'Recording…' : (scanned.t === 'NGF_DEPOSIT_PAYOUT' ? 'Confirm & Pay Withdrawal' : 'Confirm & Record Payment')}
               </button>
               <button onClick={() => { setScanned(null); setMatchedG(null); setError('') }}
-                className="rounded-2xl border border-[#e5e7eb] px-5 py-3 text-sm font-semibold hover:bg-[#f4f5f7] transition">
+                className="rounded-2xl border border-line px-5 py-3 text-sm font-semibold hover:bg-mist transition">
                 Rescan
               </button>
             </div>
@@ -753,9 +753,9 @@ function CommissionBalanceCard({ balance }: { balance: number }) {
     </div>
   )
   if (balance < 0) return (
-    <div className="rounded-[1.5rem] border border-[#e5e7eb] bg-[#f9fafb] p-4 shadow-panel text-center">
-      <p className="text-xs font-medium text-[#697586]">Overpaid</p>
-      <p className="mt-1 text-xl font-bold text-[#697586]">{formatINR(Math.abs(balance))}</p>
+    <div className="rounded-[1.5rem] border border-line bg-[#f9fafb] p-4 shadow-panel text-center">
+      <p className="text-xs font-medium text-soft">Overpaid</p>
+      <p className="mt-1 text-xl font-bold text-soft">{formatINR(Math.abs(balance))}</p>
     </div>
   )
   return (
@@ -822,41 +822,41 @@ function CommissionPaymentForm({ guarantor, balance, cycle, session, onDone }: {
           </p>
         )}
         {balance < 0 && (
-          <p className="mt-1 text-xs text-[#697586]">
+          <p className="mt-1 text-xs text-soft">
             Note: Previous payments exceeded recorded commission by {formatINR(Math.abs(balance))}.
           </p>
         )}
       </div>
       <div className="p-6 grid gap-4 sm:grid-cols-2">
         <div>
-          <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-[#697586] mb-1">Payment Date</p>
+          <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-soft mb-1">Payment Date</p>
           <input type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)}
-            className="w-full rounded-xl border border-[#e5e7eb] px-3 py-2.5 text-sm outline-none focus:border-[#1a1a2e]" />
+            className="w-full rounded-xl border border-line px-3 py-2.5 text-sm outline-none focus:border-ink" />
         </div>
         <div>
-          <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-[#697586] mb-1">Commission Amount (₹)</p>
+          <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-soft mb-1">Commission Amount (₹)</p>
           <input type="number" value={commissionAmount} onChange={e => setCommissionAmount(e.target.value)} min="0"
-            className="w-full rounded-xl border border-[#e5e7eb] px-3 py-2.5 text-sm outline-none focus:border-[#1a1a2e]" />
+            className="w-full rounded-xl border border-line px-3 py-2.5 text-sm outline-none focus:border-ink" />
         </div>
         <div>
-          <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-[#697586] mb-1">Payment Method</p>
+          <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-soft mb-1">Payment Method</p>
           <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}
-            className="w-full rounded-xl border border-[#e5e7eb] px-3 py-2.5 text-sm outline-none focus:border-[#1a1a2e] bg-white">
+            className="w-full rounded-xl border border-line px-3 py-2.5 text-sm outline-none focus:border-ink bg-white">
             <option>Cash</option>
             <option>UPI</option>
             <option>Bank Transfer</option>
           </select>
         </div>
         <div>
-          <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-[#697586] mb-1">Notes (optional)</p>
+          <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-soft mb-1">Notes (optional)</p>
           <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Any remarks…"
-            className="w-full rounded-xl border border-[#e5e7eb] px-3 py-2.5 text-sm outline-none focus:border-[#1a1a2e]" />
+            className="w-full rounded-xl border border-line px-3 py-2.5 text-sm outline-none focus:border-ink" />
         </div>
       </div>
       <div className="px-6 py-4 flex flex-wrap items-center gap-3">
         {formError && <p className="w-full text-sm text-red-600">{formError}</p>}
         <button type="submit" disabled={saving}
-          className="rounded-2xl bg-[#1a1a2e] px-6 py-3 text-sm font-semibold text-white disabled:opacity-50">
+          className="rounded-2xl bg-ink px-6 py-3 text-sm font-semibold text-white disabled:opacity-50">
           {saving ? 'Saving…' : 'Record Commission Payment'}
         </button>
       </div>
@@ -904,17 +904,17 @@ function DepositAdmin({ guarantorId, session }: { guarantorId: string; session: 
     if (res.success) { showToast('Approved & recorded.'); load() } else showToast(res.error || 'Failed')
   }
 
-  if (loading) return <div className="flex h-32 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" /></div>
-  if (!data) return <p className="p-6 text-center text-sm text-[#697586]">No deposit account.</p>
+  if (loading) return <div className="flex h-32 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-ink border-t-transparent" /></div>
+  if (!data) return <p className="p-6 text-center text-sm text-soft">No deposit account.</p>
   const a = data.account
   const pending = (data.requests || []).filter((r: any) => r.status === 'Pending')
 
   return (
     <div className="space-y-4">
-      {toast && <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-2xl bg-[#1a1a2e] px-5 py-3 text-sm font-medium text-white shadow-lg">{toast}</div>}
+      {toast && <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-2xl bg-ink px-5 py-3 text-sm font-medium text-white shadow-lg">{toast}</div>}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="rounded-[1.5rem] border border-white/70 bg-white p-4 shadow-panel text-center"><p className="text-xs text-[#697586]">Deposit</p><p className="mt-1 text-xl font-bold">{cur(a.principal)}</p></div>
+        <div className="rounded-[1.5rem] border border-white/70 bg-white p-4 shadow-panel text-center"><p className="text-xs text-soft">Deposit</p><p className="mt-1 text-xl font-bold">{cur(a.principal)}</p></div>
         <div className="rounded-[1.5rem] border border-green-200 bg-green-50 p-4 shadow-panel text-center"><p className="text-xs text-green-700">Interest Available</p><p className="mt-1 text-xl font-bold text-green-800">{cur(a.availableInterest)}</p></div>
         <div className="rounded-[1.5rem] border border-blue-200 bg-blue-50 p-4 shadow-panel text-center"><p className="text-xs text-blue-700">Interest Paid</p><p className="mt-1 text-xl font-bold text-blue-800">{cur(a.totalInterestPaid)}</p></div>
         <div className="rounded-[1.5rem] border border-amber-200 bg-amber-50 p-4 shadow-panel text-center"><p className="text-xs text-amber-700">Next Withdrawal</p><p className="mt-1 text-lg font-bold text-amber-800">{a.canWithdrawInterest ? 'Available' : `${a.daysRemaining}d`}</p></div>
@@ -926,7 +926,7 @@ function DepositAdmin({ guarantorId, session }: { guarantorId: string; session: 
           <div className="divide-y divide-amber-200">
             {pending.map((r: any) => (
               <div key={r.requestId} className="flex items-center justify-between px-5 py-3">
-                <div><p className="text-sm font-semibold">{r.type} · {cur(r.amount)}</p><p className="text-xs text-[#697586]">{formatDateIN(r.requestedAt)}</p></div>
+                <div><p className="text-sm font-semibold">{r.type} · {cur(r.amount)}</p><p className="text-xs text-soft">{formatDateIN(r.requestedAt)}</p></div>
                 <button onClick={() => approve(r.requestId)} className="rounded-xl bg-green-700 px-4 py-2 text-xs font-semibold text-white hover:bg-green-800">Approve & Pay</button>
               </div>
             ))}
@@ -938,16 +938,16 @@ function DepositAdmin({ guarantorId, session }: { guarantorId: string; session: 
       <div className="rounded-[1.75rem] border border-white/70 bg-white shadow-panel p-5 space-y-3">
         <p className="text-sm font-semibold">Record Transaction</p>
         <div className="grid gap-3 sm:grid-cols-4">
-          <select value={type} onChange={e => setType(e.target.value)} className="rounded-xl border border-[#e5e7eb] bg-white px-3 py-2.5 text-sm outline-none focus:border-[#1a1a2e]">
+          <select value={type} onChange={e => setType(e.target.value)} className="rounded-xl border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-ink">
             <option value="Deposit">Deposit</option>
             <option value="Interest Payout">Interest Payout</option>
             <option value="Principal Withdrawal">Principal Withdrawal</option>
           </select>
           <input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="Amount" data-no-upper
-            className="rounded-xl border border-[#e5e7eb] bg-[#f4f5f7] px-3 py-2.5 text-sm outline-none focus:border-[#1a1a2e]" />
+            className="rounded-xl border border-line bg-mist px-3 py-2.5 text-sm outline-none focus:border-ink" />
           <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Notes (optional)"
-            className="rounded-xl border border-[#e5e7eb] bg-[#f4f5f7] px-3 py-2.5 text-sm outline-none focus:border-[#1a1a2e]" />
-          <button onClick={record} disabled={busy} className="rounded-xl bg-[#1a1a2e] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{busy ? 'Saving…' : 'Record'}</button>
+            className="rounded-xl border border-line bg-mist px-3 py-2.5 text-sm outline-none focus:border-ink" />
+          <button onClick={record} disabled={busy} className="rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{busy ? 'Saving…' : 'Record'}</button>
         </div>
       </div>
 
@@ -956,17 +956,17 @@ function DepositAdmin({ guarantorId, session }: { guarantorId: string; session: 
         <div className="border-b border-black/5 px-5 py-3"><p className="text-sm font-semibold">Passbook</p></div>
         <div className="overflow-x-auto">
         <table className="w-full min-w-[480px] text-left text-sm">
-          <thead className="border-b border-black/5 bg-[#fafafa] text-[#697586]"><tr>{['Date', 'Type', 'Amount', 'Note'].map(h => <th key={h} className="px-5 py-3 font-medium text-xs">{h}</th>)}</tr></thead>
+          <thead className="border-b border-black/5 bg-[#fafafa] text-soft"><tr>{['Date', 'Type', 'Amount', 'Note'].map(h => <th key={h} className="px-5 py-3 font-medium text-xs">{h}</th>)}</tr></thead>
           <tbody className="divide-y divide-black/5">
-            {data.ledger.length === 0 && <tr><td colSpan={4} className="px-5 py-6 text-center text-sm text-[#697586]">No transactions.</td></tr>}
+            {data.ledger.length === 0 && <tr><td colSpan={4} className="px-5 py-6 text-center text-sm text-soft">No transactions.</td></tr>}
             {data.ledger.map((t: any) => {
               const isIn = t.type === 'Deposit'
               return (
                 <tr key={t.txnId} className="hover:bg-[#fafafa]">
-                  <td className="px-5 py-3 text-[#697586]">{formatDateIN(t.date)}</td>
+                  <td className="px-5 py-3 text-soft">{formatDateIN(t.date)}</td>
                   <td className="px-5 py-3 font-medium">{t.type}</td>
                   <td className={`px-5 py-3 font-semibold ${isIn ? 'text-green-700' : 'text-red-600'}`}>{isIn ? '+' : '−'} {cur(t.amount)}</td>
-                  <td className="px-5 py-3 text-[#697586] text-xs">{t.notes || '—'}</td>
+                  <td className="px-5 py-3 text-soft text-xs">{t.notes || '—'}</td>
                 </tr>
               )
             })}

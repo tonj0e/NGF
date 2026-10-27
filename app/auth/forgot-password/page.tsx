@@ -203,7 +203,7 @@ export default function ForgotPasswordPage() {
       <div className="fp-card relative w-full max-w-md rounded-[2rem] border border-white/80 bg-white/55 p-6 text-[#0a0a0a] shadow-[0_24px_70px_rgba(0,0,0,0.14)] ring-1 ring-black/5 backdrop-blur-2xl sm:p-8">
         <span aria-hidden className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white to-transparent" />
         <div className="text-center">
-          <div className="inline-flex rounded-full bg-[#f4f5f7] px-4 py-2 text-xs font-semibold uppercase tracking-widest text-[#697586]">
+          <div className="inline-flex rounded-full bg-mist px-4 py-2 text-xs font-semibold uppercase tracking-widest text-soft">
             NGF FINCORP
           </div>
           {step === 'otp' && (
@@ -219,7 +219,7 @@ export default function ForgotPasswordPage() {
           <p className="mt-2 text-sm text-[#4b5563]">{step === 'otp' && vstate === 'success' ? 'Your security code has been confirmed.' : titles[step].p}</p>
           <div className="mt-4 flex justify-center gap-1.5" aria-label={`Step ${stepNo} of 4`}>
             {[1, 2, 3, 4].map(n => (
-              <span key={n} className={`h-1.5 w-8 rounded-full ${n <= stepNo ? 'bg-[#1a1a2e]' : 'bg-[#e5e7eb]'}`} />
+              <span key={n} className={`h-1.5 w-8 rounded-full ${n <= stepNo ? 'bg-ink' : 'bg-line'}`} />
             ))}
           </div>
         </div>
@@ -315,7 +315,7 @@ export default function ForgotPasswordPage() {
                 onChange={e => setConfirm(e.target.value)} autoComplete="new-password" data-no-upper
                 className={inputCls} />
             </label>
-            <label className="flex items-center gap-2 text-xs text-[#697586]">
+            <label className="flex items-center gap-2 text-xs text-soft">
               <input type="checkbox" checked={showPw} onChange={e => setShowPw(e.target.checked)} className="h-3.5 w-3.5" />
               Show passwords
             </label>
@@ -336,9 +336,9 @@ export default function ForgotPasswordPage() {
 
         {step !== 'done' && (
           <div className="mt-6 text-center text-sm">
-            <p className="text-[#697586]">
+            <p className="text-soft">
               Remember your password?{' '}
-              <Link href="/" className="font-medium text-[#1a1a2e] hover:underline">Sign in</Link>
+              <Link href="/" className="font-medium text-ink hover:underline">Sign in</Link>
             </p>
           </div>
         )}

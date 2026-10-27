@@ -86,24 +86,24 @@ function ActionPanel({ row, reviewOptions, session, onDone, onClose }: {
       ? s === 'Paid' ? 'bg-green-600 text-white border-green-600'
         : s === 'Delayed' ? 'bg-amber-500 text-white border-amber-500'
         : 'bg-red-600 text-white border-red-600'
-      : 'bg-white text-[#697586] border-[#e5e7eb] hover:bg-[#f4f5f7]'}`
+      : 'bg-white text-soft border-line hover:bg-mist'}`
 
   return (
-    <div className="mt-4 rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] p-4 space-y-3">
+    <div className="mt-4 rounded-2xl border border-line bg-[#f9fafb] p-4 space-y-3">
       <div className="flex gap-2">
         {(['Paid', 'Delayed', 'Not Paid'] as const).map(s => (
           <button key={s} type="button" onClick={() => setStatus(s)} className={btnCls(s)}>{s}</button>
         ))}
       </div>
       <select value={paymentMode} onChange={e => setPaymentMode(e.target.value)}
-        className="w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 py-3 text-sm outline-none focus:border-[#1a1a2e]">
+        className="w-full rounded-2xl border border-line bg-white px-4 py-3 text-sm outline-none focus:border-ink">
         <option value="">Payment mode</option>
         <option value="Cash">Cash</option>
         <option value="UPI">UPI / QR</option>
         <option value="Bank">Bank Transfer</option>
       </select>
-      <div className="rounded-2xl border border-[#e5e7eb] bg-white p-4 space-y-3">
-        <p className="text-xs font-semibold uppercase tracking-wider text-[#697586]">Customer Rating <span className="text-red-500">*</span></p>
+      <div className="rounded-2xl border border-line bg-white p-4 space-y-3">
+        <p className="text-xs font-semibold uppercase tracking-wider text-soft">Customer Rating <span className="text-red-500">*</span></p>
         <div className="flex items-center gap-1.5">
           {[1, 2, 3, 4, 5].map(n => (
             <button key={n} type="button" onClick={() => setRating(n)}
@@ -112,13 +112,13 @@ function ActionPanel({ row, reviewOptions, session, onDone, onClose }: {
               <span className={n <= rating ? 'text-amber-400' : 'text-[#d1d5db]'}>★</span>
             </button>
           ))}
-          {rating > 0 && <span className="ml-2 text-sm font-semibold text-[#1a1a2e]">{rating}/5</span>}
+          {rating > 0 && <span className="ml-2 text-sm font-semibold text-ink">{rating}/5</span>}
         </div>
         {reviewChoices.length > 0 && (
           <div>
-            <p className="mb-1 text-xs font-medium text-[#1a1a2e]">Review (optional)</p>
+            <p className="mb-1 text-xs font-medium text-ink">Review (optional)</p>
             <select value={review} onChange={e => setReview(e.target.value)}
-              className="w-full rounded-xl border border-[#e5e7eb] bg-[#f9fafb] px-4 py-2.5 text-sm outline-none focus:border-[#1a1a2e] focus:bg-white">
+              className="w-full rounded-xl border border-line bg-[#f9fafb] px-4 py-2.5 text-sm outline-none focus:border-ink focus:bg-white">
               <option value="">Select a review</option>
               {reviewChoices.map(o => (
                 <option key={o['Option ID']} value={o['Label']}>{o['Label']}</option>
@@ -128,19 +128,19 @@ function ActionPanel({ row, reviewOptions, session, onDone, onClose }: {
         )}
       </div>
       <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Notes (optional)" rows={2}
-        className="w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 py-3 text-sm outline-none focus:border-[#1a1a2e] resize-none" />
+        className="w-full rounded-2xl border border-line bg-white px-4 py-3 text-sm outline-none focus:border-ink resize-none" />
       <div>
-        <label className="block text-xs text-[#697586] mb-1">Payment proof (optional)</label>
+        <label className="block text-xs text-soft mb-1">Payment proof (optional)</label>
         <input type="file" accept="image/*" onChange={e => setProofFile(e.target.files?.[0] || null)}
-          className="w-full rounded-2xl border border-[#e5e7eb] bg-white px-3 py-2.5 text-sm" />
+          className="w-full rounded-2xl border border-line bg-white px-3 py-2.5 text-sm" />
       </div>
       <div className="flex gap-2">
         <button type="button" onClick={submit} disabled={saving}
-          className="flex-1 rounded-2xl bg-[#1a1a2e] px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">
+          className="flex-1 rounded-2xl bg-ink px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">
           {saving ? 'Saving...' : 'Save'}
         </button>
         <button type="button" onClick={onClose}
-          className="rounded-2xl border border-[#e5e7eb] bg-white px-4 py-3 text-sm font-semibold text-[#697586]">
+          className="rounded-2xl border border-line bg-white px-4 py-3 text-sm font-semibold text-soft">
           Cancel
         </button>
       </div>
@@ -195,16 +195,16 @@ function RepaymentCards({ rows, page, search, reviewOptions, session, onSaved, o
 
   return (
     <div className="space-y-4">
-      {toast && <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-2xl bg-[#1a1a2e] px-5 py-3 text-sm font-medium text-white shadow-lg">{toast}</div>}
+      {toast && <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-2xl bg-ink px-5 py-3 text-sm font-medium text-white shadow-lg">{toast}</div>}
       {showSearch && (
         <div className="flex gap-3">
           <input value={q} onChange={e => handleSearch(e.target.value)} placeholder={hint} data-no-upper
-            className="flex-1 rounded-2xl border border-[#e5e7eb] bg-white px-4 py-3 text-sm outline-none focus:border-[#1a1a2e]" />
-          <span className="rounded-2xl bg-[#f4f5f7] px-4 py-3 text-sm font-medium text-[#697586]">{total} records</span>
+            className="flex-1 rounded-2xl border border-line bg-white px-4 py-3 text-sm outline-none focus:border-ink" />
+          <span className="rounded-2xl bg-mist px-4 py-3 text-sm font-medium text-soft">{total} records</span>
         </div>
       )}
       {rows.length === 0 ? (
-        <p className="rounded-2xl border border-dashed border-[#e5e7eb] bg-white p-8 text-center text-sm text-[#697586]">No repayments found.</p>
+        <p className="rounded-2xl border border-dashed border-line bg-white p-8 text-center text-sm text-soft">No repayments found.</p>
       ) : (
         <div className="grid gap-4 sm:grid-cols-1 lg:grid-cols-2">
           {rows.map(r => (
@@ -212,12 +212,12 @@ function RepaymentCards({ rows, page, search, reviewOptions, session, onSaved, o
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="font-semibold truncate">{r.customerName}</p>
-                  <p className="text-sm text-[#697586]">{r['Loan ID']} &bull; Week {r['Week No']}</p>
-                  <p className="text-xs text-[#697586]">Due: {r['Due Date']}</p>
-                  {r.guarantorName && <p className="text-xs text-[#697586]">Guarantor: {r.guarantorName}</p>}
+                  <p className="text-sm text-soft">{r['Loan ID']} &bull; Week {r['Week No']}</p>
+                  <p className="text-xs text-soft">Due: {r['Due Date']}</p>
+                  {r.guarantorName && <p className="text-xs text-soft">Guarantor: {r.guarantorName}</p>}
                   {r.customerPhone && (
                     <div className="mt-1 flex items-center gap-2">
-                      <a href={`tel:${r.customerPhone}`} className="text-xs text-[#697586] hover:text-green-700">{r.customerPhone}</a>
+                      <a href={`tel:${r.customerPhone}`} className="text-xs text-soft hover:text-green-700">{r.customerPhone}</a>
                       <CallButton phone={r.customerPhone} />
                     </div>
                   )}
@@ -234,11 +234,11 @@ function RepaymentCards({ rows, page, search, reviewOptions, session, onSaved, o
                     onClose={() => setOpenId(null)} />
                 ) : canRecord ? (
                   <button onClick={() => setOpenId(r['Repayment ID'])}
-                    className="mt-4 w-full rounded-2xl border border-[#e5e7eb] bg-[#f4f5f7] px-4 py-2.5 text-sm font-semibold text-[#1a1a2e] hover:bg-[#1a1a2e] hover:text-white transition">
+                    className="mt-4 w-full rounded-2xl border border-line bg-mist px-4 py-2.5 text-sm font-semibold text-ink hover:bg-ink hover:text-white transition">
                     Record Payment
                   </button>
                 ) : (
-                  <div className="mt-4 w-full rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] px-4 py-2.5 text-sm font-semibold text-[#697586] text-center cursor-not-allowed">
+                  <div className="mt-4 w-full rounded-2xl border border-line bg-[#f9fafb] px-4 py-2.5 text-sm font-semibold text-soft text-center cursor-not-allowed">
                     Not the payment day
                   </div>
                 )
@@ -250,10 +250,10 @@ function RepaymentCards({ rows, page, search, reviewOptions, session, onSaved, o
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2 pt-2">
           <button onClick={() => onPageChange(page - 1, q)} disabled={page === 1}
-            className="rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium disabled:opacity-40">Prev</button>
-          <span className="text-sm text-[#697586]">Page {page} of {totalPages}</span>
+            className="rounded-2xl border border-line bg-white px-4 py-2 text-sm font-medium disabled:opacity-40">Prev</button>
+          <span className="text-sm text-soft">Page {page} of {totalPages}</span>
           <button onClick={() => onPageChange(page + 1, q)} disabled={page === totalPages}
-            className="rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium disabled:opacity-40">Next</button>
+            className="rounded-2xl border border-line bg-white px-4 py-2 text-sm font-medium disabled:opacity-40">Next</button>
         </div>
       )}
     </div>
@@ -285,7 +285,7 @@ function PendingList({ apiMode, session, reviewOptions }: {
 
   return (
     <div>
-      {loading && <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" /></div>}
+      {loading && <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-ink border-t-transparent" /></div>}
       <RepaymentCards rows={rows} page={page} search={search} total={total} showSearch
         reviewOptions={reviewOptions} session={session}
         onSaved={() => load(page, search)}
@@ -321,25 +321,25 @@ function ComingSaturdayTab({ session, reviewOptions }: { session: Session; revie
     load()
   }, [session.token, page])
 
-  if (loading) return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" /></div>
+  if (loading) return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-ink border-t-transparent" /></div>
 
   return (
     <div className="space-y-5">
       {summary && (
         <>
-          <p className="text-sm text-[#697586] font-medium">Collections due on <span className="font-semibold text-[#1a1a2e]">{summary.saturdayDate}</span></p>
+          <p className="text-sm text-soft font-medium">Collections due on <span className="font-semibold text-ink">{summary.saturdayDate}</span></p>
           <div className={`grid gap-4 ${session.role === 'Guarantor' ? 'grid-cols-2' : 'grid-cols-3'}`}>
             <div className="rounded-[1.5rem] border border-white/70 bg-white p-5 shadow-panel text-center">
-              <p className="text-xs text-[#697586]">Customers</p>
+              <p className="text-xs text-soft">Customers</p>
               <p className="mt-2 text-3xl font-semibold">{summary.customerCount}</p>
             </div>
             <div className="rounded-[1.5rem] border border-white/70 bg-white p-5 shadow-panel text-center">
-              <p className="text-xs text-[#697586]">Total Amount</p>
+              <p className="text-xs text-soft">Total Amount</p>
               <p className="mt-2 text-2xl font-semibold">{currency(summary.totalAmount)}</p>
             </div>
             {session.role !== 'Guarantor' && (
               <div className="rounded-[1.5rem] border border-white/70 bg-white p-5 shadow-panel text-center">
-                <p className="text-xs text-[#697586]">Guarantors</p>
+                <p className="text-xs text-soft">Guarantors</p>
                 <p className="mt-2 text-3xl font-semibold">{summary.guarantorCount}</p>
               </div>
             )}
@@ -380,22 +380,22 @@ function PastMonthTab({ session }: { session: Session }) {
   const total = summary.paidTotal
   const avg = summary.paidCount ? total / summary.paidCount : 0
 
-  if (loading) return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" /></div>
+  if (loading) return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-ink border-t-transparent" /></div>
 
   return (
     <div className="space-y-5">
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-[1.5rem] border border-white/70 bg-white p-5 shadow-panel">
-          <p className="text-xs text-[#697586]">Total Collected</p>
+          <p className="text-xs text-soft">Total Collected</p>
           <p className="mt-2 text-3xl font-semibold">{currency(total)}</p>
-          <p className="mt-1 text-xs text-[#697586]">{lastMonthStr}</p>
+          <p className="mt-1 text-xs text-soft">{lastMonthStr}</p>
         </div>
         <div className="rounded-[1.5rem] border border-white/70 bg-white p-5 shadow-panel">
-          <p className="text-xs text-[#697586]">Avg Ticket</p>
+          <p className="text-xs text-soft">Avg Ticket</p>
           <p className="mt-2 text-3xl font-semibold">{currency(avg)}</p>
         </div>
         <div className="rounded-[1.5rem] border border-white/70 bg-white p-5 shadow-panel">
-          <p className="text-xs text-[#697586]">Collection Count</p>
+          <p className="text-xs text-soft">Collection Count</p>
           <p className="mt-2 text-3xl font-semibold">{summary.paidCount}</p>
         </div>
       </div>
@@ -404,23 +404,23 @@ function PastMonthTab({ session }: { session: Session }) {
           <p className="text-sm font-semibold">Past Month Transactions — {lastMonthStr}</p>
         </div>
         <table className="w-full text-left text-sm">
-          <thead className="border-b border-black/5 bg-[#fafafa] text-[#697586]">
+          <thead className="border-b border-black/5 bg-[#fafafa] text-soft">
             <tr>{['Customer','Loan ID','Week','Paid Date','Amount','Mode'].map(h => <th key={h} className="px-5 py-3 font-medium text-xs">{h}</th>)}</tr>
           </thead>
           <tbody className="divide-y divide-black/5">
             {paid.map(r => (
               <tr key={r['Repayment ID']} className="hover:bg-[#fafafa]">
                 <td className="px-5 py-3 font-medium">{r.customerName}</td>
-                <td className="px-5 py-3 font-mono text-xs text-[#697586]">{r['Loan ID']}</td>
-                <td className="px-5 py-3 text-[#697586]">{r['Week No']}</td>
-                <td className="px-5 py-3 text-[#697586]">{r['Paid Date']}</td>
+                <td className="px-5 py-3 font-mono text-xs text-soft">{r['Loan ID']}</td>
+                <td className="px-5 py-3 text-soft">{r['Week No']}</td>
+                <td className="px-5 py-3 text-soft">{r['Paid Date']}</td>
                 <td className="px-5 py-3 font-semibold">{currency(Number(r['Amount']))}</td>
-                <td className="px-5 py-3 text-[#697586]">{r['Payment Mode'] || '—'}</td>
+                <td className="px-5 py-3 text-soft">{r['Payment Mode'] || '—'}</td>
               </tr>
             ))}
           </tbody>
         </table>
-        {paid.length === 0 && <p className="p-8 text-center text-sm text-[#697586]">No collections for last month.</p>}
+        {paid.length === 0 && <p className="p-8 text-center text-sm text-soft">No collections for last month.</p>}
         <div className="px-5 pb-4"><Pager page={page} totalPages={pagination.totalPages} total={pagination.total} noun="payments" pageSize={50} onPage={setPage} /></div>
       </div>
     </div>
@@ -442,7 +442,7 @@ function HistoryTab({ session }: { session: Session }) {
       .then(r => r.json()).then(j => { if (j.success) { setRows(j.data.rows || []); setPagination(j.data.pagination) } }).finally(() => setLoading(false))
   }, [page])
 
-  if (loading) return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" /></div>
+  if (loading) return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-ink border-t-transparent" /></div>
 
   const paid = rows
 
@@ -450,25 +450,25 @@ function HistoryTab({ session }: { session: Session }) {
     <div className="overflow-hidden rounded-[1.75rem] border border-white/70 bg-white shadow-panel">
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
-          <thead className="border-b border-black/5 bg-[#fafafa] text-[#697586]">
+          <thead className="border-b border-black/5 bg-[#fafafa] text-soft">
             <tr>{['Customer','Loan ID','Week','Due Date','Paid Date','Amount','Mode'].map(h => <th key={h} className="px-5 py-4 font-medium text-xs">{h}</th>)}</tr>
           </thead>
           <tbody className="divide-y divide-black/5">
             {paid.map(r => (
               <tr key={r['Repayment ID']} className="hover:bg-[#fafafa]">
                 <td className="px-5 py-4 font-medium">{r.customerName}</td>
-                <td className="px-5 py-4 text-[#697586]">{r['Loan ID']}</td>
-                <td className="px-5 py-4 text-[#697586]">{r['Week No']}</td>
-                <td className="px-5 py-4 text-[#697586]">{r['Due Date']}</td>
-                <td className="px-5 py-4 text-[#697586]">{r['Paid Date']}</td>
+                <td className="px-5 py-4 text-soft">{r['Loan ID']}</td>
+                <td className="px-5 py-4 text-soft">{r['Week No']}</td>
+                <td className="px-5 py-4 text-soft">{r['Due Date']}</td>
+                <td className="px-5 py-4 text-soft">{r['Paid Date']}</td>
                 <td className="px-5 py-4 font-semibold">{currency(Number(r['Amount']))}</td>
-                <td className="px-5 py-4 text-[#697586]">{r['Payment Mode'] || '—'}</td>
+                <td className="px-5 py-4 text-soft">{r['Payment Mode'] || '—'}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      {paid.length === 0 && <p className="p-8 text-center text-sm text-[#697586]">No collections recorded.</p>}
+      {paid.length === 0 && <p className="p-8 text-center text-sm text-soft">No collections recorded.</p>}
       <div className="px-5 pb-4"><Pager page={page} totalPages={pagination.totalPages} total={pagination.total} noun="payments" pageSize={50} onPage={setPage} /></div>
     </div>
   )
@@ -537,24 +537,24 @@ function CollectionListTab({ session }: { session: Session }) {
 
   if (loading) return (
     <div className="flex h-40 items-center justify-center">
-      <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" />
+      <div className="h-6 w-6 animate-spin rounded-full border-2 border-ink border-t-transparent" />
     </div>
   )
 
   const customerRow = (r: any, i: number) => (
     <tr key={r.code + r.number} className="hover:bg-[#f9fafb]">
-      <td className="px-4 py-3 text-center text-[#697586]">{i + 1}</td>
+      <td className="px-4 py-3 text-center text-soft">{i + 1}</td>
       <td className="px-4 py-3 font-medium">{r.name}</td>
       <td className="px-4 py-3 text-right font-semibold">{currency(Number(r.balance))}</td>
       <td className="px-4 py-3 text-center font-semibold">{r.rp}</td>
-      <td className="px-4 py-3 text-center font-mono text-[#697586]">{r.code}</td>
+      <td className="px-4 py-3 text-center font-mono text-soft">{r.code}</td>
       <td className="px-4 py-3">
         <div className="flex items-center gap-2">
-          <a href={`tel:${r.number}`} className="font-mono text-[#697586] hover:text-green-700">{r.number}</a>
+          <a href={`tel:${r.number}`} className="font-mono text-soft hover:text-green-700">{r.number}</a>
           <CallButton phone={r.number} />
         </div>
       </td>
-      <td className="px-4 py-3 text-[#697586]">{r.place}</td>
+      <td className="px-4 py-3 text-soft">{r.place}</td>
     </tr>
   )
 
@@ -563,19 +563,19 @@ function CollectionListTab({ session }: { session: Session }) {
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <input value={q} onChange={e => setQ(e.target.value)} data-no-upper
           placeholder="Search name, code, mobile, place…"
-          className="flex-1 min-w-[220px] rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2.5 text-sm outline-none focus:border-[#1a1a2e]" />
-        <span className="text-sm text-[#697586]">{total} customer{total !== 1 ? 's' : ''}</span>
+          className="flex-1 min-w-[220px] rounded-2xl border border-line bg-white px-4 py-2.5 text-sm outline-none focus:border-ink" />
+        <span className="text-sm text-soft">{total} customer{total !== 1 ? 's' : ''}</span>
       </div>
 
       {filtered.length === 0 ? (
-        <p className="rounded-2xl border border-dashed border-[#e5e7eb] bg-white p-8 text-center text-sm text-[#697586]">
+        <p className="rounded-2xl border border-dashed border-line bg-white p-8 text-center text-sm text-soft">
           No active customers to collect from.
         </p>
       ) : (
         <div className="overflow-x-auto rounded-[1.5rem] border border-white/70 bg-white shadow-panel">
           <table className="w-full text-sm border-collapse">
             <thead>
-              <tr className="bg-[#f4f5f7] text-left text-xs uppercase tracking-wider text-[#697586]">
+              <tr className="bg-mist text-left text-xs uppercase tracking-wider text-soft">
                 <th className="px-4 py-3 text-center">No</th>
                 <th className="px-4 py-3">Name</th>
                 <th className="px-4 py-3 text-right">Balance</th>
@@ -591,7 +591,7 @@ function CollectionListTab({ session }: { session: Session }) {
                     const groupTotal = g.rows.reduce((s, r) => s + Number(r.balance || 0), 0)
                     return (
                       <Fragment key={`grp-${g.label}`}>
-                        <tr className="bg-[#1a1a2e]">
+                        <tr className="bg-ink">
                           <td colSpan={7} className="px-4 py-2.5 text-sm font-semibold text-white">
                             {g.label} · {g.rows.length} customer{g.rows.length !== 1 ? 's' : ''} · {currency(groupTotal)}
                           </td>
@@ -754,7 +754,7 @@ export default function CollectionPage({ session, perms }: { session: Session; p
         <div className="flex gap-2 flex-wrap">
           {visibleTabs.map(t => (
             <button key={t.key} onClick={() => setTab(t.key)}
-              className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${tab === t.key ? 'bg-[#1a1a2e] text-white' : 'border border-[#e5e7eb] bg-white text-[#697586] hover:text-[#1a1a2e]'}`}>
+              className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${tab === t.key ? 'bg-ink text-white' : 'border border-line bg-white text-soft hover:text-ink'}`}>
               {t.label}
             </button>
           ))}
@@ -767,7 +767,7 @@ export default function CollectionPage({ session, perms }: { session: Session; p
           className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-semibold transition ${
             canDownload
               ? 'bg-green-600 text-white hover:bg-green-700'
-              : 'border border-[#e5e7eb] bg-[#f4f5f7] text-[#9ca3af] cursor-not-allowed'
+              : 'border border-line bg-mist text-[#9ca3af] cursor-not-allowed'
           } ${downloading ? 'opacity-60' : ''}`}>
           {downloading ? (
             <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />

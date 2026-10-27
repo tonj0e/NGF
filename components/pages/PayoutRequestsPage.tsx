@@ -89,7 +89,7 @@ export default function PayoutRequestsPage({ session }: { session: Session }) {
     handleAction(rejectModal.payoutId, 'reject', rejectNotes)
   }
 
-  if (loading && !loadedOnce.current) return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" /></div>
+  if (loading && !loadedOnce.current) return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-ink border-t-transparent" /></div>
 
   const inRange = (p: any) => {
     const d = (p.requestedAt || '').slice(0, 10)
@@ -109,7 +109,7 @@ export default function PayoutRequestsPage({ session }: { session: Session }) {
 
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Payout Requests</h1>
-        <button onClick={load} className="rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium hover:bg-[#f4f5f7] transition">
+        <button onClick={load} className="rounded-2xl border border-line bg-white px-4 py-2 text-sm font-medium hover:bg-mist transition">
           Refresh
         </button>
       </div>
@@ -122,22 +122,22 @@ export default function PayoutRequestsPage({ session }: { session: Session }) {
       )}
 
       <div className="flex flex-wrap items-end gap-3">
-        <label className="text-xs text-[#697586]">Status
-          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="mt-1 block rounded-2xl border border-[#e5e7eb] bg-white px-3 py-2 text-sm text-black">
+        <label className="text-xs text-soft">Status
+          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="mt-1 block rounded-2xl border border-line bg-white px-3 py-2 text-sm text-black">
             <option value="all">All</option>
             <option value="Pending">Pending</option>
             <option value="Paid">Paid</option>
             <option value="Rejected">Rejected</option>
           </select>
         </label>
-        <label className="text-xs text-[#697586]">From
-          <input type="date" value={fromDate} max={toDate || undefined} onChange={e => setFromDate(e.target.value)} className="mt-1 block rounded-2xl border border-[#e5e7eb] bg-white px-3 py-2 text-sm text-black" />
+        <label className="text-xs text-soft">From
+          <input type="date" value={fromDate} max={toDate || undefined} onChange={e => setFromDate(e.target.value)} className="mt-1 block rounded-2xl border border-line bg-white px-3 py-2 text-sm text-black" />
         </label>
-        <label className="text-xs text-[#697586]">To
-          <input type="date" value={toDate} min={fromDate || undefined} onChange={e => setToDate(e.target.value)} className="mt-1 block rounded-2xl border border-[#e5e7eb] bg-white px-3 py-2 text-sm text-black" />
+        <label className="text-xs text-soft">To
+          <input type="date" value={toDate} min={fromDate || undefined} onChange={e => setToDate(e.target.value)} className="mt-1 block rounded-2xl border border-line bg-white px-3 py-2 text-sm text-black" />
         </label>
         {(fromDate || toDate || statusFilter !== 'all') && (
-          <button onClick={() => { setFromDate(''); setToDate(''); setStatusFilter('all') }} className="rounded-2xl border border-[#e5e7eb] bg-white px-3 py-2 text-sm hover:bg-[#f4f5f7] transition">Clear</button>
+          <button onClick={() => { setFromDate(''); setToDate(''); setStatusFilter('all') }} className="rounded-2xl border border-line bg-white px-3 py-2 text-sm hover:bg-mist transition">Clear</button>
         )}
       </div>
 
@@ -151,7 +151,7 @@ export default function PayoutRequestsPage({ session }: { session: Session }) {
             </div>
           </div>
           <div className="overflow-x-auto"><table className="w-full text-left text-sm">
-            <thead className="border-b border-black/5 bg-[#fafafa] text-[#697586]">
+            <thead className="border-b border-black/5 bg-[#fafafa] text-soft">
               <tr>
                 {['Guarantor', 'Request ID', 'Amount', 'Requested On', 'Action'].map(h => (
                   <th key={h} className="px-5 py-3 font-medium text-xs">{h}</th>
@@ -162,9 +162,9 @@ export default function PayoutRequestsPage({ session }: { session: Session }) {
               {pendingPayouts.map(p => (
                 <tr key={p.payoutId} className="hover:bg-[#fafafa]">
                   <td className="px-5 py-3 font-medium">{p.guarantorName || p.guarantorId}</td>
-                  <td className="px-5 py-3 font-mono text-xs text-[#697586]">{p.payoutId}</td>
+                  <td className="px-5 py-3 font-mono text-xs text-soft">{p.payoutId}</td>
                   <td className="px-5 py-3 font-semibold text-green-700">{formatINR(p.amount)}</td>
-                  <td className="px-5 py-3 text-[#697586]">{p.requestedAt ? formatDateIN(p.requestedAt) : '—'}</td>
+                  <td className="px-5 py-3 text-soft">{p.requestedAt ? formatDateIN(p.requestedAt) : '—'}</td>
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-2">
                       <button
@@ -196,10 +196,10 @@ export default function PayoutRequestsPage({ session }: { session: Session }) {
           <p className="text-sm font-semibold">Payout History ({processedPayouts.length})</p>
         </div>
         {processedPayouts.length === 0 ? (
-          <p className="p-8 text-center text-sm text-[#697586]">No processed payouts yet.</p>
+          <p className="p-8 text-center text-sm text-soft">No processed payouts yet.</p>
         ) : (
           <div className="overflow-x-auto"><table className="w-full text-left text-sm">
-            <thead className="border-b border-black/5 bg-[#fafafa] text-[#697586]">
+            <thead className="border-b border-black/5 bg-[#fafafa] text-soft">
               <tr>
                 {['Guarantor', 'Request ID', 'Amount', 'Status', 'Requested On', 'Processed On', 'Notes'].map(h => (
                   <th key={h} className="px-5 py-3 font-medium text-xs">{h}</th>
@@ -210,7 +210,7 @@ export default function PayoutRequestsPage({ session }: { session: Session }) {
               {processedPayouts.map(p => (
                 <tr key={p.payoutId} className="hover:bg-[#fafafa]">
                   <td className="px-5 py-3 font-medium">{p.guarantorName || p.guarantorId}</td>
-                  <td className="px-5 py-3 font-mono text-xs text-[#697586]">{p.payoutId}</td>
+                  <td className="px-5 py-3 font-mono text-xs text-soft">{p.payoutId}</td>
                   <td className="px-5 py-3 font-semibold">{formatINR(p.amount)}</td>
                   <td className="px-5 py-3">
                     <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
@@ -219,9 +219,9 @@ export default function PayoutRequestsPage({ session }: { session: Session }) {
                       : 'bg-amber-100 text-amber-700'
                     }`}>{p.status}</span>
                   </td>
-                  <td className="px-5 py-3 text-[#697586]">{p.requestedAt ? formatDateIN(p.requestedAt) : '—'}</td>
-                  <td className="px-5 py-3 text-[#697586]">{p.processedAt ? formatDateIN(p.processedAt) : '—'}</td>
-                  <td className={`px-5 py-3 max-w-xs ${p.status === 'Rejected' ? 'text-red-700' : 'text-[#697586]'}`}>
+                  <td className="px-5 py-3 text-soft">{p.requestedAt ? formatDateIN(p.requestedAt) : '—'}</td>
+                  <td className="px-5 py-3 text-soft">{p.processedAt ? formatDateIN(p.processedAt) : '—'}</td>
+                  <td className={`px-5 py-3 max-w-xs ${p.status === 'Rejected' ? 'text-red-700' : 'text-soft'}`}>
                     {p.status === 'Rejected' ? <span title={p.notes || ''}>Reason: {p.notes || 'Not provided'}</span> : <span className="truncate block">{p.notes || '—'}</span>}
                   </td>
                 </tr>
@@ -237,25 +237,25 @@ export default function PayoutRequestsPage({ session }: { session: Session }) {
           <div className="w-full max-w-md rounded-[1.75rem] bg-white shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-4 border-b border-black/5">
               <p className="font-semibold">Reject Payout Request</p>
-              <button onClick={() => setRejectModal(null)} className="rounded-full p-1.5 hover:bg-[#f4f5f7] transition">
+              <button onClick={() => setRejectModal(null)} className="rounded-full p-1.5 hover:bg-mist transition">
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
             <div className="px-5 py-4 space-y-4">
-              <p className="text-sm text-[#697586]">Enter rejection reason (required):</p>
+              <p className="text-sm text-soft">Enter rejection reason (required):</p>
               <textarea
                 value={rejectNotes}
                 onChange={e => setRejectNotes(e.target.value)}
                 placeholder="Reason for rejecting this payout request..."
-                className="w-full rounded-2xl border border-[#e5e7eb] bg-[#f4f5f7] px-4 py-3 text-sm outline-none focus:border-[#1a1a2e] focus:bg-white transition resize-none min-h-[100px]"
+                className="w-full rounded-2xl border border-line bg-mist px-4 py-3 text-sm outline-none focus:border-ink focus:bg-white transition resize-none min-h-[100px]"
                 rows={4}
               />
               <div className="flex gap-3 pt-2">
                 <button
                   onClick={() => setRejectModal(null)}
-                  className="flex-1 rounded-2xl border border-[#e5e7eb] bg-white py-2.5 text-sm font-semibold hover:bg-[#f4f5f7] transition"
+                  className="flex-1 rounded-2xl border border-line bg-white py-2.5 text-sm font-semibold hover:bg-mist transition"
                 >
                   Cancel
                 </button>

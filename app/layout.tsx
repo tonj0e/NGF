@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: '#1a1a2e',
+  themeColor: '#14213d',
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',   // lets the app use the whole screen on phones with a notch (the header keeps clear of it)
@@ -25,7 +25,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className="h-full">
-      <body className="min-h-full bg-[#f4f5f7] text-[#1a1a2e] antialiased">
+      <body className="min-h-full bg-mist text-ink antialiased">
         <AutoUppercase />
         {children}
         <PwaClient />

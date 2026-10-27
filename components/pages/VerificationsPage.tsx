@@ -81,12 +81,12 @@ function UploadBox({ photoKey, preview, onChange }: { photoKey: PhotoKey; previe
   const label = PHOTO_FIELDS.find(f => f.key === photoKey)!.label
   return (
     <div className="block">
-      <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#697586]">{label}</p>
-      <label className="relative flex h-44 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[#d1d5db] bg-[#f9fafb] transition hover:border-[#1a1a2e] hover:bg-[#f4f5f7] overflow-hidden">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-soft">{label}</p>
+      <label className="relative flex h-44 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[#d1d5db] bg-[#f9fafb] transition hover:border-ink hover:bg-mist overflow-hidden">
         {preview ? (
           <img src={preview} alt={label} className="h-full w-full object-cover rounded-2xl" />
         ) : (
-          <span className="text-sm text-[#697586]">+ Upload {label}</span>
+          <span className="text-sm text-soft">+ Upload {label}</span>
         )}
         <input type="file" accept="image/*" className="absolute inset-0 cursor-pointer opacity-0" onChange={e => { const f = e.target.files?.[0]; if (f) onChange(photoKey, f) }} />
       </label>
@@ -292,35 +292,35 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
 
   // embedded and no lead open (waiting for the list, or only the trip prompt is showing): no list is ever shown here
   const hideList = embedded && !active
-  if (loading) return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" /></div>
+  if (loading) return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-ink border-t-transparent" /></div>
 
   return (
     <div className="space-y-4">
-      {toast && <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-2xl bg-[#1a1a2e] px-5 py-3 text-sm font-medium text-white shadow-lg">{toast}</div>}
+      {toast && <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-2xl bg-ink px-5 py-3 text-sm font-medium text-white shadow-lg">{toast}</div>}
       {hideList ? null : !active ? (
         <div className="rounded-[1.75rem] border border-white/70 bg-white shadow-panel">
           <div className="border-b border-black/5 px-6 py-4">
             <p className="text-sm font-semibold">Verification Queue</p>
-            <p className="mt-1 text-sm text-[#697586]">Leads assigned to you for field verification, in the order of today&apos;s route.</p>
+            <p className="mt-1 text-sm text-soft">Leads assigned to you for field verification, in the order of today&apos;s route.</p>
           </div>
           <div className="divide-y divide-black/5">
             {leads.map(l => (
               <div key={l.leadId} className="flex items-center justify-between gap-4 px-6 py-4">
                 <div className="flex min-w-0 items-center gap-3">
-                  {stops[l.leadId] && <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#1a1a2e] text-sm font-bold text-white" title="Stop number on today's route">{stops[l.leadId]}</span>}
+                  {stops[l.leadId] && <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ink text-sm font-bold text-white" title="Stop number on today's route">{stops[l.leadId]}</span>}
                   <div className="min-w-0">
                     <p className="font-medium">{l.customerName}</p>
-                    <p className="text-sm text-[#697586]">{l.phone} &bull; {l.place}</p>
+                    <p className="text-sm text-soft">{l.phone} &bull; {l.place}</p>
                   </div>
                 </div>
                 {stops[l.leadId]
-                  ? <span className="rounded-2xl bg-[#f4f5f7] px-3 py-2 text-xs font-semibold text-[#697586]">Start from My Route</span>
-                  : <button onClick={() => setActive(l)} className="rounded-2xl bg-[#1a1a2e] px-4 py-2 text-sm font-semibold text-white">
+                  ? <span className="rounded-2xl bg-mist px-3 py-2 text-xs font-semibold text-soft">Start from My Route</span>
+                  : <button onClick={() => setActive(l)} className="rounded-2xl bg-ink px-4 py-2 text-sm font-semibold text-white">
                   Start Verification
                 </button>}
               </div>
             ))}
-            {leads.length === 0 && <p className="p-8 text-center text-sm text-[#697586]">No leads assigned for verification.</p>}
+            {leads.length === 0 && <p className="p-8 text-center text-sm text-soft">No leads assigned for verification.</p>}
           </div>
         </div>
       ) : (
@@ -329,14 +329,14 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xl font-semibold">{active.customerName}</p>
-                <p className="mt-1 text-sm text-[#697586]">{active.phone} &bull; {active.leadId}</p>
+                <p className="mt-1 text-sm text-soft">{active.phone} &bull; {active.leadId}</p>
               </div>
-              <button onClick={() => { setActive(null); setPreviews({}); setPhotoFiles({}); if (embedded) onClose?.() }} className="rounded-2xl border border-[#e5e7eb] px-4 py-2 text-sm font-semibold">Back</button>
+              <button onClick={() => { setActive(null); setPreviews({}); setPhotoFiles({}); if (embedded) onClose?.() }} className="rounded-2xl border border-line px-4 py-2 text-sm font-semibold">Back</button>
             </div>
           </div>
           <form onSubmit={submit} className="space-y-8 p-6">
             <section>
-              <p className="mb-4 text-xs font-semibold uppercase tracking-wider text-[#697586]">Borrower Details</p>
+              <p className="mb-4 text-xs font-semibold uppercase tracking-wider text-soft">Borrower Details</p>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {[
                   ['customerName', 'Full Name *', active.customerName],
@@ -353,20 +353,20 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
                   ['nomineeName', 'Nominee Name', active.nomineeName],
                 ].map(([k, l, v]) => (
                   <label key={String(k)} className="block">
-                    <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-[#697586]">{String(l)}</span>
-                    <input name={String(k)} defaultValue={String(v || '')} required={String(l).endsWith('*')} onChange={k === 'phone' ? (e => setVisitPhone(e.target.value)) : undefined} className="w-full rounded-2xl border border-[#e5e7eb] bg-[#f4f5f7] px-4 py-3 text-sm outline-none focus:border-[#1a1a2e] focus:bg-white transition" />
+                    <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-soft">{String(l)}</span>
+                    <input name={String(k)} defaultValue={String(v || '')} required={String(l).endsWith('*')} onChange={k === 'phone' ? (e => setVisitPhone(e.target.value)) : undefined} className="w-full rounded-2xl border border-line bg-mist px-4 py-3 text-sm outline-none focus:border-ink focus:bg-white transition" />
                   </label>
                 ))}
               </div>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 <label className="block">
-                  <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-[#697586]">Nominee Phone</span>
-                  <input name="nomineePhone" defaultValue={String(active.nomineePhone || '')} className="w-full rounded-2xl border border-[#e5e7eb] bg-[#f4f5f7] px-4 py-3 text-sm outline-none focus:border-[#1a1a2e] focus:bg-white transition" />
+                  <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-soft">Nominee Phone</span>
+                  <input name="nomineePhone" defaultValue={String(active.nomineePhone || '')} className="w-full rounded-2xl border border-line bg-mist px-4 py-3 text-sm outline-none focus:border-ink focus:bg-white transition" />
                 </label>
                 <div>
-                  <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-[#697586]">Google Maps Link</span>
+                  <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-soft">Google Maps Link</span>
                   <div className="flex gap-2">
-                    <input name="mapsLink" id="mapsLink" placeholder="Paste Google Maps link here" data-no-upper className="flex-1 min-w-0 rounded-2xl border border-[#e5e7eb] bg-[#f4f5f7] px-4 py-3 text-sm outline-none focus:border-[#1a1a2e] focus:bg-white transition" />
+                    <input name="mapsLink" id="mapsLink" placeholder="Paste Google Maps link here" data-no-upper className="flex-1 min-w-0 rounded-2xl border border-line bg-mist px-4 py-3 text-sm outline-none focus:border-ink focus:bg-white transition" />
                     <input name="gpsCoordinates" id="gpsCoordinates" type="hidden" />
                     <button type="button" onClick={() => {
                       const btn = document.getElementById('gpsBtn') as HTMLButtonElement
@@ -382,21 +382,21 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
                         () => { alert('Location access denied.'); btn.disabled = false; btn.textContent = '📍 Locate' },
                         { enableHighAccuracy: true }
                       )
-                    }} id="gpsBtn" className="rounded-2xl border border-[#e5e7eb] bg-white px-3 py-3 text-sm font-medium whitespace-nowrap">📍 Locate</button>
+                    }} id="gpsBtn" className="rounded-2xl border border-line bg-white px-3 py-3 text-sm font-medium whitespace-nowrap">📍 Locate</button>
                   </div>
                 </div>
               </div>
               <div className="mt-3 grid gap-3 sm:grid-cols-3">
                 <label className="block">
-                  <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-[#697586]">Occupation</span>
-                  <select name="occupation" defaultValue={String(active.occupation || '')} className="w-full rounded-2xl border border-[#e5e7eb] bg-[#f4f5f7] px-4 py-3 text-sm outline-none focus:border-[#1a1a2e] focus:bg-white transition">
+                  <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-soft">Occupation</span>
+                  <select name="occupation" defaultValue={String(active.occupation || '')} className="w-full rounded-2xl border border-line bg-mist px-4 py-3 text-sm outline-none focus:border-ink focus:bg-white transition">
                     <option value="">Select</option>
                     {['House Wife', 'Daily Wages', 'Business Running Shop', 'Employed in Private Firm'].map(o => <option key={o} value={o}>{o}</option>)}
                   </select>
                 </label>
                 <label className="block">
-                  <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-[#697586]">Risk Level *</span>
-                  <select name="riskLevel" required className="w-full rounded-2xl border border-[#e5e7eb] bg-[#f4f5f7] px-4 py-3 text-sm outline-none focus:border-[#1a1a2e] focus:bg-white transition">
+                  <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-soft">Risk Level *</span>
+                  <select name="riskLevel" required className="w-full rounded-2xl border border-line bg-mist px-4 py-3 text-sm outline-none focus:border-ink focus:bg-white transition">
                     <option value="">Select</option>
                     <option>Low</option>
                     <option>Medium</option>
@@ -404,8 +404,8 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
                   </select>
                 </label>
                 <label className="block">
-                  <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-[#697586]">Recommendation *</span>
-                  <select name="recommendationStatus" required className="w-full rounded-2xl border border-[#e5e7eb] bg-[#f4f5f7] px-4 py-3 text-sm outline-none focus:border-[#1a1a2e] focus:bg-white transition">
+                  <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-soft">Recommendation *</span>
+                  <select name="recommendationStatus" required className="w-full rounded-2xl border border-line bg-mist px-4 py-3 text-sm outline-none focus:border-ink focus:bg-white transition">
                     <option value="">Select</option>
                     <option>Verified</option>
                     <option>Suspicious</option>
@@ -415,13 +415,13 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
               </div>
             </section>
             <section>
-              <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-[#697586]">Customer OTP (required)</p>
-              <p className="mb-3 text-sm text-[#697586]">Ask the customer to confirm with the code sent to their phone. Without it the verification cannot go to the branch.</p>
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-soft">Customer OTP (required)</p>
+              <p className="mb-3 text-sm text-soft">Ask the customer to confirm with the code sent to their phone. Without it the verification cannot go to the branch.</p>
               <OtpPanel token={session.token} leadId={active.leadId} purpose="lead_verification" phone={visitPhone} onChange={setOtpState} />
             </section>
             <section>
-              <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-[#697586]">Documents</p>
-              <p className="mb-4 text-sm text-[#697586]">Optional — upload if available. Images are compressed automatically.</p>
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-soft">Documents</p>
+              <p className="mb-4 text-sm text-soft">Optional — upload if available. Images are compressed automatically.</p>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {PHOTO_FIELDS.map(({ key }) => (
                   <UploadBox key={key} photoKey={key} preview={previews[key] ?? null} onChange={handlePhoto} />
@@ -429,12 +429,12 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
               </div>
             </section>
             <section>
-              <p className="mb-4 text-xs font-semibold uppercase tracking-wider text-[#697586]">Field Notes</p>
-              <textarea name="riskNotes" rows={3} className="w-full rounded-2xl border border-[#e5e7eb] bg-[#f4f5f7] px-4 py-3 text-sm outline-none focus:border-[#1a1a2e]" />
+              <p className="mb-4 text-xs font-semibold uppercase tracking-wider text-soft">Field Notes</p>
+              <textarea name="riskNotes" rows={3} className="w-full rounded-2xl border border-line bg-mist px-4 py-3 text-sm outline-none focus:border-ink" />
             </section>
             <div className="flex items-center justify-between border-t border-black/5 pt-5">
-              <p className="text-sm text-[#697586]">Lead ID {active.leadId}</p>
-              <button type="submit" disabled={submitting || !(otpState.verified || otpState.overridden)} title={otpState.verified || otpState.overridden ? '' : 'Verify the customer OTP first'} className="rounded-2xl bg-[#1a1a2e] px-6 py-3 text-sm font-semibold text-white disabled:opacity-40">
+              <p className="text-sm text-soft">Lead ID {active.leadId}</p>
+              <button type="submit" disabled={submitting || !(otpState.verified || otpState.overridden)} title={otpState.verified || otpState.overridden ? '' : 'Verify the customer OTP first'} className="rounded-2xl bg-ink px-6 py-3 text-sm font-semibold text-white disabled:opacity-40">
                 {submitting ? 'Submitting...' : otpState.verified || otpState.overridden ? 'Submit Verification' : 'Verify OTP to submit'}
               </button>
             </div>
@@ -446,15 +446,15 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-md rounded-[1.75rem] border border-white/70 bg-white shadow-panel p-6">
             <h3 className="text-lg font-semibold mb-4">Log Travel Distance</h3>
-            <p className="text-sm text-[#697586] mb-4">Verification submitted. Please confirm your current location to calculate travel distance from your last verification.</p>
+            <p className="text-sm text-soft mb-4">Verification submitted. Please confirm your current location to calculate travel distance from your last verification.</p>
             
             <div className="space-y-3 mb-4">
-              <div className="rounded-xl bg-[#f4f5f7] p-3">
-                <p className="text-xs font-semibold uppercase tracking-wider text-[#697586]">Last Location</p>
+              <div className="rounded-xl bg-mist p-3">
+                <p className="text-xs font-semibold uppercase tracking-wider text-soft">Last Location</p>
                 <p className="text-sm font-medium">{lastLocation ? `${lastLocation.lat.toFixed(6)}, ${lastLocation.lng.toFixed(6)}` : 'No previous location'}</p>
               </div>
-              <div className="rounded-xl bg-[#f4f5f7] p-3">
-                <p className="text-xs font-semibold uppercase tracking-wider text-[#697586]">Current Location</p>
+              <div className="rounded-xl bg-mist p-3">
+                <p className="text-xs font-semibold uppercase tracking-wider text-soft">Current Location</p>
                 <p className="text-sm font-medium">{currentLocation ? `${currentLocation.lat.toFixed(6)}, ${currentLocation.lng.toFixed(6)}` : 'Getting location...'}</p>
               </div>
               {calculatedDistance !== null && (
@@ -480,14 +480,14 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
                   </svg>
                   Open Route in Google Maps
                 </a>
-                <p className="mt-1 text-xs text-[#697586] text-center">Opens Google Maps with route — check road distance, then enter below</p>
+                <p className="mt-1 text-xs text-soft text-center">Opens Google Maps with route — check road distance, then enter below</p>
               </div>
             )}
 
             {/* Manual Distance Input */}
             <div className="mb-4">
               <label className="block">
-                <p className="text-xs font-semibold uppercase tracking-wider text-[#697586] mb-1">Actual Road Distance (km) <span className="text-red-500">*</span></p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-soft mb-1">Actual Road Distance (km) <span className="text-red-500">*</span></p>
                 <input
                   type="number"
                   step="0.1"
@@ -495,7 +495,7 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
                   value={manualDistance}
                   onChange={e => setManualDistance(Number(e.target.value) || 0)}
                   placeholder={calculatedDistance ? `Auto: ${calculatedDistance.toFixed(2)} km` : 'Enter distance from Google Maps'}
-                  className="w-full rounded-2xl border border-[#e5e7eb] bg-[#f4f5f7] px-4 py-3 text-sm outline-none focus:border-[#1a1a2e] focus:bg-white"
+                  className="w-full rounded-2xl border border-line bg-mist px-4 py-3 text-sm outline-none focus:border-ink focus:bg-white"
                 />
               </label>
             </div>
@@ -504,7 +504,7 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
               <button
                 onClick={() => getCurrentLocation()}
                 disabled={savingTrip}
-                className="flex-1 rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2.5 text-sm font-semibold disabled:opacity-60"
+                className="flex-1 rounded-2xl border border-line bg-white px-4 py-2.5 text-sm font-semibold disabled:opacity-60"
               >
                 Refresh Location
               </button>
@@ -518,7 +518,7 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
             <button
               onClick={() => saveTrip(tripLeadId || active?.leadId || '')}
               disabled={savingTrip || !currentLocation || !lastLocation || !manualDistance}
-              className="mt-3 w-full rounded-2xl bg-[#1a1a2e] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+              className="mt-3 w-full rounded-2xl bg-ink px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
             >
               {savingTrip ? 'Saving...' : 'Save Trip'}
             </button>

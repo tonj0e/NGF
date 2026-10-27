@@ -33,7 +33,7 @@ async function compressImage(file: File): Promise<string> {
 }
 
 function Label({ text }: { text: string }) {
-  return <span className="mb-1 block text-[0.7rem] font-semibold uppercase tracking-wider text-[#697586]">{text}</span>
+  return <span className="mb-1 block text-[0.7rem] font-semibold uppercase tracking-wider text-soft">{text}</span>
 }
 
 function TextField({ label, name, value, onChange, required, type = 'text' }: {
@@ -45,7 +45,7 @@ function TextField({ label, name, value, onChange, required, type = 'text' }: {
       <Label text={label} />
       <input name={name} type={type} value={value} onChange={e => onChange(e.target.value)}
         required={required}
-        className="w-full rounded-xl border border-[#e5e7eb] px-3 py-2.5 text-sm outline-none focus:border-[#1a1a2e]" />
+        className="w-full rounded-xl border border-line px-3 py-2.5 text-sm outline-none focus:border-ink" />
     </label>
   )
 }
@@ -56,14 +56,14 @@ function PhotoField({ label, value, onChange }: { label: string; value: string; 
       <Label text={label} />
       <label className="block cursor-pointer">
         {value ? (
-          <div className="relative rounded-xl overflow-hidden border border-[#e5e7eb]">
+          <div className="relative rounded-xl overflow-hidden border border-line">
             <img src={value} alt={label} className="w-full h-36 object-cover" />
             <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 hover:opacity-100 transition">
               <span className="text-white text-xs font-semibold">Change</span>
             </div>
           </div>
         ) : (
-          <div className="flex h-36 w-full items-center justify-center rounded-xl border-2 border-dashed border-[#e5e7eb] bg-[#f8f9fb] text-xs text-[#697586] hover:border-[#1a1a2e] transition">
+          <div className="flex h-36 w-full items-center justify-center rounded-xl border-2 border-dashed border-line bg-[#f8f9fb] text-xs text-soft hover:border-ink transition">
             + Upload {label}
           </div>
         )}
@@ -83,7 +83,7 @@ type WeekStatus = typeof WEEK_STATUSES[number]
 
 const STATUS_STYLE: Record<WeekStatus, string> = {
   Paid:      'border-green-400 bg-green-50 text-green-700',
-  Pending:   'border-[#e5e7eb] bg-[#f8f9fb] text-[#697586]',
+  Pending:   'border-line bg-[#f8f9fb] text-soft',
   Delayed:   'border-orange-300 bg-orange-50 text-orange-700',
   'Not Paid':'border-red-300 bg-red-50 text-red-700',
 }
@@ -185,7 +185,7 @@ export default function ImportCustomerPage({ session }: { session: Session }) {
 
   return (
     <div className="space-y-5 max-w-4xl">
-      {toast && <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-2xl bg-[#1a1a2e] px-5 py-3 text-sm font-medium text-white shadow-lg">{toast}</div>}
+      {toast && <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-2xl bg-ink px-5 py-3 text-sm font-medium text-white shadow-lg">{toast}</div>}
 
       {success && (
         <div className="rounded-2xl border border-green-200 bg-green-50 p-4 text-sm text-green-800">
@@ -218,10 +218,10 @@ export default function ImportCustomerPage({ session }: { session: Session }) {
               <div className="flex gap-2 items-center">
                 <input name="mapsLink" type="url" value={form.mapsLink} onChange={e => setField('mapsLink')(e.target.value)}
                   data-no-upper placeholder="Paste Google Maps link here"
-                  className="w-full rounded-xl border border-[#e5e7eb] px-3 py-2.5 text-sm outline-none focus:border-[#1a1a2e]" />
+                  className="w-full rounded-xl border border-line px-3 py-2.5 text-sm outline-none focus:border-ink" />
                 {form.mapsLink && (
                   <a href={form.mapsLink} target="_blank" rel="noopener"
-                    className="shrink-0 rounded-xl bg-[#f4f5f7] px-3 py-2.5 text-xs font-semibold whitespace-nowrap">
+                    className="shrink-0 rounded-xl bg-mist px-3 py-2.5 text-xs font-semibold whitespace-nowrap">
                     Open Map
                   </a>
                 )}
@@ -230,7 +230,7 @@ export default function ImportCustomerPage({ session }: { session: Session }) {
             <label className="block">
               <Label text="Occupation" />
               <select value={form.occupation} onChange={e => setField('occupation')(e.target.value)}
-                className="w-full rounded-xl border border-[#e5e7eb] bg-white px-3 py-2.5 text-sm outline-none focus:border-[#1a1a2e]">
+                className="w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-ink">
                 <option value="">Select</option>
                 <option>House Wife</option>
                 <option>Daily Wages</option>
@@ -241,7 +241,7 @@ export default function ImportCustomerPage({ session }: { session: Session }) {
             <label className="block">
               <Label text="Risk Level" />
               <select value={form.riskLevel} onChange={e => setField('riskLevel')(e.target.value)}
-                className="w-full rounded-xl border border-[#e5e7eb] bg-white px-3 py-2.5 text-sm outline-none focus:border-[#1a1a2e]">
+                className="w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-ink">
                 <option value="">Select</option>
                 <option>Low</option>
                 <option>Medium</option>
@@ -251,7 +251,7 @@ export default function ImportCustomerPage({ session }: { session: Session }) {
             <label className="block">
               <Label text="Recommendation" />
               <select value={form.recommendationStatus} onChange={e => setField('recommendationStatus')(e.target.value)}
-                className="w-full rounded-xl border border-[#e5e7eb] bg-white px-3 py-2.5 text-sm outline-none focus:border-[#1a1a2e]">
+                className="w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-ink">
                 <option value="">Select</option>
                 <option>Verified</option>
                 <option>Suspicious</option>
@@ -265,7 +265,7 @@ export default function ImportCustomerPage({ session }: { session: Session }) {
         <div className="rounded-[1.75rem] border border-white/70 bg-white shadow-panel">
           <div className="border-b border-black/5 px-6 py-4">
             <p className="text-sm font-semibold">Documents</p>
-            <p className="text-xs text-[#697586] mt-0.5">Optional — upload if available. Images are compressed automatically.</p>
+            <p className="text-xs text-soft mt-0.5">Optional — upload if available. Images are compressed automatically.</p>
           </div>
           <div className="grid gap-4 p-6 grid-cols-2 lg:grid-cols-3">
             <PhotoField label="Customer Photo" value={photos.customerPhoto} onChange={setPhoto('customerPhoto')} />
@@ -286,7 +286,7 @@ export default function ImportCustomerPage({ session }: { session: Session }) {
             <label className="block">
               <Label text="Guarantor *" />
               <select value={form.guarantorId} onChange={e => setField('guarantorId')(e.target.value)} required
-                className="w-full rounded-xl border border-[#e5e7eb] bg-white px-3 py-2.5 text-sm outline-none focus:border-[#1a1a2e]">
+                className="w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-ink">
                 <option value="">Select guarantor</option>
                 {guarantors.map((g: any) => <option key={g.guarantorId} value={g.guarantorId}>{g.name} ({g.code})</option>)}
               </select>
@@ -294,7 +294,7 @@ export default function ImportCustomerPage({ session }: { session: Session }) {
             <label className="block">
               <Label text="NGF AGENT" />
               <select value={form.agentId} onChange={e => setField('agentId')(e.target.value)}
-                className="w-full rounded-xl border border-[#e5e7eb] bg-white px-3 py-2.5 text-sm outline-none focus:border-[#1a1a2e]">
+                className="w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-ink">
                 <option value="">Select agent</option>
                 {agents.map((a: any) => <option key={a.agentId} value={a.agentId}>{a.name}</option>)}
               </select>
@@ -302,7 +302,7 @@ export default function ImportCustomerPage({ session }: { session: Session }) {
             <label className="block">
               <Label text="Loan Product *" />
               <select value={form.loanProduct} onChange={e => setField('loanProduct')(e.target.value)} required
-                className="w-full rounded-xl border border-[#e5e7eb] bg-white px-3 py-2.5 text-sm outline-none focus:border-[#1a1a2e]">
+                className="w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-ink">
                 {APP_CONFIG.LOAN_PRODUCTS.map(p => (
                   <option key={p.key} value={p.key}>{p.label} — ₹{p.netDisbursed} disbursed, ₹{p.weeklyCollection}/wk × {p.durationWeeks}w</option>
                 ))}
@@ -312,15 +312,15 @@ export default function ImportCustomerPage({ session }: { session: Session }) {
               <Label text="Joined Date" />
               <input type="date" value={form.joinedDate} onChange={e => setField('joinedDate')(e.target.value)}
                 data-no-upper
-                className="w-full rounded-xl border border-[#e5e7eb] px-3 py-2.5 text-sm outline-none focus:border-[#1a1a2e]" />
+                className="w-full rounded-xl border border-line px-3 py-2.5 text-sm outline-none focus:border-ink" />
             </label>
             <label className="block">
               <Label text="Disburse Date *" />
               <input type="date" value={form.disburseDate} onChange={e => setField('disburseDate')(e.target.value)} required
                 data-no-upper
-                className="w-full rounded-xl border border-[#e5e7eb] px-3 py-2.5 text-sm outline-none focus:border-[#1a1a2e]" />
+                className="w-full rounded-xl border border-line px-3 py-2.5 text-sm outline-none focus:border-ink" />
               {schedule.length > 0 && (
-                <p className="mt-1 text-[11px] text-[#697586]">First collection: {schedule[0].date} · Last: {schedule[schedule.length - 1].date}</p>
+                <p className="mt-1 text-[11px] text-soft">First collection: {schedule[0].date} · Last: {schedule[schedule.length - 1].date}</p>
               )}
             </label>
           </div>
@@ -332,13 +332,13 @@ export default function ImportCustomerPage({ session }: { session: Session }) {
             <div className="border-b border-black/5 px-6 py-4 flex items-center justify-between flex-wrap gap-2">
               <div>
                 <p className="text-sm font-semibold">Repayment Status per Week</p>
-                <p className="text-xs text-[#697586] mt-0.5">Click each week to cycle: Pending → Paid → Delayed → Not Paid</p>
+                <p className="text-xs text-soft mt-0.5">Click each week to cycle: Pending → Paid → Delayed → Not Paid</p>
               </div>
               <div className="flex gap-2 flex-wrap text-xs">
                 <span className="rounded-lg bg-green-50 px-2 py-1 text-green-700 font-semibold">{paidCount} Paid</span>
                 <span className="rounded-lg bg-orange-50 px-2 py-1 text-orange-700 font-semibold">{delayedCount} Delayed</span>
                 <span className="rounded-lg bg-red-50 px-2 py-1 text-red-700 font-semibold">{notPaidCount} Not Paid</span>
-                <span className="rounded-lg bg-[#f8f9fb] px-2 py-1 text-[#697586] font-semibold">{schedule.length - paidCount - delayedCount - notPaidCount} Pending</span>
+                <span className="rounded-lg bg-[#f8f9fb] px-2 py-1 text-soft font-semibold">{schedule.length - paidCount - delayedCount - notPaidCount} Pending</span>
               </div>
             </div>
             <div className="p-6">
@@ -348,7 +348,7 @@ export default function ImportCustomerPage({ session }: { session: Session }) {
                   const s: Record<number, WeekStatus> = {}
                   schedule.forEach(w => { s[w.week] = 'Pending' })
                   setWeekStatuses(s)
-                }} className="rounded-xl border border-[#e5e7eb] px-3 py-1.5 text-xs font-semibold">All Pending</button>
+                }} className="rounded-xl border border-line px-3 py-1.5 text-xs font-semibold">All Pending</button>
                 <button type="button" onClick={() => {
                   const s: Record<number, WeekStatus> = {}
                   schedule.forEach(w => { s[w.week] = 'Paid' })
@@ -359,7 +359,7 @@ export default function ImportCustomerPage({ session }: { session: Session }) {
                   const s: Record<number, WeekStatus> = {}
                   schedule.forEach(w => { s[w.week] = w.date <= today ? 'Paid' : 'Pending' })
                   setWeekStatuses(s)
-                }} className="rounded-xl border border-[#1a1a2e] bg-[#1a1a2e] px-3 py-1.5 text-xs font-semibold text-white">Auto-mark Past as Paid</button>
+                }} className="rounded-xl border border-ink bg-ink px-3 py-1.5 text-xs font-semibold text-white">Auto-mark Past as Paid</button>
               </div>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                 {schedule.map(w => {
@@ -380,7 +380,7 @@ export default function ImportCustomerPage({ session }: { session: Session }) {
 
         <div className="flex gap-3 pb-4">
           <button type="submit" disabled={saving || !form.disburseDate}
-            className="rounded-2xl bg-[#1a1a2e] px-8 py-3 text-sm font-semibold text-white disabled:opacity-50">
+            className="rounded-2xl bg-ink px-8 py-3 text-sm font-semibold text-white disabled:opacity-50">
             {saving ? 'Importing...' : 'Import Customer'}
           </button>
         </div>

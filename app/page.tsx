@@ -78,7 +78,7 @@ function AttendanceModal({ session, onDone }: { session: Session; onDone: () => 
             </svg>
           </div>
           <p className="text-lg font-semibold">Attendance Marked</p>
-          <p className="mt-2 text-sm text-[#697586]">Location saved successfully</p>
+          <p className="mt-2 text-sm text-soft">Location saved successfully</p>
         </div>
       </div>
     )
@@ -95,33 +95,33 @@ function AttendanceModal({ session, onDone }: { session: Session; onDone: () => 
             </svg>
           </div>
           <h3 className="text-xl font-semibold">Mark Attendance</h3>
-          <p className="mt-1 text-sm text-[#697586]">Welcome back! Please confirm your location to start your day.</p>
+          <p className="mt-1 text-sm text-soft">Welcome back! Please confirm your location to start your day.</p>
         </div>
 
         {error && <p className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">{error}</p>}
 
-        <div className="rounded-xl bg-[#f4f5f7] p-4 mb-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-[#697586] mb-2">Current Location</p>
+        <div className="rounded-xl bg-mist p-4 mb-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-soft mb-2">Current Location</p>
           {gettingLocation ? (
             <div className="flex items-center gap-3">
-              <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" />
-              <span className="text-sm text-[#697586]">Getting GPS location...</span>
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-ink border-t-transparent" />
+              <span className="text-sm text-soft">Getting GPS location...</span>
             </div>
           ) : location ? (
-            <p className="font-mono text-sm">{location.lat.toFixed(6)}, {location.lng.toFixed(6)} <span className="text-xs text-[#697586]">(±{Math.round(location.accuracy)}m)</span></p>
+            <p className="font-mono text-sm">{location.lat.toFixed(6)}, {location.lng.toFixed(6)} <span className="text-xs text-soft">(±{Math.round(location.accuracy)}m)</span></p>
           ) : (
-            <button onClick={getLocation} className="w-full rounded-xl bg-white border border-[#e5e7eb] px-4 py-3 text-sm font-medium">
+            <button onClick={getLocation} className="w-full rounded-xl bg-white border border-line px-4 py-3 text-sm font-medium">
               Retry Location
             </button>
           )}
         </div>
 
         <div className="flex gap-2">
-          <button onClick={skip} className="flex-1 rounded-2xl border border-[#e5e7eb] bg-white px-4 py-3 text-sm font-semibold text-[#697586] hover:bg-[#f4f5f7]">
+          <button onClick={skip} className="flex-1 rounded-2xl border border-line bg-white px-4 py-3 text-sm font-semibold text-soft hover:bg-mist">
             Skip for Now
           </button>
           <button onClick={markAttendance} disabled={submitting || gettingLocation || !location}
-            className="flex-1 rounded-2xl bg-[#1a1a2e] px-4 py-3 text-sm font-semibold text-white disabled:opacity-60">
+            className="flex-1 rounded-2xl bg-ink px-4 py-3 text-sm font-semibold text-white disabled:opacity-60">
             {submitting ? 'Saving...' : 'Mark Attendance'}
           </button>
         </div>
@@ -190,12 +190,12 @@ export default function Home() {
 
   // While the saved login is checked, show the app's own frame (bar, header, cards) instead of a blank white page
   if (loading) return (
-    <div className="flex h-screen bg-[#f4f5f7]" aria-busy="true" aria-label="Loading">
-      <div className="hidden w-14 shrink-0 flex-col items-center gap-4 border-r border-[#e5e7eb] bg-white py-5 sm:flex">
+    <div className="flex h-screen bg-mist" aria-busy="true" aria-label="Loading">
+      <div className="hidden w-14 shrink-0 flex-col items-center gap-4 border-r border-line bg-white py-5 sm:flex">
         {[0, 1, 2, 3, 4, 5].map(i => <div key={i} className="h-7 w-7 animate-pulse rounded-lg bg-[#e8eaf0]" />)}
       </div>
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex h-16 items-center justify-between border-b border-[#e5e7eb] bg-white px-5">
+        <div className="flex h-16 items-center justify-between border-b border-line bg-white px-5">
           <div className="h-5 w-36 animate-pulse rounded bg-[#e8eaf0]" />
           <div className="h-8 w-8 animate-pulse rounded-full bg-[#e8eaf0]" />
         </div>

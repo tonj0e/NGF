@@ -35,7 +35,7 @@ function span(min: number) {
 
 const BAND: Record<string, string> = {
   Excellent: 'bg-green-100 text-green-700', Good: 'bg-emerald-100 text-emerald-700', Fair: 'bg-amber-100 text-amber-800',
-  Building: 'bg-blue-100 text-blue-700', New: 'bg-[#f4f5f7] text-[#697586]',
+  Building: 'bg-blue-100 text-blue-700', New: 'bg-mist text-soft',
 }
 const card = 'rounded-[1.75rem] border border-white/70 bg-white shadow-panel p-4 sm:p-5'
 
@@ -53,8 +53,8 @@ export default function CustomerHistory({ session, customerId }: { session: Sess
       .catch(() => setError('Could not load history'))
   }, [customerId, session.token])
 
-  if (error) return <p className="rounded-2xl border border-dashed border-[#e5e7eb] bg-white p-8 text-center text-sm text-red-600">{error}</p>
-  if (!data) return <p className="p-8 text-center text-sm text-[#697586]">Loading history…</p>
+  if (error) return <p className="rounded-2xl border border-dashed border-line bg-white p-8 text-center text-sm text-red-600">{error}</p>
+  if (!data) return <p className="p-8 text-center text-sm text-soft">Loading history…</p>
 
   const { score, loans } = data
   const pct = Math.min(100, Math.round((score.value / score.max) * 100))
@@ -64,23 +64,23 @@ export default function CustomerHistory({ session, customerId }: { session: Sess
       <div className={card}>
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-[#697586]">NGF Score</p>
-            <p className="mt-1 text-4xl font-bold leading-none text-[#1a1a2e]">{score.value}<span className="ml-1 text-base font-semibold text-[#9ca3af]">/ {score.max}</span></p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-soft">NGF Score</p>
+            <p className="mt-1 text-4xl font-bold leading-none text-ink">{score.value}<span className="ml-1 text-base font-semibold text-[#9ca3af]">/ {score.max}</span></p>
           </div>
           <span className={`rounded-full px-3 py-1 text-xs font-bold ${BAND[score.band] || BAND.New}`}>{score.band}</span>
         </div>
-        <div className="mt-4 h-3 overflow-hidden rounded-full bg-[#f4f5f7]" role="progressbar" aria-valuenow={score.value} aria-valuemin={0} aria-valuemax={score.max}>
+        <div className="mt-4 h-3 overflow-hidden rounded-full bg-mist" role="progressbar" aria-valuenow={score.value} aria-valuemin={0} aria-valuemax={score.max}>
           <div className="h-full rounded-full bg-gradient-to-r from-amber-400 via-lime-400 to-green-600" style={{ width: `${pct}%` }} />
         </div>
         <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-          <div className="rounded-2xl bg-[#f9fafb] px-2 py-2"><p className="text-lg font-bold">{loans.length}</p><p className="text-[11px] text-[#697586]">Loans taken</p></div>
-          <div className="rounded-2xl bg-[#f9fafb] px-2 py-2"><p className="text-lg font-bold">{score.completedLoans}</p><p className="text-[11px] text-[#697586]">Completed</p></div>
-          <div className="rounded-2xl bg-[#f9fafb] px-2 py-2"><p className="text-lg font-bold">{score.onTimeRate == null ? '–' : `${score.onTimeRate}%`}</p><p className="text-[11px] text-[#697586]">Paid on time</p></div>
+          <div className="rounded-2xl bg-[#f9fafb] px-2 py-2"><p className="text-lg font-bold">{loans.length}</p><p className="text-[11px] text-soft">Loans taken</p></div>
+          <div className="rounded-2xl bg-[#f9fafb] px-2 py-2"><p className="text-lg font-bold">{score.completedLoans}</p><p className="text-[11px] text-soft">Completed</p></div>
+          <div className="rounded-2xl bg-[#f9fafb] px-2 py-2"><p className="text-lg font-bold">{score.onTimeRate == null ? '–' : `${score.onTimeRate}%`}</p><p className="text-[11px] text-soft">Paid on time</p></div>
         </div>
         <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs">
-          <div className="rounded-2xl bg-green-50 px-2 py-2"><p className="text-base font-bold text-green-800">+{score.parts.cyclePoints}</p><p className="text-[11px] text-[#697586]">Completed loans</p></div>
-          <div className="rounded-2xl bg-sky-50 px-2 py-2"><p className="text-base font-bold text-sky-800">{score.parts.reviewPoints >= 0 ? '+' : ''}{score.parts.reviewPoints}</p><p className="text-[11px] text-[#697586]">Staff reviews{score.reviews.count ? ` (${score.reviews.average}★ avg of ${score.reviews.count})` : ' (none yet)'}</p></div>
-          <div className="rounded-2xl bg-red-50 px-2 py-2"><p className="text-base font-bold text-red-800">−{score.parts.penalties}</p><p className="text-[11px] text-[#697586]">Late / overdue</p></div>
+          <div className="rounded-2xl bg-green-50 px-2 py-2"><p className="text-base font-bold text-green-800">+{score.parts.cyclePoints}</p><p className="text-[11px] text-soft">Completed loans</p></div>
+          <div className="rounded-2xl bg-sky-50 px-2 py-2"><p className="text-base font-bold text-sky-800">{score.parts.reviewPoints >= 0 ? '+' : ''}{score.parts.reviewPoints}</p><p className="text-[11px] text-soft">Staff reviews{score.reviews.count ? ` (${score.reviews.average}★ avg of ${score.reviews.count})` : ' (none yet)'}</p></div>
+          <div className="rounded-2xl bg-red-50 px-2 py-2"><p className="text-base font-bold text-red-800">−{score.parts.penalties}</p><p className="text-[11px] text-soft">Late / overdue</p></div>
         </div>
         {score.inProgress && (
           <p className="mt-3 rounded-2xl bg-amber-50 px-3 py-2 text-xs text-amber-900">
@@ -101,7 +101,7 @@ export default function CustomerHistory({ session, customerId }: { session: Sess
         )}
       </div>
 
-      {loans.length === 0 && <p className="rounded-2xl border border-dashed border-[#e5e7eb] bg-white p-8 text-center text-sm text-[#697586]">No loans yet.</p>}
+      {loans.length === 0 && <p className="rounded-2xl border border-dashed border-line bg-white p-8 text-center text-sm text-soft">No loans yet.</p>}
 
       {loans.map((l, idx) => {
         const isOpen = open === l.loanId
@@ -109,10 +109,10 @@ export default function CustomerHistory({ session, customerId }: { session: Sess
           <div key={l.loanId} className={card}>
             <button type="button" className="flex w-full items-start justify-between gap-3 text-left" onClick={() => setOpen(isOpen ? '' : l.loanId)}>
               <div className="min-w-0">
-                <p className="text-xs font-semibold uppercase tracking-wider text-[#697586]">Loan {loans.length - idx}</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-soft">Loan {loans.length - idx}</p>
                 <p className="mt-0.5 font-mono text-sm font-semibold">{l.loanId}</p>
-                <p className="font-mono text-xs text-[#697586]">{l.loanAccountNo}</p>
-                <p className="mt-1 text-xs text-[#697586]">{money(l.principal)} · {money(l.weekly)} a week · {l.durationWeeks} weeks · {l.startDate && day(l.startDate)}</p>
+                <p className="font-mono text-xs text-soft">{l.loanAccountNo}</p>
+                <p className="mt-1 text-xs text-soft">{money(l.principal)} · {money(l.weekly)} a week · {l.durationWeeks} weeks · {l.startDate && day(l.startDate)}</p>
               </div>
               <div className="flex shrink-0 flex-col items-end gap-1">
                 <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${l.completed ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>{l.completed ? 'Completed' : l.status}</span>
@@ -122,7 +122,7 @@ export default function CustomerHistory({ session, customerId }: { session: Sess
               </div>
             </button>
             <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-semibold">
-              <span className="rounded-full bg-[#f4f5f7] px-2 py-0.5">{l.paidWeeks}/{l.weeks.length} paid</span>
+              <span className="rounded-full bg-mist px-2 py-0.5">{l.paidWeeks}/{l.weeks.length} paid</span>
               <span className="rounded-full bg-green-100 px-2 py-0.5 text-green-700">{l.onTimeWeeks} on time</span>
               {l.lateWeeks > 0 && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-800">{l.lateWeeks} late</span>}
               {l.overdueWeeks > 0 && <span className="rounded-full bg-red-100 px-2 py-0.5 text-red-700">{l.overdueWeeks} overdue</span>}
@@ -134,8 +134,8 @@ export default function CustomerHistory({ session, customerId }: { session: Sess
                   <li key={w.weekNo} className="py-2.5">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold">Week {w.weekNo} <span className="font-normal text-[#697586]">· {day(w.dueDate)}</span></p>
-                        <p className="text-xs text-[#697586]">
+                        <p className="text-sm font-semibold">Week {w.weekNo} <span className="font-normal text-soft">· {day(w.dueDate)}</span></p>
+                        <p className="text-xs text-soft">
                           {money(w.amount)}{w.mode && <> · {w.mode}</>}{w.utr && <> · UTR <span className="font-mono">{w.utr}</span>{w.utrStatus && w.utrStatus !== 'Verified' && <span className="text-amber-700"> ({w.utrStatus})</span>}</>}
                         </p>
                         {(w.outcome === 'on-time' || w.outcome === 'late') && (
@@ -149,7 +149,7 @@ export default function CustomerHistory({ session, customerId }: { session: Sess
                         {w.outcome === 'on-time' && <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700"><CheckCircle2 className="h-3.5 w-3.5" />On time</span>}
                         {w.outcome === 'late' && <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800"><Clock className="h-3.5 w-3.5" />Late {span(w.lateMinutes)}</span>}
                         {w.outcome === 'overdue' && <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700"><AlertTriangle className="h-3.5 w-3.5" />Overdue {span(w.lateMinutes)}</span>}
-                        {w.outcome === 'upcoming' && <span className="rounded-full bg-[#f4f5f7] px-2 py-0.5 text-xs font-semibold text-[#697586]">Upcoming</span>}
+                        {w.outcome === 'upcoming' && <span className="rounded-full bg-mist px-2 py-0.5 text-xs font-semibold text-soft">Upcoming</span>}
                         {w.outcome === 'waived' && <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-700">Waived</span>}
                         {w.penalty > 0 && <p className="mt-0.5 text-xs font-bold text-red-600">−{w.penalty}</p>}
                       </div>

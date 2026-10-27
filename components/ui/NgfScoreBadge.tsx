@@ -1,7 +1,7 @@
 // The NGF Score chip (our own 0-850 score, built from payments and staff reviews). Not a CIBIL score.
 const TONE: Record<string, string> = {
   Excellent: 'bg-green-100 text-green-800', Good: 'bg-lime-100 text-lime-800', Fair: 'bg-amber-100 text-amber-800',
-  Building: 'bg-orange-100 text-orange-800', New: 'bg-[#f4f5f7] text-[#697586]',
+  Building: 'bg-orange-100 text-orange-800', New: 'bg-mist text-soft',
 }
 export default function NgfScoreBadge({ value, band, reviews, average, size = 'sm' }: { value?: number; band?: string; reviews?: number; average?: number | null; size?: 'sm' | 'lg' }) {
   const b = band || 'New'

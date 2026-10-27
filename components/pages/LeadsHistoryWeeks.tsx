@@ -67,7 +67,7 @@ export default function LeadsHistoryWeeks({ session, search, branch, version, re
   if (!weekMap.has(thisMonday)) weekMap.set(thisMonday, [])   // this week is always shown, even before any lead is finished
   const weeks = Array.from(weekMap.keys()).sort().reverse()
 
-  if (loading) return <p className="p-8 text-center text-sm text-[#697586]">Loading…</p>
+  if (loading) return <p className="p-8 text-center text-sm text-soft">Loading…</p>
 
   return (
     <div className="space-y-3">
@@ -82,9 +82,9 @@ export default function LeadsHistoryWeeks({ session, search, branch, version, re
             <button onClick={() => setOpenWeeks(toggle(openWeeks, w))} className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left">
               <span>
                 <span className="block text-sm font-semibold">{weekLabel(w)} {parse(w).getFullYear()}</span>
-                <span className="text-xs text-[#697586]">{w === thisMonday ? 'This week · ' : ''}{total} lead{total === 1 ? '' : 's'}</span>
+                <span className="text-xs text-soft">{w === thisMonday ? 'This week · ' : ''}{total} lead{total === 1 ? '' : 's'}</span>
               </span>
-              <ChevronDown size={18} className={`shrink-0 text-[#697586] transition ${open ? 'rotate-180' : ''}`} />
+              <ChevronDown size={18} className={`shrink-0 text-soft transition ${open ? 'rotate-180' : ''}`} />
             </button>
             {open && (
               <div className="divide-y divide-black/5 border-t border-black/5">
@@ -96,13 +96,13 @@ export default function LeadsHistoryWeeks({ session, search, branch, version, re
                         className="flex w-full items-center justify-between gap-3 px-5 py-3 text-left disabled:cursor-default">
                         <span className={`text-sm ${n ? 'font-medium' : 'text-[#9aa3b2]'}`}>{dayLabel(d)}</span>
                         <span className="flex items-center gap-2">
-                          <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${n ? 'bg-[#f4f5f7]' : 'text-[#9aa3b2]'}`}>{n ? `${n} lead${n === 1 ? '' : 's'}` : 'No leads'}</span>
-                          {n > 0 && <ChevronDown size={16} className={`text-[#697586] transition ${dOpen ? 'rotate-180' : ''}`} />}
+                          <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${n ? 'bg-mist' : 'text-[#9aa3b2]'}`}>{n ? `${n} lead${n === 1 ? '' : 's'}` : 'No leads'}</span>
+                          {n > 0 && <ChevronDown size={16} className={`text-soft transition ${dOpen ? 'rotate-180' : ''}`} />}
                         </span>
                       </button>
                       {dOpen && n > 0 && (
                         <div className="divide-y divide-black/5 border-t border-black/5 bg-[#fafbfc]">
-                          {rows === 'loading' || !rows ? <p className="p-5 text-center text-xs text-[#697586]">Loading…</p> : rows.map(renderLead)}
+                          {rows === 'loading' || !rows ? <p className="p-5 text-center text-xs text-soft">Loading…</p> : rows.map(renderLead)}
                         </div>
                       )}
                     </div>
@@ -113,7 +113,7 @@ export default function LeadsHistoryWeeks({ session, search, branch, version, re
           </div>
         )
       })}
-      <button onClick={() => setWeeksBack(w => w + 12)} className="w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 py-3 text-sm font-semibold text-[#697586]">Show older weeks</button>
+      <button onClick={() => setWeeksBack(w => w + 12)} className="w-full rounded-2xl border border-line bg-white px-4 py-3 text-sm font-semibold text-soft">Show older weeks</button>
     </div>
   )
 }

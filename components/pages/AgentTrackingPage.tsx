@@ -414,12 +414,12 @@ export default function AgentTrackingPage({ session }: { session: Session }) {
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div>
             <p className="text-sm font-semibold">Agent Live Tracking <span className="ml-2 text-xs text-green-600 font-normal animate-pulse">LIVE</span></p>
-            <p className="mt-1 text-xs text-[#697586]">
+            <p className="mt-1 text-xs text-soft">
               {Array.from(locations.values()).filter(l => l.isOnline).length} of {locations.size} agents online · Updates every 5s
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={loadLocations} disabled={loading} className="rounded-xl border border-[#e5e7eb] bg-white px-3 py-2 text-xs font-semibold disabled:opacity-50">
+            <button onClick={loadLocations} disabled={loading} className="rounded-xl border border-line bg-white px-3 py-2 text-xs font-semibold disabled:opacity-50">
               {loading ? 'Refreshing…' : 'Refresh Now'}
             </button>
           </div>
@@ -432,15 +432,15 @@ export default function AgentTrackingPage({ session }: { session: Session }) {
           {/* Map Area */}
           <div className="lg:w-3/4 relative h-[560px]">
             <div id="agent-map-google" className="w-full h-full" />
-            {loading && <div className="absolute inset-0 flex items-center justify-center bg-white/70"><div className="h-8 w-8 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" /></div>}
-            {!isApiKeyConfigured && <div className="absolute inset-0 flex items-center justify-center bg-[#f4f5f7] p-6 text-center text-sm text-[#697586]">The map key is not set (NEXT_PUBLIC_GOOGLE_MAPS_JAVASCRIPT_API_KEY). The agent list on the right still works.</div>}
+            {loading && <div className="absolute inset-0 flex items-center justify-center bg-white/70"><div className="h-8 w-8 animate-spin rounded-full border-2 border-ink border-t-transparent" /></div>}
+            {!isApiKeyConfigured && <div className="absolute inset-0 flex items-center justify-center bg-mist p-6 text-center text-sm text-soft">The map key is not set (NEXT_PUBLIC_GOOGLE_MAPS_JAVASCRIPT_API_KEY). The agent list on the right still works.</div>}
           </div>
 
           {/* Sidebar - Agent List */}
           <div className="lg:w-1/4 border-l border-white/70 bg-[#fafafa] overflow-y-auto max-h-[560px] p-3">
-            <p className="text-xs font-semibold uppercase tracking-wider text-[#697586] mb-3">Agents ({locations.size})</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-soft mb-3">Agents ({locations.size})</p>
             {locations.size === 0 ? (
-              <div className="text-center py-8 text-xs text-[#697586]">
+              <div className="text-center py-8 text-xs text-soft">
                 <p>No agents sharing location</p>
                 <p className="mt-1">Agents must start tracking from their portal</p>
               </div>
@@ -472,8 +472,8 @@ export default function AgentTrackingPage({ session }: { session: Session }) {
                             <p className="text-sm font-medium truncate">{agent.name}</p>
                             <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${statusClass}`}>{statusText}</span>
                           </div>
-                          {agent.phone && <p className="text-xs text-[#697586] mt-0.5">{agent.phone}</p>}
-                          {agent.agentType && <p className="text-xs text-[#697586] mt-0.5">{agent.agentType}</p>}
+                          {agent.phone && <p className="text-xs text-soft mt-0.5">{agent.phone}</p>}
+                          {agent.agentType && <p className="text-xs text-soft mt-0.5">{agent.agentType}</p>}
                           {agent.speed !== null && agent.speed !== undefined && (
                             <p className="text-[10px] text-blue-600 mt-0.5">🚗 {(agent.speed * 3.6).toFixed(1)} km/h</p>
                           )}

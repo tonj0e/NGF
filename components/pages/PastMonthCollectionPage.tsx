@@ -31,22 +31,22 @@ export default function PastMonthCollectionPage({ session }: { session: Session 
   const total = summary.paidTotal
   const avg = summary.paidCount ? total / summary.paidCount : 0
 
-  if (loading) return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#1a1a2e] border-t-transparent" /></div>
+  if (loading) return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-ink border-t-transparent" /></div>
 
   return (
     <div className="space-y-5">
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-[1.5rem] border border-white/70 bg-white p-5 shadow-panel">
-          <p className="text-xs text-[#697586]">Total Collected</p>
+          <p className="text-xs text-soft">Total Collected</p>
           <p className="mt-2 text-3xl font-semibold">{currency(total)}</p>
-          <p className="mt-1 text-xs text-[#697586]">{lastMonthStr}</p>
+          <p className="mt-1 text-xs text-soft">{lastMonthStr}</p>
         </div>
         <div className="rounded-[1.5rem] border border-white/70 bg-white p-5 shadow-panel">
-          <p className="text-xs text-[#697586]">Avg Ticket</p>
+          <p className="text-xs text-soft">Avg Ticket</p>
           <p className="mt-2 text-3xl font-semibold">{currency(avg)}</p>
         </div>
         <div className="rounded-[1.5rem] border border-white/70 bg-white p-5 shadow-panel">
-          <p className="text-xs text-[#697586]">Collection Count</p>
+          <p className="text-xs text-soft">Collection Count</p>
           <p className="mt-2 text-3xl font-semibold">{summary.paidCount}</p>
         </div>
       </div>
@@ -56,23 +56,23 @@ export default function PastMonthCollectionPage({ session }: { session: Session 
           <p className="text-sm font-semibold">Past Month Transactions — {lastMonthStr}</p>
         </div>
         <table className="w-full text-left text-sm">
-          <thead className="border-b border-black/5 bg-[#fafafa] text-[#697586]">
+          <thead className="border-b border-black/5 bg-[#fafafa] text-soft">
             <tr>{['Customer', 'Loan ID', 'Week', 'Paid Date', 'Amount', 'Mode'].map(h => <th key={h} className="px-5 py-3 font-medium text-xs">{h}</th>)}</tr>
           </thead>
           <tbody className="divide-y divide-black/5">
             {paid.map(r => (
               <tr key={r['Repayment ID']} className="hover:bg-[#fafafa]">
                 <td className="px-5 py-3 font-medium">{r.customerName}</td>
-                <td className="px-5 py-3 font-mono text-xs text-[#697586]">{r['Loan ID']}</td>
-                <td className="px-5 py-3 text-[#697586]">{r['Week No']}</td>
-                <td className="px-5 py-3 text-[#697586]">{r['Paid Date']}</td>
+                <td className="px-5 py-3 font-mono text-xs text-soft">{r['Loan ID']}</td>
+                <td className="px-5 py-3 text-soft">{r['Week No']}</td>
+                <td className="px-5 py-3 text-soft">{r['Paid Date']}</td>
                 <td className="px-5 py-3 font-semibold">{currency(Number(r['Amount']))}</td>
-                <td className="px-5 py-3 text-[#697586]">{r['Payment Mode'] || '—'}</td>
+                <td className="px-5 py-3 text-soft">{r['Payment Mode'] || '—'}</td>
               </tr>
             ))}
           </tbody>
         </table>
-        {paid.length === 0 && <p className="p-8 text-center text-sm text-[#697586]">No collections for last month.</p>}
+        {paid.length === 0 && <p className="p-8 text-center text-sm text-soft">No collections for last month.</p>}
         <div className="px-5 pb-4"><Pager page={page} totalPages={pagination.totalPages} total={pagination.total} noun="payments" pageSize={50} onPage={setPage} /></div>
       </div>
     </div>
