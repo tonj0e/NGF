@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
+import dynamic from 'next/dynamic'
 import { Session } from '@/types'
 import { APP_CONFIG } from '@/lib/config'
 import { Button } from '@/components/ui/button'
@@ -8,40 +9,44 @@ import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuIte
 import { Sheet, SheetContent, SheetClose } from '@/components/ui/sheet'
 import { Menu, X, Bell, User, LogOut, LayoutDashboard, Users, FileText, Truck, BarChart3, LandPlot, Upload, CreditCard, Settings, Shield, MessageSquare, MapPin, ClipboardList, Wallet, History, Sparkles, HelpCircle, ChevronLeft, ChevronRight, DollarSign, Coins, Banknote, Pin, PinOff, PieChart, TrendingUp, Route as RouteIcon, Navigation, Building2, Link2, LayoutGrid, ChevronDown } from 'lucide-react'
 import Dashboard from './pages/Dashboard'
-import LeadsPage from './pages/LeadsPage'
+const LeadsPage = dynamic(() => import('./pages/LeadsPage'), { loading: () => <PageLoading /> })
 import InstallAppButton from './InstallAppButton'
 import { hasAnyLead, hasAnyCustomer, hasAnyCollection } from '@/lib/features'
-import StaffPage from './pages/StaffPage'
-import RepayPage from './pages/RepayPage'
-import NotificationsPage from './pages/NotificationsPage'
-import SubmitLeadPage from './pages/SubmitLeadPage'
-import VerificationsPage from './pages/VerificationsPage'
-import TripDetailsPage from './pages/TripDetailsPage'
-import CollectionsPage from './pages/CollectionsPage'
-import CustomersPage from './pages/CustomersPage'
-import LoansPage from './pages/LoansPage'
-import ChequesPledgedPage from './pages/ChequesPledgedPage'
-import ReportsPage from './pages/ReportsPage'
-import CommissionsPage from './pages/CommissionsPage'
-import PayoutRequestsPage from './pages/PayoutRequestsPage'
-import PastMonthCollectionPage from './pages/PastMonthCollectionPage'
-import ImportCustomerPage from './pages/ImportCustomerPage'
-import CollectionPage from './pages/CollectionPage'
-import SettlementsPage from './pages/SettlementsPage'
-import VisitRoutesPage from './pages/VisitRoutesPage'
-import MyRoutePage from './pages/MyRoutePage'
-import ReviewOptionsPage from './pages/ReviewOptionsPage'
-import MyCustomersPage from './pages/MyCustomersPage'
-import DevPage from './pages/DevPage'
-import GuarantorPage from './pages/GuarantorPage'
-import MyIdCardPage from './pages/MyIdCardPage'
-import DepositsPage from './pages/DepositsPage'
-import AgentLocationPage from './pages/AgentLocationPage'
-import AgentTracker from './agent/AgentTracker'
-import PaymentsPage from './pages/PaymentsPage'
-import AgentTrackingPage from './pages/AgentTrackingPage'
-import BranchTownPage from './pages/BranchTownPage'
-import PaymentLinksPage from './pages/PaymentLinksPage'
+const StaffPage = dynamic(() => import('./pages/StaffPage'), { loading: () => <PageLoading /> })
+const RepayPage = dynamic(() => import('./pages/RepayPage'), { loading: () => <PageLoading /> })
+const NotificationsPage = dynamic(() => import('./pages/NotificationsPage'), { loading: () => <PageLoading /> })
+const SubmitLeadPage = dynamic(() => import('./pages/SubmitLeadPage'), { loading: () => <PageLoading /> })
+const VerificationsPage = dynamic(() => import('./pages/VerificationsPage'), { loading: () => <PageLoading /> })
+const TripDetailsPage = dynamic(() => import('./pages/TripDetailsPage'), { loading: () => <PageLoading /> })
+const CollectionsPage = dynamic(() => import('./pages/CollectionsPage'), { loading: () => <PageLoading /> })
+const CustomersPage = dynamic(() => import('./pages/CustomersPage'), { loading: () => <PageLoading /> })
+const LoansPage = dynamic(() => import('./pages/LoansPage'), { loading: () => <PageLoading /> })
+const ChequesPledgedPage = dynamic(() => import('./pages/ChequesPledgedPage'), { loading: () => <PageLoading /> })
+const ReportsPage = dynamic(() => import('./pages/ReportsPage'), { loading: () => <PageLoading /> })
+const CommissionsPage = dynamic(() => import('./pages/CommissionsPage'), { loading: () => <PageLoading /> })
+const PayoutRequestsPage = dynamic(() => import('./pages/PayoutRequestsPage'), { loading: () => <PageLoading /> })
+const PastMonthCollectionPage = dynamic(() => import('./pages/PastMonthCollectionPage'), { loading: () => <PageLoading /> })
+const ImportCustomerPage = dynamic(() => import('./pages/ImportCustomerPage'), { loading: () => <PageLoading /> })
+const CollectionPage = dynamic(() => import('./pages/CollectionPage'), { loading: () => <PageLoading /> })
+const SettlementsPage = dynamic(() => import('./pages/SettlementsPage'), { loading: () => <PageLoading /> })
+const VisitRoutesPage = dynamic(() => import('./pages/VisitRoutesPage'), { loading: () => <PageLoading /> })
+const MyRoutePage = dynamic(() => import('./pages/MyRoutePage'), { loading: () => <PageLoading /> })
+const ReviewOptionsPage = dynamic(() => import('./pages/ReviewOptionsPage'), { loading: () => <PageLoading /> })
+const MyCustomersPage = dynamic(() => import('./pages/MyCustomersPage'), { loading: () => <PageLoading /> })
+const DevPage = dynamic(() => import('./pages/DevPage'), { loading: () => <PageLoading /> })
+const GuarantorPage = dynamic(() => import('./pages/GuarantorPage'), { loading: () => <PageLoading /> })
+const MyIdCardPage = dynamic(() => import('./pages/MyIdCardPage'), { loading: () => <PageLoading /> })
+const DepositsPage = dynamic(() => import('./pages/DepositsPage'), { loading: () => <PageLoading /> })
+const AgentLocationPage = dynamic(() => import('./pages/AgentLocationPage'), { loading: () => <PageLoading /> })
+const AgentTracker = dynamic(() => import('./agent/AgentTracker'))
+const PaymentsPage = dynamic(() => import('./pages/PaymentsPage'), { loading: () => <PageLoading /> })
+const AgentTrackingPage = dynamic(() => import('./pages/AgentTrackingPage'), { loading: () => <PageLoading /> })
+const BranchTownPage = dynamic(() => import('./pages/BranchTownPage'), { loading: () => <PageLoading /> })
+const PaymentLinksPage = dynamic(() => import('./pages/PaymentLinksPage'), { loading: () => <PageLoading /> })
+
+function PageLoading() {
+  return <div className="rounded-2xl border border-line bg-white p-6 text-sm text-soft">Loading…</div>
+}
 
 function MenuIcon({ name }: { name: string }) {
   const icons: Record<string, React.ElementType> = {

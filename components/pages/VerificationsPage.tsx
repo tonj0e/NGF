@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
+import { useNetworkLight, NetworkLight } from '@/components/agent/NetworkLight'
 import OtpPanel, { OtpState } from './OtpPanel'
 import { Session, Lead, AgentTrip } from '@/types'
 
@@ -102,6 +103,7 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
   const [active, setActive] = useState<Lead | null>(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+  const net = useNetworkLight()
   const [toast, setToast] = useState('')
   const [previews, setPreviews] = useState<Partial<Record<PhotoKey, string>>>({})
   const [photoFiles, setPhotoFiles] = useState<Partial<Record<PhotoKey, File>>>({})
@@ -124,7 +126,7 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
     setPreviews(p => ({ ...p, [key]: url }))
   }
 
-  function showToast(m: string) { setToast(m); setTimeout(() => setToast(''), 3000) }
+  function showToast(m: string, ms = 3000) { setToast(m); setTimeout(() => setToast(''), ms) }
 
   async function loadLastLocation() {
     // First try localStorage
@@ -238,6 +240,9 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
 
   async function submit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault()
+    if ((net.level === 'poor' || net.level === 'offline') && !window.confirm(net.level === 'offline'
+      ? 'There is no network right now, so this will not send. Your details stay on screen. Try anyway?'
+      : 'The network is too weak and the submit may fail. Your details stay on screen if it does. Try anyway?')) return
     setSubmitting(true)
     const f = e.currentTarget
     const g = (k: string) => (f.elements.namedItem(k) as HTMLInputElement)?.value || ''
@@ -267,10 +272,12 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
       const file = photoFiles[k]
       if (file) payload[k] = await fileToPayload(file)
     }
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => ctrl.abort(), 120_000)   // photos on a weak line can take a while; give up after 2 minutes
     try {
       const res = await fetch(`/api/leads/${active!.leadId}`, {
         method: 'PATCH', headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(payload), signal: ctrl.signal,
       })
       const json = await res.json()
       if (json.success) {
@@ -286,8 +293,12 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
           setShowLocationModal(true)
           setAwaitingTrip(true)
         }, 500)
-      } else showToast(json.error || 'Failed')
-    } finally { setSubmitting(false) }
+      } else showToast(json.error || 'Failed', 6000)
+    } catch {
+      // the form is still on screen with everything typed and every photo chosen: nothing is lost, just send again
+      showToast('Not sent: the network is too weak or dropped. Your details and photos are still here. Move to better signal and press Submit again.', 9000)
+      net.recheck()
+    } finally { clearTimeout(timer); setSubmitting(false) }
   }
 
   // embedded and no lead open (waiting for the list, or only the trip prompt is showing): no list is ever shown here
@@ -331,7 +342,10 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
                 <p className="text-xl font-semibold">{active.customerName}</p>
                 <p className="mt-1 text-sm text-soft">{active.phone}{active.altPhone ? <> &bull; {active.altPhoneLabel || 'Other'}: {active.altPhone}</> : null} &bull; {active.leadId}</p>
               </div>
-              <button onClick={() => { setActive(null); setPreviews({}); setPhotoFiles({}); if (embedded) onClose?.() }} className="rounded-2xl border border-line px-4 py-2 text-sm font-semibold">Back</button>
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <NetworkLight status={net} compact />
+                <button onClick={() => { setActive(null); setPreviews({}); setPhotoFiles({}); if (embedded) onClose?.() }} className="rounded-2xl border border-line px-4 py-2 text-sm font-semibold">Back</button>
+              </div>
             </div>
           </div>
           <form onSubmit={submit} className="space-y-8 p-6">
@@ -433,9 +447,12 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
               <textarea name="riskNotes" rows={3} className="w-full rounded-2xl border border-line bg-mist px-4 py-3 text-sm outline-none focus:border-ink" />
             </section>
             <div className="flex items-center justify-between border-t border-black/5 pt-5">
-              <p className="text-sm text-soft">Lead ID {active.leadId}</p>
+              <div className="space-y-1">
+                <p className="text-sm text-soft">Lead ID {active.leadId}</p>
+                <NetworkLight status={net} />
+              </div>
               <button type="submit" disabled={submitting || !(otpState.verified || otpState.overridden)} title={otpState.verified || otpState.overridden ? '' : 'Verify the customer OTP first'} className="rounded-2xl bg-ink px-6 py-3 text-sm font-semibold text-white disabled:opacity-40">
-                {submitting ? 'Submitting...' : otpState.verified || otpState.overridden ? 'Submit Verification' : 'Verify OTP to submit'}
+                {submitting ? 'Sending… keep this screen open' : otpState.verified || otpState.overridden ? 'Submit Verification' : 'Verify OTP to submit'}
               </button>
             </div>
           </form>

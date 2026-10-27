@@ -5,6 +5,35 @@ import { getSupabase } from './supabase-db'
 import * as Sentry from '@sentry/nextjs'
 import { newRequestId, ensureSentry } from './monitor'
 
+// The account check costs one database round trip on every request. A page opens several requests at once, so the
+// answer is kept for a few seconds per person: a block, demotion or password change still takes effect within that time.
+const USER_CHECK_MS = 5_000
+const userChecks = new Map<string, { at: number; row: any }>()
+const userChecksInFlight = new Map<string, Promise<any>>()
+
+async function loadSessionUser(userId: string): Promise<any> {
+  const hit = userChecks.get(userId)
+  if (hit && Date.now() - hit.at < USER_CHECK_MS) return hit.row
+  let pending = userChecksInFlight.get(userId)
+  if (!pending) {
+    pending = Promise.resolve(getSupabase()
+      .from('users')
+      .select('blocked_until, block_reason, password_hash, updated_at, role, status')
+      .eq('user_id', userId)
+      .single())
+      .then(({ data }) => {
+        if (data) {
+          userChecks.set(userId, { at: Date.now(), row: data })
+          if (userChecks.size > 500) for (const k of userChecks.keys()) { userChecks.delete(k); if (userChecks.size <= 250) break }
+        }
+        return data
+      })
+      .finally(() => userChecksInFlight.delete(userId))
+    userChecksInFlight.set(userId, pending)
+  }
+  return pending
+}
+
 export async function getSession(req: NextRequest): Promise<Session> {
   const auth = req.headers.get('authorization') || ''
   const token = auth.replace('Bearer ', '').trim()
@@ -12,12 +41,7 @@ export async function getSession(req: NextRequest): Promise<Session> {
   const session = await verifyToken(token)
 
   const now = new Date().toISOString()
-  const supabase = getSupabase()
-  const { data: user } = await supabase
-    .from('users')
-    .select('blocked_until, block_reason, password_hash, updated_at, role, status')
-    .eq('user_id', session.userId)
-    .single()
+  const user = await loadSessionUser(session.userId)
 
   // Reject tokens for deleted users and tokens issued before the user's last password change
   if (!user) throw new Error('Session expired')
