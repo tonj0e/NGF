@@ -135,7 +135,16 @@ export default function Home() {
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
   const [showAttendance, setShowAttendance] = useState(false)
+  const [openSplash, setOpenSplash] = useState(false)   // installed app (home-screen icon): animated logo each time it opens
   const [splash, setSplash] = useState(false)   // animated logo for a moment right after signing in
+
+  useEffect(() => {
+    const standalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as unknown as { standalone?: boolean }).standalone === true
+    if (!standalone) return
+    setOpenSplash(true)
+    const t = setTimeout(() => setOpenSplash(false), 3000)
+    return () => clearTimeout(t)
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -191,6 +200,8 @@ export default function Home() {
     try { window.history.replaceState(null, '', window.location.pathname) } catch {}
     setSession(null)
   }
+
+  if (openSplash) return <SplashLogo />
 
   // While the saved login is checked, show the app's own frame (bar, header, cards) instead of a blank white page
   if (loading) return (
