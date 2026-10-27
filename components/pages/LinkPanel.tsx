@@ -51,7 +51,7 @@ export default function LinkPanel({ session, link, onPaid }: { session: Session;
         <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
           <div className="space-y-2">
             <ul className="space-y-0.5 text-xs text-soft">{cur.weeks.map(w => <li key={w.weekNo}>Week {w.weekNo} · {w.dueDate} · {inr(w.amount)}</li>)}</ul>
-            <div className="rounded-xl bg-[#f9fafb] p-3 text-sm">
+            <div className="rounded-xl bg-panel p-3 text-sm">
               <div className="flex justify-between"><span>Amount</span><b>{inr(cur.base)}</b></div>
               {cur.fee > 0 && <div className="flex justify-between text-soft"><span>Online payment fee ({cur.feePercent}%)</span><span>{inr(cur.fee)}</span></div>}
               <div className="mt-1 flex justify-between border-t border-line pt-1 text-base"><span className="font-semibold">Customer pays</span><b>{inr(cur.total)}</b></div>

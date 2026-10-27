@@ -454,7 +454,7 @@ td.mono{font-family:monospace;font-size:10px;color:#697586}
         </div>
         <div className="overflow-x-auto">
         <table className="w-full min-w-[640px] text-left text-sm">
-          <thead className="border-b border-black/5 bg-[#fafafa] text-soft">
+          <thead className="border-b border-black/5 bg-panel text-soft">
             <tr>
               {['Customer', 'Loan ID', 'Commission', 'Loan Status', 'Start Date', 'Cycle'].map(h => (
                 <th key={h} className="px-5 py-3 font-medium text-xs">{h}</th>
@@ -466,7 +466,7 @@ td.mono{font-family:monospace;font-size:10px;color:#697586}
               <tr><td colSpan={6} className="px-5 py-8 text-center text-sm text-soft">{enriched.length === 0 ? 'No commissions recorded yet.' : 'No loans match the filters.'}</td></tr>
             )}
             {visibleRows.map(l => (
-              <tr key={l.loanId} className="hover:bg-[#fafafa]">
+              <tr key={l.loanId} className="hover:bg-panel">
                 <td className="px-5 py-3 font-medium">{l.customerName}</td>
                 <td className="px-5 py-3 font-mono text-xs text-soft">{l.loanId?.slice(-9)}</td>
                 <td className="px-5 py-3 font-semibold text-green-700">{formatINR(Number(l.guarantorCommission || 0))}</td>
@@ -487,7 +487,7 @@ td.mono{font-family:monospace;font-size:10px;color:#697586}
             ))}
           </tbody>
           {visibleRows.length > 0 && (
-            <tfoot className="border-t border-black/10 bg-[#fafafa]">
+            <tfoot className="border-t border-black/10 bg-panel">
               <tr>
                 <td className="px-5 py-3 text-xs font-semibold text-soft" colSpan={2}>Total ({visibleRows.length} loan{visibleRows.length !== 1 ? 's' : ''})</td>
                 <td className="px-5 py-3 font-bold text-green-700">{formatINR(visibleTotal)}</td>
@@ -507,7 +507,7 @@ td.mono{font-family:monospace;font-size:10px;color:#697586}
           </div>
           <div className="overflow-x-auto">
           <table className="w-full min-w-[640px] text-left text-sm">
-            <thead className="border-b border-black/5 bg-[#fafafa] text-soft">
+            <thead className="border-b border-black/5 bg-panel text-soft">
               <tr>
                 {['Request ID', 'Amount', 'Status', 'Requested On', 'Processed On'].map(h => (
                   <th key={h} className="px-5 py-3 font-medium text-xs">{h}</th>
@@ -516,7 +516,7 @@ td.mono{font-family:monospace;font-size:10px;color:#697586}
             </thead>
             <tbody className="divide-y divide-black/5">
               {payouts.map(p => (
-                <tr key={p.payoutId} className="hover:bg-[#fafafa]">
+                <tr key={p.payoutId} className="hover:bg-panel">
                   <td className="px-5 py-3 font-mono text-xs text-soft">{p.payoutId}</td>
                   <td className="px-5 py-3 font-semibold">{formatINR(p.amount)}</td>
                   <td className="px-5 py-3">

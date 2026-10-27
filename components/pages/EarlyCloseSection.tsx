@@ -40,7 +40,7 @@ export default function EarlyCloseSection({ session, loanId, onDone }: { session
   }
 
   const card = (key: 'hold' | 'permanent', title: string, text: string, tone: string) => (
-    <button type="button" onClick={() => setMode(key)} className={`w-full rounded-2xl border p-3 text-left transition ${mode === key ? `${tone} ring-2 ring-ink` : 'border-line bg-white hover:bg-[#f9fafb]'}`}>
+    <button type="button" onClick={() => setMode(key)} className={`w-full rounded-2xl border p-3 text-left transition ${mode === key ? `${tone} ring-2 ring-ink` : 'border-line bg-white hover:bg-panel'}`}>
       <p className="text-sm font-semibold">{title}</p><p className="mt-0.5 text-xs text-soft">{text}</p>
     </button>
   )
@@ -55,7 +55,7 @@ export default function EarlyCloseSection({ session, loanId, onDone }: { session
   }
 
   return (
-    <div className="space-y-3 rounded-2xl border border-line bg-[#f9fafb] p-4">
+    <div className="space-y-3 rounded-2xl border border-line bg-panel p-4">
       <p className="text-xs font-semibold uppercase tracking-wider text-soft">Customer wants to close early</p>
       {needsPayment
         ? <p className="text-xs text-soft">{info.weeksRemaining} weeks left · the customer pays <b className="text-ink">{inr(info.amountRemaining)}</b> now. The loan was due to end on {nice(info.endDate)}.</p>

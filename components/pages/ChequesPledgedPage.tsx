@@ -33,7 +33,7 @@ export default function ChequesPledgedPage({ session }: { session: Session }) {
         <p className="text-xs text-soft mt-0.5">Track pledged cheque metadata and lifecycle</p>
       </div>
       <table className="w-full text-left text-sm">
-        <thead className="border-b border-black/5 bg-[#fafafa] text-soft">
+        <thead className="border-b border-black/5 bg-panel text-soft">
           <tr>
             {['Customer', 'Phone', 'Cheque No', 'Loan Product', 'Status', 'Cheque Photo'].map(h => (
               <th key={h} className="px-5 py-3 font-medium text-xs">{h}</th>
@@ -42,7 +42,7 @@ export default function ChequesPledgedPage({ session }: { session: Session }) {
         </thead>
         <tbody className="divide-y divide-black/5">
           {leads.map(l => (
-            <tr key={l.leadId} className="hover:bg-[#fafafa]">
+            <tr key={l.leadId} className="hover:bg-panel">
               <td className="px-5 py-3 font-medium">{l.customerName}</td>
               <td className="px-5 py-3 text-soft">{l.phone}</td>
               <td className="px-5 py-3 font-mono">{l.chequeNumber || '—'}</td>

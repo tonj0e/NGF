@@ -352,7 +352,7 @@ export default function SettlementsPage({ session }: { session: Session }) {
             <p className={`text-2xl font-bold ${summary.unpaid > 0 ? 'text-red-600' : 'text-green-600'}`}>{currency(summary.unpaid)}</p>
           </div>
         </div>
-        <div className="grid grid-cols-3 divide-x divide-line border-b border-line bg-[#f9fafb]">
+        <div className="grid grid-cols-3 divide-x divide-line border-b border-line bg-panel">
           <div className="p-4 text-center">
             <p className="text-xs text-soft mb-1">Cash Due</p>
             <p className="text-lg font-bold text-ink">{currency(summary.cashDue)}</p>
@@ -390,11 +390,11 @@ export default function SettlementsPage({ session }: { session: Session }) {
                           <div className="flex gap-4 pb-px">
                             <div>
                               <p className="text-[10px] text-soft uppercase tracking-wide mb-1">Cash</p>
-                              <p className={`text-sm font-bold ${sb.cash > 0 ? 'text-ink' : 'text-[#9ca3af]'}`}>{currency(sb.cash)}</p>
+                              <p className={`text-sm font-bold ${sb.cash > 0 ? 'text-ink' : 'text-gray-400'}`}>{currency(sb.cash)}</p>
                             </div>
                             <div>
                               <p className="text-[10px] text-soft uppercase tracking-wide mb-1">UPI / QR</p>
-                              <p className={`text-sm font-bold ${sb.upi > 0 ? 'text-ink' : 'text-[#9ca3af]'}`}>{currency(sb.upi)}</p>
+                              <p className={`text-sm font-bold ${sb.upi > 0 ? 'text-ink' : 'text-gray-400'}`}>{currency(sb.upi)}</p>
                             </div>
                           </div>
                         </div>
@@ -409,7 +409,7 @@ export default function SettlementsPage({ session }: { session: Session }) {
                     <td key={sb.collectorUserId || sb.collectorName}
                       className="px-0 border-r border-line last:border-r-0 align-top">
                       {sb.transactions.length === 0 ? (
-                        <p className="px-4 py-3 text-xs text-[#9ca3af]">No transactions</p>
+                        <p className="px-4 py-3 text-xs text-gray-400">No transactions</p>
                       ) : (
                         <div className="divide-y divide-mist">
                           {sb.transactions.map((tx, i) => {
@@ -424,7 +424,7 @@ export default function SettlementsPage({ session }: { session: Session }) {
                                   <span className="text-sm font-bold text-ink">{currency(tx.amount)}</span>
                                 </div>
                                 {tx.paidAt && (
-                                  <p className="text-[10px] text-[#9ca3af] mt-1">
+                                  <p className="text-[10px] text-gray-400 mt-1">
                                     {new Date(tx.paidAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                                   </p>
                                 )}
@@ -801,7 +801,7 @@ export default function SettlementsPage({ session }: { session: Session }) {
                             }
                           }}
                           disabled={isSaving(s.guarantorId)}
-                          className={`flex-1 rounded-xl px-3 py-1.5 text-xs font-semibold transition disabled:opacity-50 ${s.cashDue === 0 ? 'bg-green-600 text-white hover:bg-green-700' : 'border border-line bg-mist text-[#9ca3af]'}`}>
+                          className={`flex-1 rounded-xl px-3 py-1.5 text-xs font-semibold transition disabled:opacity-50 ${s.cashDue === 0 ? 'bg-green-600 text-white hover:bg-green-700' : 'border border-line bg-mist text-gray-400'}`}>
                           {isSaving(s.guarantorId) ? 'Settling...' : s.cashDue === 0 ? 'Settle' : 'Settle (Cash Due Pending)'}
                         </button>
                       </div>
@@ -910,7 +910,7 @@ export default function SettlementsPage({ session }: { session: Session }) {
                                 }
                               }}
                               disabled={isSaving(s.guarantorId)}
-                              className={`flex-1 rounded-xl px-3 py-1.5 text-xs font-semibold transition disabled:opacity-50 ${s.cashDue === 0 ? 'bg-green-600 text-white hover:bg-green-700' : 'border border-line bg-mist text-[#9ca3af]'}`}>
+                              className={`flex-1 rounded-xl px-3 py-1.5 text-xs font-semibold transition disabled:opacity-50 ${s.cashDue === 0 ? 'bg-green-600 text-white hover:bg-green-700' : 'border border-line bg-mist text-gray-400'}`}>
                               {isSaving(s.guarantorId) ? 'Settling...' : s.cashDue === 0 ? 'Settle' : 'Settle (Cash Due Pending)'}
                             </button>
                           </div>

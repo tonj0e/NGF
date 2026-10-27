@@ -9,6 +9,8 @@
   --mist: #f2f5f9;     /* page background and soft panels */
   --gold: #c9a227;     /* accent: highlights, small marks */
   --gold-soft: #fbf4dc;
+  --panel: #f8fafc;    /* faint panel inside a white card */
+  --card: #ffffff;     /* white cards */
 }
 
 @theme inline {
@@ -18,6 +20,7 @@
   --color-mist: var(--mist);
   --color-gold: var(--gold);
   --color-gold-soft: var(--gold-soft);
+  --color-panel: var(--panel);
 }
 
 /* Cooler greys (slate) and calmer status greens across the app */
@@ -70,29 +73,126 @@ textarea:not([data-no-upper])::placeholder {
   text-transform: none;
 }
 
-/* Dark mode (Dev toggle): invert the whole UI, then re-invert photos / QR / video
-   so real images keep their true colors. Approximate but app-wide with one switch. */
+/* Dark mode (Dev toggle): a real dark palette. The same names (ink, soft, line, mist, panel) get dark values,
+   the grey and status colour scales are reversed, and white cards turn deep navy. Photos and maps are untouched. */
 html.ngf-dark {
-  filter: invert(1) hue-rotate(180deg);
-  background: #0f0f12;
+  color-scheme: dark;
+  --ink: #e8edf6;
+  --soft: #9aa8bf;
+  --line: #243049;
+  --mist: #0b1220;
+  --panel: #131c30;
+  --card: #111a2c;
+  --gold-soft: #3a3115;
+  --color-red-50: color-mix(in srgb, var(--color-red-500) 14%, #0b1220);
+  --color-red-100: color-mix(in srgb, var(--color-red-500) 22%, #0b1220);
+  --color-red-200: color-mix(in srgb, var(--color-red-500) 32%, #0b1220);
+  --color-red-300: color-mix(in srgb, var(--color-red-500) 45%, #0b1220);
+  --color-red-600: color-mix(in srgb, var(--color-red-500) 70%, white);
+  --color-red-700: color-mix(in srgb, var(--color-red-500) 55%, white);
+  --color-red-800: color-mix(in srgb, var(--color-red-500) 42%, white);
+  --color-red-900: color-mix(in srgb, var(--color-red-500) 30%, white);
+  --color-green-50: color-mix(in srgb, var(--color-green-500) 14%, #0b1220);
+  --color-green-100: color-mix(in srgb, var(--color-green-500) 22%, #0b1220);
+  --color-green-200: color-mix(in srgb, var(--color-green-500) 32%, #0b1220);
+  --color-green-300: color-mix(in srgb, var(--color-green-500) 45%, #0b1220);
+  --color-green-600: color-mix(in srgb, var(--color-green-500) 70%, white);
+  --color-green-700: color-mix(in srgb, var(--color-green-500) 55%, white);
+  --color-green-800: color-mix(in srgb, var(--color-green-500) 42%, white);
+  --color-green-900: color-mix(in srgb, var(--color-green-500) 30%, white);
+  --color-amber-50: color-mix(in srgb, var(--color-amber-500) 14%, #0b1220);
+  --color-amber-100: color-mix(in srgb, var(--color-amber-500) 22%, #0b1220);
+  --color-amber-200: color-mix(in srgb, var(--color-amber-500) 32%, #0b1220);
+  --color-amber-300: color-mix(in srgb, var(--color-amber-500) 45%, #0b1220);
+  --color-amber-600: color-mix(in srgb, var(--color-amber-500) 70%, white);
+  --color-amber-700: color-mix(in srgb, var(--color-amber-500) 55%, white);
+  --color-amber-800: color-mix(in srgb, var(--color-amber-500) 42%, white);
+  --color-amber-900: color-mix(in srgb, var(--color-amber-500) 30%, white);
+  --color-blue-50: color-mix(in srgb, var(--color-blue-500) 14%, #0b1220);
+  --color-blue-100: color-mix(in srgb, var(--color-blue-500) 22%, #0b1220);
+  --color-blue-200: color-mix(in srgb, var(--color-blue-500) 32%, #0b1220);
+  --color-blue-300: color-mix(in srgb, var(--color-blue-500) 45%, #0b1220);
+  --color-blue-600: color-mix(in srgb, var(--color-blue-500) 70%, white);
+  --color-blue-700: color-mix(in srgb, var(--color-blue-500) 55%, white);
+  --color-blue-800: color-mix(in srgb, var(--color-blue-500) 42%, white);
+  --color-blue-900: color-mix(in srgb, var(--color-blue-500) 30%, white);
+  --color-yellow-50: color-mix(in srgb, var(--color-yellow-500) 14%, #0b1220);
+  --color-yellow-100: color-mix(in srgb, var(--color-yellow-500) 22%, #0b1220);
+  --color-yellow-200: color-mix(in srgb, var(--color-yellow-500) 32%, #0b1220);
+  --color-yellow-300: color-mix(in srgb, var(--color-yellow-500) 45%, #0b1220);
+  --color-yellow-600: color-mix(in srgb, var(--color-yellow-500) 70%, white);
+  --color-yellow-700: color-mix(in srgb, var(--color-yellow-500) 55%, white);
+  --color-yellow-800: color-mix(in srgb, var(--color-yellow-500) 42%, white);
+  --color-yellow-900: color-mix(in srgb, var(--color-yellow-500) 30%, white);
+  --color-orange-50: color-mix(in srgb, var(--color-orange-500) 14%, #0b1220);
+  --color-orange-100: color-mix(in srgb, var(--color-orange-500) 22%, #0b1220);
+  --color-orange-200: color-mix(in srgb, var(--color-orange-500) 32%, #0b1220);
+  --color-orange-300: color-mix(in srgb, var(--color-orange-500) 45%, #0b1220);
+  --color-orange-600: color-mix(in srgb, var(--color-orange-500) 70%, white);
+  --color-orange-700: color-mix(in srgb, var(--color-orange-500) 55%, white);
+  --color-orange-800: color-mix(in srgb, var(--color-orange-500) 42%, white);
+  --color-orange-900: color-mix(in srgb, var(--color-orange-500) 30%, white);
+  --color-purple-50: color-mix(in srgb, var(--color-purple-500) 14%, #0b1220);
+  --color-purple-100: color-mix(in srgb, var(--color-purple-500) 22%, #0b1220);
+  --color-purple-200: color-mix(in srgb, var(--color-purple-500) 32%, #0b1220);
+  --color-purple-300: color-mix(in srgb, var(--color-purple-500) 45%, #0b1220);
+  --color-purple-600: color-mix(in srgb, var(--color-purple-500) 70%, white);
+  --color-purple-700: color-mix(in srgb, var(--color-purple-500) 55%, white);
+  --color-purple-800: color-mix(in srgb, var(--color-purple-500) 42%, white);
+  --color-purple-900: color-mix(in srgb, var(--color-purple-500) 30%, white);
+  --color-indigo-50: color-mix(in srgb, var(--color-indigo-500) 14%, #0b1220);
+  --color-indigo-100: color-mix(in srgb, var(--color-indigo-500) 22%, #0b1220);
+  --color-indigo-200: color-mix(in srgb, var(--color-indigo-500) 32%, #0b1220);
+  --color-indigo-300: color-mix(in srgb, var(--color-indigo-500) 45%, #0b1220);
+  --color-indigo-600: color-mix(in srgb, var(--color-indigo-500) 70%, white);
+  --color-indigo-700: color-mix(in srgb, var(--color-indigo-500) 55%, white);
+  --color-indigo-800: color-mix(in srgb, var(--color-indigo-500) 42%, white);
+  --color-indigo-900: color-mix(in srgb, var(--color-indigo-500) 30%, white);
+  --color-sky-50: color-mix(in srgb, var(--color-sky-500) 14%, #0b1220);
+  --color-sky-100: color-mix(in srgb, var(--color-sky-500) 22%, #0b1220);
+  --color-sky-200: color-mix(in srgb, var(--color-sky-500) 32%, #0b1220);
+  --color-sky-300: color-mix(in srgb, var(--color-sky-500) 45%, #0b1220);
+  --color-sky-600: color-mix(in srgb, var(--color-sky-500) 70%, white);
+  --color-sky-700: color-mix(in srgb, var(--color-sky-500) 55%, white);
+  --color-sky-800: color-mix(in srgb, var(--color-sky-500) 42%, white);
+  --color-sky-900: color-mix(in srgb, var(--color-sky-500) 30%, white);
+  --color-teal-50: color-mix(in srgb, var(--color-teal-500) 14%, #0b1220);
+  --color-teal-100: color-mix(in srgb, var(--color-teal-500) 22%, #0b1220);
+  --color-teal-200: color-mix(in srgb, var(--color-teal-500) 32%, #0b1220);
+  --color-teal-300: color-mix(in srgb, var(--color-teal-500) 45%, #0b1220);
+  --color-teal-600: color-mix(in srgb, var(--color-teal-500) 70%, white);
+  --color-teal-700: color-mix(in srgb, var(--color-teal-500) 55%, white);
+  --color-teal-800: color-mix(in srgb, var(--color-teal-500) 42%, white);
+  --color-teal-900: color-mix(in srgb, var(--color-teal-500) 30%, white);
+  --color-emerald-50: color-mix(in srgb, var(--color-emerald-500) 14%, #0b1220);
+  --color-emerald-100: color-mix(in srgb, var(--color-emerald-500) 22%, #0b1220);
+  --color-emerald-200: color-mix(in srgb, var(--color-emerald-500) 32%, #0b1220);
+  --color-emerald-300: color-mix(in srgb, var(--color-emerald-500) 45%, #0b1220);
+  --color-emerald-600: color-mix(in srgb, var(--color-emerald-500) 70%, white);
+  --color-emerald-700: color-mix(in srgb, var(--color-emerald-500) 55%, white);
+  --color-emerald-800: color-mix(in srgb, var(--color-emerald-500) 42%, white);
+  --color-emerald-900: color-mix(in srgb, var(--color-emerald-500) 30%, white);
+  --color-gray-50: #0e1524;
+  --color-gray-100: #141d30;
+  --color-gray-200: #1f2a42;
+  --color-gray-300: #2d3a57;
+  --color-gray-400: #6b7a93;
+  --color-gray-500: #8a97ad;
+  --color-gray-600: #a9b4c6;
+  --color-gray-700: #c3ccda;
+  --color-gray-800: #dbe1ec;
+  --color-gray-900: #eef1f7;
+  background: #0b1220;
 }
-html.ngf-dark img,
-html.ngf-dark video,
-html.ngf-dark canvas,
-html.ngf-dark [data-no-invert] {
-  filter: invert(1) hue-rotate(180deg);
-}
-
-/* Prevent dark mode inversion from breaking Leaflet map tiles */
-html.ngf-dark .leaflet-container,
-html.ngf-dark .leaflet-tile,
-html.ngf-dark .leaflet-image-layer,
-html.ngf-dark .leaflet-marker-icon,
-html.ngf-dark .leaflet-marker-shadow,
-html.ngf-dark .leaflet-popup-content-wrapper,
-html.ngf-dark .leaflet-popup-tip {
-  filter: invert(1) hue-rotate(180deg) !important;
-}
+html.ngf-dark .bg-white { background-color: var(--card); }
+html.ngf-dark [class*="bg-white/"] { background-color: rgb(17 26 44 / 0.88); }
+html.ngf-dark .hover\:bg-white:hover { background-color: var(--card); }
+/* main buttons stay a solid blue-navy with white text */
+html.ngf-dark .bg-ink { background-color: #2b4a7e; color: #fff; }
+html.ngf-dark .hover\:bg-black:hover { background-color: #36588f; }
+html.ngf-dark [class*="border-white"] { border-color: var(--line); }
+html.ngf-dark .glass-panel { background: rgba(17,26,44,0.85); }
+html.ngf-dark .shadow-panel { box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.4), 0 4px 16px -2px rgb(0 0 0 / 0.4); }
 
 /* Leaflet default icon fix */
 .leaflet-default-icon-path {

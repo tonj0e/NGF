@@ -216,7 +216,7 @@ export default function ForgotPasswordPage() {
           <h1 className="mt-4 text-2xl font-semibold tracking-tight sm:text-3xl">
             {step === 'otp' ? (vstate === 'success' ? <>Verified <span className="text-emerald-600">Successfully</span></> : 'Verify OTP') : titles[step].h}
           </h1>
-          <p className="mt-2 text-sm text-[#4b5563]">{step === 'otp' && vstate === 'success' ? 'Your security code has been confirmed.' : titles[step].p}</p>
+          <p className="mt-2 text-sm text-gray-600">{step === 'otp' && vstate === 'success' ? 'Your security code has been confirmed.' : titles[step].p}</p>
           <div className="mt-4 flex justify-center gap-1.5" aria-label={`Step ${stepNo} of 4`}>
             {[1, 2, 3, 4].map(n => (
               <span key={n} className={`h-1.5 w-8 rounded-full ${n <= stepNo ? 'bg-ink' : 'bg-line'}`} />
@@ -255,7 +255,7 @@ export default function ForgotPasswordPage() {
 
         {step === 'otp' && (
           <form onSubmit={submitOtp} className="mt-6 space-y-4" noValidate>
-            <p className="text-center text-xs text-[#4b5563]">Code requested for user ID <span className="font-semibold text-black">{username.trim()}</span></p>
+            <p className="text-center text-xs text-gray-600">Code requested for user ID <span className="font-semibold text-black">{username.trim()}</span></p>
             <div key={shake} className={`fp-stage relative mx-auto h-[150px] w-full max-w-[300px] ${shake ? 'fp-shake' : ''}`} data-state={vstate}>
               {[0, 1, 2, 3, 4, 5].map(i => (
                 <div key={i} className="fp-box" style={{ ['--x' as string]: `${(i - 2.5) * 46}px`, ['--a' as string]: `${i * 60}deg`, ['--d' as string]: `${i * 70}ms` }}>
@@ -278,13 +278,13 @@ export default function ForgotPasswordPage() {
                 <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path className="fp-tick-path" d="M5 12.5l4.5 4.5L19 7.5" /></svg>
               </div>
             </div>
-            <p className={`text-center text-xs ${expiresIn === 0 ? 'font-medium text-red-600' : 'text-[#4b5563]'}`}>
+            <p className={`text-center text-xs ${expiresIn === 0 ? 'font-medium text-red-600' : 'text-gray-600'}`}>
               {expiresIn === 0 ? 'This code has expired. Request a new one.' : `Code expires in ${fmt(expiresIn)}`}
             </p>
-            <p className="text-center text-xs text-[#4b5563]">
+            <p className="text-center text-xs text-gray-600">
               Didn&apos;t receive the code?{' '}
               <button type="button" onClick={() => requestCode(true)} disabled={loading || cooldown > 0 || vstate !== 'idle'}
-                className="font-semibold text-black hover:underline disabled:cursor-not-allowed disabled:text-[#9aa3af] disabled:no-underline">
+                className="font-semibold text-black hover:underline disabled:cursor-not-allowed disabled:text-gray-400 disabled:no-underline">
                 {cooldown > 0 ? `Resend in ${fmt(cooldown)}` : 'Resend code'}
               </button>
             </p>
@@ -296,7 +296,7 @@ export default function ForgotPasswordPage() {
             </button>
             <div className="text-center text-sm">
               <button type="button" disabled={vstate !== 'idle'} onClick={() => { setStep('user'); setError(''); setNotice(''); setOtp('') }}
-                className="text-[#4b5563] hover:underline disabled:opacity-50">Change user ID</button>
+                className="text-gray-600 hover:underline disabled:opacity-50">Change user ID</button>
             </div>
           </form>
         )}

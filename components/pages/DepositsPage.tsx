@@ -162,7 +162,7 @@ export default function DepositsPage({ session }: { session: Session }) {
       <div className="overflow-hidden rounded-[1.75rem] border border-white/70 bg-white shadow-panel">
         <div className="border-b border-black/5 px-5 py-4"><p className="text-sm font-semibold">Passbook</p></div>
         <table className="w-full text-left text-sm">
-          <thead className="border-b border-black/5 bg-[#fafafa] text-soft">
+          <thead className="border-b border-black/5 bg-panel text-soft">
             <tr>{['Date', 'Type', 'Amount', 'Note'].map(h => <th key={h} className="px-5 py-3 font-medium text-xs">{h}</th>)}</tr>
           </thead>
           <tbody className="divide-y divide-black/5">
@@ -170,7 +170,7 @@ export default function DepositsPage({ session }: { session: Session }) {
             {data.ledger.map((t: any) => {
               const isIn = t.type === 'Deposit'
               return (
-                <tr key={t.txnId} className="hover:bg-[#fafafa]">
+                <tr key={t.txnId} className="hover:bg-panel">
                   <td className="px-5 py-3 text-soft">{t.date}</td>
                   <td className="px-5 py-3 font-medium">{t.type}</td>
                   <td className={`px-5 py-3 font-semibold ${isIn ? 'text-green-700' : 'text-red-600'}`}>{isIn ? '+' : '−'} {currency(t.amount)}</td>

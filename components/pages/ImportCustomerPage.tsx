@@ -63,7 +63,7 @@ function PhotoField({ label, value, onChange }: { label: string; value: string; 
             </div>
           </div>
         ) : (
-          <div className="flex h-36 w-full items-center justify-center rounded-xl border-2 border-dashed border-line bg-[#f8f9fb] text-xs text-soft hover:border-ink transition">
+          <div className="flex h-36 w-full items-center justify-center rounded-xl border-2 border-dashed border-line bg-panel text-xs text-soft hover:border-ink transition">
             + Upload {label}
           </div>
         )}
@@ -83,7 +83,7 @@ type WeekStatus = typeof WEEK_STATUSES[number]
 
 const STATUS_STYLE: Record<WeekStatus, string> = {
   Paid:      'border-green-400 bg-green-50 text-green-700',
-  Pending:   'border-line bg-[#f8f9fb] text-soft',
+  Pending:   'border-line bg-panel text-soft',
   Delayed:   'border-orange-300 bg-orange-50 text-orange-700',
   'Not Paid':'border-red-300 bg-red-50 text-red-700',
 }
@@ -338,7 +338,7 @@ export default function ImportCustomerPage({ session }: { session: Session }) {
                 <span className="rounded-lg bg-green-50 px-2 py-1 text-green-700 font-semibold">{paidCount} Paid</span>
                 <span className="rounded-lg bg-orange-50 px-2 py-1 text-orange-700 font-semibold">{delayedCount} Delayed</span>
                 <span className="rounded-lg bg-red-50 px-2 py-1 text-red-700 font-semibold">{notPaidCount} Not Paid</span>
-                <span className="rounded-lg bg-[#f8f9fb] px-2 py-1 text-soft font-semibold">{schedule.length - paidCount - delayedCount - notPaidCount} Pending</span>
+                <span className="rounded-lg bg-panel px-2 py-1 text-soft font-semibold">{schedule.length - paidCount - delayedCount - notPaidCount} Pending</span>
               </div>
             </div>
             <div className="p-6">

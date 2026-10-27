@@ -22,9 +22,9 @@ const SelectTrigger = React.forwardRef<
     ref={ref}
     className={cn(
       'flex h-10 w-full items-center justify-between rounded-xl border bg-white px-4 py-2.5 text-sm outline-none transition-all duration-200',
-      'placeholder:text-[#9ca3af]',
+      'placeholder:text-gray-400',
       'disabled:cursor-not-allowed disabled:opacity-50',
-      'data-[placeholder]:text-[#9ca3af]',
+      'data-[placeholder]:text-gray-400',
       error
         ? 'border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-200'
         : 'border-line focus:border-ink focus:ring-2 focus:ring-ink/20',

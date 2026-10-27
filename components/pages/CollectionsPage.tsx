@@ -25,12 +25,12 @@ export default function CollectionsPage({ session }: { session: Session }) {
   return (
     <div className="overflow-hidden rounded-[1.75rem] border border-white/70 bg-white shadow-panel">
       <table className="w-full text-left text-sm">
-        <thead className="border-b border-black/5 bg-[#fafafa] text-soft">
+        <thead className="border-b border-black/5 bg-panel text-soft">
           <tr>{['Customer','Loan ID','Week','Due Date','Paid Date','Amount','Mode'].map(h => <th key={h} className="px-5 py-4 font-medium">{h}</th>)}</tr>
         </thead>
         <tbody className="divide-y divide-black/5">
           {rows.map(r => (
-            <tr key={r['Repayment ID']} className="hover:bg-[#fafafa]">
+            <tr key={r['Repayment ID']} className="hover:bg-panel">
               <td className="px-5 py-4 font-medium">{r.customerName}</td>
               <td className="px-5 py-4 text-soft">{r['Loan ID']}</td>
               <td className="px-5 py-4 text-soft">{r['Week No']}</td>

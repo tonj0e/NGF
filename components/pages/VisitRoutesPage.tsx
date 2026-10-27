@@ -221,7 +221,7 @@ function PlanCard({ s, board, date, busy, onSave, onAssign }: {
           <label className="block text-xs font-semibold uppercase tracking-wider text-soft">Note for the agent
             <input value={note} onChange={e => setNote(e.target.value)} placeholder="House behind the temple, call at the junction" className={`${input} mt-1`} />
           </label>
-          <button disabled={busy === `visit${s.leadId}`} onClick={() => onSave({ mapsLink: link, place, date: vDate, window: win, note, callOutcome: outcome })} className={`${btn} w-full bg-[#f0b429] text-[#1a1400]`}>
+          <button disabled={busy === `visit${s.leadId}`} onClick={() => onSave({ mapsLink: link, place, date: vDate, window: win, note, callOutcome: outcome })} className={`${btn} w-full bg-gold text-[#1a1400]`}>
             {busy === `visit${s.leadId}` ? 'Saving…' : 'Save visit details'}
           </button>
         </div>
@@ -340,7 +340,7 @@ function RouteCard({ r, board, date, busy, session, act, startOpen }: {
             <Wand2 className="h-4 w-4" />{busy === `opt${r.agentId}` ? 'Working…' : 'Best order'}
           </button>
           {dirty && <button onClick={() => setOrder(savedIds)} className={`${btn} border border-line bg-white text-soft`}>Undo</button>}
-          {dirty && <button disabled={busy === `reorder${r.agentId}`} onClick={saveOrder} className={`${btn} bg-[#f0b429] text-ink shadow-md`}>{busy === `reorder${r.agentId}` ? 'Saving…' : 'Save order'}</button>}
+          {dirty && <button disabled={busy === `reorder${r.agentId}`} onClick={saveOrder} className={`${btn} bg-gold text-ink shadow-md`}>{busy === `reorder${r.agentId}` ? 'Saving…' : 'Save order'}</button>}
           {url && <a href={url} target="_blank" rel="noreferrer" className={`${btn} inline-flex items-center gap-1 border border-line bg-white`}><RouteIcon className="h-4 w-4" />Google Maps</a>}
         </div>
       </div>
@@ -351,11 +351,11 @@ function RouteCard({ r, board, date, busy, session, act, startOpen }: {
       <div className="space-y-2 lg:min-h-0 lg:overflow-y-auto lg:pr-1" onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
         {list.map((s, i) => (
           <div key={s.leadId} ref={el => { rows.current[s.leadId] = el }}
-            className={`rounded-2xl border p-3 ${dragging === s.leadId ? 'border-[#f0b429] bg-amber-50 shadow-lg' : s.done ? 'border-green-200 bg-green-50' : 'border-line bg-white'}`}>
+            className={`rounded-2xl border p-3 ${dragging === s.leadId ? 'border-gold bg-amber-50 shadow-lg' : s.done ? 'border-green-200 bg-green-50' : 'border-line bg-white'}`}>
             <div className="flex items-start gap-2">
               <button type="button" aria-label="Drag to reorder" disabled={s.done}
                 onPointerDown={e => onDown(e, s.leadId)} style={{ touchAction: 'none' }}
-                className="mt-0.5 shrink-0 cursor-grab rounded-lg p-1 text-[#9ca3af] disabled:opacity-30"><GripVertical className="h-5 w-5" /></button>
+                className="mt-0.5 shrink-0 cursor-grab rounded-lg p-1 text-gray-400 disabled:opacity-30"><GripVertical className="h-5 w-5" /></button>
               <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-ink text-xs font-bold text-white">{i + 1}</span>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold">{s.customerName} {s.done && <span className="ml-1 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-bold text-green-700">{s.visitStatus === 'Absent' ? 'ABSENT' : 'DONE'}</span>}</p>

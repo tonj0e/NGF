@@ -145,7 +145,7 @@ export default function RouteSketch({ start, startLabel, stops, nextId, onPick, 
       <div className="mt-1 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-[11px] text-white/60">
         <span className="inline-flex items-center gap-3">
           <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-white" />To visit</span>
-          <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#f0b429]" />Next</span>
+          <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-gold" />Next</span>
           <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-400" />Done</span>
         </span>
         <span>Not a map · arrows show direction, north is up</span>

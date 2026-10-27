@@ -608,7 +608,7 @@ export default function DevPage({ session }: { session: Session }) {
           )}
 
           {status === 'waiting' && (
-            <div className="flex items-center gap-3 rounded-2xl border border-line bg-[#f9fafb] px-4 py-3">
+            <div className="flex items-center gap-3 rounded-2xl border border-line bg-panel px-4 py-3">
               <div className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-ink border-t-transparent" />
               <p className="flex-1 text-sm text-soft">Complete the Google sign-in in the popup window…</p>
               <button onClick={() => setStatus('idle')}
@@ -627,7 +627,7 @@ export default function DevPage({ session }: { session: Session }) {
               <div>
                 <p className="mb-2 text-[0.7rem] font-semibold uppercase tracking-wider text-soft">New Refresh Token</p>
                 <div className="flex items-start gap-2">
-                  <div className="flex-1 break-all rounded-xl border border-line bg-[#f9fafb] px-4 py-3 font-mono text-xs text-ink">
+                  <div className="flex-1 break-all rounded-xl border border-line bg-panel px-4 py-3 font-mono text-xs text-ink">
                     {token}
                   </div>
                   <button onClick={copyToken}
@@ -814,7 +814,7 @@ export default function DevPage({ session }: { session: Session }) {
                     </thead>
                     <tbody className="divide-y divide-black/5">
                       {calcResult.curve.map((c: any) => (
-                        <tr key={c.week} className="hover:bg-[#f9fafb]">
+                        <tr key={c.week} className="hover:bg-panel">
                           <td className="px-5 py-2">{c.week}</td>
                           <td className="px-5 py-2 text-right font-medium">{capCurrency(c.collection)}</td>
                           <td className="px-5 py-2 text-right">{c.funded}</td>
@@ -836,7 +836,7 @@ export default function DevPage({ session }: { session: Session }) {
             <p className="mt-1 text-xs text-soft">Temporary switches for testing. Turn these off before going live. Stored on this device only.</p>
           </div>
 
-          <div className="flex items-center justify-between gap-4 rounded-2xl border border-line bg-[#f9fafb] px-5 py-4">
+          <div className="flex items-center justify-between gap-4 rounded-2xl border border-line bg-panel px-5 py-4">
             <div className="min-w-0">
               <p className="text-sm font-semibold">Unlock payment day</p>
               <p className="mt-0.5 text-xs text-soft">
@@ -848,7 +848,7 @@ export default function DevPage({ session }: { session: Session }) {
               role="switch"
               aria-checked={paymentUnlock}
               onClick={togglePaymentUnlock}
-              className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${paymentUnlock ? 'bg-green-600' : 'bg-[#d1d5db]'}`}>
+              className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${paymentUnlock ? 'bg-green-600' : 'bg-gray-300'}`}>
               <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${paymentUnlock ? 'left-6' : 'left-1'}`} />
             </button>
           </div>
@@ -859,7 +859,7 @@ export default function DevPage({ session }: { session: Session }) {
               : 'Payment day lock is active — payments can only be recorded on Saturday.'}
           </div>
 
-          <div className="flex items-center justify-between gap-4 rounded-2xl border border-line bg-[#f9fafb] px-5 py-4">
+          <div className="flex items-center justify-between gap-4 rounded-2xl border border-line bg-panel px-5 py-4">
             <div className="min-w-0">
               <p className="text-sm font-semibold">Dark mode</p>
               <p className="mt-0.5 text-xs text-soft">
@@ -871,13 +871,13 @@ export default function DevPage({ session }: { session: Session }) {
               role="switch"
               aria-checked={darkMode}
               onClick={toggleDarkMode}
-              className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${darkMode ? 'bg-green-600' : 'bg-[#d1d5db]'}`}>
+              className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${darkMode ? 'bg-green-600' : 'bg-gray-300'}`}>
               <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${darkMode ? 'left-6' : 'left-1'}`} />
             </button>
           </div>
 
           {/* QR-secured login per portal */}
-          <div className="rounded-2xl border border-line bg-[#f9fafb] px-5 py-4 space-y-3">
+          <div className="rounded-2xl border border-line bg-panel px-5 py-4 space-y-3">
             <div>
               <p className="text-sm font-semibold">QR-secured login</p>
               <p className="mt-0.5 text-xs text-soft">
@@ -892,7 +892,7 @@ export default function DevPage({ session }: { session: Session }) {
                   role="switch"
                   aria-checked={!!qrLogin[role]}
                   onClick={() => toggleQrLogin(role)}
-                  className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${qrLogin[role] ? 'bg-green-600' : 'bg-[#d1d5db]'}`}>
+                  className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${qrLogin[role] ? 'bg-green-600' : 'bg-gray-300'}`}>
                   <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${qrLogin[role] ? 'left-6' : 'left-1'}`} />
                 </button>
               </div>
@@ -900,7 +900,7 @@ export default function DevPage({ session }: { session: Session }) {
           </div>
 
           {/* Password recovery test mailbox */}
-          <div className="rounded-2xl border border-line bg-[#f9fafb] px-5 py-4 space-y-3">
+          <div className="rounded-2xl border border-line bg-panel px-5 py-4 space-y-3">
             <div>
               <p className="text-sm font-semibold">Recovery codes to one test mailbox</p>
               <p className="mt-0.5 text-xs text-soft">
@@ -913,7 +913,7 @@ export default function DevPage({ session }: { session: Session }) {
             <div className="flex items-center justify-between gap-4">
               <span className="text-sm font-medium">{recovery.testOn ? `On until ${new Date(recovery.testUntil).toLocaleString()}` : 'Off'}</span>
               <button type="button" role="switch" aria-checked={recovery.testOn} onClick={() => saveRecovery(!recovery.testOn)}
-                className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${recovery.testOn ? 'bg-green-600' : 'bg-[#d1d5db]'}`}>
+                className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${recovery.testOn ? 'bg-green-600' : 'bg-gray-300'}`}>
                 <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${recovery.testOn ? 'left-6' : 'left-1'}`} />
               </button>
             </div>
@@ -921,7 +921,7 @@ export default function DevPage({ session }: { session: Session }) {
           </div>
 
           {/* Verification route planning */}
-          <div className="rounded-2xl border border-line bg-[#f9fafb] px-5 py-4 space-y-3">
+          <div className="rounded-2xl border border-line bg-panel px-5 py-4 space-y-3">
             <div>
               <p className="text-sm font-semibold">Verification routes</p>
               <p className="mt-0.5 text-xs text-soft">
@@ -932,7 +932,7 @@ export default function DevPage({ session }: { session: Session }) {
               <div key={field} className="flex items-center justify-between gap-4">
                 <span className="text-sm font-medium">{label}</span>
                 <button type="button" role="switch" aria-checked={routeCfg[field]} onClick={() => toggleRoute(field)}
-                  className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${routeCfg[field] ? 'bg-green-600' : 'bg-[#d1d5db]'}`}>
+                  className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${routeCfg[field] ? 'bg-green-600' : 'bg-gray-300'}`}>
                   <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${routeCfg[field] ? 'left-6' : 'left-1'}`} />
                 </button>
               </div>
@@ -940,7 +940,7 @@ export default function DevPage({ session }: { session: Session }) {
           </div>
 
           {/* Agent Trip Testing */}
-          <div className="rounded-2xl border border-line bg-[#f9fafb] px-5 py-4 space-y-3">
+          <div className="rounded-2xl border border-line bg-panel px-5 py-4 space-y-3">
             <div>
               <p className="text-sm font-semibold">Agent Trip Testing</p>
               <p className="mt-0.5 text-xs text-soft">
@@ -970,7 +970,7 @@ export default function DevPage({ session }: { session: Session }) {
               </div>
               <button type="button" role="switch" aria-checked={testLocation.enabled}
                 onClick={() => { const next = !testLocation.enabled; setTestLocation(d => ({ ...d, enabled: next })); if (next) applyTestLocation() }}
-                className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${testLocation.enabled ? 'bg-green-600' : 'bg-[#d1d5db]'}`}>
+                className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${testLocation.enabled ? 'bg-green-600' : 'bg-gray-300'}`}>
                 <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${testLocation.enabled ? 'left-6' : 'left-1'}`} />
               </button>
             </div>
@@ -1019,7 +1019,7 @@ export default function DevPage({ session }: { session: Session }) {
             value={noteTemplate}
             onChange={e => setNoteTemplate(e.target.value)}
             rows={12}
-            className="w-full rounded-2xl border border-line bg-[#f9fafb] px-4 py-3 text-sm font-mono leading-relaxed outline-none focus:border-ink focus:bg-white resize-y"
+            className="w-full rounded-2xl border border-line bg-panel px-4 py-3 text-sm font-mono leading-relaxed outline-none focus:border-ink focus:bg-white resize-y"
           />
 
           <div className="flex items-center gap-2">
@@ -1140,7 +1140,7 @@ export default function DevPage({ session }: { session: Session }) {
                 </label>
               ))}
             </div>
-            <div className="flex flex-wrap items-center gap-4 rounded-2xl bg-[#f9fafb] px-4 py-3 text-sm">
+            <div className="flex flex-wrap items-center gap-4 rounded-2xl bg-panel px-4 py-3 text-sm">
               <span className="text-soft">Total collection: <b className="text-ink">{capCurrency(pTotal || 0)}</b></span>
               <span className="text-soft">Net disbursed: <b className="text-green-700">{capCurrency(pNet || 0)}</b></span>
             </div>
@@ -1157,12 +1157,12 @@ export default function DevPage({ session }: { session: Session }) {
               <p className="p-6 text-center text-sm text-soft">No products.</p>
             ) : (
               <table className="w-full text-left text-sm">
-                <thead className="border-b border-black/5 bg-[#fafafa] text-soft">
+                <thead className="border-b border-black/5 bg-panel text-soft">
                   <tr>{['Product', 'Principal', 'Schedule', 'Upfront', 'Total', 'Net', ''].map(h => <th key={h} className="px-4 py-3 font-medium text-xs">{h}</th>)}</tr>
                 </thead>
                 <tbody className="divide-y divide-black/5">
                   {products.map(p => (
-                    <tr key={p.key} className="hover:bg-[#fafafa]">
+                    <tr key={p.key} className="hover:bg-panel">
                       <td className="px-4 py-3 font-medium">{p.label}</td>
                       <td className="px-4 py-3">{capCurrency(p.principal)}</td>
                       <td className="px-4 py-3 text-soft text-xs">
@@ -1246,7 +1246,7 @@ export default function DevPage({ session }: { session: Session }) {
             </div>
             <div className="grid grid-cols-2 gap-2">
               {TRANSACTION_TABLES.map(t => (
-                <label key={t} className="flex items-center gap-2.5 rounded-xl border border-line px-3 py-2 cursor-pointer hover:bg-[#f9fafb]">
+                <label key={t} className="flex items-center gap-2.5 rounded-xl border border-line px-3 py-2 cursor-pointer hover:bg-panel">
                   <input type="checkbox" checked={selected.has(t)} onChange={() => toggleTable(t)}
                     className="h-3.5 w-3.5 accent-red-600" />
                   <span className="text-xs font-medium">{t}</span>
@@ -1268,7 +1268,7 @@ export default function DevPage({ session }: { session: Session }) {
             </div>
             <div className="grid grid-cols-2 gap-2">
               {STAFF_CONFIG_TABLES.map(t => (
-                <label key={t} className="flex items-center gap-2.5 rounded-xl border border-line px-3 py-2 cursor-pointer hover:bg-[#f9fafb]">
+                <label key={t} className="flex items-center gap-2.5 rounded-xl border border-line px-3 py-2 cursor-pointer hover:bg-panel">
                   <input type="checkbox" checked={selected.has(t)} onChange={() => toggleTable(t)}
                     className="h-3.5 w-3.5 accent-red-600" />
                   <span className="text-xs font-medium">{t}</span>
@@ -1294,7 +1294,7 @@ export default function DevPage({ session }: { session: Session }) {
               value={confirmText}
               onChange={e => { setConfirmText(e.target.value); setClearStatus('idle') }}
               placeholder="CLEAR ALL"
-              className="w-full rounded-xl border border-line bg-[#f9fafb] px-4 py-2.5 text-sm font-mono focus:outline-none focus:border-red-400"
+              className="w-full rounded-xl border border-line bg-panel px-4 py-2.5 text-sm font-mono focus:outline-none focus:border-red-400"
             />
           </div>
 

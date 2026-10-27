@@ -355,21 +355,21 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
                     {n.riskNotes && (
                       <div className="col-span-3">
                         <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-soft mb-1">Field Notes</p>
-                        <p className="text-sm text-ink bg-[#f9fafb] rounded-xl px-4 py-3">{n.riskNotes}</p>
+                        <p className="text-sm text-ink bg-panel rounded-xl px-4 py-3">{n.riskNotes}</p>
                       </div>
                     )}
                   </span>
                 } catch { return detail.verificationNotes ? (
                   <div className="col-span-3">
                     <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-soft mb-1">Field Notes</p>
-                    <p className="text-sm bg-[#f9fafb] rounded-xl px-4 py-3">{detail.verificationNotes}</p>
+                    <p className="text-sm bg-panel rounded-xl px-4 py-3">{detail.verificationNotes}</p>
                   </div>
                 ) : null }
               })()}
             </InfoRow>
             {detail.adminFinalDecision && (
               <InfoRow>
-                <div className="col-span-3 rounded-xl border border-line bg-[#f9fafb] px-4 py-3">
+                <div className="col-span-3 rounded-xl border border-line bg-panel px-4 py-3">
                   <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-soft mb-1">Admin Decision</p>
                   <p className="text-sm font-semibold">{detail.adminFinalDecision}</p>
                 </div>
@@ -595,7 +595,7 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
         {session.role === 'Guarantor' && (
           <div className="grid grid-cols-2 gap-2 sm:flex">
             <button onClick={() => setShowSubmit(true)}
-              className="rounded-2xl bg-[#f0b429] px-4 py-2.5 text-sm font-semibold text-[#1a1400] hover:opacity-90 transition">
+              className="rounded-2xl bg-gold px-4 py-2.5 text-sm font-semibold text-[#1a1400] hover:opacity-90 transition">
               + New Lead
             </button>
             <button onClick={() => setShowRenewal(true)}
@@ -734,7 +734,7 @@ function DisbursementsView({ session }: { session: Session }) {
           <div className="divide-y divide-black/5">
             {rows.map(l => {
               return (
-                <div key={l.loanId} className="flex items-start justify-between gap-3 px-5 py-3 hover:bg-[#fafafa]">
+                <div key={l.loanId} className="flex items-start justify-between gap-3 px-5 py-3 hover:bg-panel">
                   <div className="min-w-0">
                     <p className="font-medium truncate">{l.customerName}</p>
                     <p className="font-mono text-xs text-soft">{l.loanId}</p>
@@ -869,11 +869,11 @@ function InfoItem({ label, value, large, span, badge }: {
   const colClass = span === 2 ? 'col-span-2' : span === 3 ? 'col-span-3' : ''
   return (
     <div className={colClass}>
-      <p className="text-[0.65rem] font-semibold uppercase tracking-widest text-[#9ca3af] mb-1">{label}</p>
+      <p className="text-[0.65rem] font-semibold uppercase tracking-widest text-gray-400 mb-1">{label}</p>
       {badge && value && value !== '-' ? (
         <span className={`inline-block rounded-full px-3 py-1 text-xs font-semibold ${badgeMap[badge] ?? badgeMap.indigo}`}>{value}</span>
       ) : (
-        <p className={`${large ? 'text-base font-semibold text-ink' : 'text-sm text-ink'} ${!value || value === '-' ? 'text-[#9ca3af]' : ''}`}>
+        <p className={`${large ? 'text-base font-semibold text-ink' : 'text-sm text-ink'} ${!value || value === '-' ? 'text-gray-400' : ''}`}>
           {value || '—'}
         </p>
       )}

@@ -88,7 +88,7 @@ function Thumb({ session, url }: { session: Session; url: string }) {
   }, [url, session.token])
   if (!url) return null
   if (src === 'error') return <p className="text-xs text-red-600">Could not load the picture</p>
-  if (!src) return <div className="h-40 w-28 animate-pulse rounded-xl bg-[#e8eaf0]" />
+  if (!src) return <div className="h-40 w-28 animate-pulse rounded-xl bg-line" />
   return (
     <>
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -272,7 +272,7 @@ export default function PaymentChatPage({ session, onOpenHistory }: { session: S
         </select>
       )}
 
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto rounded-[1.75rem] bg-[#eef0f5] p-3 sm:p-4">
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto rounded-[1.75rem] bg-line p-3 sm:p-4">
         {error && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
         {!msgs.length && !error && <p className="py-10 text-center text-sm text-soft">{isG ? 'No payments sent yet. Tap Single payment or Multi payment below.' : 'No screenshots yet.'}</p>}
         {msgs.map(m => <Bubble key={m.messageId} m={m} session={session} me={me} onFix={startFix} onApprove={approve} busy={busy} />)}
@@ -285,7 +285,7 @@ export default function PaymentChatPage({ session, onOpenHistory }: { session: S
         {me.access.canChat && (isG || gid) && (
           <div className="grid grid-cols-2 gap-2">
             <button disabled={openIssue && isG} onClick={() => startNew('single')} className="rounded-2xl bg-ink px-4 py-3 text-sm font-semibold text-white disabled:opacity-40">Single payment</button>
-            <button disabled={openIssue && isG} onClick={() => startNew('multi')} className="rounded-2xl bg-[#f0b429] px-4 py-3 text-sm font-semibold text-ink disabled:opacity-40">Multi payment</button>
+            <button disabled={openIssue && isG} onClick={() => startNew('multi')} className="rounded-2xl bg-gold px-4 py-3 text-sm font-semibold text-ink disabled:opacity-40">Multi payment</button>
           </div>
         )}
         {me.access.canChat === false && isG && <p className="rounded-2xl bg-amber-50 px-4 py-2 text-sm text-amber-800">The chat is not switched on for you yet. Ask an Admin to switch it on.</p>}
@@ -312,7 +312,7 @@ export default function PaymentChatPage({ session, onOpenHistory }: { session: S
                 {(q.trim() || (mode === 'multi' && picked.length > 0) || !picked.length) && results.length > 0 && (
                   <div className="max-h-48 overflow-y-auto rounded-2xl border border-line">
                     {results.map(r => (
-                      <button key={r.repaymentId} onClick={() => pick(r)} className="flex w-full items-center justify-between gap-2 border-b border-[#f0f1f4] px-4 py-2.5 text-left text-sm last:border-0 hover:bg-mist">
+                      <button key={r.repaymentId} onClick={() => pick(r)} className="flex w-full items-center justify-between gap-2 border-b border-line px-4 py-2.5 text-left text-sm last:border-0 hover:bg-mist">
                         <span><b className="font-mono">{r.payCode}</b> · {r.name}<span className="ml-1 text-xs text-soft">{r.weekNo ? `week ${r.weekNo}` : ''}{r.dueDate ? ` · due ${r.dueDate.slice(5).split('-').reverse().join('/')}` : ''}</span>{r.overdue && <span className="ml-1 text-xs text-red-600">overdue</span>}</span>
                         <span className="font-semibold">{money(r.amount)}</span>
                       </button>
@@ -340,7 +340,7 @@ export default function PaymentChatPage({ session, onOpenHistory }: { session: S
             {picked.length > 0 && fixKind !== 'customer' && (
               <div className="space-y-2">
                 <p className="text-xs font-semibold uppercase tracking-wider text-soft">Payment screenshot</p>
-                <label className="flex cursor-pointer items-center justify-center rounded-2xl border-2 border-dashed border-[#d6d9e0] px-4 py-5 text-sm font-semibold text-ink">
+                <label className="flex cursor-pointer items-center justify-center rounded-2xl border-2 border-dashed border-line px-4 py-5 text-sm font-semibold text-ink">
                   {img ? 'Change screenshot' : 'Upload screenshot'}
                   <input type="file" accept="image/*" className="hidden" onChange={e => onFile(e.target.files?.[0])} />
                 </label>
@@ -435,7 +435,7 @@ function ReaderTest({ session, keys }: { session: Session; keys: { claude: boole
   return (
     <div className="space-y-2 border-t border-line pt-2">
       <p className="text-xs font-semibold uppercase tracking-wider text-soft">Test a screenshot (nothing is recorded)</p>
-      <label className="flex cursor-pointer items-center justify-center rounded-xl border-2 border-dashed border-[#d6d9e0] bg-white px-3 py-3 text-sm font-semibold">
+      <label className="flex cursor-pointer items-center justify-center rounded-xl border-2 border-dashed border-line bg-white px-3 py-3 text-sm font-semibold">
         {img ? 'Change screenshot' : 'Choose a payment screenshot'}
         <input type="file" accept="image/*" className="hidden" onChange={async e => { const f = e.target.files?.[0]; if (f) { try { setImg(await prepareImage(f)); setRes([]) } catch { setErr('Could not open that picture') } } }} />
       </label>

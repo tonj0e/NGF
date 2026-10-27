@@ -82,7 +82,7 @@ function UploadBox({ photoKey, preview, onChange }: { photoKey: PhotoKey; previe
   return (
     <div className="block">
       <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-soft">{label}</p>
-      <label className="relative flex h-44 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[#d1d5db] bg-[#f9fafb] transition hover:border-ink hover:bg-mist overflow-hidden">
+      <label className="relative flex h-44 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-300 bg-panel transition hover:border-ink hover:bg-mist overflow-hidden">
         {preview ? (
           <img src={preview} alt={label} className="h-full w-full object-cover rounded-2xl" />
         ) : (

@@ -59,7 +59,7 @@ export default function DisburseQueue({ session }: { session: Session }) {
       </div>
       {rows.length === 0 ? <p className="p-6 text-center text-sm text-soft">Nothing waiting.</p> : group(rows).map(([gid, list]) => (
         <div key={gid}>
-          {!guarantor && <p className="bg-[#f9fafb] px-5 py-1.5 text-[11px] font-bold uppercase tracking-wider text-soft">{list[0].guarantorCode} · {list[0].guarantorName}</p>}
+          {!guarantor && <p className="bg-panel px-5 py-1.5 text-[11px] font-bold uppercase tracking-wider text-soft">{list[0].guarantorCode} · {list[0].guarantorName}</p>}
           <div className="divide-y divide-black/5">
             {list.map(r => (
               <div key={r.leadId} className="px-5 py-3">

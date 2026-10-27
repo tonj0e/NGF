@@ -38,7 +38,7 @@ export default function WhatsAppPanel({ session }: { session: Session }) {
         {st && !connected && st.chosen && st.missing.length > 0 && <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900">Provider <b>{st.chosen}</b> is chosen but these are missing: <b>{st.missing.join(', ')}</b>.</p>}
         {st && connected && !st.templateSet && <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900">Add the approved message template below. WhatsApp only allows business-started messages through an approved template.</p>}
         <IntegrationFields session={session} group="whatsapp" onChanged={load} />
-        <div className="rounded-2xl bg-[#f9fafb] p-3 text-xs text-soft space-y-1">
+        <div className="rounded-2xl bg-panel p-3 text-xs text-soft space-y-1">
           <p className="font-semibold text-ink">Template to get approved (utility category)</p>
           <p className="font-mono">Hello {'{{1}}'}, your NGF FINCORP loan {'{{2}}'} payment of {'{{3}}'} is due. Pay securely: {'{{4}}'} (valid till {'{{5}}'})</p>
           <p>Variables in order: customer name, loan number, amount, payment link, valid-until time.</p>

@@ -23,7 +23,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
           id={inputId}
           className={cn(
             'w-full rounded-xl border bg-white px-4 py-3 text-sm outline-none transition-all duration-200',
-            'placeholder:text-[#9ca3af]',
+            'placeholder:text-gray-400',
             'disabled:bg-mist disabled:cursor-not-allowed',
             error
               ? 'border-red-300 text-red-900 focus:border-red-500 focus:ring-2 focus:ring-red-200'

@@ -94,14 +94,14 @@ export default function LeadsHistoryWeeks({ session, search, branch, version, re
                     <div key={d}>
                       <button disabled={!n} onClick={() => { setOpenDays(toggle(openDays, d)); if (!dOpen && !Array.isArray(rows)) loadDay(d) }}
                         className="flex w-full items-center justify-between gap-3 px-5 py-3 text-left disabled:cursor-default">
-                        <span className={`text-sm ${n ? 'font-medium' : 'text-[#9aa3b2]'}`}>{dayLabel(d)}</span>
+                        <span className={`text-sm ${n ? 'font-medium' : 'text-gray-400'}`}>{dayLabel(d)}</span>
                         <span className="flex items-center gap-2">
-                          <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${n ? 'bg-mist' : 'text-[#9aa3b2]'}`}>{n ? `${n} lead${n === 1 ? '' : 's'}` : 'No leads'}</span>
+                          <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${n ? 'bg-mist' : 'text-gray-400'}`}>{n ? `${n} lead${n === 1 ? '' : 's'}` : 'No leads'}</span>
                           {n > 0 && <ChevronDown size={16} className={`text-soft transition ${dOpen ? 'rotate-180' : ''}`} />}
                         </span>
                       </button>
                       {dOpen && n > 0 && (
-                        <div className="divide-y divide-black/5 border-t border-black/5 bg-[#fafbfc]">
+                        <div className="divide-y divide-black/5 border-t border-black/5 bg-panel">
                           {rows === 'loading' || !rows ? <p className="p-5 text-center text-xs text-soft">Loading…</p> : rows.map(renderLead)}
                         </div>
                       )}

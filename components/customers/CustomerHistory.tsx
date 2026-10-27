@@ -65,7 +65,7 @@ export default function CustomerHistory({ session, customerId }: { session: Sess
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-soft">NGF Score</p>
-            <p className="mt-1 text-4xl font-bold leading-none text-ink">{score.value}<span className="ml-1 text-base font-semibold text-[#9ca3af]">/ {score.max}</span></p>
+            <p className="mt-1 text-4xl font-bold leading-none text-ink">{score.value}<span className="ml-1 text-base font-semibold text-gray-400">/ {score.max}</span></p>
           </div>
           <span className={`rounded-full px-3 py-1 text-xs font-bold ${BAND[score.band] || BAND.New}`}>{score.band}</span>
         </div>
@@ -73,9 +73,9 @@ export default function CustomerHistory({ session, customerId }: { session: Sess
           <div className="h-full rounded-full bg-gradient-to-r from-amber-400 via-lime-400 to-green-600" style={{ width: `${pct}%` }} />
         </div>
         <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-          <div className="rounded-2xl bg-[#f9fafb] px-2 py-2"><p className="text-lg font-bold">{loans.length}</p><p className="text-[11px] text-soft">Loans taken</p></div>
-          <div className="rounded-2xl bg-[#f9fafb] px-2 py-2"><p className="text-lg font-bold">{score.completedLoans}</p><p className="text-[11px] text-soft">Completed</p></div>
-          <div className="rounded-2xl bg-[#f9fafb] px-2 py-2"><p className="text-lg font-bold">{score.onTimeRate == null ? '–' : `${score.onTimeRate}%`}</p><p className="text-[11px] text-soft">Paid on time</p></div>
+          <div className="rounded-2xl bg-panel px-2 py-2"><p className="text-lg font-bold">{loans.length}</p><p className="text-[11px] text-soft">Loans taken</p></div>
+          <div className="rounded-2xl bg-panel px-2 py-2"><p className="text-lg font-bold">{score.completedLoans}</p><p className="text-[11px] text-soft">Completed</p></div>
+          <div className="rounded-2xl bg-panel px-2 py-2"><p className="text-lg font-bold">{score.onTimeRate == null ? '–' : `${score.onTimeRate}%`}</p><p className="text-[11px] text-soft">Paid on time</p></div>
         </div>
         <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs">
           <div className="rounded-2xl bg-green-50 px-2 py-2"><p className="text-base font-bold text-green-800">+{score.parts.cyclePoints}</p><p className="text-[11px] text-soft">Completed loans</p></div>
@@ -90,7 +90,7 @@ export default function CustomerHistory({ session, customerId }: { session: Sess
         )}
         <button type="button" onClick={() => setShowRules(!showRules)} className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-blue-700"><Info className="h-3.5 w-3.5" />How the score works</button>
         {showRules && (
-          <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-[#4b5563]">
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-gray-600">
             <li>A payment recorded by {score.rules.cutoffTime} (3:30 pm) on its Saturday is on time and never lowers the score.</li>
             <li>Finishing a 10-week loan adds points: {score.rules.cycleSteps.map(n => `+${n}`).join(', ')} for the 1st, 2nd, 3rd... completed loan. The score stops at {score.rules.max}.</li>
             <li>Paid late: −{score.rules.latePenalty}, and a further −{score.rules.extraPerLateWeek} for every full week of delay.</li>
@@ -118,7 +118,7 @@ export default function CustomerHistory({ session, customerId }: { session: Sess
                 <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${l.completed ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>{l.completed ? 'Completed' : l.status}</span>
                 {l.points > 0 && <span className="text-xs font-bold text-green-700">+{l.points}</span>}
                 {l.penalty > 0 && <span className="text-xs font-bold text-red-600">−{l.penalty}</span>}
-                <ChevronDown className={`h-4 w-4 text-[#9ca3af] transition ${isOpen ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`h-4 w-4 text-gray-400 transition ${isOpen ? 'rotate-180' : ''}`} />
               </div>
             </button>
             <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-semibold">
@@ -139,11 +139,11 @@ export default function CustomerHistory({ session, customerId }: { session: Sess
                           {money(w.amount)}{w.mode && <> · {w.mode}</>}{w.utr && <> · UTR <span className="font-mono">{w.utr}</span>{w.utrStatus && w.utrStatus !== 'Verified' && <span className="text-amber-700"> ({w.utrStatus})</span>}</>}
                         </p>
                         {(w.outcome === 'on-time' || w.outcome === 'late') && (
-                          <p className="text-xs text-[#4b5563]">
-                            {w.recordedAt ? <>Recorded {stamp(w.recordedAt)}{w.recordedBy && <> by {w.recordedBy}</>}</> : <>Paid {w.paidDate ? day(w.paidDate) : ''} <span className="text-[#9ca3af]">(time not recorded)</span></>}
+                          <p className="text-xs text-gray-600">
+                            {w.recordedAt ? <>Recorded {stamp(w.recordedAt)}{w.recordedBy && <> by {w.recordedBy}</>}</> : <>Paid {w.paidDate ? day(w.paidDate) : ''} <span className="text-gray-400">(time not recorded)</span></>}
                           </p>
                         )}
-                        {w.notes && <p className="text-xs italic text-[#9ca3af]">{w.notes}</p>}
+                        {w.notes && <p className="text-xs italic text-gray-400">{w.notes}</p>}
                       </div>
                       <div className="shrink-0 text-right">
                         {w.outcome === 'on-time' && <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700"><CheckCircle2 className="h-3.5 w-3.5" />On time</span>}

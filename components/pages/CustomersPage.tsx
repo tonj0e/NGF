@@ -237,7 +237,7 @@ function TransactionTab({ rows, loading, startDate, loanId }: {
 
       <div className="overflow-hidden rounded-[1.75rem] border border-white/70 bg-white shadow-panel">
         <table className="w-full text-left text-sm">
-          <thead className="border-b border-black/5 bg-[#fafafa] text-soft">
+          <thead className="border-b border-black/5 bg-panel text-soft">
             <tr>
               <th className="px-5 py-3 font-medium text-xs">Date</th>
               <th className="px-5 py-3 font-medium text-xs">Description</th>
@@ -250,7 +250,7 @@ function TransactionTab({ rows, loading, startDate, loanId }: {
             {shown.length === 0 ? (
               <tr><td colSpan={5} className="px-5 py-8 text-center text-sm text-soft">No transactions in this period.</td></tr>
             ) : shown.map((t, i) => (
-              <tr key={i} className="hover:bg-[#fafafa]">
+              <tr key={i} className="hover:bg-panel">
                 <td className="px-5 py-3 text-soft whitespace-nowrap">{t.date || '—'}</td>
                 <td className="px-5 py-3 font-medium">{t.desc}</td>
                 <td className="px-5 py-3 text-right font-semibold text-red-600">{t.debit ? `− ${currency(t.debit)}` : '—'}</td>
@@ -374,19 +374,19 @@ return (
         </div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 mt-4 text-sm">
-        <div className="p-3 bg-[#f9fafb] rounded-xl">
+        <div className="p-3 bg-panel rounded-xl">
           <p className="text-soft text-xs uppercase tracking-wider">Principal</p>
           <p className="font-semibold mt-1">{currency(principal)}</p>
         </div>
-        <div className="p-3 bg-[#f9fafb] rounded-xl">
+        <div className="p-3 bg-panel rounded-xl">
           <p className="text-soft text-xs uppercase tracking-wider">Collected</p>
           <p className="font-semibold text-green-700 mt-1">{currency(totalPaid)}</p>
         </div>
-        <div className="p-3 bg-[#f9fafb] rounded-xl">
+        <div className="p-3 bg-panel rounded-xl">
           <p className="text-soft text-xs uppercase tracking-wider">Pending</p>
           <p className="font-semibold text-red-600 mt-1">{currency(totalPending)}</p>
         </div>
-        <div className="col-span-1 lg:col-span-3 p-3 bg-[#f9fafb] rounded-xl">
+        <div className="col-span-1 lg:col-span-3 p-3 bg-panel rounded-xl">
           <p className="text-soft text-xs uppercase tracking-wider">Guarantor / Agent</p>
           <p className="font-semibold mt-1 truncate">{guarantorName} · {agentName}</p>
         </div>
@@ -394,7 +394,7 @@ return (
 
     <div className="overflow-x-auto">
       <table className="w-full text-sm min-w-[600px]">
-        <thead className="border-b border-black/5 bg-[#fafafa] text-soft">
+        <thead className="border-b border-black/5 bg-panel text-soft">
           <tr>
             <th className="px-3 md:px-5 py-2 font-medium text-xs">Week</th>
             <th className="px-3 md:px-5 py-2 font-medium text-xs">Due Date</th>
@@ -409,7 +409,7 @@ return (
           {loanRows
             .sort((a, b) => Number(a['Week No'] || 0) - Number(b['Week No'] || 0))
             .map((r, i) => (
-            <tr key={r['Repayment ID'] || i} className="hover:bg-[#fafafa]">
+            <tr key={r['Repayment ID'] || i} className="hover:bg-panel">
               <td className="px-3 md:px-5 py-2 font-medium">{r['Week No']}</td>
               <td className="px-3 md:px-5 py-2 text-soft">{r['Due Date'] || '—'}</td>
               <td className="px-3 md:px-5 py-2">{r['Paid Date'] || (r['Status'] === 'Paid' ? 'Paid' : '—')}</td>
@@ -803,7 +803,7 @@ export default function CustomersPage({ session, perms }: { session: Session; pe
                     ) : currentUrl ? (
                       <div className="mb-2 h-32 w-full rounded-xl border border-line bg-mist flex items-center justify-center text-xs text-soft">Current image</div>
                     ) : (
-                      <div className="mb-2 h-32 w-full rounded-xl border border-dashed border-line bg-[#f9fafb] flex items-center justify-center text-xs text-soft">Not uploaded</div>
+                      <div className="mb-2 h-32 w-full rounded-xl border border-dashed border-line bg-panel flex items-center justify-center text-xs text-soft">Not uploaded</div>
                     )}
                     <input type="file" accept="image/*"
                       onChange={e => handlePhotoSelect(key, e.target.files?.[0] || null)}

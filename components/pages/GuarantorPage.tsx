@@ -310,7 +310,7 @@ export default function GuarantorPage({ session }: { session: Session }) {
                   </div>
                 </div>
               ) : (
-                <div className="rounded-[1.75rem] border border-line bg-[#f9fafb] p-5 text-sm text-soft">
+                <div className="rounded-[1.75rem] border border-line bg-panel p-5 text-sm text-soft">
                   No active loans — no commission cycle to settle.
                 </div>
               )}
@@ -405,7 +405,7 @@ export default function GuarantorPage({ session }: { session: Session }) {
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[640px] text-left text-sm">
-                      <thead className="border-b border-black/5 bg-[#fafafa] text-soft">
+                      <thead className="border-b border-black/5 bg-panel text-soft">
                         <tr>{['Customer', 'Loan ID', 'Status', 'Start date', 'Principal', 'Weeks paid', 'Commission'].map(h => <th key={h} className="px-5 py-3 text-xs font-medium">{h}</th>)}</tr>
                       </thead>
                       <tbody className="divide-y divide-black/5">
@@ -423,7 +423,7 @@ export default function GuarantorPage({ session }: { session: Session }) {
                         {rows.length === 0 && <tr><td colSpan={7} className="p-5 text-sm text-soft">No commission records{gLoans.length ? ' for this filter' : ''}.</td></tr>}
                       </tbody>
                       {rows.length > 0 && (
-                        <tfoot className="border-t border-black/5 bg-[#fafafa]">
+                        <tfoot className="border-t border-black/5 bg-panel">
                           <tr>
                             <td colSpan={6} className="px-5 py-3 text-sm font-semibold">Total commission ({rows.length} loan{rows.length === 1 ? '' : 's'}{ledgerMonth || ledgerStatus ? ', filtered' : ''})</td>
                             <td className="px-5 py-3 text-base font-bold text-green-700">+{currency(rowsTotal)}</td>
@@ -753,7 +753,7 @@ function CommissionBalanceCard({ balance }: { balance: number }) {
     </div>
   )
   if (balance < 0) return (
-    <div className="rounded-[1.5rem] border border-line bg-[#f9fafb] p-4 shadow-panel text-center">
+    <div className="rounded-[1.5rem] border border-line bg-panel p-4 shadow-panel text-center">
       <p className="text-xs font-medium text-soft">Overpaid</p>
       <p className="mt-1 text-xl font-bold text-soft">{formatINR(Math.abs(balance))}</p>
     </div>
@@ -956,13 +956,13 @@ function DepositAdmin({ guarantorId, session }: { guarantorId: string; session: 
         <div className="border-b border-black/5 px-5 py-3"><p className="text-sm font-semibold">Passbook</p></div>
         <div className="overflow-x-auto">
         <table className="w-full min-w-[480px] text-left text-sm">
-          <thead className="border-b border-black/5 bg-[#fafafa] text-soft"><tr>{['Date', 'Type', 'Amount', 'Note'].map(h => <th key={h} className="px-5 py-3 font-medium text-xs">{h}</th>)}</tr></thead>
+          <thead className="border-b border-black/5 bg-panel text-soft"><tr>{['Date', 'Type', 'Amount', 'Note'].map(h => <th key={h} className="px-5 py-3 font-medium text-xs">{h}</th>)}</tr></thead>
           <tbody className="divide-y divide-black/5">
             {data.ledger.length === 0 && <tr><td colSpan={4} className="px-5 py-6 text-center text-sm text-soft">No transactions.</td></tr>}
             {data.ledger.map((t: any) => {
               const isIn = t.type === 'Deposit'
               return (
-                <tr key={t.txnId} className="hover:bg-[#fafafa]">
+                <tr key={t.txnId} className="hover:bg-panel">
                   <td className="px-5 py-3 text-soft">{formatDateIN(t.date)}</td>
                   <td className="px-5 py-3 font-medium">{t.type}</td>
                   <td className={`px-5 py-3 font-semibold ${isIn ? 'text-green-700' : 'text-red-600'}`}>{isIn ? '+' : '−'} {cur(t.amount)}</td>

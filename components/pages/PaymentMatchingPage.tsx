@@ -88,7 +88,7 @@ function History({ g }: { g: Group }) {
     <div>
       <button type="button" onClick={() => setOpen(o => !o)} className="text-xs font-semibold text-soft underline">{open ? 'Hide history' : `History (${g.events.length})`}</button>
       {open && (
-        <ul className="mt-2 space-y-1 text-xs text-[#4b5563]">
+        <ul className="mt-2 space-y-1 text-xs text-gray-600">
           {g.events.map((e, i) => (
             <li key={i}>
               <span className="font-semibold">{EVENT_LABEL[e.event] || e.event}</span> · {e.actorName} · {when(e.createdAt)}
@@ -116,7 +116,7 @@ function GroupCard({ g, session, me, onChanged }: { g: Group; session: Session; 
       </div>
       <PaymentDiagram utr={g.utr} mode={g.mode} total={g.total} status={g.status}
         lines={g.lines.map(l => ({ name: l.name, payCode: l.payCode, amount: l.amount, hidden: l.hidden }))} />
-      {g.notes && <p className="text-xs text-[#4b5563]">Note: {g.notes}</p>}
+      {g.notes && <p className="text-xs text-gray-600">Note: {g.notes}</p>}
       {flagged && <FlagFix g={g} session={session} me={me} canAct={canAct} onChanged={onChanged} />}
       <div className="flex flex-wrap items-center gap-4">
         <Proof session={session} url={g.screenshot} />
@@ -149,8 +149,8 @@ function FlagFix({ g, session, me, canAct, onChanged }: { g: Group; session: Ses
       <p className="text-sm font-semibold text-amber-900">This UTR is already used on another payment.</p>
       {g.conflicts.length === 0 && <p className="text-xs text-soft">{g.flagReason}</p>}
       {g.conflicts.map(c => (
-        <div key={c.groupId} className="space-y-2 rounded-xl bg-[#f9fafb] p-3">
-          <p className="text-xs text-[#4b5563]">
+        <div key={c.groupId} className="space-y-2 rounded-xl bg-panel p-3">
+          <p className="text-xs text-gray-600">
             <span className="font-semibold">UTR {g.utr}</span> is already used for{' '}
             <span className="font-semibold">{c.lines.map(l => `${l.name} ${money(l.amount)}`).join(' + ')}</span> ({c.markedByName}, {when(c.createdAt)}).
             {!me.access.isGuarantor && ' One of the two UTRs is wrong. Check the screenshots and correct the wrong one.'}
@@ -299,7 +299,7 @@ function CollectTab({ session, me, guarantorId, date, onChanged, refreshKey }: {
         {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
         {loading && <p className="mt-3 text-sm text-soft">Loading…</p>}
         {!loading && !error && visible.length === 0 && <p className="mt-3 text-sm text-soft">No customers match.</p>}
-        <ul className="mt-3 divide-y divide-[#f0f1f3]">
+        <ul className="mt-3 divide-y divide-line">
           {visible.map(r => {
             const on = picked.includes(r.repaymentId)
             const done = r.status === 'Paid' || !!r.payment
@@ -307,7 +307,7 @@ function CollectTab({ session, me, guarantorId, date, onChanged, refreshKey }: {
               <li key={r.repaymentId}>
                 <button type="button" onClick={() => toggle(r)} disabled={done}
                   className={`flex w-full items-center gap-3 py-3 text-left transition ${on ? 'bg-blue-50/70' : ''} ${done ? 'opacity-75' : ''}`}>
-                  <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border text-xs font-bold ${on ? 'border-ink bg-ink text-white' : 'border-[#d1d5db] text-transparent'}`}>✓</span>
+                  <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border text-xs font-bold ${on ? 'border-ink bg-ink text-white' : 'border-gray-300 text-transparent'}`}>✓</span>
                   <span className="shrink-0 rounded-lg bg-mist px-2 py-1 font-mono text-sm font-semibold text-ink">{r.payCode || '----'}</span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-semibold">{r.name}</span>
@@ -470,7 +470,7 @@ function BankTab({ session, me }: { session: Session; me: Me }) {
             <div className={`${card} space-y-2`}>
               <p className="text-sm font-semibold">Payments that do not match the bank</p>
               {report.payments.filter((g: Group) => g.bank.status === 'Amount mismatch' || g.bank.status === 'Not found').map((g: Group) => (
-                <div key={g.groupId} className="flex flex-wrap items-center justify-between gap-2 border-t border-[#f0f1f3] pt-2 text-sm">
+                <div key={g.groupId} className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-2 text-sm">
                   <span><b>{g.lines.map(l => l.name).join(' + ')}</b> · {money(g.total)} · <span className="font-mono text-xs">{g.utr}</span></span>
                   <BankPill g={g} />
                 </div>
@@ -481,7 +481,7 @@ function BankTab({ session, me }: { session: Session; me: Me }) {
             <div className={`${card} space-y-2`}>
               <p className="text-sm font-semibold">Bank credits nobody has marked yet ({report.unclaimed.length})</p>
               {report.unclaimed.map((u: any) => (
-                <div key={u.utr} className="flex flex-wrap items-center justify-between gap-2 border-t border-[#f0f1f3] pt-2 text-sm">
+                <div key={u.utr} className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-2 text-sm">
                   <span className="font-mono text-xs">{u.utr}</span>
                   <span className="text-xs text-soft">{u.payer || u.remark || ''} {u.date}</span>
                   <b>{money(u.amount)}</b>
@@ -535,7 +535,7 @@ export default function PaymentMatchingPage({ session, fixedTab }: { session: Se
         <div className="flex gap-2 overflow-x-auto">
           {tabs.map(([k, label]) => (
             <button key={k} onClick={() => setTab(k)}
-              className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold transition ${tab === k ? 'bg-ink text-white' : 'bg-mist text-[#4b5563]'}`}>{label}</button>
+              className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold transition ${tab === k ? 'bg-ink text-white' : 'bg-mist text-gray-600'}`}>{label}</button>
           ))}
         </div>
         </>)}

@@ -93,7 +93,7 @@ export default function MyRoutePage({ session, active = true }: { session: Sessi
     <div className="space-y-4">
       <div className="overflow-hidden rounded-[2rem] bg-white shadow-panel ring-1 ring-black/5">
         <div className="relative overflow-hidden bg-gradient-to-br from-[#14142b] via-[#1f1d4d] to-[#35286e] px-4 pb-4 pt-4 text-white">
-          <div className="pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full bg-[#f0b429]/20 blur-3xl" />
+          <div className="pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full bg-gold/20 blur-3xl" />
           <div className="pointer-events-none absolute -bottom-16 -left-10 h-40 w-40 rounded-full bg-indigo-400/20 blur-3xl" />
           <div className="relative flex items-center justify-between gap-2">
             <div className="min-w-0">
@@ -145,7 +145,7 @@ export default function MyRoutePage({ session, active = true }: { session: Sessi
           const isNext = next?.leadId === s.leadId
           const nav = s.hasLocation ? `https://www.google.com/maps/dir/?api=1&destination=${s.visitLat},${s.visitLng}&travelmode=driving` : ''
           return (
-            <div key={s.leadId} id={`stop-${s.leadId}`} className={`${card} ${isNext ? 'ring-2 ring-[#f0b429]' : ''} ${s.done ? 'opacity-70' : ''}`}>
+            <div key={s.leadId} id={`stop-${s.leadId}`} className={`${card} ${isNext ? 'ring-2 ring-gold' : ''} ${s.done ? 'opacity-70' : ''}`}>
               <div className="flex items-start gap-3">
                 <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold ${s.done ? 'bg-green-600 text-white' : 'bg-ink text-white'}`}>{s.done ? '✓' : i + 1}</span>
                 <div className="min-w-0 flex-1">
@@ -164,7 +164,7 @@ export default function MyRoutePage({ session, active = true }: { session: Sessi
                   {nav && <a href={nav} target="_blank" rel="noreferrer" onClick={() => s.visitStatus !== 'On the way' && setStatus(s.leadId, 'On the way')} className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-ink px-3 py-3 text-sm font-semibold text-white"><Navigation className="h-4 w-4" />Navigate</a>}
                   {s.phone && <a href={`tel:${s.phone}`} className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-green-600 px-3 py-3 text-sm font-semibold text-white"><Phone className="h-4 w-4" />Call</a>}
                   {s.visitStatus === 'Reached'
-                    ? <button onClick={() => setVerifyId(s.leadId)} className="rounded-2xl bg-[#f0b429] px-3 py-3 text-sm font-bold text-[#1a1400]">Start verification</button>
+                    ? <button onClick={() => setVerifyId(s.leadId)} className="rounded-2xl bg-gold px-3 py-3 text-sm font-bold text-[#1a1400]">Start verification</button>
                     : <button onClick={() => setStatus(s.leadId, 'Reached')} disabled={!!busy} className="rounded-2xl border border-line px-3 py-3 text-sm font-semibold disabled:opacity-40">I have reached</button>}
                   <button onClick={() => { if (confirm('Mark the customer as not at home? The branch will be told to reschedule.')) setStatus(s.leadId, 'Absent') }} disabled={!!busy} className="rounded-2xl border border-red-200 px-3 py-3 text-sm font-semibold text-red-600 disabled:opacity-40">Not at home</button>
                 </div>

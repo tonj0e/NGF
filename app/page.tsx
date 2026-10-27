@@ -192,12 +192,12 @@ export default function Home() {
   if (loading) return (
     <div className="flex h-screen bg-mist" aria-busy="true" aria-label="Loading">
       <div className="hidden w-14 shrink-0 flex-col items-center gap-4 border-r border-line bg-white py-5 sm:flex">
-        {[0, 1, 2, 3, 4, 5].map(i => <div key={i} className="h-7 w-7 animate-pulse rounded-lg bg-[#e8eaf0]" />)}
+        {[0, 1, 2, 3, 4, 5].map(i => <div key={i} className="h-7 w-7 animate-pulse rounded-lg bg-line" />)}
       </div>
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="flex h-16 items-center justify-between border-b border-line bg-white px-5">
-          <div className="h-5 w-36 animate-pulse rounded bg-[#e8eaf0]" />
-          <div className="h-8 w-8 animate-pulse rounded-full bg-[#e8eaf0]" />
+          <div className="h-5 w-36 animate-pulse rounded bg-line" />
+          <div className="h-8 w-8 animate-pulse rounded-full bg-line" />
         </div>
         <div className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
           {[0, 1, 2].map(i => <div key={i} className="h-28 animate-pulse rounded-2xl bg-white" />)}

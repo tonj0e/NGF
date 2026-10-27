@@ -151,7 +151,7 @@ export default function PayoutRequestsPage({ session }: { session: Session }) {
             </div>
           </div>
           <div className="overflow-x-auto"><table className="w-full text-left text-sm">
-            <thead className="border-b border-black/5 bg-[#fafafa] text-soft">
+            <thead className="border-b border-black/5 bg-panel text-soft">
               <tr>
                 {['Guarantor', 'Request ID', 'Amount', 'Requested On', 'Action'].map(h => (
                   <th key={h} className="px-5 py-3 font-medium text-xs">{h}</th>
@@ -160,7 +160,7 @@ export default function PayoutRequestsPage({ session }: { session: Session }) {
             </thead>
             <tbody className="divide-y divide-black/5">
               {pendingPayouts.map(p => (
-                <tr key={p.payoutId} className="hover:bg-[#fafafa]">
+                <tr key={p.payoutId} className="hover:bg-panel">
                   <td className="px-5 py-3 font-medium">{p.guarantorName || p.guarantorId}</td>
                   <td className="px-5 py-3 font-mono text-xs text-soft">{p.payoutId}</td>
                   <td className="px-5 py-3 font-semibold text-green-700">{formatINR(p.amount)}</td>
@@ -199,7 +199,7 @@ export default function PayoutRequestsPage({ session }: { session: Session }) {
           <p className="p-8 text-center text-sm text-soft">No processed payouts yet.</p>
         ) : (
           <div className="overflow-x-auto"><table className="w-full text-left text-sm">
-            <thead className="border-b border-black/5 bg-[#fafafa] text-soft">
+            <thead className="border-b border-black/5 bg-panel text-soft">
               <tr>
                 {['Guarantor', 'Request ID', 'Amount', 'Status', 'Requested On', 'Processed On', 'Notes'].map(h => (
                   <th key={h} className="px-5 py-3 font-medium text-xs">{h}</th>
@@ -208,7 +208,7 @@ export default function PayoutRequestsPage({ session }: { session: Session }) {
             </thead>
             <tbody className="divide-y divide-black/5">
               {processedPayouts.map(p => (
-                <tr key={p.payoutId} className="hover:bg-[#fafafa]">
+                <tr key={p.payoutId} className="hover:bg-panel">
                   <td className="px-5 py-3 font-medium">{p.guarantorName || p.guarantorId}</td>
                   <td className="px-5 py-3 font-mono text-xs text-soft">{p.payoutId}</td>
                   <td className="px-5 py-3 font-semibold">{formatINR(p.amount)}</td>

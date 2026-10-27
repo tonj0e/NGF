@@ -101,7 +101,7 @@ export default function AgentLocationPage({ session: _session }: { session: Sess
             )}
           </div>
         ) : (
-          <div className="flex h-32 items-center justify-center rounded-xl border border-dashed border-line bg-[#f9fafb] text-xs text-soft">
+          <div className="flex h-32 items-center justify-center rounded-xl border border-dashed border-line bg-panel text-xs text-soft">
             {tracking ? 'Waiting for the first GPS fix…' : 'Tracking is off'}
           </div>
         )}

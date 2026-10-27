@@ -89,7 +89,7 @@ function ActionPanel({ row, reviewOptions, session, onDone, onClose }: {
       : 'bg-white text-soft border-line hover:bg-mist'}`
 
   return (
-    <div className="mt-4 rounded-2xl border border-line bg-[#f9fafb] p-4 space-y-3">
+    <div className="mt-4 rounded-2xl border border-line bg-panel p-4 space-y-3">
       <div className="flex gap-2">
         {(['Paid', 'Delayed', 'Not Paid'] as const).map(s => (
           <button key={s} type="button" onClick={() => setStatus(s)} className={btnCls(s)}>{s}</button>
@@ -109,7 +109,7 @@ function ActionPanel({ row, reviewOptions, session, onDone, onClose }: {
             <button key={n} type="button" onClick={() => setRating(n)}
               aria-label={`${n} star${n > 1 ? 's' : ''}`}
               className="text-3xl leading-none transition-transform hover:scale-110">
-              <span className={n <= rating ? 'text-amber-400' : 'text-[#d1d5db]'}>★</span>
+              <span className={n <= rating ? 'text-amber-400' : 'text-gray-300'}>★</span>
             </button>
           ))}
           {rating > 0 && <span className="ml-2 text-sm font-semibold text-ink">{rating}/5</span>}
@@ -118,7 +118,7 @@ function ActionPanel({ row, reviewOptions, session, onDone, onClose }: {
           <div>
             <p className="mb-1 text-xs font-medium text-ink">Review (optional)</p>
             <select value={review} onChange={e => setReview(e.target.value)}
-              className="w-full rounded-xl border border-line bg-[#f9fafb] px-4 py-2.5 text-sm outline-none focus:border-ink focus:bg-white">
+              className="w-full rounded-xl border border-line bg-panel px-4 py-2.5 text-sm outline-none focus:border-ink focus:bg-white">
               <option value="">Select a review</option>
               {reviewChoices.map(o => (
                 <option key={o['Option ID']} value={o['Label']}>{o['Label']}</option>
@@ -238,7 +238,7 @@ function RepaymentCards({ rows, page, search, reviewOptions, session, onSaved, o
                     Record Payment
                   </button>
                 ) : (
-                  <div className="mt-4 w-full rounded-2xl border border-line bg-[#f9fafb] px-4 py-2.5 text-sm font-semibold text-soft text-center cursor-not-allowed">
+                  <div className="mt-4 w-full rounded-2xl border border-line bg-panel px-4 py-2.5 text-sm font-semibold text-soft text-center cursor-not-allowed">
                     Not the payment day
                   </div>
                 )
@@ -404,12 +404,12 @@ function PastMonthTab({ session }: { session: Session }) {
           <p className="text-sm font-semibold">Past Month Transactions — {lastMonthStr}</p>
         </div>
         <table className="w-full text-left text-sm">
-          <thead className="border-b border-black/5 bg-[#fafafa] text-soft">
+          <thead className="border-b border-black/5 bg-panel text-soft">
             <tr>{['Customer','Loan ID','Week','Paid Date','Amount','Mode'].map(h => <th key={h} className="px-5 py-3 font-medium text-xs">{h}</th>)}</tr>
           </thead>
           <tbody className="divide-y divide-black/5">
             {paid.map(r => (
-              <tr key={r['Repayment ID']} className="hover:bg-[#fafafa]">
+              <tr key={r['Repayment ID']} className="hover:bg-panel">
                 <td className="px-5 py-3 font-medium">{r.customerName}</td>
                 <td className="px-5 py-3 font-mono text-xs text-soft">{r['Loan ID']}</td>
                 <td className="px-5 py-3 text-soft">{r['Week No']}</td>
@@ -450,12 +450,12 @@ function HistoryTab({ session }: { session: Session }) {
     <div className="overflow-hidden rounded-[1.75rem] border border-white/70 bg-white shadow-panel">
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
-          <thead className="border-b border-black/5 bg-[#fafafa] text-soft">
+          <thead className="border-b border-black/5 bg-panel text-soft">
             <tr>{['Customer','Loan ID','Week','Due Date','Paid Date','Amount','Mode'].map(h => <th key={h} className="px-5 py-4 font-medium text-xs">{h}</th>)}</tr>
           </thead>
           <tbody className="divide-y divide-black/5">
             {paid.map(r => (
-              <tr key={r['Repayment ID']} className="hover:bg-[#fafafa]">
+              <tr key={r['Repayment ID']} className="hover:bg-panel">
                 <td className="px-5 py-4 font-medium">{r.customerName}</td>
                 <td className="px-5 py-4 text-soft">{r['Loan ID']}</td>
                 <td className="px-5 py-4 text-soft">{r['Week No']}</td>
@@ -542,7 +542,7 @@ function CollectionListTab({ session }: { session: Session }) {
   )
 
   const customerRow = (r: any, i: number) => (
-    <tr key={r.code + r.number} className="hover:bg-[#f9fafb]">
+    <tr key={r.code + r.number} className="hover:bg-panel">
       <td className="px-4 py-3 text-center text-soft">{i + 1}</td>
       <td className="px-4 py-3 font-medium">{r.name}</td>
       <td className="px-4 py-3 text-right font-semibold">{currency(Number(r.balance))}</td>
@@ -767,7 +767,7 @@ export default function CollectionPage({ session, perms }: { session: Session; p
           className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-semibold transition ${
             canDownload
               ? 'bg-green-600 text-white hover:bg-green-700'
-              : 'border border-line bg-mist text-[#9ca3af] cursor-not-allowed'
+              : 'border border-line bg-mist text-gray-400 cursor-not-allowed'
           } ${downloading ? 'opacity-60' : ''}`}>
           {downloading ? (
             <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
@@ -780,7 +780,7 @@ export default function CollectionPage({ session, perms }: { session: Session; p
         </button>
       </div>
       {!canDownload && (
-        <p className="text-xs text-[#9ca3af]">The collection sheet can be downloaded from Friday 5:00 PM through Saturday.</p>
+        <p className="text-xs text-gray-400">The collection sheet can be downloaded from Friday 5:00 PM through Saturday.</p>
       )}
       {tab === 'all'       && <PendingList apiMode=""       session={session} reviewOptions={reviewOptions} />}
       {tab === 'today'     && <PendingList apiMode="today"  session={session} reviewOptions={reviewOptions} />}

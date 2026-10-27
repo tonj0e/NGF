@@ -297,7 +297,7 @@ export default function ReportsPage({ session }: { session: Session }) {
             {/* Collection Submissions — with per-customer repayment breakdown by due date */}
             {monthCollections.length > 0 && (
               <div>
-                <p className="px-5 py-2 text-[10px] font-semibold uppercase tracking-wider text-soft bg-[#fafafa] border-b border-black/5">Guarantor Collection Submissions</p>
+                <p className="px-5 py-2 text-[10px] font-semibold uppercase tracking-wider text-soft bg-panel border-b border-black/5">Guarantor Collection Submissions</p>
                 <div className="divide-y divide-black/5">
                   {monthCollections.map((s: any) => {
                     return (
@@ -323,7 +323,7 @@ export default function ReportsPage({ session }: { session: Session }) {
             {/* Guarantor Commissions Earned */}
             {monthLoans.rows.length > 0 && (
               <div>
-                <p className="px-5 py-2 text-[10px] font-semibold uppercase tracking-wider text-soft bg-[#fafafa] border-b border-black/5 border-t border-black/5">Guarantor Commissions Earned</p>
+                <p className="px-5 py-2 text-[10px] font-semibold uppercase tracking-wider text-soft bg-panel border-b border-black/5 border-t border-black/5">Guarantor Commissions Earned</p>
                 <div className="divide-y divide-black/5">
                   {monthLoans.rows.map(l => (
                     <div key={l.loanId} className="flex items-center justify-between px-5 py-2.5 text-xs">
@@ -342,7 +342,7 @@ export default function ReportsPage({ session }: { session: Session }) {
             {/* Staff / Agent direct collections — paid this month, no guarantor */}
             {staffReps.length > 0 && (
               <div>
-                <p className="px-5 py-2 text-[10px] font-semibold uppercase tracking-wider text-soft bg-[#fafafa] border-b border-black/5 border-t border-black/5">Staff / Agent Collections</p>
+                <p className="px-5 py-2 text-[10px] font-semibold uppercase tracking-wider text-soft bg-panel border-b border-black/5 border-t border-black/5">Staff / Agent Collections</p>
                 <div className="divide-y divide-black/5">
                   {staffReps.map((r: any) => {
                     const collectorLabel = 'Admin/Staff'   // this list is only weeks collected by someone who is not a guarantor
@@ -374,7 +374,7 @@ export default function ReportsPage({ session }: { session: Session }) {
             </div>
             {monthLoans.rows.length > 0 && (
               <div>
-                <p className="px-5 py-2 text-[10px] font-semibold uppercase tracking-wider text-soft bg-[#fafafa] border-b border-black/5">Loan Disbursements</p>
+                <p className="px-5 py-2 text-[10px] font-semibold uppercase tracking-wider text-soft bg-panel border-b border-black/5">Loan Disbursements</p>
                 <div className="divide-y divide-black/5">
                   {monthLoans.rows.map(l => (
                     <div key={l.loanId} className="flex items-center justify-between px-5 py-2.5 text-xs">
@@ -390,7 +390,7 @@ export default function ReportsPage({ session }: { session: Session }) {
             )}
             {monthSettlements.length > 0 && (
               <div>
-                <p className="px-5 py-2 text-[10px] font-semibold uppercase tracking-wider text-soft bg-[#fafafa] border-b border-black/5 border-t border-black/5">Commission Settlements Paid</p>
+                <p className="px-5 py-2 text-[10px] font-semibold uppercase tracking-wider text-soft bg-panel border-b border-black/5 border-t border-black/5">Commission Settlements Paid</p>
                 <div className="divide-y divide-black/5">
                   {monthSettlements.map(s => (
                     <div key={s['Settlement ID']} className="flex items-center justify-between px-5 py-2.5 text-xs">

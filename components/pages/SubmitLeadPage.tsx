@@ -148,7 +148,7 @@ export default function SubmitLeadPage({ session, onDone }: { session: Session; 
 
         <div className="flex gap-3 pt-2">
           <button type="button" onClick={onDone} className="flex-1 rounded-2xl border border-line px-4 py-3 text-sm font-semibold">Cancel</button>
-          <button type="submit" disabled={loading} className="flex-1 rounded-2xl bg-[#f0b429] px-4 py-3 text-sm font-semibold text-[#1a1400] disabled:opacity-60">
+          <button type="submit" disabled={loading} className="flex-1 rounded-2xl bg-gold px-4 py-3 text-sm font-semibold text-[#1a1400] disabled:opacity-60">
             {loading ? 'Submitting...' : 'Submit Lead'}
           </button>
         </div>

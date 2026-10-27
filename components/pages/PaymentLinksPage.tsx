@@ -64,7 +64,7 @@ export default function PaymentLinksPage({ session }: { session: Session }) {
               <p className="text-xs text-soft">{it.remainingWeeks} weeks left · ends {it.endDate}</p>
             </div>
 
-            <div className="rounded-2xl bg-[#f9fafb] p-4">
+            <div className="rounded-2xl bg-panel p-4">
               <p className="text-xs font-semibold uppercase tracking-wider text-soft">Due now (up to this Saturday)</p>
               {it.due.length === 0 ? <p className="mt-1 text-sm text-soft">Nothing is due yet.</p> : (
                 <>

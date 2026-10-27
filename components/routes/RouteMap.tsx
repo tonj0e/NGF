@@ -205,13 +205,13 @@ export default function RouteMap({ start, startLabel, stops, nextId, onPick, roa
         </div>
       )}
       <div className="relative">
-        <div ref={box} className={`${heightClass || 'h-[420px]'} w-full bg-[#e8eaf0]`} aria-label="Map of today's visits" />
+        <div ref={box} className={`${heightClass || 'h-[420px]'} w-full bg-line`} aria-label="Map of today's visits" />
         <button type="button" onClick={() => setSat(v => !v)} className="absolute left-2 top-2 rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-ink shadow-md ring-1 ring-black/10">{sat ? 'Map' : 'Satellite'}</button>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-2 text-[11px] text-soft">
         <span className="inline-flex items-center gap-3">
           <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full border-2 border-ink bg-white" />To visit</span>
-          <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-[#f0b429]" />Next</span>
+          <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-gold" />Next</span>
           <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-green-600" />Done</span>
         </span>
         <span>{roads?.some(Boolean) ? 'Lines follow the roads' : 'Straight lines show the order, not the road'}</span>

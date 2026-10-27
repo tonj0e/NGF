@@ -94,7 +94,7 @@ export default function TripDetailsPage({ session }: { session: Session }) {
           <p className="p-8 text-center text-sm text-soft">No trips recorded for this week.</p>
         ) : (
           <div>
-            <div className="border-b border-black/5 px-5 py-3 bg-[#f9fafb]">
+            <div className="border-b border-black/5 px-5 py-3 bg-panel">
               <div className="grid grid-cols-[1fr_80px_100px_100px_80px] gap-3 text-xs font-semibold uppercase tracking-wider text-soft">
                 <span>Date / Lead</span>
                 <span className="text-right">Distance</span>
@@ -104,7 +104,7 @@ export default function TripDetailsPage({ session }: { session: Session }) {
               </div>
             </div>
             {filteredTrips.map((t, i) => (
-              <div key={t.tripId || i} className="grid grid-cols-[1fr_80px_100px_100px_80px] gap-3 px-5 py-3 hover:bg-[#fafafa]">
+              <div key={t.tripId || i} className="grid grid-cols-[1fr_80px_100px_100px_80px] gap-3 px-5 py-3 hover:bg-panel">
                 <div className="min-w-0">
                   <p className="font-medium truncate">{t.leadId ? `Lead: ${t.leadId}` : 'Manual Entry'}</p>
                   <p className="text-xs text-soft">{t.tripDate}</p>
@@ -134,7 +134,7 @@ export default function TripDetailsPage({ session }: { session: Session }) {
               const totalTrips = weekTrips.length
               const totalAmount = totalKm * 10
               return (
-                <div key={w} className="flex items-center justify-between gap-4 px-5 py-4 hover:bg-[#fafafa]">
+                <div key={w} className="flex items-center justify-between gap-4 px-5 py-4 hover:bg-panel">
                   <div>
                     <p className="font-medium">{weekRangeLabel(w)}</p>
                     <p className="text-xs text-soft">{totalTrips} trips • {totalKm.toFixed(2)} km</p>

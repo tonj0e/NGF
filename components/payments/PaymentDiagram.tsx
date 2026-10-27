@@ -41,7 +41,7 @@ export default function PaymentDiagram({ utr, mode, total, status, lines }: {
         </div>
         <p className="mt-1 text-lg font-bold leading-none text-ink">{currency(total)}</p>
         {utr ? (
-          <p className="mt-1.5 break-all font-mono text-[10px] leading-tight text-[#4b5563]">UTR {utr}</p>
+          <p className="mt-1.5 break-all font-mono text-[10px] leading-tight text-gray-600">UTR {utr}</p>
         ) : (
           <p className="mt-1.5 text-[10px] text-soft">No UTR</p>
         )}
@@ -63,7 +63,7 @@ export default function PaymentDiagram({ utr, mode, total, status, lines }: {
       <div className="flex min-w-0 flex-1 flex-col" style={{ gap: GAP }}>
         {lines.map((l, i) => (
           <div key={i} style={{ height: ROW }}
-            className={`flex items-center gap-2 rounded-2xl border px-3 ${l.hidden ? 'border-dashed border-[#d1d5db] bg-[#f9fafb]' : 'border-line bg-white'}`}>
+            className={`flex items-center gap-2 rounded-2xl border px-3 ${l.hidden ? 'border-dashed border-gray-300 bg-panel' : 'border-line bg-white'}`}>
             <div className="min-w-0 flex-1">
               <p className={`line-clamp-2 break-words text-[13px] font-semibold leading-tight ${l.hidden ? 'text-soft' : 'text-ink'}`}>{l.name || 'Customer'}</p>
               <p className="mt-0.5 text-xs text-soft">

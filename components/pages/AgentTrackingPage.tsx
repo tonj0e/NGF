@@ -437,7 +437,7 @@ export default function AgentTrackingPage({ session }: { session: Session }) {
           </div>
 
           {/* Sidebar - Agent List */}
-          <div className="lg:w-1/4 border-l border-white/70 bg-[#fafafa] overflow-y-auto max-h-[560px] p-3">
+          <div className="lg:w-1/4 border-l border-white/70 bg-panel overflow-y-auto max-h-[560px] p-3">
             <p className="text-xs font-semibold uppercase tracking-wider text-soft mb-3">Agents ({locations.size})</p>
             {locations.size === 0 ? (
               <div className="text-center py-8 text-xs text-soft">
@@ -477,7 +477,7 @@ export default function AgentTrackingPage({ session }: { session: Session }) {
                           {agent.speed !== null && agent.speed !== undefined && (
                             <p className="text-[10px] text-blue-600 mt-0.5">🚗 {(agent.speed * 3.6).toFixed(1)} km/h</p>
                           )}
-                          <p className="text-[10px] text-[#9ca3af] mt-1">
+                          <p className="text-[10px] text-gray-400 mt-1">
                             {agent.isOnline && agent.ageMinutes !== null ? `Updated ${formatTimeAgo(agent.lastUpdate, agent.ageMinutes)}` : 'No recent location'}
                             {agent.accuracy && agent.isOnline && ` · ±${Math.round(agent.accuracy)}m`}
                           </p>

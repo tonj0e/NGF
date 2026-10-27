@@ -129,7 +129,7 @@ export default function RenewalModal({ session, onClose, onDone }: {
             const eligible = !!ev && !ev.loading && ev.eligible
             const isDone = submitted === c.customerId
             return (
-              <div key={c.customerId} className={`rounded-2xl border p-4 space-y-3 ${checking ? 'border-line bg-[#f9fafb]' : eligible ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
+              <div key={c.customerId} className={`rounded-2xl border p-4 space-y-3 ${checking ? 'border-line bg-panel' : eligible ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="font-semibold text-sm">{c.name}</p>

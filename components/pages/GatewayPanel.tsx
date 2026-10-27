@@ -40,7 +40,7 @@ export default function GatewayPanel({ session }: { session: Session }) {
           </div>
         )}
         <IntegrationFields session={session} group="gateway" />
-        {d && d.webhookUrl && <div className="rounded-2xl bg-[#f9fafb] p-3 text-xs"><p className="font-semibold">Webhook address to give the bank</p><p className="mt-1 break-all font-mono">{d.webhookUrl}</p><p className="mt-1 text-soft">The bank calls this when a payment succeeds. It is checked with the bank&apos;s signature, so nobody else can use it.</p></div>}
+        {d && d.webhookUrl && <div className="rounded-2xl bg-panel p-3 text-xs"><p className="font-semibold">Webhook address to give the bank</p><p className="mt-1 break-all font-mono">{d.webhookUrl}</p><p className="mt-1 text-soft">The bank calls this when a payment succeeds. It is checked with the bank&apos;s signature, so nobody else can use it.</p></div>}
       </div>
 
       <div className="rounded-[1.75rem] border border-white/70 bg-white p-6 shadow-panel space-y-3">
@@ -60,7 +60,7 @@ export default function GatewayPanel({ session }: { session: Session }) {
           <p className="mb-2 text-sm font-semibold">Recent payment links</p>
           <div className="overflow-x-auto"><table className="w-full text-left text-xs">
             <thead className="text-soft"><tr><th className="py-1 pr-3">Link</th><th className="pr-3">Loan</th><th className="pr-3">Type</th><th className="pr-3">Total</th><th className="pr-3">Fee</th><th className="pr-3">Status</th><th>By</th></tr></thead>
-            <tbody>{d.recent.map(r => <tr key={r.link_id} className="border-t border-[#f0f0f0]"><td className="py-1 pr-3 font-mono">{r.link_id}</td><td className="pr-3">{r.loan_id}</td><td className="pr-3">{r.kind === 'closure' ? 'Close' : 'Weeks'}</td><td className="pr-3">{inr(Number(r.total_amount))}</td><td className="pr-3">{inr(Number(r.fee_amount))}</td><td className="pr-3">{r.status}</td><td>{r.created_by_name || ''}</td></tr>)}</tbody>
+            <tbody>{d.recent.map(r => <tr key={r.link_id} className="border-t border-line"><td className="py-1 pr-3 font-mono">{r.link_id}</td><td className="pr-3">{r.loan_id}</td><td className="pr-3">{r.kind === 'closure' ? 'Close' : 'Weeks'}</td><td className="pr-3">{inr(Number(r.total_amount))}</td><td className="pr-3">{inr(Number(r.fee_amount))}</td><td className="pr-3">{r.status}</td><td>{r.created_by_name || ''}</td></tr>)}</tbody>
           </table></div>
         </div>
       )}

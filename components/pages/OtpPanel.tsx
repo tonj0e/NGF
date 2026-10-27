@@ -63,7 +63,7 @@ export default function OtpPanel({ token, leadId, purpose, phone, onChange }: {
 
   const verified = !!info?.verified, overridden = !verified && !!info?.overrideReason
   return (
-    <div className="rounded-2xl border border-line bg-[#f9fafb] p-4 space-y-3">
+    <div className="rounded-2xl border border-line bg-panel p-4 space-y-3">
       <div className="flex items-center justify-between gap-2">
         <p className="text-sm font-semibold">Customer OTP</p>
         {verified && <span className="rounded-lg bg-green-100 px-2 py-0.5 text-[11px] font-bold uppercase text-green-700">Verified</span>}

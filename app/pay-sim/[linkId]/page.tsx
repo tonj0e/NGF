@@ -38,7 +38,7 @@ export default function PracticePay() {
         {state === 'missing' && <p className="mt-6 text-center text-sm text-soft">This payment page is not available.</p>}
         {l && (state === 'ready' || state === 'done' || state === 'failed') && (
           <div className="mt-4 space-y-3">
-            <div className="rounded-2xl bg-[#f9fafb] p-4 text-sm">
+            <div className="rounded-2xl bg-panel p-4 text-sm">
               <div className="flex justify-between"><span>Loan payment</span><b>{inr(Number(l.base_amount))}</b></div>
               {Number(l.fee_amount) > 0 && <div className="flex justify-between text-soft"><span>Online payment fee ({l.fee_percent}%)</span><span>{inr(Number(l.fee_amount))}</span></div>}
               <div className="mt-1 flex justify-between border-t border-line pt-1 text-base"><span className="font-semibold">Total</span><b>{inr(Number(l.total_amount))}</b></div>
