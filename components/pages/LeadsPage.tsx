@@ -239,7 +239,7 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
   async function saveEdit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const f = e.currentTarget
-    const fields = ['customerName','phone','aadhaarNo','address','houseName','place','landmark','nomineeName','nomineePhone','occupation','panNo','chequeNumber','riskLevel']
+    const fields = ['customerName','phone','aadhaarNo','address','houseName','place','landmark','nomineeName','nomineePhone','altPhone','occupation','panNo','chequeNumber','riskLevel']
     const payload: any = { action: 'update' }
     fields.forEach(k => { const el = f.elements.namedItem(k) as HTMLInputElement; if (el) payload[k] = el.value })
     const res = await fetch(`/api/leads/${detail!.leadId}`, {
@@ -318,6 +318,7 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
             <InfoRow>
               <InfoItem label="Nominee Name" value={detail.nomineeName} />
               <InfoItem label="Nominee Phone" value={detail.nomineePhone} />
+              {detail.altPhone && <InfoItem label={`Second contact (${detail.altPhoneLabel || 'Other'})`} value={detail.altPhone} />}
             </InfoRow>
           </DetailCard>
 
@@ -447,7 +448,7 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
         <form onSubmit={saveEdit} className="rounded-[1.75rem] border border-white/70 bg-white shadow-panel">
           <div className="border-b border-black/5 px-6 py-4"><p className="text-sm font-semibold">Edit Lead</p></div>
           <div className="grid gap-4 p-6 sm:grid-cols-2 lg:grid-cols-3">
-            {[['customerName','Full Name'],['phone','Phone'],['aadhaarNo','Aadhaar No'],['occupation','Occupation'],['panNo','PAN No'],['chequeNumber','Cheque Number'],['address','Address'],['houseName','House Name'],['place','Place'],['landmark','Landmark'],['nomineeName','Nominee Name'],['nomineePhone','Nominee Phone'],['riskLevel','Risk Level']].map(([k,l]) => (
+            {[['customerName','Full Name'],['phone','Phone'],['altPhone','Second contact number'],['aadhaarNo','Aadhaar No'],['occupation','Occupation'],['panNo','PAN No'],['chequeNumber','Cheque Number'],['address','Address'],['houseName','House Name'],['place','Place'],['landmark','Landmark'],['nomineeName','Nominee Name'],['nomineePhone','Nominee Phone'],['riskLevel','Risk Level']].map(([k,l]) => (
               <label key={k} className="block">
                 <span className="mb-1 block text-[0.7rem] font-semibold uppercase tracking-wider text-soft">{l}</span>
                 <input name={k} defaultValue={(detail as any)[k] || ''} className="w-full rounded-2xl border border-line px-4 py-3 text-sm outline-none focus:border-ink" />

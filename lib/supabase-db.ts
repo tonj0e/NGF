@@ -146,6 +146,8 @@ const COLUMN_MAP: Record<string, string> = {
   'Aadhaar No': 'aadhaar_no',
   'Nominee Name': 'nominee_name',
   'Nominee Phone': 'nominee_phone',
+  'Alt Phone': 'alt_phone',
+  'Alt Phone Label': 'alt_phone_label',
   'Cheque Number': 'cheque_number',
   'Pinned Location': 'pinned_location',
   'Loan Product': 'loan_product',

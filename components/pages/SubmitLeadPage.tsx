@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Session } from '@/types'
 import { apiSend } from '@/lib/clientApi'
 import { APP_CONFIG } from '@/lib/config'
+import { ALT_PHONE_LABELS } from '@/lib/phone'
 const MAX_BYTES = 1 * 1024 * 1024
 
 async function compressImage(file: File): Promise<File> {
@@ -80,6 +81,7 @@ export default function SubmitLeadPage({ session, onDone }: { session: Session; 
     try {
       const payload: any = {
         customerName: g('customerName'), phone: g('phone'), place: g('place'),
+        altPhone: g('altPhone') || undefined, altPhoneLabel: g('altPhone') ? g('altPhoneLabel') : undefined,
         aadhaarNo: g('aadhaarNo'), address: g('address'),
         loanProduct: g('loanProduct'),
         submittedDate: g('submittedDate') || undefined,
@@ -108,6 +110,23 @@ export default function SubmitLeadPage({ session, onDone }: { session: Session; 
               <input name={k} required={l.endsWith('*')} className="w-full rounded-2xl border border-line bg-mist px-4 py-3 text-sm outline-none focus:border-ink focus:bg-white transition" />
             </label>
           ))}
+        </div>
+
+        <div>
+          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-soft">Another contact number (optional)</p>
+          <p className="mb-3 text-xs text-soft">If the customer cannot be reached, the branch and the agent can call this number: husband, wife, a family member or the nominee.</p>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-soft">Whose number is it?</span>
+              <select name="altPhoneLabel" defaultValue="Husband" className="w-full rounded-2xl border border-line bg-mist px-4 py-3 text-sm outline-none focus:border-ink focus:bg-white transition">
+                {ALT_PHONE_LABELS.map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-soft">Phone number</span>
+              <input name="altPhone" inputMode="tel" placeholder="10-digit mobile number" className="w-full rounded-2xl border border-line bg-mist px-4 py-3 text-sm outline-none focus:border-ink focus:bg-white transition" />
+            </label>
+          </div>
         </div>
 
         <div>

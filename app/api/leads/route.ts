@@ -14,6 +14,7 @@ import { getBranchAccess, canSeeBranch } from '@/lib/branchAccess'
 import { checkRenewalEligibility, customerForRenewalLead, isPermanentlyBlockedAadhaar } from '@/lib/renewalRules'
 import { getTodayIST, addDaysIST } from '@/lib/dateUtils'
 import { reportError } from '@/lib/monitor'
+import { normalizeIndianMobile } from '@/lib/phone'
 
 // GET /api/leads
 //   ?tab=new|history|renewal   which list (new = still in progress, history = Converted or Rejected, renewal = renewal requests)
@@ -105,7 +106,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
       customerName: l['Customer Name'], phone: l['Phone'],
       aadhaarNo: l['Aadhaar No'], address: l['Address'],
       houseName: l['House Name'], place: l['Place'], landmark: l['Landmark'],
-      nomineeName: l['Nominee Name'], nomineePhone: l['Nominee Phone'],
+      nomineeName: l['Nominee Name'], nomineePhone: l['Nominee Phone'], altPhone: l['Alt Phone'] || '', altPhoneLabel: l['Alt Phone Label'] || '',
       occupation: l['Occupation'], panNo: l['PAN No'], chequeNumber: l['Cheque Number'],
       accountNumber: l['Account Number'] || '', ifscCode: l['IFSC Code'] || '',
       pinnedLocation: l['Pinned Location'], loanProduct: l['Loan Product'],
@@ -194,6 +195,13 @@ export const POST = apiHandler(async (req: NextRequest) => {
   }
   const existingConverted = body.aadhaarNo ? (await selectRows('Leads', qb => qb.eq('aadhaar_no', body.aadhaarNo!).eq('status', 'Converted').limit(1))).rows[0] || null : null
 
+  // optional second contact (husband, nominee ...)
+  let altPhone = ''
+  if (body.altPhone && body.altPhone.trim()) {
+    const m = normalizeIndianMobile(body.altPhone)
+    if (!m) return err('The second contact number must be a valid 10-digit mobile number')
+    altPhone = m
+  }
   const leadId = makeId('LEAD')
   // the day the lead is filed under: today by default, or a day of the coming two weeks (a lead taken late in the week goes on next week)
   const today = getTodayIST()
@@ -241,6 +249,8 @@ export const POST = apiHandler(async (req: NextRequest) => {
     'Landmark': body.landmark || '',
     'Nominee Name': body.nomineeName || '',
     'Nominee Phone': body.nomineePhone || '',
+    'Alt Phone': altPhone || null as any,
+    'Alt Phone Label': altPhone ? (body.altPhoneLabel || 'Other') : null as any,
     'Occupation': body.occupation || '',
     'PAN No': body.panNo || '',
     'Cheque Number': body.chequeNumber || '',

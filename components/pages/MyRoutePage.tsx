@@ -7,7 +7,7 @@ import VerificationsPage from './VerificationsPage'
 import { fetchRoads } from '@/lib/clientRoads'
 
 type Stop = {
-  leadId: string; customerName: string; phone: string; place: string; address: string; landmark: string; guarantorName: string
+  leadId: string; customerName: string; phone: string; altPhone?: string; altPhoneLabel?: string; place: string; address: string; landmark: string; guarantorName: string
   visitLat: number | null; visitLng: number | null; visitPlace: string; visitWindow: string; visitNote: string
   visitStatus: string; seq: number | null; legKm: number | null; legMin: number | null; done: boolean; hasLocation: boolean; status: string
 }
@@ -163,6 +163,7 @@ export default function MyRoutePage({ session, active = true }: { session: Sessi
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   {nav && <a href={nav} target="_blank" rel="noreferrer" onClick={() => s.visitStatus !== 'On the way' && setStatus(s.leadId, 'On the way')} className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-ink px-3 py-3 text-sm font-semibold text-white"><Navigation className="h-4 w-4" />Navigate</a>}
                   {s.phone && <a href={`tel:${s.phone}`} className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-green-600 px-3 py-3 text-sm font-semibold text-white"><Phone className="h-4 w-4" />Call</a>}
+                  {s.altPhone && <a href={`tel:${s.altPhone}`} className="inline-flex items-center justify-center gap-1.5 rounded-2xl border border-green-200 px-3 py-3 text-sm font-semibold text-green-700"><Phone className="h-4 w-4" />{s.altPhoneLabel || 'Other'}</a>}
                   {s.visitStatus === 'Reached'
                     ? <button onClick={() => setVerifyId(s.leadId)} className="rounded-2xl bg-gold px-3 py-3 text-sm font-bold text-[#1a1400]">Start verification</button>
                     : <button onClick={() => setStatus(s.leadId, 'Reached')} disabled={!!busy} className="rounded-2xl border border-line px-3 py-3 text-sm font-semibold disabled:opacity-40">I have reached</button>}

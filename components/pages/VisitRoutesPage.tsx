@@ -4,9 +4,10 @@ import { Session } from '@/types'
 import { Phone, MapPin, GripVertical, ChevronUp, ChevronDown, Route as RouteIcon, Wand2, X, Navigation } from 'lucide-react'
 import RouteMap from '@/components/routes/RouteMap'
 import { fetchRoads } from '@/lib/clientRoads'
+import { ALT_PHONE_LABELS } from '@/lib/phone'
 
 type Stop = {
-  leadId: string; customerName: string; phone: string; place: string; address: string; landmark: string; status: string; submittedDate: string
+  leadId: string; customerName: string; phone: string; altPhone: string; altPhoneLabel: string; place: string; address: string; landmark: string; status: string; submittedDate: string
   guarantorName: string; branchId: string; branchName: string; agentId: string
   visitLat: number | null; visitLng: number | null; visitPlace: string; visitDate: string; visitWindow: string; visitNote: string
   callOutcome: string; visitStatus: string; seq: number | null; pin: string; legKm: number | null; legMin: number | null
@@ -147,6 +148,8 @@ function PlanCard({ s, board, date, busy, onSave, onAssign }: {
   const [win, setWin] = useState(s.visitWindow)
   const [note, setNote] = useState(s.visitNote)
   const [outcome, setOutcome] = useState(s.callOutcome)
+  const [altPhone, setAltPhone] = useState(s.altPhone)
+  const [altLabel, setAltLabel] = useState(s.altPhoneLabel || 'Husband')
   const [agent, setAgent] = useState('')
   const wa = s.phone ? `https://wa.me/91${s.phone.replace(/\D/g, '').slice(-10)}` : ''
 
@@ -162,6 +165,7 @@ function PlanCard({ s, board, date, busy, onSave, onAssign }: {
         </div>
         <div className="flex shrink-0 gap-2">
           {s.phone && <a href={`tel:${s.phone}`} className="inline-flex items-center gap-1 rounded-2xl bg-green-600 px-3 py-2 text-sm font-semibold text-white"><Phone className="h-4 w-4" />Call</a>}
+          {s.altPhone && <a href={`tel:${s.altPhone}`} className="inline-flex items-center gap-1 rounded-2xl border border-green-200 px-3 py-2 text-sm font-semibold text-green-700"><Phone className="h-4 w-4" />{s.altPhoneLabel || 'Other'}</a>}
           {wa && <a href={wa} target="_blank" rel="noreferrer" className="rounded-2xl border border-green-200 px-3 py-2 text-sm font-semibold text-green-700">WhatsApp</a>}
         </div>
       </div>
@@ -218,10 +222,20 @@ function PlanCard({ s, board, date, busy, onSave, onAssign }: {
               </select>
             </label>
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="text-xs font-semibold uppercase tracking-wider text-soft">Another contact: whose number
+              <select value={altLabel} onChange={e => setAltLabel(e.target.value)} className={`${input} mt-1`}>
+                {ALT_PHONE_LABELS.map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </label>
+            <label className="text-xs font-semibold uppercase tracking-wider text-soft">Their phone number
+              <input value={altPhone} onChange={e => setAltPhone(e.target.value)} inputMode="tel" placeholder="10-digit mobile" data-no-upper className={`${input} mt-1`} />
+            </label>
+          </div>
           <label className="block text-xs font-semibold uppercase tracking-wider text-soft">Note for the agent
             <input value={note} onChange={e => setNote(e.target.value)} placeholder="House behind the temple, call at the junction" className={`${input} mt-1`} />
           </label>
-          <button disabled={busy === `visit${s.leadId}`} onClick={() => onSave({ mapsLink: link, place, date: vDate, window: win, note, callOutcome: outcome })} className={`${btn} w-full bg-gold text-[#1a1400]`}>
+          <button disabled={busy === `visit${s.leadId}`} onClick={() => onSave({ mapsLink: link, place, date: vDate, window: win, note, callOutcome: outcome, altPhone, altPhoneLabel: altPhone ? altLabel : '' })} className={`${btn} w-full bg-gold text-[#1a1400]`}>
             {busy === `visit${s.leadId}` ? 'Saving…' : 'Save visit details'}
           </button>
         </div>

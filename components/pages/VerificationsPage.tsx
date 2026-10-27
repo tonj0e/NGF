@@ -329,7 +329,7 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xl font-semibold">{active.customerName}</p>
-                <p className="mt-1 text-sm text-soft">{active.phone} &bull; {active.leadId}</p>
+                <p className="mt-1 text-sm text-soft">{active.phone}{active.altPhone ? <> &bull; {active.altPhoneLabel || 'Other'}: {active.altPhone}</> : null} &bull; {active.leadId}</p>
               </div>
               <button onClick={() => { setActive(null); setPreviews({}); setPhotoFiles({}); if (embedded) onClose?.() }} className="rounded-2xl border border-line px-4 py-2 text-sm font-semibold">Back</button>
             </div>

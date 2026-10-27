@@ -11,6 +11,7 @@ import {
 } from './routeMath'
 import type { Session } from '../types'
 import { reportError } from './monitor'
+import { normalizeIndianMobile } from './phone'
 
 export const PERM_PLAN = 'verificationPlanning'
 const PLANNER_ROLES = ['manager', 'assistant_manager', 'accountant']
@@ -103,10 +104,10 @@ export async function notifyBranchOfLead(guarantorId: string, title: string, mes
 
 // ─── Lead rows ────────────────────────────────────────────────────────────────
 
-const LEAD_COLS = 'lead_id, customer_name, phone, place, address, landmark, house_name, pinned_location, status, guarantor_id, assigned_agent_id, submitted_date, visit_lat, visit_lng, visit_place, visit_date, visit_window, visit_note, call_outcome, visit_status, route_seq, route_pin, leg_km, leg_min'
+const LEAD_COLS = 'lead_id, customer_name, phone, alt_phone, alt_phone_label, place, address, landmark, house_name, pinned_location, status, guarantor_id, assigned_agent_id, submitted_date, visit_lat, visit_lng, visit_place, visit_date, visit_window, visit_note, call_outcome, visit_status, route_seq, route_pin, leg_km, leg_min'
 
 type LeadRow = {
-  lead_id: string; customer_name: string; phone: string | null; place: string | null; address: string | null; landmark: string | null
+  lead_id: string; customer_name: string; phone: string | null; alt_phone: string | null; alt_phone_label: string | null; place: string | null; address: string | null; landmark: string | null
   house_name: string | null; pinned_location: string | null; status: string; guarantor_id: string | null; assigned_agent_id: string | null
   submitted_date: string | null; visit_lat: number | string | null; visit_lng: number | string | null; visit_place: string | null
   visit_date: string | null; visit_window: string | null; visit_note: string | null; call_outcome: string | null; visit_status: string | null
@@ -123,7 +124,7 @@ function stopOf(l: LeadRow, guarantorName: string, branchId: string, branchName:
   const lat = num(l.visit_lat), lng = num(l.visit_lng)
   const suggested = lat == null ? parseLatLng(l.pinned_location || '') : null
   return {
-    leadId: l.lead_id, customerName: l.customer_name, phone: l.phone || '', place: l.place || '', address: l.address || '',
+    leadId: l.lead_id, customerName: l.customer_name, phone: l.phone || '', altPhone: l.alt_phone || '', altPhoneLabel: l.alt_phone_label || '', place: l.place || '', address: l.address || '',
     landmark: l.landmark || '', houseName: l.house_name || '', status: l.status, submittedDate: l.submitted_date || '',
     guarantorName, branchId, branchName,
     agentId: l.assigned_agent_id || '',
@@ -327,7 +328,7 @@ export async function board(session: Session, q: { branchId?: string; date?: str
 // ─── Planner actions ──────────────────────────────────────────────────────────
 
 export async function setVisit(session: Session, b: {
-  leadId: string; mapsLink?: string; lat?: number; lng?: number; place?: string; date?: string; window?: string; note?: string; callOutcome?: string
+  leadId: string; mapsLink?: string; lat?: number; lng?: number; place?: string; altPhone?: string; altPhoneLabel?: string; date?: string; window?: string; note?: string; callOutcome?: string
 }) {
   const a = await getRouteAccess(session); needPlanner(a); const cfg = await requireEnabled()
   const lead = await loadLead(b.leadId)
@@ -341,6 +342,15 @@ export async function setVisit(session: Session, b: {
   } else if (typeof b.lat === 'number' && typeof b.lng === 'number') {
     if (!Number.isFinite(b.lat) || !Number.isFinite(b.lng) || Math.abs(b.lat) > 90 || Math.abs(b.lng) > 180) throw new RouteError('Invalid location')
     patch.visit_lat = b.lat; patch.visit_lng = b.lng
+  }
+  if (b.altPhone !== undefined) {
+    const t = String(b.altPhone).trim()
+    if (!t) { patch.alt_phone = null; patch.alt_phone_label = null }
+    else {
+      const m = normalizeIndianMobile(t)
+      if (!m) throw new RouteError('The second contact number must be a valid 10-digit mobile number')
+      patch.alt_phone = m; patch.alt_phone_label = String(b.altPhoneLabel || 'Other').trim().slice(0, 30) || 'Other'
+    }
   }
   if (b.place !== undefined) patch.visit_place = String(b.place).trim().slice(0, 120) || null
   if (b.note !== undefined) patch.visit_note = String(b.note).trim().slice(0, 500) || null

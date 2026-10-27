@@ -41,6 +41,8 @@ export interface Lead {
   landmark: string
   nomineeName: string
   nomineePhone: string
+  altPhone?: string
+  altPhoneLabel?: string
   occupation: string
   panNo: string
   chequeNumber: string

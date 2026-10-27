@@ -47,10 +47,10 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
     for (const k of Object.keys(rawBody)) if (typeof rawBody[k] === 'string') { rawBody[k] = rawBody[k].trim(); if (!rawBody[k]) delete rawBody[k] }
     if (rawBody.aadhaarNo) rawBody.aadhaarNo = String(rawBody.aadhaarNo).replace(/\D/g, '')
     if (rawBody.riskLevel) rawBody.riskLevel = String(rawBody.riskLevel).charAt(0).toUpperCase() + String(rawBody.riskLevel).slice(1).toLowerCase()
-    for (const k of ['phone', 'nomineePhone'] as const) {
+    for (const k of ['phone', 'nomineePhone', 'altPhone'] as const) {
       if (!rawBody[k]) continue
       const m = normalizeIndianMobile(rawBody[k])
-      if (!m) return err(`${k === 'phone' ? 'Phone' : 'Nominee phone'} must be a valid 10-digit mobile number`, 400)
+      if (!m) return err(`${k === 'phone' ? 'Phone' : k === 'altPhone' ? 'Second contact number' : 'Nominee phone'} must be a valid 10-digit mobile number`, 400)
       rawBody[k] = m
     }
     const validation = updateLeadSchema.safeParse(rawBody)
@@ -74,6 +74,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
       'Landmark': body.landmark || lead['Landmark'],
       'Nominee Name': body.nomineeName || lead['Nominee Name'],
       'Nominee Phone': body.nomineePhone || lead['Nominee Phone'],
+      ...(body.altPhone ? { 'Alt Phone': body.altPhone, 'Alt Phone Label': body.altPhoneLabel || lead['Alt Phone Label'] || 'Other' } : {}),
       'Occupation': body.occupation || lead['Occupation'],
       'PAN No': body.panNo || lead['PAN No'],
       'Cheque Number': body.chequeNumber || lead['Cheque Number'],
