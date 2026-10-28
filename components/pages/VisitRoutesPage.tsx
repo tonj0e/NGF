@@ -426,6 +426,16 @@ function RouteCard({ r, board, date, busy, session, act, startOpen }: {
                 <button type="button" aria-label="Move down" disabled={s.done || i === list.length - 1} onClick={() => move(i, 1)} className="rounded p-0.5 text-soft disabled:opacity-25"><ChevronDown className="h-5 w-5" /></button>
               </div>
             </div>
+            {s.done && s.visitStatus === 'Absent' && (
+              <div className="mt-2 flex flex-wrap items-center gap-2 pl-9 text-xs">
+                <button disabled={busy === `reopen${s.leadId}`} onClick={() => act(`reopen${s.leadId}`, { action: 'reopen', leadId: s.leadId }, 'Back on the route as to visit')} className="rounded-lg bg-ink px-2.5 py-1 font-semibold text-white disabled:opacity-40">Redo this visit</button>
+                <select defaultValue="" onChange={e => { const v = e.target.value; e.target.value = ''; if (v) act(`mv${s.leadId}`, { action: 'assign', leadId: s.leadId, agentId: v, date }, 'Given to the agent') }} className="rounded-lg border border-line bg-white px-2 py-1 font-semibold text-soft">
+                  <option value="">Give to agent…</option>
+                  {board.routes.map(x => <option key={x.agentId} value={x.agentId}>{x.name}{x.agentId === r.agentId ? ' (same agent)' : ''}</option>)}
+                </select>
+                <button onClick={() => act(`un${s.leadId}`, { action: 'unplan', leadId: s.leadId }, 'Removed from the route, plan it again from the list')} className="ml-auto inline-flex items-center gap-1 font-semibold text-red-600"><X className="h-3 w-3" />Plan again later</button>
+              </div>
+            )}
             {!s.done && (
               <div className="mt-2 flex flex-wrap items-center gap-2 pl-9 text-xs">
                 <button onClick={() => act(`pin${s.leadId}`, { action: 'pin', leadId: s.leadId, pin: s.pin === 'first' ? '' : 'first' }, s.pin === 'first' ? 'Unpinned' : 'Pinned first')} className={`rounded-lg border px-2 py-1 font-semibold ${s.pin === 'first' ? 'border-violet-300 bg-violet-100 text-violet-700' : 'border-line text-soft'}`}>Must be first</button>

@@ -401,7 +401,7 @@ export async function assign(session: Session, b: { leadId: string; agentId: str
   const lead = await loadLead(b.leadId)
   await assertLeadAccess(a, lead)
   if (num(lead.visit_lat) == null) throw new RouteError('Fix the visit location (after the phone call) before assigning')
-  if (isDone(lead)) throw new RouteError('This verification is already finished')
+  if (DONE_LEAD_STATUSES.has(lead.status)) throw new RouteError('This verification is already finished')   // a customer marked 'not at home' can be given to an agent again
   const agent = await agentInScope(a, b.agentId)
 
   const prevAgent = lead.assigned_agent_id, prevDate = lead.visit_date
@@ -455,11 +455,29 @@ export async function pin(session: Session, b: { leadId: string; pin: string }) 
   return { success: true, ...res }
 }
 
+// The agent marked the customer 'not at home' by mistake (or the customer is now home): put the stop back on the same route as to visit.
+export async function reopen(session: Session, b: { leadId: string }) {
+  const a = await getRouteAccess(session); needPlanner(a); const cfg = await requireEnabled()
+  const lead = await loadLead(b.leadId)
+  await assertLeadAccess(a, lead)
+  if (lead.visit_status !== 'Absent') throw new RouteError('This stop is not marked as not at home')
+  if (DONE_LEAD_STATUSES.has(lead.status)) throw new RouteError('This verification is already finished')
+  const { error } = await getSupabase().from('leads').update({ visit_status: null, route_seq: 9999, updated_at: new Date().toISOString() }).eq('lead_id', b.leadId)
+  if (error) throw new Error(error.message)
+  invalidateCache('Leads')
+  if (lead.assigned_agent_id && lead.visit_date) {
+    await recalcRoute(lead.assigned_agent_id, lead.visit_date, { optimize: false, actorId: session.userId, useWindows: cfg.windows })
+    const { data: ag } = await getSupabase().from('agents').select('user_id').eq('agent_id', lead.assigned_agent_id).maybeSingle()
+    if (ag?.user_id) await notifyUser(ag.user_id, 'NGF AGENT', 'Visit reopened', `${lead.customer_name} is back on your route for ${lead.visit_date}. Open My Route.`, 'Lead', b.leadId)
+  }
+  return { success: true }
+}
+
 export async function unplan(session: Session, b: { leadId: string }) {
   const a = await getRouteAccess(session); needPlanner(a); const cfg = await requireEnabled()
   const lead = await loadLead(b.leadId)
   await assertLeadAccess(a, lead)
-  if (isDone(lead) || lead.status === 'Verification In Progress') throw new RouteError('Verification already started for this lead')
+  if (DONE_LEAD_STATUSES.has(lead.status) || lead.status === 'Verification In Progress') throw new RouteError('Verification already started for this lead')
   const { error } = await getSupabase().from('leads').update({
     assigned_agent_id: null, visit_date: null, route_seq: null, route_pin: null, leg_km: null, leg_min: null, visit_status: null,
     status: lead.status === 'Agent Assigned' ? 'Under Review' : lead.status, updated_at: new Date().toISOString(),

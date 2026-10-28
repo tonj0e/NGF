@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, getSession, ok, err } from '@/lib/api'
 import { createAuditLogger } from '@/lib/audit'
-import { routeConfig, board, mine, setVisit, assign, optimize, reorder, pin, unplan, stopStatus, replan, RouteError } from '@/lib/routes'
+import { routeConfig, board, mine, setVisit, assign, reopen, optimize, reorder, pin, unplan, stopStatus, replan, RouteError } from '@/lib/routes'
 
 // Verification Day Routes. Access is decided in lib/routes.ts from the session, never from the request body.
 export const GET = apiHandler(async (req: NextRequest) => {
@@ -48,6 +48,11 @@ export const POST = apiHandler(async (req: NextRequest) => {
       case 'pin': {
         const r = await pin(session, body)
         await audit.log('ROUTE_PINNED', 'Lead', String(body.leadId), { pin: body.pin })
+        return ok(r)
+      }
+      case 'reopen': {
+        const r = await reopen(session, body)
+        await audit.log('VISIT_REOPENED', 'Lead', String(body.leadId), {})
         return ok(r)
       }
       case 'unplan': {
