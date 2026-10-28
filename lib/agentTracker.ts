@@ -23,6 +23,10 @@ let sending = false
 let wakeLock: { release: () => Promise<void> } | null = null
 let prev: { latitude: number; longitude: number; timestamp: number } | null = null
 let listening = false
+let lastFixAt = 0                                   // when the phone last gave us a position
+let watchdog: ReturnType<typeof setInterval> | null = null
+let restartTimer: ReturnType<typeof setTimeout> | null = null
+const STALE_MS = 25_000                             // no position for this long = the phone's location feed has stalled
 
 const headers = () => ({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' })
 
@@ -37,10 +41,14 @@ function letSleep() { try { wakeLock?.release() } catch {} wakeLock = null }
 async function send() {
   const p = state.position
   if (!p || sending || state.phase !== 'tracking') return
+  if (Date.now() - p.timestamp > 90_000) return   // an old position must not be sent as if it were live
   sending = true
+  // a request that never answers (weak signal) must not block every later one
+  const ctrl = new AbortController()
+  const abort = setTimeout(() => ctrl.abort(), 15_000)
   try {
     const res = await fetch('/api/agent/location', {
-      method: 'POST', headers: headers(),
+      method: 'POST', headers: headers(), signal: ctrl.signal,
       body: JSON.stringify({ latitude: p.latitude, longitude: p.longitude, accuracy: p.accuracy, speed: p.speed, heading: p.heading, timestamp: p.timestamp }),
     })
     const json = await res.json().catch(() => ({ success: false, error: 'Unexpected reply' }))
@@ -48,11 +56,12 @@ async function send() {
     else if (res.status === 409) { halt(); await refresh() } // punched out (maybe on another device) or no attendance
     else set({ error: json.error || 'Could not send location' })
   } catch { set({ error: 'No internet. Will keep trying.' }) }
-  finally { sending = false }
+  finally { clearTimeout(abort); sending = false }
 }
 
 function onFix(pos: GeolocationPosition) {
   const c = pos.coords, now = Date.now()
+  lastFixAt = now
   let speed = c.speed, heading = c.heading
   if ((speed == null || speed === 0) && prev) {
     const dt = (now - prev.timestamp) / 1000
@@ -70,23 +79,45 @@ function onFix(pos: GeolocationPosition) {
   if (first) send() // do not wait for the next tick
 }
 
+function onWatchError(err: GeolocationPositionError) {
+  if (err.code === err.PERMISSION_DENIED) { set({ permission: 'denied', error: 'Location is blocked. Allow location for this site in the browser settings.' }); return }
+  set({ error: err.code === err.POSITION_UNAVAILABLE ? 'Location unavailable. Check the GPS signal. Retrying.' : 'Location request timed out. Retrying.' })
+  // a phone's location feed often stops for good after an error: start a fresh one shortly
+  if (restartTimer) clearTimeout(restartTimer)
+  restartTimer = setTimeout(() => { restartTimer = null; if (state.phase === 'tracking') startWatch() }, 3000)
+}
+
+// (Re)start the phone's location feed. Also asks once for a position right now, which wakes a sleeping GPS.
+function startWatch() {
+  if (!navigator.geolocation) return
+  if (watchId !== null) { try { navigator.geolocation.clearWatch(watchId) } catch {} watchId = null }
+  const opts = { enableHighAccuracy: true, timeout: 20000, maximumAge: 5000 }
+  watchId = navigator.geolocation.watchPosition(onFix, onWatchError, opts)
+  navigator.geolocation.getCurrentPosition(onFix, () => {}, opts)
+}
+
 function begin() {
   if (state.phase === 'tracking' && watchId !== null) return
   set({ phase: 'tracking', error: null })
   if (!navigator.geolocation) { set({ error: 'This phone cannot share its location', permission: 'denied' }); return }
-  watchId = navigator.geolocation.watchPosition(onFix, err => {
-    if (err.code === err.PERMISSION_DENIED) set({ permission: 'denied', error: 'Location is blocked. Allow location for this site in the browser settings.' })
-    else if (err.code === err.POSITION_UNAVAILABLE) set({ error: 'Location unavailable. Check the GPS signal.' })
-    else set({ error: 'Location request timed out. Retrying.' })
-  }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 5000 })
+  lastFixAt = Date.now()
+  startWatch()
   if (timer) clearInterval(timer)
   timer = setInterval(() => { if (!document.hidden) send() }, SEND_EVERY_MS)
+  // watchdog: if no position has arrived for a while, the feed has stalled; restart it by itself (no need to reopen the app)
+  if (watchdog) clearInterval(watchdog)
+  watchdog = setInterval(() => {
+    if (state.phase !== 'tracking' || document.hidden || state.permission === 'denied') return
+    if (Date.now() - lastFixAt > STALE_MS) { lastFixAt = Date.now(); startWatch() }
+  }, 5000)
   keepAwake()
 }
 
 function halt() {
   if (watchId !== null) { try { navigator.geolocation.clearWatch(watchId) } catch {} watchId = null }
   if (timer) { clearInterval(timer); timer = null }
+  if (watchdog) { clearInterval(watchdog); watchdog = null }
+  if (restartTimer) { clearTimeout(restartTimer); restartTimer = null }
   letSleep()
   prev = null
 }
@@ -111,8 +142,13 @@ export function startAgentTracker(sessionToken: string) {
     // coming back to the page: send straight away and take the screen lock again
     document.addEventListener('visibilitychange', () => {
       if (document.hidden || state.phase !== 'tracking') return
-      keepAwake(); send()
+      keepAwake()
+      lastFixAt = Date.now()
+      startWatch()          // the phone usually freezes the location feed while the screen is off; start it again
+      send()
+      refresh()             // and confirm with the server that the day is still open
     })
+    window.addEventListener('online', () => { if (state.phase === 'tracking') { startWatch(); send() } })   // signal is back: send at once
     try {
       navigator.permissions?.query({ name: 'geolocation' as PermissionName }).then(r => {
         set({ permission: r.state })
