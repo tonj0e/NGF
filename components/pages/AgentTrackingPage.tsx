@@ -83,22 +83,22 @@ function AgentRoutePanel({ session, agentId, name, live, onClose }: { session: S
   }, [roadKey, session.token])
 
   return (
-    <div className="rounded-[1.75rem] border border-white/70 bg-white p-4 shadow-panel" id="agent-route-panel">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold">{name}&apos;s route</p>
-          <p className="mt-0.5 text-xs text-soft">{state === 'ready' && stops.length ? `${doneCount} of ${stops.length} visits done${next ? ` · next: ${next.label}` : ' · all done'}` : 'Planned visits with the agent\'s live position'}</p>
+    <div className="absolute inset-0 z-10 flex flex-col overflow-hidden bg-white">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-3 py-2">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold">{`${name}'s route`}</p>
+          <p className="truncate text-xs text-soft">{state === 'ready' && stops.length ? `${doneCount} of ${stops.length} visits done${next ? ` · next: ${next.label}` : ' · all done'}` : 'Planned visits and where the agent is now'}</p>
         </div>
         <div className="flex items-center gap-2">
-          <input type="date" value={date} onChange={e => e.target.value && setDate(e.target.value)} className="rounded-xl border border-line bg-white px-3 py-2 text-xs font-semibold" />
-          <button onClick={() => setDate(todayIST())} className="rounded-xl border border-line bg-white px-3 py-2 text-xs font-semibold">Today</button>
-          <button onClick={onClose} className="rounded-xl border border-line bg-white px-3 py-2 text-xs font-semibold">Close</button>
+          <input type="date" value={date} onChange={e => e.target.value && setDate(e.target.value)} className="rounded-xl border border-line bg-white px-3 py-1.5 text-xs font-semibold" />
+          <button onClick={() => setDate(todayIST())} className="rounded-xl border border-line bg-white px-3 py-1.5 text-xs font-semibold">Today</button>
+          <button onClick={onClose} className="rounded-xl bg-ink px-3 py-1.5 text-xs font-semibold text-white">All agents</button>
         </div>
       </div>
-      <div className="mt-3">
+      <div className="min-h-0 flex-1 overflow-y-auto">
         {state === 'loading' && !route && <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-ink border-t-transparent" /></div>}
-        {state === 'error' && <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{message}</p>}
-        {state === 'ready' && stops.length === 0 && <p className="rounded-2xl bg-mist px-4 py-6 text-center text-sm text-soft">No visits with a fixed location are planned for {name} on this day.</p>}
+        {state === 'error' && <p className="m-3 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{message}</p>}
+        {state === 'ready' && stops.length === 0 && <p className="m-3 rounded-2xl bg-mist px-4 py-6 text-center text-sm text-soft">No visits with a fixed location are planned for {name} on this day.</p>}
         {stops.length > 0 && (
           <RouteMap bare heightClass="h-[480px]" start={start} startLabel="START" stops={mapStops} nextId={next?.id} roads={roads} live={liveProp} />
         )}
@@ -515,7 +515,12 @@ export default function AgentTrackingPage({ session }: { session: Session }) {
         <div className="flex flex-col lg:flex-row">
           {/* Map Area */}
           <div className="lg:w-3/4 relative h-[560px]">
-            <div id="agent-map-google" className="w-full h-full" />
+            <div id="agent-map-google" className={`w-full h-full ${routeAgent ? 'invisible' : ''}`} />
+            {routeAgent && locations.get(routeAgent) && (
+              <AgentRoutePanel session={session} agentId={routeAgent} name={locations.get(routeAgent)!.name}
+                live={locations.get(routeAgent)!.latitude != null && locations.get(routeAgent)!.longitude != null ? { lat: locations.get(routeAgent)!.latitude!, lng: locations.get(routeAgent)!.longitude! } : null}
+                onClose={() => setRouteAgent(null)} />
+            )}
             {loading && <div className="absolute inset-0 flex items-center justify-center bg-white/70"><div className="h-8 w-8 animate-spin rounded-full border-2 border-ink border-t-transparent" /></div>}
             {!isApiKeyConfigured && <div className="absolute inset-0 flex items-center justify-center bg-mist p-6 text-center text-sm text-soft">The map key is not set (NEXT_PUBLIC_GOOGLE_MAPS_JAVASCRIPT_API_KEY). The agent list on the right still works.</div>}
           </div>
@@ -539,8 +544,7 @@ export default function AgentTrackingPage({ session }: { session: Session }) {
                       key={agent.id}
                       className="rounded-xl bg-white p-3 border border-white/70 shadow-sm hover:shadow-md transition"
                       onClick={() => {
-                        setRouteAgent(agent.id)
-                        setTimeout(() => document.getElementById('agent-route-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150)
+                        if (routeAgent) return   // while one agent's route is open the live map is hidden
                         if (mapInstanceRef.current) {
                           mapInstanceRef.current.setCenter({ lat: agent.lat, lng: agent.lng })
                           mapInstanceRef.current.setZoom(16)
@@ -568,12 +572,18 @@ export default function AgentTrackingPage({ session }: { session: Session }) {
                             {agent.accuracy && agent.isOnline && ` · ±${Math.round(agent.accuracy)}m`}
                           </p>
                         </div>
+                        <div className="flex shrink-0 flex-col gap-1">
+                        <button type="button" onClick={e => { e.stopPropagation(); setRouteAgent(routeAgent === agent.id ? null : agent.id) }}
+                          className={`rounded-lg px-2 py-1 text-[10px] font-semibold ${routeAgent === agent.id ? 'bg-ink text-white' : 'border border-ink text-ink'}`}>
+                          {routeAgent === agent.id ? 'Viewing' : 'View'}
+                        </button>
                         {agent.lat && agent.lng && (
                           <a href={`https://maps.google.com/?q=${agent.lat},${agent.lng}`} target="_blank" rel="noopener noreferrer"
-                            className="shrink-0 rounded-lg bg-blue-600 px-2 py-1 text-[10px] font-semibold text-white hover:bg-blue-700 transition">
+                            className="rounded-lg bg-blue-600 px-2 py-1 text-center text-[10px] font-semibold text-white hover:bg-blue-700 transition">
                             Maps
                           </a>
                         )}
+                        </div>
                       </div>
                     </div>
                   )
@@ -583,12 +593,6 @@ export default function AgentTrackingPage({ session }: { session: Session }) {
           </div>
         </div>
       </div>
-
-      {routeAgent && locations.get(routeAgent) && (
-        <AgentRoutePanel session={session} agentId={routeAgent} name={locations.get(routeAgent)!.name}
-          live={locations.get(routeAgent)!.latitude != null && locations.get(routeAgent)!.longitude != null ? { lat: locations.get(routeAgent)!.latitude!, lng: locations.get(routeAgent)!.longitude! } : null}
-          onClose={() => setRouteAgent(null)} />
-      )}
 
       {error && (
         <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-center justify-between gap-3">

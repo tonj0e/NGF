@@ -33,6 +33,9 @@ function pinSvg(text: string, fill: string, ring: string, ink: string) {
 const pulseSvg = svgUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96"><circle cx="48" cy="48" r="16" fill="none" stroke="${AMBER}" stroke-width="3"><animate attributeName="r" values="16;46" dur="1.8s" repeatCount="indefinite"/><animate attributeName="stroke-opacity" values=".9;0" dur="1.8s" repeatCount="indefinite"/></circle><circle cx="48" cy="48" r="16" fill="none" stroke="${AMBER}" stroke-width="3"><animate attributeName="r" values="16;46" dur="1.8s" begin=".9s" repeatCount="indefinite"/><animate attributeName="stroke-opacity" values=".9;0" dur="1.8s" begin=".9s" repeatCount="indefinite"/></circle></svg>`)
 const startSvg = svgUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44"><rect x="4" y="4" width="36" height="36" rx="12" fill="${NAVY}" stroke="#fff" stroke-width="3"/><path d="M13 23 L22 13 L31 23 M16 21.5 V31 H28 V21.5" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`)
 
+// the agent: a round blue badge with a head-and-shoulders person, ringed in white, with a soft pulse
+const agentSvg = svgUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><circle cx="32" cy="32" r="14" fill="none" stroke="#2563eb" stroke-width="3"><animate attributeName="r" values="14;30" dur="1.8s" repeatCount="indefinite"/><animate attributeName="stroke-opacity" values=".8;0" dur="1.8s" repeatCount="indefinite"/></circle><circle cx="32" cy="32" r="17" fill="#2563eb" stroke="#fff" stroke-width="3"/><circle cx="32" cy="26" r="5.5" fill="#fff"/><path d="M21.5 42c1-6 5.5-8.5 10.5-8.5S41.5 36 42.5 42z" fill="#fff"/></svg>`)
+
 const MAP_STYLE = [
   { featureType: 'poi', stylers: [{ visibility: 'off' }] },
   { featureType: 'transit', stylers: [{ visibility: 'off' }] },
@@ -118,9 +121,8 @@ export default function RouteMap({ start, startLabel, stops, nextId, onPick, roa
     if (!live) { liveMarker.current?.setMap(null); liveMarker.current = null; return }
     if (!liveMarker.current) {
       liveMarker.current = new gm.Marker({ map, position: live, zIndex: 100, title: live.label,
-        icon: { path: gm.SymbolPath.CIRCLE, scale: 9, fillColor: '#2563eb', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 3 },
+        icon: { url: agentSvg, scaledSize: new gm.Size(52, 52), anchor: new gm.Point(26, 26), labelOrigin: new gm.Point(26, 62) },
         label: { text: live.label, fontSize: '12px', fontWeight: '800', color: '#1d4ed8', className: 'rm-label' } })
-      liveMarker.current.set('labelOrigin', new gm.Point(0, 3))
     } else liveMarker.current.setPosition(live)
   }, [ready, live])
   useEffect(() => () => { liveMarker.current?.setMap(null); liveMarker.current = null }, [])
