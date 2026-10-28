@@ -28,6 +28,49 @@ let watchdog: ReturnType<typeof setInterval> | null = null
 let restartTimer: ReturnType<typeof setTimeout> | null = null
 const STALE_MS = 25_000                             // no position for this long = the phone's location feed has stalled
 
+// Inside the NGF Agent Android app, a native service does the sharing (it keeps going with the app closed and the phone locked).
+// In a normal browser or the installed web app, this file does it itself while the page is open.
+type NativeStatus = { active: boolean; lastSent: number; error: string; lat: number; lng: number; location: boolean; background: boolean; notifications: boolean; batteryUnrestricted: boolean; version: string }
+type NativeTracker = {
+  status(): Promise<NativeStatus>; requestPermissions(): Promise<NativeStatus>; start(o: { token: string; baseUrl: string }): Promise<NativeStatus>
+  stop(): Promise<NativeStatus>; openBatterySettings(): Promise<void>; openAppSettings(): Promise<void>
+}
+export function nativeTracker(): NativeTracker | null {
+  try {
+    const c = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean; Plugins?: { NgfTracker?: NativeTracker } } }).Capacitor
+    return c?.isNativePlatform?.() && c.Plugins?.NgfTracker ? c.Plugins.NgfTracker : null
+  } catch { return null }
+}
+export const inNativeApp = () => !!nativeTracker()
+let nativePoll: ReturnType<typeof setInterval> | null = null
+export let nativeNeeds: { background: boolean; battery: boolean } = { background: true, battery: true }
+
+async function readNative(n: NativeTracker) {
+  try {
+    const st = await n.status()
+    nativeNeeds = { background: st.background && st.location, battery: st.batteryUnrestricted }
+    const permMsg = !st.location ? 'Allow location for the NGF Agent app' : !st.background ? 'Choose "Allow all the time" for location' : null
+    set({
+      permission: st.location ? 'granted' : 'denied',
+      lastSent: st.lastSent || null,
+      position: st.lat || st.lng ? { latitude: st.lat, longitude: st.lng, accuracy: 0, speed: null, heading: null, timestamp: st.lastSent || Date.now() } : state.position,
+      error: permMsg || (st.error && st.error !== 'Day closed' ? st.error : null),
+    })
+    if (!st.active && state.phase === 'tracking' && st.error === 'Day closed') refresh()   // the office side closed the day
+  } catch { /* the bridge is not ready yet */ }
+}
+
+async function nativeBegin(n: NativeTracker) {
+  set({ phase: 'tracking', error: null })
+  try {
+    await n.requestPermissions()
+    await n.start({ token, baseUrl: window.location.origin })
+  } catch (e) { set({ error: e instanceof Error ? e.message : 'Could not start location sharing' }) }
+  if (nativePoll) clearInterval(nativePoll)
+  nativePoll = setInterval(() => readNative(n), 4000)
+  readNative(n)
+}
+
 const headers = () => ({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' })
 
 async function keepAwake() {
@@ -97,6 +140,8 @@ function startWatch() {
 }
 
 function begin() {
+  const n = nativeTracker()
+  if (n) { if (state.phase === 'tracking' && nativePoll) { n.start({ token, baseUrl: window.location.origin }).catch(() => {}); return } nativeBegin(n); return }
   if (state.phase === 'tracking' && watchId !== null) return
   set({ phase: 'tracking', error: null })
   if (!navigator.geolocation) { set({ error: 'This phone cannot share its location', permission: 'denied' }); return }
@@ -114,6 +159,8 @@ function begin() {
 }
 
 function halt() {
+  const n = nativeTracker()
+  if (n) { n.stop().catch(() => {}); if (nativePoll) { clearInterval(nativePoll); nativePoll = null } }
   if (watchId !== null) { try { navigator.geolocation.clearWatch(watchId) } catch {} watchId = null }
   if (timer) { clearInterval(timer); timer = null }
   if (watchdog) { clearInterval(watchdog); watchdog = null }
@@ -171,6 +218,12 @@ export function startAgentTracker(sessionToken: string) {
 
 // One-tap fix for the agent: start everything again and send a position now
 export async function restartTracking() {
+  const n = nativeTracker()
+  if (n) {
+    set({ error: null })
+    try { const st = await n.requestPermissions(); if (!st.background) await n.openAppSettings() } catch {}
+    halt(); await refresh(); return
+  }
   halt()
   set({ error: null })
   await refresh()

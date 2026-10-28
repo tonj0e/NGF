@@ -1,0 +1,11 @@
+{
+  "name": "ngf-agent-android",
+  "private": true,
+  "version": "1.0.0",
+  "description": "NGF Agent: a small Android shell around the NGF FINCORP web app that keeps sharing the agent's location in the background until punch-out.",
+  "dependencies": {
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/cli": "^7.0.0",
+    "@capacitor/core": "^7.0.0"
+  }
+}

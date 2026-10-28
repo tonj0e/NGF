@@ -7,11 +7,12 @@ import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel } from '@/components/ui/dropdown-menu'
 import { Sheet, SheetContent, SheetClose } from '@/components/ui/sheet'
-import { Menu, X, Bell, User, LogOut, LayoutDashboard, Users, FileText, Truck, BarChart3, LandPlot, Upload, CreditCard, Settings, Shield, MessageSquare, MapPin, ClipboardList, Wallet, History, Sparkles, HelpCircle, ChevronLeft, ChevronRight, DollarSign, Coins, Banknote, Pin, PinOff, PieChart, TrendingUp, Route as RouteIcon, Navigation, Building2, Link2, LayoutGrid, ChevronDown } from 'lucide-react'
+import { Menu, X, Bell, User, LogOut, LayoutDashboard, Users, FileText, Truck, BarChart3, LandPlot, Upload, CreditCard, Settings, Shield, MessageSquare, MapPin, ClipboardList, Wallet, History, Sparkles, HelpCircle, ChevronLeft, ChevronRight, DollarSign, Coins, Banknote, Pin, PinOff, PieChart, TrendingUp, Route as RouteIcon, Navigation, Building2, Link2, LayoutGrid, ChevronDown, Smartphone } from 'lucide-react'
 import Dashboard from './pages/Dashboard'
 const LeadsPage = dynamic(() => import('./pages/LeadsPage'), { loading: () => <PageLoading /> })
 import InstallAppButton from './InstallAppButton'
 import { HeaderNetworkLight } from './agent/NetworkLight'
+import AppDownloadBanner, { APK_URL, useCanDownloadApp } from './agent/AppDownload'
 import { hasAnyLead, hasAnyCustomer, hasAnyCollection } from '@/lib/features'
 const StaffPage = dynamic(() => import('./pages/StaffPage'), { loading: () => <PageLoading /> })
 const RepayPage = dynamic(() => import('./pages/RepayPage'), { loading: () => <PageLoading /> })
@@ -160,6 +161,7 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
   // Coming back to the app after a while (phones freeze it in the background; Android especially): look at the server again.
   // The current screen is reloaded so it shows fresh data, unless the person is in the middle of filling a form (window.__ngfKeepPage).
   const [refreshKey, setRefreshKey] = useState(0)
+  const canDownloadApp = useCanDownloadApp()
   useEffect(() => {
     let hiddenAt = 0
     const onChange = () => {
@@ -515,6 +517,12 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
                         <Users className="h-4 w-4 mr-2" />
                         My Customers
                       </DropdownMenuItem>
+                      {session.role === 'NGF AGENT' && canDownloadApp && (
+                        <DropdownMenuItem onClick={() => { window.location.href = APK_URL }}>
+                          <Smartphone className="h-4 w-4 mr-2" />
+                          Download Android app
+                        </DropdownMenuItem>
+                      )}
                       <DropdownMenuSeparator />
                       <DropdownMenuItem onClick={handleLogout} className="text-red-600 focus:text-red-600">
                         <LogOut className="h-4 w-4 mr-2" />
@@ -576,6 +584,12 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
                         <Users className="h-4 w-4 mr-2" />
                         My Customers
                       </DropdownMenuItem>
+                      {session.role === 'NGF AGENT' && canDownloadApp && (
+                        <DropdownMenuItem onClick={() => { window.location.href = APK_URL }}>
+                          <Smartphone className="h-4 w-4 mr-2" />
+                          Download Android app
+                        </DropdownMenuItem>
+                      )}
                       <DropdownMenuSeparator />
                       <DropdownMenuItem onClick={handleLogout} className="text-red-600 focus:text-red-600">
                         <LogOut className="h-4 w-4 mr-2" />
@@ -588,6 +602,7 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
             {session.role === 'NGF AGENT' && <div className="flex justify-end border-t border-line/60 px-3 py-1.5"><HeaderNetworkLight /></div>}
             </header>
             <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 lg:px-8 pb-8 md:pb-4 lg:pb-0">
+              {session.role === 'NGF AGENT' && <AppDownloadBanner />}
               <Fragment key={refreshKey}>{renderPage()}</Fragment>
               {session.role === 'NGF AGENT' && seenRoute && <div hidden={view !== 'myRoute'}><MyRoutePage key={refreshKey} session={session} active={view === 'myRoute'} /></div>}
             </div>

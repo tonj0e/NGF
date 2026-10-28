@@ -1,0 +1,15 @@
+{
+  "appId": "com.ngffincorp.agent",
+  "appName": "NGF Agent",
+  "webDir": "www",
+  "server": {
+    "url": "https://ngffincorp.com",
+    "cleartext": false,
+    "errorPath": "offline.html",
+    "allowNavigation": ["ngffincorp.com", "*.ngffincorp.com", "maps.google.com", "www.google.com", "maps.app.goo.gl"]
+  },
+  "android": {
+    "allowMixedContent": false,
+    "backgroundColor": "#14213d"
+  }
+}

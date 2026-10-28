@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { MapPin, LogOut } from 'lucide-react'
 import { Session } from '@/types'
-import { startAgentTracker, stopAgentTracker, punchOut, restartTracking, useAgentTracker } from '@/lib/agentTracker'
+import { startAgentTracker, stopAgentTracker, punchOut, restartTracking, useAgentTracker, nativeTracker, nativeNeeds } from '@/lib/agentTracker'
 
 // Starts live location sharing for an agent for as long as they are signed in and punched in, whatever page they are on.
 // A small pill at the bottom shows the state and lets the agent punch out at the end of the day.
@@ -39,7 +39,10 @@ export default function AgentTracker({ session }: { session: Session }) {
         {label}{sentAgo !== null && !bad ? <span className="font-normal text-soft"> · {sentAgo < 5 ? 'just now' : `${sentAgo}s ago`}</span> : null}
       </button>
 
-      {bad && t.permission !== 'denied' && (
+      {nativeTracker() && !nativeNeeds.battery && !bad && (
+        <button onClick={() => nativeTracker()?.openBatterySettings()} className="fixed bottom-16 left-4 z-40 rounded-full bg-amber-100 px-3.5 py-2 text-xs font-semibold text-amber-900 shadow-lg">Allow running in background</button>
+      )}
+      {bad && (t.permission !== 'denied' || !!nativeTracker()) && (
         <button onClick={() => restartTracking()} className="fixed bottom-4 left-40 z-40 rounded-full bg-ink px-3.5 py-2 text-xs font-semibold text-white shadow-lg">Restart sending</button>
       )}
 

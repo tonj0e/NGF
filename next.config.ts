@@ -11,6 +11,12 @@ const nextConfig: NextConfig = {
         { key: 'Service-Worker-Allowed', value: '/' },
         { key: 'Content-Type', value: 'application/javascript; charset=utf-8' },
       ] },
+      // the Android app file: always the newest copy, and saved as a file rather than opened
+      { source: '/downloads/ngf-agent.apk', headers: [
+        { key: 'Content-Type', value: 'application/vnd.android.package-archive' },
+        { key: 'Content-Disposition', value: 'attachment; filename="NGF-Agent.apk"' },
+        { key: 'Cache-Control', value: 'no-cache, must-revalidate' },
+      ] },
       { source: '/manifest.webmanifest', headers: [{ key: 'Cache-Control', value: 'public, max-age=3600' }] },
     ]
   },
