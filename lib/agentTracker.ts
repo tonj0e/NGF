@@ -148,6 +148,10 @@ export function startAgentTracker(sessionToken: string) {
       send()
       refresh()             // and confirm with the server that the day is still open
     })
+    // the phone can bring the page back without a visibilitychange (restored from memory, window focus): treat those the same
+    const wake = () => { if (document.hidden || state.phase !== 'tracking') return; keepAwake(); lastFixAt = Date.now(); startWatch(); send() }
+    window.addEventListener('pageshow', wake)
+    window.addEventListener('focus', wake)
     window.addEventListener('online', () => { if (state.phase === 'tracking') { startWatch(); send() } })   // signal is back: send at once
     try {
       navigator.permissions?.query({ name: 'geolocation' as PermissionName }).then(r => {
@@ -158,6 +162,14 @@ export function startAgentTracker(sessionToken: string) {
   }
   set({ phase: 'checking' })
   refresh()
+}
+
+// One-tap fix for the agent: start everything again and send a position now
+export async function restartTracking() {
+  halt()
+  set({ error: null })
+  await refresh()
+  if (state.phase === 'tracking') { lastFixAt = Date.now(); startWatch(); setTimeout(send, 1500) }
 }
 
 export function stopAgentTracker() { halt(); token = ''; set({ phase: 'idle', position: null, lastSent: null, error: null }) }

@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { MapPin, LogOut } from 'lucide-react'
 import { Session } from '@/types'
-import { startAgentTracker, stopAgentTracker, punchOut, useAgentTracker } from '@/lib/agentTracker'
+import { startAgentTracker, stopAgentTracker, punchOut, restartTracking, useAgentTracker } from '@/lib/agentTracker'
 
 // Starts live location sharing for an agent for as long as they are signed in and punched in, whatever page they are on.
 // A small pill at the bottom shows the state and lets the agent punch out at the end of the day.
@@ -11,11 +11,16 @@ export default function AgentTracker({ session }: { session: Session }) {
   const [asking, setAsking] = useState(false)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
+  const [, tick] = useState(0)
+  useEffect(() => { const id = setInterval(() => tick(n => n + 1), 3000); return () => clearInterval(id) }, [])   // keeps the "sent x seconds ago" text current
 
   useEffect(() => { startAgentTracker(session.token); return () => stopAgentTracker() }, [session.token])
 
   if (t.phase !== 'tracking') return null
-  const bad = !!t.error || t.permission === 'denied'
+  const sentAgo = t.lastSent ? Math.round((Date.now() - t.lastSent) / 1000) : null
+  const stalled = sentAgo === null ? false : sentAgo > 45        // nothing has reached the office for 45 s
+  const bad = !!t.error || t.permission === 'denied' || stalled
+  const label = t.permission === 'denied' ? 'Allow location' : stalled ? 'Not sending' : t.error ? 'Location problem' : sentAgo === null ? 'Starting…' : 'Sending live'
 
   async function confirmOut() {
     setBusy(true); setMsg('')
@@ -31,8 +36,12 @@ export default function AgentTracker({ session }: { session: Session }) {
           {!bad && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-70" />}
           <span className={`relative inline-flex h-2.5 w-2.5 rounded-full ${bad ? 'bg-red-500' : 'bg-emerald-500'}`} />
         </span>
-        {bad ? (t.permission === 'denied' ? 'Allow location' : 'Location problem') : 'Tracking on'}
+        {label}{sentAgo !== null && !bad ? <span className="font-normal text-soft"> · {sentAgo < 5 ? 'just now' : `${sentAgo}s ago`}</span> : null}
       </button>
+
+      {bad && t.permission !== 'denied' && (
+        <button onClick={() => restartTracking()} className="fixed bottom-4 left-40 z-40 rounded-full bg-ink px-3.5 py-2 text-xs font-semibold text-white shadow-lg">Restart sending</button>
+      )}
 
       {asking && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 sm:items-center" onClick={() => !busy && setAsking(false)}>
