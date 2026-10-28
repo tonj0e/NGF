@@ -1,6 +1,8 @@
 'use client'
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { Session, AgentLocation } from '@/types'
+import RouteMap from '@/components/routes/RouteMap'
+import { fetchRoads } from '@/lib/clientRoads'
 
 // Global flag to prevent multiple Google Maps API loads
 declare global {
@@ -24,12 +26,94 @@ function getMarkerColor(isOnline: boolean, ageMinutes: number | null): string {
   return '#f97316'
 }
 
+
+type RouteStop = { leadId: string; customerName: string; visitPlace: string; place: string; visitLat: number | null; visitLng: number | null; done: boolean; visitStatus: string; legKm: number | null; legMin: number | null }
+type DayRoute = { agentId: string; name: string; plan: { startLat: number | null; startLng: number | null } | null; stops: RouteStop[] }
+
+const todayIST = () => new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10)
+
+// The route set for one agent on one day, drawn on a map with the agent's live position, so a manager can watch the stops get done.
+function AgentRoutePanel({ session, agentId, name, live, onClose }: { session: Session; agentId: string; name: string; live: { lat: number; lng: number } | null; onClose: () => void }) {
+  const [date, setDate] = useState(todayIST())
+  const [route, setRoute] = useState<DayRoute | null>(null)
+  const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [message, setMessage] = useState('')
+  const [roads, setRoads] = useState<(string | null)[] | null>(null)
+
+  useEffect(() => {
+    let dead = false
+    setState('loading')
+    const load = async () => {
+      try {
+        const res = await fetch(`/api/routes?view=board&date=${date}`, { headers: { Authorization: `Bearer ${session.token}` } })
+        const j = await res.json()
+        if (dead) return
+        if (!j.success) { setMessage(j.error || 'Could not load the route'); setState('error'); return }
+        setRoute((j.data.routes as DayRoute[]).find(r => r.agentId === agentId) || { agentId, name, plan: null, stops: [] })
+        setState('ready')
+      } catch { if (!dead) { setMessage('Network error loading the route'); setState('error') } }
+    }
+    load()
+    // the stops turn green as the agent finishes them: look again every 15 seconds (only for a day that can still change)
+    const timer = setInterval(() => { if (!document.hidden) load() }, 15000)
+    return () => { dead = true; clearInterval(timer) }
+  }, [date, agentId, session.token])
+
+  // new arrays only when something really changed, so the map is not redrawn (and re-framed) on every refresh
+  const sig = JSON.stringify([route?.plan?.startLat, route?.plan?.startLng, (route?.stops || []).map(s => [s.leadId, s.visitLat, s.visitLng, s.done, s.visitStatus, s.visitPlace, s.place, s.customerName, s.legKm])])
+  const { stops, mapStops, start, next } = useMemo(() => {
+    const st = (route?.stops || []).filter(s => s.visitLat != null && s.visitLng != null)
+    const ms = st.map((s, i) => ({ id: s.leadId, n: i + 1, label: s.visitPlace || s.place || s.customerName, lat: s.visitLat!, lng: s.visitLng!, done: s.done, absent: s.visitStatus === 'Absent', legKm: s.legKm }))
+    const sp = route?.plan?.startLat != null && route?.plan?.startLng != null ? { lat: route.plan.startLat, lng: route.plan.startLng } : null
+    return { stops: st, mapStops: ms, start: sp, next: ms.find(x => !x.done) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sig])
+  const liveProp = useMemo(() => live ? { lat: live.lat, lng: live.lng, label: name.split(' ')[0] } : null, [live?.lat, live?.lng, name]) // eslint-disable-line react-hooks/exhaustive-deps
+  const doneCount = stops.filter(s => s.done).length
+
+  const roadPts = [...(start ? [start] : []), ...mapStops.map(s => ({ lat: s.lat, lng: s.lng }))]
+  const roadKey = roadPts.map(p => `${p.lat.toFixed(4)},${p.lng.toFixed(4)}`).join('|')
+  useEffect(() => {
+    setRoads(null)
+    if (roadPts.length < 2 || roadPts.length > 26) return
+    let dead = false
+    fetchRoads(session.token, roadPts).then(l => { if (!dead && l) setRoads(l) }).catch(() => {})
+    return () => { dead = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roadKey, session.token])
+
+  return (
+    <div className="rounded-[1.75rem] border border-white/70 bg-white p-4 shadow-panel" id="agent-route-panel">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold">{name}&apos;s route</p>
+          <p className="mt-0.5 text-xs text-soft">{state === 'ready' && stops.length ? `${doneCount} of ${stops.length} visits done${next ? ` · next: ${next.label}` : ' · all done'}` : 'Planned visits with the agent\'s live position'}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <input type="date" value={date} onChange={e => e.target.value && setDate(e.target.value)} className="rounded-xl border border-line bg-white px-3 py-2 text-xs font-semibold" />
+          <button onClick={() => setDate(todayIST())} className="rounded-xl border border-line bg-white px-3 py-2 text-xs font-semibold">Today</button>
+          <button onClick={onClose} className="rounded-xl border border-line bg-white px-3 py-2 text-xs font-semibold">Close</button>
+        </div>
+      </div>
+      <div className="mt-3">
+        {state === 'loading' && !route && <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-ink border-t-transparent" /></div>}
+        {state === 'error' && <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{message}</p>}
+        {state === 'ready' && stops.length === 0 && <p className="rounded-2xl bg-mist px-4 py-6 text-center text-sm text-soft">No visits with a fixed location are planned for {name} on this day.</p>}
+        {stops.length > 0 && (
+          <RouteMap bare heightClass="h-[480px]" start={start} startLabel="START" stops={mapStops} nextId={next?.id} roads={roads} live={liveProp} />
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function AgentTrackingPage({ session }: { session: Session }) {
   const [locations, setLocations] = useState<Map<string, AgentLocation>>(new Map())
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_JAVASCRIPT_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
   const isApiKeyConfigured = !!(apiKey && apiKey !== 'your_google_maps_api_key_here')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [routeAgent, setRouteAgent] = useState<string | null>(null)   // agent whose day route is open under the map
   const mapInstanceRef = useRef<google.maps.Map | null>(null)
   const markersRef = useRef<Map<string, google.maps.Marker>>(new Map())
   const infoWindowsRef = useRef<Map<string, google.maps.InfoWindow>>(new Map())
@@ -455,6 +539,8 @@ export default function AgentTrackingPage({ session }: { session: Session }) {
                       key={agent.id}
                       className="rounded-xl bg-white p-3 border border-white/70 shadow-sm hover:shadow-md transition"
                       onClick={() => {
+                        setRouteAgent(agent.id)
+                        setTimeout(() => document.getElementById('agent-route-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150)
                         if (mapInstanceRef.current) {
                           mapInstanceRef.current.setCenter({ lat: agent.lat, lng: agent.lng })
                           mapInstanceRef.current.setZoom(16)
@@ -497,6 +583,12 @@ export default function AgentTrackingPage({ session }: { session: Session }) {
           </div>
         </div>
       </div>
+
+      {routeAgent && locations.get(routeAgent) && (
+        <AgentRoutePanel session={session} agentId={routeAgent} name={locations.get(routeAgent)!.name}
+          live={locations.get(routeAgent)!.latitude != null && locations.get(routeAgent)!.longitude != null ? { lat: locations.get(routeAgent)!.latitude!, lng: locations.get(routeAgent)!.longitude! } : null}
+          onClose={() => setRouteAgent(null)} />
+      )}
 
       {error && (
         <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-center justify-between gap-3">

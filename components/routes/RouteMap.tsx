@@ -55,7 +55,7 @@ function decodePath(enc: string): Pt[] {
   return out
 }
 
-export default function RouteMap({ start, startLabel, stops, nextId, onPick, roads, bare, heightClass }: {
+export default function RouteMap({ start, startLabel, stops, nextId, onPick, roads, bare, heightClass, live }: {
   start: Pt | null
   startLabel: string
   stops: SketchStop[]
@@ -63,6 +63,7 @@ export default function RouteMap({ start, startLabel, stops, nextId, onPick, roa
   onPick?: (id: string) => void
   bare?: boolean // map and legend only; the page supplies its own header card
   heightClass?: string // map height (default 420px)
+  live?: { lat: number; lng: number; label: string } | null // the agent's current position (moves on its own, no redraw of the route)
   roads?: (string | null)[] | null // road shape for each leg (start -> stop 1 -> stop 2 ...), straight line where missing
 }) {
   const box = useRef<HTMLDivElement>(null)
@@ -107,6 +108,22 @@ export default function RouteMap({ start, startLabel, stops, nextId, onPick, roa
 
   // Map / Satellite switch (Hybrid keeps the place names on the photo)
   useEffect(() => { mapRef.current?.setMapTypeId(sat ? 'hybrid' : 'roadmap') }, [sat, ready])
+
+  // the agent's live position: its own marker, moved in place whenever a new position arrives
+  const liveMarker = useRef<google.maps.Marker | null>(null)
+  useEffect(() => {
+    const map = mapRef.current
+    if (!ready || !map) return
+    const gm = w().google.maps as typeof google.maps
+    if (!live) { liveMarker.current?.setMap(null); liveMarker.current = null; return }
+    if (!liveMarker.current) {
+      liveMarker.current = new gm.Marker({ map, position: live, zIndex: 100, title: live.label,
+        icon: { path: gm.SymbolPath.CIRCLE, scale: 9, fillColor: '#2563eb', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 3 },
+        label: { text: live.label, fontSize: '12px', fontWeight: '800', color: '#1d4ed8', className: 'rm-label' } })
+      liveMarker.current.set('labelOrigin', new gm.Point(0, 3))
+    } else liveMarker.current.setPosition(live)
+  }, [ready, live])
+  useEffect(() => () => { liveMarker.current?.setMap(null); liveMarker.current = null }, [])
 
   // (re)draw pins and lines when the stops change
   useEffect(() => {
