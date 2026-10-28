@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, Fragment } from 'react'
 import dynamic from 'next/dynamic'
 import { Session } from '@/types'
 import { APP_CONFIG } from '@/lib/config'
@@ -157,6 +157,24 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
   const defaultView = session.role === 'Staff' ? 'notifications' : (MENUS[session.role]?.[0]?.key || 'dashboard')
   const restoredView = useRef(viewFromHash(session.role))
   const [view, setViewState] = useState(restoredView.current || defaultView)
+  // Coming back to the app after a while (phones freeze it in the background; Android especially): look at the server again.
+  // The current screen is reloaded so it shows fresh data, unless the person is in the middle of filling a form (window.__ngfKeepPage).
+  const [refreshKey, setRefreshKey] = useState(0)
+  useEffect(() => {
+    let hiddenAt = 0
+    const onChange = () => {
+      if (document.hidden) { hiddenAt = Date.now(); return }
+      const away = hiddenAt ? Date.now() - hiddenAt : 0
+      hiddenAt = 0
+      if (away < 60_000) return
+      fetch('/api/auth/session', { headers: { Authorization: `Bearer ${session.token}` } })
+        .then(r => { if (r.status === 401) window.location.reload() })   // signed out meanwhile: show the login screen
+        .catch(() => {})
+      if (!(window as unknown as { __ngfKeepPage?: boolean }).__ngfKeepPage) setRefreshKey(k => k + 1)
+    }
+    document.addEventListener('visibilitychange', onChange)
+    return () => document.removeEventListener('visibilitychange', onChange)
+  }, [session.token])
   const setView = (key: string, replace = false) => {
     setViewState(key)
     try {
@@ -570,8 +588,8 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
             {session.role === 'NGF AGENT' && <div className="flex justify-end border-t border-line/60 px-3 py-1.5"><HeaderNetworkLight /></div>}
             </header>
             <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 lg:px-8 pb-8 md:pb-4 lg:pb-0">
-              {renderPage()}
-              {session.role === 'NGF AGENT' && seenRoute && <div hidden={view !== 'myRoute'}><MyRoutePage session={session} active={view === 'myRoute'} /></div>}
+              <Fragment key={refreshKey}>{renderPage()}</Fragment>
+              {session.role === 'NGF AGENT' && seenRoute && <div hidden={view !== 'myRoute'}><MyRoutePage key={refreshKey} session={session} active={view === 'myRoute'} /></div>}
             </div>
           </main>
         </div>

@@ -140,8 +140,13 @@ export function startAgentTracker(sessionToken: string) {
   if (!listening) {
     listening = true
     // coming back to the page: send straight away and take the screen lock again
+    let hiddenAt = 0
     document.addEventListener('visibilitychange', () => {
-      if (document.hidden || state.phase !== 'tracking') return
+      if (document.hidden) { hiddenAt = Date.now(); return }
+      // away for a while (Android freezes the page): start the whole thing again, as a fresh open would
+      if (hiddenAt && Date.now() - hiddenAt > 30_000 && state.phase === 'tracking') { hiddenAt = 0; restartTracking(); return }
+      hiddenAt = 0
+      if (state.phase !== 'tracking') return
       keepAwake()
       lastFixAt = Date.now()
       startWatch()          // the phone usually freezes the location feed while the screen is off; start it again

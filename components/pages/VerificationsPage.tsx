@@ -101,6 +101,11 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
   const [leads, setLeads] = useState<Lead[]>([])
   const [stops, setStops] = useState<Record<string, number>>({})
   const [active, setActive] = useState<Lead | null>(null)
+  // while a verification form is open, the app must not reload the screen when the agent comes back to it (typed details and photos would be lost)
+  useEffect(() => {
+    (window as unknown as { __ngfKeepPage?: boolean }).__ngfKeepPage = !!active
+    return () => { (window as unknown as { __ngfKeepPage?: boolean }).__ngfKeepPage = false }
+  }, [active])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const net = useNetworkLight()
