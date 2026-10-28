@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, getSession, ok, err } from '@/lib/api'
 import { createAuditLogger } from '@/lib/audit'
-import { routeConfig, board, mine, setVisit, assign, reopen, optimize, reorder, pin, unplan, stopStatus, replan, RouteError } from '@/lib/routes'
+import { routeConfig, board, mine, setVisit, assign, reopen, addWaypoint, removeWaypoint, waypointDone, optimize, reorder, pin, unplan, stopStatus, replan, RouteError } from '@/lib/routes'
 
 // Verification Day Routes. Access is decided in lib/routes.ts from the session, never from the request body.
 export const GET = apiHandler(async (req: NextRequest) => {
@@ -50,6 +50,17 @@ export const POST = apiHandler(async (req: NextRequest) => {
         await audit.log('ROUTE_PINNED', 'Lead', String(body.leadId), { pin: body.pin })
         return ok(r)
       }
+      case 'addWaypoint': {
+        const r = await addWaypoint(session, body)
+        await audit.log('WAYPOINT_ADDED', 'Route', `${body.agentId}:${body.date}`, { name: body.name, forLeadId: body.forLeadId })
+        return ok(r)
+      }
+      case 'removeWaypoint': {
+        const r = await removeWaypoint(session, body)
+        await audit.log('WAYPOINT_REMOVED', 'Route', String(body.waypointId), {})
+        return ok(r)
+      }
+      case 'waypointDone': return ok(await waypointDone(session, body))
       case 'reopen': {
         const r = await reopen(session, body)
         await audit.log('VISIT_REOPENED', 'Lead', String(body.leadId), {})

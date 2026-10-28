@@ -116,6 +116,34 @@ type LeadRow = {
 
 const num = (v: unknown) => (v == null || v === '' ? null : Number(v))
 
+// ─── Waypoints ────────────────────────────────────────────────────────────────
+// An extra place on the day's route (e.g. the petrol pump where a customer works). Not a visit: no verification, only "mark done".
+// It takes part in ordering and in the kilometre totals like a stop, so it is turned into a lead-shaped row for the calculation.
+
+const MAX_WAYPOINTS = 10
+const WP_PREFIX = 'WPT'
+const isWpId = (id: string) => id.startsWith(WP_PREFIX)
+type WpRow = {
+  waypoint_id: string; agent_id: string; plan_date: string; name: string; note: string | null; for_lead_id: string | null
+  lat: number | string; lng: number | string; route_seq: number | null; leg_km: number | string | null; leg_min: number | null; done: boolean
+}
+
+function wpAsLead(w: WpRow): LeadRow {
+  return {
+    lead_id: w.waypoint_id, customer_name: w.name, phone: null, alt_phone: null, alt_phone_label: null, place: null, address: null, landmark: null,
+    house_name: null, pinned_location: null, status: w.done ? 'Verification Submitted' : 'Agent Assigned', guarantor_id: null, assigned_agent_id: w.agent_id,
+    submitted_date: null, visit_lat: w.lat, visit_lng: w.lng, visit_place: null, visit_date: w.plan_date, visit_window: null, visit_note: w.note,
+    call_outcome: null, visit_status: null, route_seq: w.route_seq, route_pin: null, leg_km: w.leg_km, leg_min: w.leg_min,
+  }
+}
+
+function wpStop(w: WpRow, forName: string) {
+  return {
+    ...stopOf(wpAsLead(w), '', '', ''),
+    kind: 'waypoint' as const, forCustomer: forName, done: !!w.done, hasLocation: true, status: '',
+  }
+}
+
 function isDone(l: LeadRow) {
   return DONE_LEAD_STATUSES.has(l.status) || l.visit_status === 'Absent'
 }
@@ -126,7 +154,7 @@ function stopOf(l: LeadRow, guarantorName: string, branchId: string, branchName:
   return {
     leadId: l.lead_id, customerName: l.customer_name, phone: l.phone || '', altPhone: l.alt_phone || '', altPhoneLabel: l.alt_phone_label || '', place: l.place || '', address: l.address || '',
     landmark: l.landmark || '', houseName: l.house_name || '', status: l.status, submittedDate: l.submitted_date || '',
-    guarantorName, branchId, branchName,
+    guarantorName, branchId, branchName, kind: 'lead' as 'lead' | 'waypoint', forCustomer: '',
     agentId: l.assigned_agent_id || '',
     visitLat: lat, visitLng: lng, visitPlace: l.visit_place || '', visitDate: l.visit_date || '', visitWindow: l.visit_window || '',
     visitNote: l.visit_note || '', callOutcome: l.call_outcome || '', visitStatus: l.visit_status || '',
@@ -216,8 +244,10 @@ export async function recalcRoute(agentId: string, date: string, o: Recalc) {
   const sb = getSupabase()
   const { data, error } = await sb.from('leads').select(LEAD_COLS).eq('assigned_agent_id', agentId).eq('visit_date', date)
   if (error) throw new Error(error.message)
-  const leads = ((data || []) as LeadRow[]).filter(l => num(l.visit_lat) != null && num(l.visit_lng) != null)
-  if (leads.length > MAX_STOPS) throw new RouteError(`At most ${MAX_STOPS} stops can be planned for one agent in a day`)
+  const leadRows = ((data || []) as LeadRow[]).filter(l => num(l.visit_lat) != null && num(l.visit_lng) != null)
+  if (leadRows.length > MAX_STOPS) throw new RouteError(`At most ${MAX_STOPS} stops can be planned for one agent in a day`)
+  const { data: wpData } = await sb.from('route_waypoints').select('*').eq('agent_id', agentId).eq('plan_date', date)
+  const leads = [...leadRows, ...((wpData || []) as WpRow[]).map(wpAsLead)]   // waypoints are ordered and measured like stops
 
   const { data: planRow } = await sb.from('route_plans').select('manual').eq('agent_id', agentId).eq('plan_date', date).maybeSingle()
   const start = o.startOverride !== undefined ? o.startOverride : await startFor(agentId, date)
@@ -262,7 +292,11 @@ export async function recalcRoute(agentId: string, date: string, o: Recalc) {
   }
 
   const { legs, totalKm, totalMin } = legsFor(finalOrder, inp)
-  await Promise.all(finalOrder.map((idx, k) => sb.from('leads').update({ route_seq: k + 1, leg_km: legs[k].km, leg_min: legs[k].min }).eq('lead_id', all[idx].lead_id)))
+  await Promise.all(finalOrder.map((idx, k) => {
+    const row = { route_seq: k + 1, leg_km: legs[k].km, leg_min: legs[k].min }
+    const id = all[idx].lead_id
+    return isWpId(id) ? sb.from('route_waypoints').update(row).eq('waypoint_id', id) : sb.from('leads').update(row).eq('lead_id', id)
+  }))
   const manual = o.manual !== undefined ? o.manual : (o.optimize ? false : !!planRow?.manual)
   await sb.from('route_plans').upsert({
     agent_id: agentId, plan_date: date, start_lat: start?.lat ?? null, start_lng: start?.lng ?? null, start_source: start?.source ?? null,
@@ -283,12 +317,13 @@ export async function board(session: Session, q: { branchId?: string; date?: str
   if (wantBranch && !branchAllowed(a, wantBranch)) throw new Error('No permission')
 
   const sb = getSupabase()
-  const [leadsRes, branches, guarantors, agentsRes, gbMap, plansRes] = await Promise.all([
+  const [leadsRes, branches, guarantors, agentsRes, gbMap, plansRes, wpsRes] = await Promise.all([
     sb.from('leads').select(LEAD_COLS).in('status', ['Pending', 'Under Review', 'Agent Assigned', 'Verification In Progress', 'Verification Submitted']),
     readTable('Branches'), readTable('Guarantors'),
     sb.from('agents').select('agent_id, user_id, name, phone, status, branch_id, latitude, longitude, location_updated_at'),
     guarantorBranchMap(),
     sb.from('route_plans').select('*').eq('plan_date', date),
+    sb.from('route_waypoints').select('*').eq('plan_date', date),
   ])
   if (leadsRes.error) throw new Error(leadsRes.error.message)
   const bName = new Map(branches.map(b => [b['Branch ID'], b['Name']]))
@@ -308,8 +343,11 @@ export async function board(session: Session, q: { branchId?: string; date?: str
   const agents = (agentsRes.data || []).filter(g => (g.status || 'Active') === 'Active' && (!wantBranch || !g.branch_id || g.branch_id === wantBranch))
   const plans = new Map((plansRes.data || []).map(p => [p.agent_id, p]))
   const routes = agents.map(ag => {
-    const stops = leads.filter(l => l.assigned_agent_id === ag.agent_id && l.visit_date === date)
+    const leadStops = leads.filter(l => l.assigned_agent_id === ag.agent_id && l.visit_date === date)
       .sort((x, y) => (x.route_seq ?? 1e9) - (y.route_seq ?? 1e9)).map(toStop)
+    const wpStops = ((wpsRes.data || []) as WpRow[]).filter(w => w.agent_id === ag.agent_id)
+      .map(w => wpStop(w, leads.find(l => l.lead_id === w.for_lead_id)?.customer_name || ''))
+    const stops = [...leadStops, ...wpStops].sort((x, y) => (x.seq ?? 1e9) - (y.seq ?? 1e9))
     const p = plans.get(ag.agent_id)
     return {
       agentId: ag.agent_id, name: ag.name, phone: ag.phone || '', branchId: ag.branch_id || '',
@@ -455,6 +493,62 @@ export async function pin(session: Session, b: { leadId: string; pin: string }) 
   return { success: true, ...res }
 }
 
+// Planner adds a waypoint to one agent's day. It goes to the end of the list; the planner then drags it where it belongs.
+export async function addWaypoint(session: Session, b: { agentId: string; date: string; name?: string; note?: string; forLeadId?: string; mapsLink?: string; lat?: number; lng?: number }) {
+  const a = await getRouteAccess(session); needPlanner(a); const cfg = await requireEnabled()
+  if (!isDate(b.date)) throw new RouteError('Pick the day')
+  const agent = await agentInScope(a, String(b.agentId || ''))
+  let point: LatLng | null = null
+  if (b.mapsLink && b.mapsLink.trim()) {
+    point = await resolveMapsLink(b.mapsLink)
+    if (!point) throw new RouteError('Could not read a location from that link. Press Save once more (Google sometimes fails the first time). If it keeps failing, open it in Google Maps, tap Share, and paste the link, or send "lat,lng".')
+  } else if (typeof b.lat === 'number' && typeof b.lng === 'number') {
+    if (!Number.isFinite(b.lat) || !Number.isFinite(b.lng) || Math.abs(b.lat) > 90 || Math.abs(b.lng) > 180) throw new RouteError('Invalid location')
+    point = { lat: b.lat, lng: b.lng }
+  }
+  if (!point) throw new RouteError('Paste the location (Google Maps link or lat,lng)')
+  if (b.forLeadId) { const l = await loadLead(String(b.forLeadId)); await assertLeadAccess(a, l) }
+  const sb = getSupabase()
+  const { count } = await sb.from('route_waypoints').select('waypoint_id', { count: 'exact', head: true }).eq('agent_id', agent.agent_id).eq('plan_date', b.date)
+  if ((count || 0) >= MAX_WAYPOINTS) throw new RouteError(`At most ${MAX_WAYPOINTS} subroutes can be added to one day`)
+  const id = `${WP_PREFIX}${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).slice(2, 5).toUpperCase()}`
+  const { error } = await sb.from('route_waypoints').insert({
+    waypoint_id: id, agent_id: agent.agent_id, plan_date: b.date, name: String(b.name || '').trim().slice(0, 80) || 'Waypoint',
+    note: String(b.note || '').trim().slice(0, 300) || null, for_lead_id: b.forLeadId || null, lat: point.lat, lng: point.lng, route_seq: 9999, created_by: session.userId,
+  })
+  if (error) throw new Error(error.message)
+  const res = await recalcRoute(agent.agent_id, b.date, { optimize: false, actorId: session.userId, useWindows: cfg.windows })
+  await notifyUser(agent.user_id, 'NGF AGENT', 'Route updated', `A subroute was added to your route for ${b.date}. Open My Route.`, 'Route', `${agent.agent_id}:${b.date}`)
+  return { success: true, id, ...res }
+}
+
+async function loadWaypoint(id: string): Promise<WpRow> {
+  const { data, error } = await getSupabase().from('route_waypoints').select('*').eq('waypoint_id', id).maybeSingle()
+  if (error) throw new Error(error.message)
+  if (!data) throw new RouteError('Subroute not found')
+  return data as WpRow
+}
+
+export async function removeWaypoint(session: Session, b: { waypointId: string }) {
+  const a = await getRouteAccess(session); needPlanner(a); const cfg = await requireEnabled()
+  const w = await loadWaypoint(String(b.waypointId))
+  await agentInScope(a, w.agent_id)
+  const { error } = await getSupabase().from('route_waypoints').delete().eq('waypoint_id', w.waypoint_id)
+  if (error) throw new Error(error.message)
+  return { success: true, ...(await recalcRoute(w.agent_id, w.plan_date, { optimize: false, actorId: session.userId, useWindows: cfg.windows })) }
+}
+
+// The agent taps "Mark done" on a waypoint
+export async function waypointDone(session: Session, b: { waypointId: string }) {
+  const a = await getRouteAccess(session)
+  if (!a.isAgent || !a.agentId) throw new Error('No permission')
+  const w = await loadWaypoint(String(b.waypointId))
+  if (w.agent_id !== a.agentId) throw new Error('No permission')
+  const { error } = await getSupabase().from('route_waypoints').update({ done: true, done_at: new Date().toISOString() }).eq('waypoint_id', w.waypoint_id)
+  if (error) throw new Error(error.message)
+  return { success: true }
+}
+
 // The agent marked the customer 'not at home' by mistake (or the customer is now home): put the stop back on the same route as to visit.
 export async function reopen(session: Session, b: { leadId: string }) {
   const a = await getRouteAccess(session); needPlanner(a); const cfg = await requireEnabled()
@@ -496,15 +590,19 @@ export async function mine(session: Session, q: { date?: string }) {
   const cfg = await requireEnabled()
   const date = isDate(q.date) ? q.date : getTodayIST()
   const sb = getSupabase()
-  const [leads, guarantors, plan] = await Promise.all([
+  const [leads, guarantors, plan, wps] = await Promise.all([
     sb.from('leads').select(LEAD_COLS).eq('assigned_agent_id', a.agentId).eq('visit_date', date),
     readTable('Guarantors'),
     sb.from('route_plans').select('*').eq('agent_id', a.agentId).eq('plan_date', date).maybeSingle(),
+    sb.from('route_waypoints').select('*').eq('agent_id', a.agentId).eq('plan_date', date),
   ])
   if (leads.error) throw new Error(leads.error.message)
   const gName = new Map(guarantors.map(g => [g['Guarantor ID'], g['Name']]))
-  const stops = ((leads.data || []) as LeadRow[]).sort((x, y) => (x.route_seq ?? 1e9) - (y.route_seq ?? 1e9))
-    .map(l => stopOf(l, gName.get(l.guarantor_id || '') || '', '', ''))
+  const leadRows = (leads.data || []) as LeadRow[]
+  const stops = [
+    ...leadRows.map(l => stopOf(l, gName.get(l.guarantor_id || '') || '', '', '')),
+    ...((wps.data || []) as WpRow[]).map(w => wpStop(w, leadRows.find(l => l.lead_id === w.for_lead_id)?.customer_name || '')),
+  ].sort((x, y) => (x.seq ?? 1e9) - (y.seq ?? 1e9))
   const p = plan.data
   return {
     date, config: cfg, stops,

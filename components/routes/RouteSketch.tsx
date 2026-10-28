@@ -6,7 +6,7 @@ import { useMemo } from 'react'
 // geography kept is the compass arrow on each leg (north is up) and the km between stops.
 
 export type SketchStop = {
-  id: string; n: number; label: string; lat: number; lng: number; done: boolean; absent?: boolean; legKm?: number | null
+  id: string; n: number; label: string; lat: number; lng: number; done: boolean; absent?: boolean; waypoint?: boolean; legKm?: number | null
 }
 
 const W = 360, STEP = 88, TOP = 48, BOTTOM = 62, LEFT = 96, RIGHT = 264

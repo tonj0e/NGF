@@ -183,9 +183,10 @@ export default function RouteMap({ start, startLabel, stops, nextId, onPick, roa
     }
     stops.forEach(s => {
       const isNext = s.id === nextId
-      const fill = s.done ? (s.absent ? RED : GREEN) : isNext ? AMBER : '#fff'
+      const VIOLET = '#7c3aed'
+      const fill = s.done ? (s.absent ? RED : GREEN) : isNext ? AMBER : s.waypoint ? '#ede9fe' : '#fff'
       const ink = s.done ? '#fff' : NAVY
-      const ring = s.done ? fill : isNext ? AMBER : NAVY
+      const ring = s.done ? fill : isNext ? AMBER : s.waypoint ? VIOLET : NAVY
       const text = s.done ? (s.absent ? '!' : '✓') : String(s.n)
       const size = isNext ? 50 : 42
       if (isNext) add(new gm.Marker({ map, position: { lat: s.lat, lng: s.lng }, clickable: false, zIndex: 1,
@@ -232,6 +233,7 @@ export default function RouteMap({ start, startLabel, stops, nextId, onPick, roa
           <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full border-2 border-ink bg-white" />To visit</span>
           <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-gold" />Next</span>
           <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-green-600" />Done</span>
+          {stops.some(s => s.waypoint) && <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full border-2 border-violet-600 bg-violet-100" />Subroute</span>}
         </span>
         <span>{roads?.some(Boolean) ? 'Lines follow the roads' : 'Straight lines show the order, not the road'}</span>
       </div>

@@ -27,7 +27,7 @@ function getMarkerColor(isOnline: boolean, ageMinutes: number | null): string {
 }
 
 
-type RouteStop = { leadId: string; customerName: string; visitPlace: string; place: string; visitLat: number | null; visitLng: number | null; done: boolean; visitStatus: string; legKm: number | null; legMin: number | null }
+type RouteStop = { kind?: string; leadId: string; customerName: string; visitPlace: string; place: string; visitLat: number | null; visitLng: number | null; done: boolean; visitStatus: string; legKm: number | null; legMin: number | null }
 type DayRoute = { agentId: string; name: string; plan: { startLat: number | null; startLng: number | null } | null; stops: RouteStop[] }
 
 const todayIST = () => new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10)
@@ -60,16 +60,17 @@ function AgentRoutePanel({ session, agentId, name, live, onClose }: { session: S
   }, [date, agentId, session.token])
 
   // new arrays only when something really changed, so the map is not redrawn (and re-framed) on every refresh
-  const sig = JSON.stringify([route?.plan?.startLat, route?.plan?.startLng, (route?.stops || []).map(s => [s.leadId, s.visitLat, s.visitLng, s.done, s.visitStatus, s.visitPlace, s.place, s.customerName, s.legKm])])
+  const sig = JSON.stringify([route?.plan?.startLat, route?.plan?.startLng, (route?.stops || []).map(s => [s.leadId, s.visitLat, s.visitLng, s.done, s.visitStatus, s.kind, s.visitPlace, s.place, s.customerName, s.legKm])])
   const { stops, mapStops, start, next } = useMemo(() => {
     const st = (route?.stops || []).filter(s => s.visitLat != null && s.visitLng != null)
-    const ms = st.map((s, i) => ({ id: s.leadId, n: i + 1, label: s.visitPlace || s.place || s.customerName, lat: s.visitLat!, lng: s.visitLng!, done: s.done, absent: s.visitStatus === 'Absent', legKm: s.legKm }))
+    const ms = st.map((s, i) => ({ id: s.leadId, n: i + 1, label: s.visitPlace || s.place || s.customerName, lat: s.visitLat!, lng: s.visitLng!, done: s.done, absent: s.visitStatus === 'Absent', waypoint: s.kind === 'waypoint', legKm: s.legKm }))
     const sp = route?.plan?.startLat != null && route?.plan?.startLng != null ? { lat: route.plan.startLat, lng: route.plan.startLng } : null
     return { stops: st, mapStops: ms, start: sp, next: ms.find(x => !x.done) }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sig])
   const liveProp = useMemo(() => live ? { lat: live.lat, lng: live.lng, label: name.split(' ')[0] } : null, [live?.lat, live?.lng, name]) // eslint-disable-line react-hooks/exhaustive-deps
-  const doneCount = stops.filter(s => s.done).length
+  const doneCount = stops.filter(s => s.kind !== 'waypoint' && s.done).length
+  const customerCount = stops.filter(s => s.kind !== 'waypoint').length
 
   const roadPts = [...(start ? [start] : []), ...mapStops.map(s => ({ lat: s.lat, lng: s.lng }))]
   const roadKey = roadPts.map(p => `${p.lat.toFixed(4)},${p.lng.toFixed(4)}`).join('|')
@@ -87,7 +88,7 @@ function AgentRoutePanel({ session, agentId, name, live, onClose }: { session: S
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-3 py-2">
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold">{`${name}'s route`}</p>
-          <p className="truncate text-xs text-soft">{state === 'ready' && stops.length ? `${doneCount} of ${stops.length} visits done${next ? ` · next: ${next.label}` : ' · all done'}` : 'Planned visits and where the agent is now'}</p>
+          <p className="truncate text-xs text-soft">{state === 'ready' && stops.length ? `${doneCount} of ${customerCount} visits done${next ? ` · next: ${next.label}` : ' · all done'}` : 'Planned visits and where the agent is now'}</p>
         </div>
         <div className="flex items-center gap-2">
           <input type="date" value={date} onChange={e => e.target.value && setDate(e.target.value)} className="rounded-xl border border-line bg-white px-3 py-1.5 text-xs font-semibold" />

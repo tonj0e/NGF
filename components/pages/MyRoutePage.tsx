@@ -9,7 +9,7 @@ import { fetchRoads } from '@/lib/clientRoads'
 type Stop = {
   leadId: string; customerName: string; phone: string; altPhone?: string; altPhoneLabel?: string; place: string; address: string; landmark: string; guarantorName: string
   visitLat: number | null; visitLng: number | null; visitPlace: string; visitWindow: string; visitNote: string
-  visitStatus: string; seq: number | null; legKm: number | null; legMin: number | null; done: boolean; hasLocation: boolean; status: string
+  visitStatus: string; seq: number | null; legKm: number | null; legMin: number | null; done: boolean; hasLocation: boolean; status: string; kind?: 'lead' | 'waypoint'; forCustomer?: string
 }
 type Mine = {
   date: string; config: { enabled: boolean; windows: boolean }; stops: Stop[]
@@ -56,6 +56,13 @@ export default function MyRoutePage({ session, active = true }: { session: Sessi
   const wasActive = useRef(active)
   useEffect(() => { if (active && !wasActive.current) load(true); wasActive.current = active }, [active]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  async function markWaypointDone(waypointId: string) {
+    setBusy(waypointId)
+    try { await api(session, '/api/routes', { action: 'waypointDone', waypointId }); await load(true) }
+    catch (e) { flash(e instanceof Error ? e.message : 'Failed') }
+    setBusy('')
+  }
+
   async function setStatus(leadId: string, status: string) {
     setBusy(leadId + status)
     try { await api(session, '/api/routes', { action: 'stopStatus', leadId, status }); await load(true) }
@@ -82,9 +89,11 @@ export default function MyRoutePage({ session, active = true }: { session: Sessi
   if (error && !data) return <div className={card}><p className="text-sm text-red-600">{error}</p></div>
   const stops = data?.stops || []
   const next = stops.find(s => !s.done)
-  const doneCount = stops.filter(s => s.done).length
+  // progress counts customers only; subroutes are just places to pass through
+  const custStops = stops.filter(s => s.kind !== 'waypoint')
+  const doneCount = custStops.filter(s => s.done).length
   const sketchStops = stops.flatMap((s, i) => s.hasLocation && s.visitLat != null && s.visitLng != null
-    ? [{ id: s.leadId, n: i + 1, label: s.visitPlace || s.place || s.customerName, lat: s.visitLat, lng: s.visitLng, done: s.done, absent: s.visitStatus === 'Absent', legKm: s.legKm }]
+    ? [{ id: s.leadId, n: i + 1, label: s.visitPlace || s.place || s.customerName, lat: s.visitLat, lng: s.visitLng, done: s.done, absent: s.visitStatus === 'Absent', waypoint: s.kind === 'waypoint', legKm: s.legKm }]
     : [])
   const startPt = data?.plan?.startLat != null && data?.plan?.startLng != null ? { lat: data.plan.startLat, lng: data.plan.startLng } : null
   const pickStop = (id: string) => document.getElementById(`stop-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -97,14 +106,14 @@ export default function MyRoutePage({ session, active = true }: { session: Sessi
           <div className="pointer-events-none absolute -bottom-16 -left-10 h-40 w-40 rounded-full bg-indigo-400/20 blur-3xl" />
           <div className="relative flex items-center justify-between gap-2">
             <div className="min-w-0">
-              <p className="text-3xl font-extrabold leading-none tracking-tight">{doneCount}<span className="text-xl font-bold text-white/45"> / {stops.length}</span></p>
-              <p className="mt-1 text-xs text-white/65">{stops.length === 0 ? 'No visits planned' : doneCount === stops.length ? 'All visits done 🎉' : `${stops.length - doneCount} to go`}</p>
+              <p className="text-3xl font-extrabold leading-none tracking-tight">{doneCount}<span className="text-xl font-bold text-white/45"> / {custStops.length}</span></p>
+              <p className="mt-1 text-xs text-white/65">{custStops.length === 0 ? 'No visits planned' : doneCount === custStops.length ? 'All visits done 🎉' : `${custStops.length - doneCount} to go`}</p>
             </div>
             <svg width="60" height="60" viewBox="0 0 76 76" className="shrink-0" aria-hidden>
               <circle cx="38" cy="38" r="31" fill="none" stroke="rgba(255,255,255,.14)" strokeWidth="8" />
-              <circle cx="38" cy="38" r="31" fill="none" stroke="url(#ringg)" strokeWidth="8" strokeLinecap="round" strokeDasharray={`${(stops.length ? doneCount / stops.length : 0) * 194.8} 194.8`} transform="rotate(-90 38 38)" className="transition-all duration-700" />
+              <circle cx="38" cy="38" r="31" fill="none" stroke="url(#ringg)" strokeWidth="8" strokeLinecap="round" strokeDasharray={`${(custStops.length ? doneCount / custStops.length : 0) * 194.8} 194.8`} transform="rotate(-90 38 38)" className="transition-all duration-700" />
               <defs><linearGradient id="ringg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#34d399" /><stop offset="1" stopColor="#bef264" /></linearGradient></defs>
-              <text x="38" y="43" textAnchor="middle" fontSize="17" fontWeight="800" fill="#fff">{stops.length ? Math.round(doneCount / stops.length * 100) : 0}%</text>
+              <text x="38" y="43" textAnchor="middle" fontSize="17" fontWeight="800" fill="#fff">{custStops.length ? Math.round(doneCount / custStops.length * 100) : 0}%</text>
             </svg>
             <div className="flex shrink-0 items-center rounded-full bg-white/10 p-0.5 ring-1 ring-white/15 backdrop-blur">
               <button aria-label="Previous day" className="grid h-6 w-6 place-items-center rounded-full text-sm hover:bg-white/15" onClick={() => setDate(shift(date, -1))}>‹</button>
@@ -147,8 +156,9 @@ export default function MyRoutePage({ session, active = true }: { session: Sessi
           return (
             <div key={s.leadId} id={`stop-${s.leadId}`} className={`${card} ${isNext ? 'ring-2 ring-gold' : ''} ${s.done ? 'opacity-70' : ''}`}>
               <div className="flex items-start gap-3">
-                <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold ${s.done ? 'bg-green-600 text-white' : 'bg-ink text-white'}`}>{s.done ? '✓' : i + 1}</span>
+                <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold ${s.done ? 'bg-green-600 text-white' : s.kind === 'waypoint' ? 'bg-violet-600 text-white' : 'bg-ink text-white'}`}>{s.done ? '✓' : i + 1}</span>
                 <div className="min-w-0 flex-1">
+                  {s.kind === 'waypoint' && <p className="text-[10px] font-bold uppercase tracking-wider text-violet-700">Subroute{s.forCustomer ? ` · for ${s.forCustomer}` : ''} · no verification, only Mark done</p>}
                   <p className="font-semibold">{s.customerName}</p>
                   <p className="text-xs text-soft"><MapPin className="mr-0.5 inline h-3 w-3" />{s.visitPlace || s.place}{s.landmark && <> · {s.landmark}</>}</p>
                   <p className="mt-0.5 text-xs text-soft">
@@ -159,7 +169,13 @@ export default function MyRoutePage({ session, active = true }: { session: Sessi
                   {s.visitStatus && <p className="mt-1 text-xs font-semibold text-blue-700">{s.visitStatus === 'Absent' ? 'Customer was not at home' : s.visitStatus}</p>}
                 </div>
               </div>
-              {!s.done && (
+              {s.kind === 'waypoint' && !s.done && (
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  {nav && <a href={nav} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-ink px-3 py-3 text-sm font-semibold text-white"><Navigation className="h-4 w-4" />Navigate</a>}
+                  <button onClick={() => markWaypointDone(s.leadId)} disabled={!!busy} className="rounded-2xl bg-violet-600 px-3 py-3 text-sm font-bold text-white disabled:opacity-40">Mark done</button>
+                </div>
+              )}
+              {s.kind !== 'waypoint' && !s.done && (
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   {nav && <a href={nav} target="_blank" rel="noreferrer" onClick={() => s.visitStatus !== 'On the way' && setStatus(s.leadId, 'On the way')} className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-ink px-3 py-3 text-sm font-semibold text-white"><Navigation className="h-4 w-4" />Navigate</a>}
                   {s.phone && <a href={`tel:${s.phone}`} className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-green-600 px-3 py-3 text-sm font-semibold text-white"><Phone className="h-4 w-4" />Call</a>}

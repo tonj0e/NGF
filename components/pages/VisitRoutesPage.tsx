@@ -8,7 +8,7 @@ import { ALT_PHONE_LABELS } from '@/lib/phone'
 
 type Stop = {
   leadId: string; customerName: string; phone: string; altPhone: string; altPhoneLabel: string; place: string; address: string; landmark: string; houseName: string; status: string; submittedDate: string
-  guarantorName: string; branchId: string; branchName: string; agentId: string
+  guarantorName: string; branchId: string; branchName: string; agentId: string; kind: 'lead' | 'waypoint'; forCustomer: string
   visitLat: number | null; visitLng: number | null; visitPlace: string; visitDate: string; visitWindow: string; visitNote: string
   callOutcome: string; visitStatus: string; seq: number | null; pin: string; legKm: number | null; legMin: number | null
   done: boolean; hasLocation: boolean; guarantorPin: { lat: number; lng: number } | null
@@ -138,6 +138,36 @@ export default function VisitRoutesPage({ session }: { session: Session }) {
 }
 
 // ─── A lead waiting for the phone call / location ────────────────────────────
+
+// Add a subroute (an extra place to pass through, e.g. where the customer works). No verification, only kilometres.
+function WaypointForm({ forId, customers, busy, onSave, onCancel }: { forId: string; customers: { id: string; label: string }[]; busy: boolean; onSave: (b: Record<string, unknown>) => Promise<void> | void; onCancel: () => void }) {
+  const [forLead, setForLead] = useState(forId)
+  const [name, setName] = useState(forId ? 'Workplace' : '')
+  const [link, setLink] = useState('')
+  const [note, setNote] = useState('')
+  const lab = 'text-xs font-semibold uppercase tracking-wider text-soft'
+  return (
+    <div className="mt-3 space-y-3 rounded-2xl border border-violet-200 bg-violet-50/50 p-3">
+      <p className="text-sm font-semibold text-violet-800">Add subroute</p>
+      <p className="text-xs text-soft">An extra place on the route (for example where the customer works). The agent only marks it done, there is no verification. It is counted in the kilometres. It is added at the end of the list; drag it where it belongs, then Save order.</p>
+      <label className={`${lab} block`}>Which customer is this for?
+        <select value={forLead} onChange={e => setForLead(e.target.value)} className={`${input} mt-1`}>
+          <option value="">No customer (just a place to pass through)</option>
+          {customers.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+        </select>
+      </label>
+      <label className={`${lab} block`}>Location (Google Maps link or lat,lng)<input value={link} onChange={e => setLink(e.target.value)} placeholder="Paste the link" data-no-upper className={`${input} mt-1`} /></label>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className={lab}>Name<input value={name} onChange={e => setName(e.target.value)} placeholder="Petrol pump" className={`${input} mt-1`} /></label>
+        <label className={lab}>Note for the agent (optional)<input value={note} onChange={e => setNote(e.target.value)} placeholder="Free after 5 pm" className={`${input} mt-1`} /></label>
+      </div>
+      <div className="flex gap-2">
+        <button disabled={busy || !link.trim()} onClick={() => onSave({ mapsLink: link, name, note, forLeadId: forLead || undefined })} className={`${btn} flex-1 bg-violet-600 text-white`}>{busy ? 'Saving…' : 'Add subroute'}</button>
+        <button onClick={onCancel} className={`${btn} border border-line bg-white`}>Cancel</button>
+      </div>
+    </div>
+  )
+}
 
 // Edit a planned stop in place: phone numbers, location and the other details the agent needs
 function StopEditor({ s, busy, onSave }: { s: Stop; busy: string; onSave: (b: Record<string, unknown>) => Promise<void> | void }) {
@@ -295,6 +325,7 @@ function RouteCard({ r, board, date, busy, session, act, startOpen }: {
   const [order, setOrder] = useState<string[]>(r.stops.map(s => s.leadId))
   const [dragging, setDragging] = useState('')
   const [editing, setEditing] = useState('')
+  const [wpFor, setWpFor] = useState<string | null>(null)   // adding a waypoint: '' = general, a lead id = the second place of that customer
   const rows = useRef<Record<string, HTMLDivElement | null>>({})
   const startOrder = useRef('')
   const [open, setOpen] = useState(startOpen)
@@ -319,7 +350,7 @@ function RouteCard({ r, board, date, busy, session, act, startOpen }: {
 
   // the map follows the order on screen at once (also while dragging); road shapes are fetched a moment after the order settles
   const mapStops = list.flatMap((s, i) => s.hasLocation && s.visitLat != null && s.visitLng != null
-    ? [{ id: s.leadId, n: i + 1, label: s.visitPlace || s.place || s.customerName, lat: s.visitLat, lng: s.visitLng, done: s.done, absent: s.visitStatus === 'Absent', legKm: s.legKm }]
+    ? [{ id: s.leadId, n: i + 1, label: s.visitPlace || s.place || s.customerName, lat: s.visitLat, lng: s.visitLng, done: s.done, absent: s.visitStatus === 'Absent', waypoint: s.kind === 'waypoint', legKm: s.legKm }]
     : [])
   const startPt = r.plan?.startLat != null && r.plan?.startLng != null ? { lat: r.plan.startLat, lng: r.plan.startLng } : null
   const nextStop = mapStops.find(s => !s.done)
@@ -377,7 +408,8 @@ function RouteCard({ r, board, date, busy, session, act, startOpen }: {
         <div className="min-w-0">
           <p className="font-semibold">{r.name}</p>
           <p className="text-xs text-soft">
-            {r.stops.length} {r.stops.length === 1 ? 'stop' : 'stops'}
+            {r.stops.filter(x => x.kind !== 'waypoint').length} {r.stops.filter(x => x.kind !== 'waypoint').length === 1 ? 'stop' : 'stops'}
+            {r.stops.some(x => x.kind === 'waypoint') && <> + {r.stops.filter(x => x.kind === 'waypoint').length} subroute{r.stops.filter(x => x.kind === 'waypoint').length === 1 ? '' : 's'}</>}
             {r.plan?.totalKm != null && r.stops.length > 0 && <> · {r.plan.totalKm} km · {hm(r.plan.totalMin)}</>}
             {r.plan?.manual && <> · <span className="font-semibold text-violet-700">Hand-ordered</span></>}
             {dirty && <> · <span className="font-semibold text-amber-600">Not saved yet</span></>}
@@ -396,11 +428,19 @@ function RouteCard({ r, board, date, busy, session, act, startOpen }: {
           <button disabled={!r.stops.length || busy === `opt${r.agentId}`} onClick={() => act(`opt${r.agentId}`, { action: 'optimize', agentId: r.agentId, date }, 'Best order applied')} className={`${btn} inline-flex items-center gap-1 bg-ink text-white`}>
             <Wand2 className="h-4 w-4" />{busy === `opt${r.agentId}` ? 'Working…' : 'Best order'}
           </button>
+          <button onClick={() => setWpFor(wpFor === null ? '' : null)} className={`${btn} border border-violet-300 bg-violet-50 text-violet-700`}>Add subroute</button>
           {dirty && <button onClick={() => setOrder(savedIds)} className={`${btn} border border-line bg-white text-soft`}>Undo</button>}
           {dirty && <button disabled={busy === `reorder${r.agentId}`} onClick={saveOrder} className={`${btn} bg-gold text-ink shadow-md`}>{busy === `reorder${r.agentId}` ? 'Saving…' : 'Save order'}</button>}
           {url && <a href={url} target="_blank" rel="noreferrer" className={`${btn} inline-flex items-center gap-1 border border-line bg-white`}><RouteIcon className="h-4 w-4" />Google Maps</a>}
         </div>
       </div>
+
+      {wpFor !== null && (
+        <WaypointForm key={wpFor} forId={wpFor} busy={busy === `wp${r.agentId}`}
+          customers={list.flatMap((x, idx) => x.kind === 'waypoint' ? [] : [{ id: x.leadId, label: `${idx + 1}. ${x.customerName}` }])}
+          onCancel={() => setWpFor(null)}
+          onSave={b => act(`wp${r.agentId}`, { action: 'addWaypoint', agentId: r.agentId, date, ...b }, 'Subroute added at the end of the list. Drag it where it belongs.').then(ok => { if (ok) setWpFor(null) })} />
+      )}
 
       {r.stops.length === 0 && <p className="mt-3 text-sm text-soft">No visits planned for this day.</p>}
 
@@ -413,8 +453,9 @@ function RouteCard({ r, board, date, busy, session, act, startOpen }: {
               <button type="button" aria-label="Drag to reorder" disabled={s.done}
                 onPointerDown={e => onDown(e, s.leadId)} style={{ touchAction: 'none' }}
                 className="mt-0.5 shrink-0 cursor-grab rounded-lg p-1 text-gray-400 disabled:opacity-30"><GripVertical className="h-5 w-5" /></button>
-              <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-ink text-xs font-bold text-white">{i + 1}</span>
+              <span className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ${s.kind === 'waypoint' && !s.done ? 'bg-violet-600' : 'bg-ink'}`}>{i + 1}</span>
               <div className="min-w-0 flex-1">
+                {s.kind === 'waypoint' && <p className="text-[10px] font-bold uppercase tracking-wider text-violet-700">Subroute{s.forCustomer ? ` · for ${s.forCustomer}` : ''}</p>}
                 <p className="text-sm font-semibold">{s.customerName} {s.done && <span className="ml-1 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-bold text-green-700">{s.visitStatus === 'Absent' ? 'ABSENT' : 'DONE'}</span>}</p>
                 <p className="text-xs text-soft">{s.visitPlace || s.place}{s.visitWindow && <> · <span className="font-semibold text-violet-700">{s.visitWindow}</span></>}</p>
                 {s.legKm != null && <p className="text-xs text-soft">{i === 0 ? 'From start' : 'From previous'}: {s.legKm} km · {hm(s.legMin)}</p>}
@@ -436,7 +477,13 @@ function RouteCard({ r, board, date, busy, session, act, startOpen }: {
                 <button onClick={() => act(`un${s.leadId}`, { action: 'unplan', leadId: s.leadId }, 'Removed from the route, plan it again from the list')} className="ml-auto inline-flex items-center gap-1 font-semibold text-red-600"><X className="h-3 w-3" />Plan again later</button>
               </div>
             )}
-            {!s.done && (
+            {s.kind === 'waypoint' && (
+              <div className="mt-2 flex flex-wrap items-center gap-2 pl-9 text-xs">
+                <a href={`https://www.google.com/maps?q=${s.visitLat},${s.visitLng}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-semibold text-blue-700"><Navigation className="h-3 w-3" />Map</a>
+                <button onClick={() => act(`wpx${s.leadId}`, { action: 'removeWaypoint', waypointId: s.leadId }, 'Subroute removed')} className="ml-auto inline-flex items-center gap-1 font-semibold text-red-600"><X className="h-3 w-3" />Remove</button>
+              </div>
+            )}
+            {s.kind !== 'waypoint' && !s.done && (
               <div className="mt-2 flex flex-wrap items-center gap-2 pl-9 text-xs">
                 <button onClick={() => act(`pin${s.leadId}`, { action: 'pin', leadId: s.leadId, pin: s.pin === 'first' ? '' : 'first' }, s.pin === 'first' ? 'Unpinned' : 'Pinned first')} className={`rounded-lg border px-2 py-1 font-semibold ${s.pin === 'first' ? 'border-violet-300 bg-violet-100 text-violet-700' : 'border-line text-soft'}`}>Must be first</button>
                 <button onClick={() => act(`pin${s.leadId}`, { action: 'pin', leadId: s.leadId, pin: s.pin === 'last' ? '' : 'last' }, s.pin === 'last' ? 'Unpinned' : 'Pinned last')} className={`rounded-lg border px-2 py-1 font-semibold ${s.pin === 'last' ? 'border-violet-300 bg-violet-100 text-violet-700' : 'border-line text-soft'}`}>Must be last</button>
@@ -445,11 +492,12 @@ function RouteCard({ r, board, date, busy, session, act, startOpen }: {
                   {board.routes.filter(x => x.agentId !== r.agentId).map(x => <option key={x.agentId} value={x.agentId}>{x.name}</option>)}
                 </select>
                 <a href={`https://www.google.com/maps?q=${s.visitLat},${s.visitLng}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-semibold text-blue-700"><Navigation className="h-3 w-3" />Map</a>
+                <button onClick={() => setWpFor(wpFor === s.leadId ? null : s.leadId)} className="font-semibold text-violet-700">Add subroute</button>
                 <button onClick={() => setEditing(editing === s.leadId ? '' : s.leadId)} className="font-semibold text-blue-700">{editing === s.leadId ? 'Close edit' : 'Edit details'}</button>
                 <button onClick={() => act(`un${s.leadId}`, { action: 'unplan', leadId: s.leadId }, 'Removed from the route')} className="ml-auto inline-flex items-center gap-1 font-semibold text-red-600"><X className="h-3 w-3" />Remove</button>
               </div>
             )}
-            {editing === s.leadId && !s.done && (
+            {editing === s.leadId && !s.done && s.kind !== 'waypoint' && (
               <StopEditor s={s} busy={busy} onSave={b => act(`visit${s.leadId}`, { action: 'setVisit', leadId: s.leadId, ...b }, 'Details saved').then(ok => { if (ok) setEditing('') })} />
             )}
           </div>
