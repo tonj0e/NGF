@@ -41,6 +41,16 @@ export function parseLatLng(text: string): LatLng | null {
 const SHORT_HOSTS = new Set(['maps.app.goo.gl', 'goo.gl'])
 const MAPS_HOSTS = /^(www\.)?(google\.[a-z.]+|maps\.google\.[a-z.]+)$/
 
+// Google's short-link server now and then drops a connection at random (the same link works on the next try),
+// so a failed connection is tried again a couple of times before giving up.
+async function fetchWithRetry(href: string): Promise<Response | null> {
+  for (let attempt = 0; attempt < 7; attempt++) {
+    try { return await fetch(href, { redirect: 'manual', signal: AbortSignal.timeout(4000), headers: { 'User-Agent': 'Mozilla/5.0' } }) }
+    catch { await new Promise(r => setTimeout(r, 200 * (attempt + 1))) }
+  }
+  return null
+}
+
 // Reads a link, following the Google short-link redirect (maps.app.goo.gl) when needed. Only Google hosts are fetched.
 export async function resolveMapsLink(text: string): Promise<LatLng | null> {
   const direct = parseLatLng(text)
@@ -56,8 +66,8 @@ export async function resolveMapsLink(text: string): Promise<LatLng | null> {
     const found = parseLatLng(url.toString())
     if (found) return found
     if (!SHORT_HOSTS.has(host) && !url.pathname.startsWith('/maps')) return null
-    let res: Response
-    try { res = await fetch(url.toString(), { redirect: 'manual', signal: AbortSignal.timeout(6000), headers: { 'User-Agent': 'Mozilla/5.0' } }) } catch { return null }
+    const res = await fetchWithRetry(url.toString())
+    if (!res) return null
     const loc = res.headers.get('location')
     if (!loc) {
       // Final page: coordinates are sometimes only inside the HTML

@@ -338,7 +338,7 @@ export async function setVisit(session: Session, b: {
 
   if (b.mapsLink && b.mapsLink.trim()) {
     const p = await resolveMapsLink(b.mapsLink)
-    if (!p) throw new RouteError('Could not read a location from that link. Open it in Google Maps, tap Share, and paste the link, or send "lat,lng".')
+    if (!p) throw new RouteError('Could not read a location from that link. Press Save once more (Google sometimes fails the first time). If it keeps failing, open it in Google Maps, tap Share, and paste the link, or send "lat,lng".')
     patch.visit_lat = p.lat; patch.visit_lng = p.lng
   } else if (typeof b.lat === 'number' && typeof b.lng === 'number') {
     if (!Number.isFinite(b.lat) || !Number.isFinite(b.lng) || Math.abs(b.lat) > 90 || Math.abs(b.lng) > 180) throw new RouteError('Invalid location')
