@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="app_name">NGF</string>
-    <string name="title_activity_main">NGF Agent</string>
+    <string name="title_activity_main">NGF</string>
     <string name="package_name">com.ngffincorp.agent</string>
     <string name="custom_url_scheme">com.ngffincorp.agent</string>
 </resources>
