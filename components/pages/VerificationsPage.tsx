@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNetworkLight, NetworkLight } from '@/components/agent/NetworkLight'
 import OtpPanel, { OtpState } from './OtpPanel'
 import { Session, Lead, AgentTrip } from '@/types'
+import { saveDraft, loadDraft, deleteDraft, draftLeadIds } from '@/lib/verificationDraft'
 
 const MAX_BYTES = 1 * 1024 * 1024 // 1 MB
 
@@ -123,12 +124,64 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
   const [awaitingTrip, setAwaitingTrip] = useState(false)
   const [tripLeadId, setTripLeadId] = useState('')
   const picked = useRef(false)
+  const formRef = useRef<HTMLFormElement>(null)
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const photosRef = useRef(photoFiles)
+  photosRef.current = photoFiles
+  const [drafts, setDrafts] = useState<string[]>([])
+  const [draftSaved, setDraftSaved] = useState<number | null>(null)
+  const restoring = useRef(false)
+  useEffect(() => { draftLeadIds(session.userId).then(setDrafts) }, [session.userId, active])
+
+  // keep what the agent has typed and chosen on this phone until the server has it
+  function snapshot(): { fields: Record<string, string>; photos: Record<string, Blob> } | null {
+    const f = formRef.current
+    if (!f) return null
+    const fields: Record<string, string> = {}
+    Array.from(f.elements).forEach(el => {
+      const n = (el as HTMLInputElement).name
+      if (n && el instanceof HTMLElement && 'value' in el && (el as HTMLInputElement).type !== 'file') fields[n] = (el as HTMLInputElement).value
+    })
+    return { fields, photos: photosRef.current as Record<string, Blob> }
+  }
+  async function saveNow(leadId = active?.leadId) {
+    if (!leadId || restoring.current) return
+    const snap = snapshot()
+    if (!snap) return
+    if (await saveDraft(session.userId, leadId, { ...snap, updated: Date.now() })) setDraftSaved(Date.now())
+  }
+  function saveSoon() {
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(() => saveNow(), 600)
+  }
+  // opening a lead: bring back an unsent draft, if there is one
+  useEffect(() => {
+    if (!active) { setDraftSaved(null); return }
+    let dead = false
+    restoring.current = true
+    loadDraft(session.userId, active.leadId).then(d => {
+      if (dead) return
+      const f = formRef.current
+      if (d && f) {
+        Object.entries(d.fields).forEach(([n, v]) => { const el = f.elements.namedItem(n) as HTMLInputElement | null; if (el && el.type !== 'file') el.value = v })
+        if (d.fields.phone) setVisitPhone(d.fields.phone)
+        const files: Partial<Record<PhotoKey, File>> = {}, urls: Partial<Record<PhotoKey, string>> = {}
+        for (const [k, b] of Object.entries(d.photos || {})) { const file = b as File; files[k as PhotoKey] = file; urls[k as PhotoKey] = URL.createObjectURL(file) }
+        setPhotoFiles(files); setPreviews(urls)
+        setDraftSaved(d.updated)
+      }
+      restoring.current = false
+    })
+    return () => { dead = true; restoring.current = false }
+  }, [active?.leadId]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { setVisitPhone(active?.phone || ''); setOtpState({ verified: false, overridden: false }) }, [active?.leadId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handlePhoto(key: PhotoKey, file: File) {
+    photosRef.current = { ...photosRef.current, [key]: file }
     setPhotoFiles(p => ({ ...p, [key]: file }))
     const url = URL.createObjectURL(file)
     setPreviews(p => ({ ...p, [key]: url }))
+    saveSoon()
   }
 
   function showToast(m: string, ms = 3000) { setToast(m); setTimeout(() => setToast(''), ms) }
@@ -287,6 +340,9 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
       const json = await res.json()
       if (json.success) {
         showToast('Verification submitted.')
+        if (saveTimer.current) { clearTimeout(saveTimer.current); saveTimer.current = null }
+        restoring.current = true
+        await deleteDraft(session.userId, active!.leadId)
         setTripLeadId(active!.leadId)
         setActive(null)
         setPreviews({})
@@ -301,7 +357,7 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
       } else showToast(json.error || 'Failed', 6000)
     } catch {
       // the form is still on screen with everything typed and every photo chosen: nothing is lost, just send again
-      showToast('Not sent: the network is too weak or dropped. Your details and photos are still here. Move to better signal and press Submit again.', 9000)
+      showToast('Not sent: the network is too weak or dropped. Your details and photos are saved on this phone, even if you close the app. Move to better signal and press Submit again.', 9000)
       net.recheck()
     } finally { clearTimeout(timer); setSubmitting(false) }
   }
@@ -325,7 +381,7 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
                 <div className="flex min-w-0 items-center gap-3">
                   {stops[l.leadId] && <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ink text-sm font-bold text-white" title="Stop number on today's route">{stops[l.leadId]}</span>}
                   <div className="min-w-0">
-                    <p className="font-medium">{l.customerName}</p>
+                    <p className="font-medium">{l.customerName}{drafts.includes(l.leadId) && <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">Draft saved</span>}</p>
                     <p className="text-sm text-soft">{l.phone} &bull; {l.place}</p>
                   </div>
                 </div>
@@ -343,7 +399,7 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
         <div>
         {/* stays pinned at the top of the scrolling page area while the form scrolls */}
         <div className="sticky top-0 z-10 -mx-1 mb-3 flex items-center justify-between gap-2 rounded-2xl border border-line bg-white/95 px-3 py-2 shadow-sm backdrop-blur">
-          <button type="button" onClick={() => { setActive(null); setPreviews({}); setPhotoFiles({}); if (embedded) onClose?.() }} className="rounded-2xl border border-line bg-white px-4 py-2 text-sm font-semibold">← Back</button>
+          <button type="button" onClick={async () => { if (saveTimer.current) { clearTimeout(saveTimer.current); saveTimer.current = null } await saveNow(); setActive(null); setPreviews({}); setPhotoFiles({}); if (embedded) onClose?.() }} className="rounded-2xl border border-line bg-white px-4 py-2 text-sm font-semibold">← Back</button>
           <NetworkLight status={net} compact />
         </div>
         <div className="rounded-[1.75rem] border border-white/70 bg-white shadow-panel">
@@ -355,7 +411,7 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
               </div>
             </div>
           </div>
-          <form onSubmit={submit} className="space-y-8 p-6">
+          <form ref={formRef} onSubmit={submit} onInput={saveSoon} onChange={saveSoon} className="space-y-8 p-6">
             <section>
               <p className="mb-4 text-xs font-semibold uppercase tracking-wider text-soft">Borrower Details</p>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -397,7 +453,8 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
                           const coords = `${pos.coords.latitude.toFixed(6)},${pos.coords.longitude.toFixed(6)}`
                           const mapsLink = `https://maps.google.com/?q=${pos.coords.latitude},${pos.coords.longitude}`;
                           (document.getElementById('gpsCoordinates') as HTMLInputElement).value = coords;
-                          (document.getElementById('mapsLink') as HTMLInputElement).value = mapsLink
+                          (document.getElementById('mapsLink') as HTMLInputElement).value = mapsLink;
+                          (document.getElementById('mapsLink') as HTMLInputElement).dispatchEvent(new Event('input', { bubbles: true }))
                           btn.disabled = false; btn.textContent = '📍 Locate'
                         },
                         () => { alert('Location access denied.'); btn.disabled = false; btn.textContent = '📍 Locate' },
@@ -456,6 +513,7 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
             <div className="flex items-center justify-between border-t border-black/5 pt-5">
               <div className="space-y-1">
                 <p className="text-sm text-soft">Lead ID {active.leadId}</p>
+                {draftSaved && <p className="text-xs font-medium text-emerald-700">Saved on this phone until it is sent</p>}
                 <NetworkLight status={net} />
               </div>
               <button type="submit" disabled={submitting || !(otpState.verified || otpState.overridden)} title={otpState.verified || otpState.overridden ? '' : 'Verify the customer OTP first'} className="rounded-2xl bg-ink px-6 py-3 text-sm font-semibold text-white disabled:opacity-40">
