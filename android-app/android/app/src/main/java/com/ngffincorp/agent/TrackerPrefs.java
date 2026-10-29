@@ -26,5 +26,9 @@ final class TrackerPrefs {
         sp.edit().putLong("lastSent", System.currentTimeMillis()).putString("error", "")
             .putLong("lat", Double.doubleToLongBits(lat)).putLong("lng", Double.doubleToLongBits(lng)).apply();
     }
+    int pending() { return sp.getInt("pending", 0); }
+    void pending(int n) { sp.edit().putInt("pending", n).apply(); if (n == 0) sp.edit().putLong("pendingNotified", 0).apply(); }
+    long pendingNotified() { return sp.getLong("pendingNotified", 0); }
+    void pendingNotified(long t) { sp.edit().putLong("pendingNotified", t).apply(); }
     void error(String e) { sp.edit().putString("error", e == null ? "" : e).apply(); }
 }

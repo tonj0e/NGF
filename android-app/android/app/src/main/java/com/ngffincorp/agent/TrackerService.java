@@ -127,14 +127,37 @@ public class TrackerService extends Service implements LocationListener {
             c.setRequestProperty("Authorization", "Bearer " + prefs.token());
             c.setDoOutput(true);
             try (OutputStream os = c.getOutputStream()) { os.write(b.toString().getBytes(StandardCharsets.UTF_8)); }
+            long t0 = System.currentTimeMillis();
             int code = c.getResponseCode();
-            if (code == 200) prefs.sent(lat, lng);
+            if (code == 200) { prefs.sent(lat, lng); if (System.currentTimeMillis() - t0 < 2500) notifyPending(); }
             else if (code == 409) { prefs.error("Day closed"); endTracking(); }               // punched out (maybe elsewhere) or no attendance
             else if (code == 401) { prefs.error("Signed out. Open the app and sign in again."); endTracking(); }
             else prefs.error("Server answered " + code);
         } catch (Exception e) {
             prefs.error("No internet. Will keep trying.");
         } finally { if (c != null) c.disconnect(); }
+    }
+
+    /** A quick answer from the server means the network is good: tell the agent about saved verifications (at most every 15 minutes). */
+    private void notifyPending() {
+        long now = System.currentTimeMillis();
+        if (prefs.pending() <= 0 || now - prefs.pendingNotified() < 15 * 60_000L) return;
+        prefs.pendingNotified(now);
+        NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            nm.createNotificationChannel(new NotificationChannel("ngf_pending", "Verifications to submit", NotificationManager.IMPORTANCE_HIGH));
+        }
+        Intent open = new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        int piFlags = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE : 0;
+        Notification n = new NotificationCompat.Builder(this, "ngf_pending")
+            .setContentTitle("Network is good now")
+            .setContentText("Open NGF to submit your saved verification.")
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setContentIntent(PendingIntent.getActivity(this, 1, open, piFlags))
+            .build();
+        try { nm.notify(2, n); } catch (SecurityException ignored) { }
     }
 
     private void endTracking() {

@@ -35,6 +35,13 @@ async function api(session: Session, path: string, body?: unknown) {
 // `active` is false while the page is kept hidden behind another page (the map stays loaded, so coming back costs no new map load)
 export default function MyRoutePage({ session, active = true }: { session: Session; active?: boolean }) {
   const [verifyId, setVerifyId] = useState('')
+  // "Submit now" from the pending-verification prompt: the shell sends the agent here with the lead to open
+  useEffect(() => {
+    const take = () => { try { const id = sessionStorage.getItem('ngf_open_verify'); if (id) { sessionStorage.removeItem('ngf_open_verify'); setVerifyId(id) } } catch { /* storage blocked */ } }
+    take()
+    window.addEventListener('ngf:openverify', take)
+    return () => window.removeEventListener('ngf:openverify', take)
+  }, [])
   const [date, setDate] = useState(today())
   const [data, setData] = useState<Mine | null>(null)
   const [loading, setLoading] = useState(true)

@@ -41,6 +41,7 @@ const MyIdCardPage = dynamic(() => import('./pages/MyIdCardPage'), { loading: ()
 const DepositsPage = dynamic(() => import('./pages/DepositsPage'), { loading: () => <PageLoading /> })
 const AgentLocationPage = dynamic(() => import('./pages/AgentLocationPage'), { loading: () => <PageLoading /> })
 const AgentTracker = dynamic(() => import('./agent/AgentTracker'))
+const PendingSubmitPrompt = dynamic(() => import('./agent/PendingSubmitPrompt'))
 const PaymentsPage = dynamic(() => import('./pages/PaymentsPage'), { loading: () => <PageLoading /> })
 const AgentTrackingPage = dynamic(() => import('./pages/AgentTrackingPage'), { loading: () => <PageLoading /> })
 const BranchTownPage = dynamic(() => import('./pages/BranchTownPage'), { loading: () => <PageLoading /> })
@@ -363,6 +364,7 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
   return (
     <div className="flex h-screen w-full bg-mist">
       {session.role === 'NGF AGENT' && <AgentTracker session={session} />}
+      {session.role === 'NGF AGENT' && <PendingSubmitPrompt session={session} onOpen={id => { try { sessionStorage.setItem('ngf_open_verify', id) } catch { /* storage blocked */ } setView('myRoute'); setTimeout(() => window.dispatchEvent(new Event('ngf:openverify')), 50) }} />}
 {/* Mobile Sheet */}
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
         <SheetContent side="left" hideClose className="h-dvh w-[80vw] max-w-[320px] p-0 lg:hidden">

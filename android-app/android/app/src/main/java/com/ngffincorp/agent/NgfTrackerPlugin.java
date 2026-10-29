@@ -76,6 +76,13 @@ public class NgfTrackerPlugin extends Plugin {
     @PermissionCallback
     private void finished(PluginCall call) { call.resolve(status()); }
 
+    /** How many saved verifications are waiting for a good network: the service notifies when it has one. */
+    @PluginMethod
+    public void setPending(PluginCall call) {
+        new TrackerPrefs(getContext()).pending(call.getInt("count", 0));
+        call.resolve();
+    }
+
     @PluginMethod
     public void start(PluginCall call) {
         String token = call.getString("token", "");

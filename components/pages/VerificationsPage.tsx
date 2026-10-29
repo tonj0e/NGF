@@ -131,6 +131,8 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
   const [drafts, setDrafts] = useState<string[]>([])
   const [draftSaved, setDraftSaved] = useState<number | null>(null)
   const restoring = useRef(false)
+  const pendingRef = useRef(false)          // the agent chose "Submit later" for this draft
+  const [weakAsk, setWeakAsk] = useState(false)
   useEffect(() => { draftLeadIds(session.userId).then(setDrafts) }, [session.userId, active])
 
   // keep what the agent has typed and chosen on this phone until the server has it
@@ -144,11 +146,11 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
     })
     return { fields, photos: photosRef.current as Record<string, Blob> }
   }
-  async function saveNow(leadId = active?.leadId) {
+  async function saveNow(leadId = active?.leadId, pending = pendingRef.current) {
     if (!leadId || restoring.current) return
     const snap = snapshot()
     if (!snap) return
-    if (await saveDraft(session.userId, leadId, { ...snap, updated: Date.now() })) setDraftSaved(Date.now())
+    if (await saveDraft(session.userId, leadId, { ...snap, updated: Date.now(), pending, name: active?.customerName })) setDraftSaved(Date.now())
   }
   function saveSoon() {
     if (saveTimer.current) clearTimeout(saveTimer.current)
@@ -159,6 +161,7 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
     if (!active) { setDraftSaved(null); return }
     let dead = false
     restoring.current = true
+    pendingRef.current = false
     loadDraft(session.userId, active.leadId).then(d => {
       if (dead) return
       const f = formRef.current
@@ -169,6 +172,7 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
         for (const [k, b] of Object.entries(d.photos || {})) { const file = b as File; files[k as PhotoKey] = file; urls[k as PhotoKey] = URL.createObjectURL(file) }
         setPhotoFiles(files); setPreviews(urls)
         setDraftSaved(d.updated)
+        pendingRef.current = !!d.pending
       }
       restoring.current = false
     })
@@ -298,9 +302,7 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
 
   async function submit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault()
-    if ((net.level === 'poor' || net.level === 'offline') && !window.confirm(net.level === 'offline'
-      ? 'There is no network right now, so this will not send. Your details stay on screen. Try anyway?'
-      : 'The network is too weak and the submit may fail. Your details stay on screen if it does. Try anyway?')) return
+    if (net.level === 'poor' || net.level === 'offline') { setWeakAsk(true); return }   // a red light: do not even try, offer "Submit later"
     setSubmitting(true)
     const f = e.currentTarget
     const g = (k: string) => (f.elements.namedItem(k) as HTMLInputElement)?.value || ''
@@ -362,6 +364,15 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
     } finally { clearTimeout(timer); setSubmitting(false) }
   }
 
+  async function submitLater() {
+    if (saveTimer.current) { clearTimeout(saveTimer.current); saveTimer.current = null }
+    pendingRef.current = true
+    await saveNow(active?.leadId, true)
+    setWeakAsk(false); setActive(null); setPreviews({}); setPhotoFiles({})
+    showToast('Saved on this phone. You will be told when the network is good enough to submit.', 6000)
+    if (embedded) setTimeout(() => onClose?.(), 1200)
+  }
+
   // embedded and no lead open (waiting for the list, or only the trip prompt is showing): no list is ever shown here
   const hideList = embedded && !active
   if (loading) return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-ink border-t-transparent" /></div>
@@ -369,6 +380,18 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
   return (
     <div className="space-y-4">
       {toast && <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-2xl bg-ink px-5 py-3 text-sm font-medium text-white shadow-lg">{toast}</div>}
+      {weakAsk && (
+        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50 p-4 sm:items-center">
+          <div className="w-full max-w-sm rounded-[1.75rem] bg-white p-5 shadow-panel">
+            <p className="text-base font-semibold text-red-700">Network is too weak to submit</p>
+            <p className="mt-2 text-sm text-soft">{net.level === 'offline' ? 'There is no network here.' : 'The signal here is too weak to send photos.'} Move to a place with better signal (green or orange light) and press Submit again, or submit later. Your details and photos are saved on this phone.</p>
+            <div className="mt-4 grid gap-2">
+              <button onClick={submitLater} className="rounded-2xl bg-ink px-4 py-3 text-sm font-semibold text-white">Submit later</button>
+              <button onClick={() => { setWeakAsk(false); net.recheck() }} className="rounded-2xl border border-line px-4 py-3 text-sm font-semibold">Stay here and check again</button>
+            </div>
+          </div>
+        </div>
+      )}
       {hideList ? null : !active ? (
         <div className="rounded-[1.75rem] border border-white/70 bg-white shadow-panel">
           <div className="border-b border-black/5 px-6 py-4">
