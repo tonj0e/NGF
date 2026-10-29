@@ -1,6 +1,6 @@
 {
   "appId": "com.ngffincorp.agent",
-  "appName": "NGF Agent",
+  "appName": "NGF",
   "webDir": "www",
   "server": {
     "url": "https://ngffincorp.com",

@@ -16,6 +16,13 @@ export default function AgentTracker({ session }: { session: Session }) {
 
   useEffect(() => { startAgentTracker(session.token); return () => stopAgentTracker() }, [session.token])
 
+  // in the Android app, ask for notifications and location as soon as the agent opens it, not only after attendance
+  useEffect(() => {
+    const n = nativeTracker()
+    if (!n) return
+    n.status().then(st => { if (!st.location || !st.background || !st.notifications) return n.requestPermissions() }).catch(() => {})
+  }, [])
+
   if (t.phase !== 'tracking') return null
   const sentAgo = t.lastSent ? Math.round((Date.now() - t.lastSent) / 1000) : null
   const stalled = sentAgo === null ? false : sentAgo > 45        // nothing has reached the office for 45 s

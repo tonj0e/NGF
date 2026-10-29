@@ -55,6 +55,13 @@ public class NgfTrackerPlugin extends Plugin {
     /** Asks, one after the other: location, "all the time" location, notifications. */
     @PluginMethod
     public void requestPermissions(PluginCall call) {
+        // notifications first: the "all the time" location step opens the system settings page and may never call back
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && getPermissionState("notifications") != PermissionState.GRANTED) requestPermissionForAlias("notifications", call, "afterNotifications");
+        else afterNotifications(call);
+    }
+
+    @PermissionCallback
+    private void afterNotifications(PluginCall call) {
         if (getPermissionState("location") != PermissionState.GRANTED) requestPermissionForAlias("location", call, "afterLocation");
         else afterLocation(call);
     }
@@ -62,13 +69,7 @@ public class NgfTrackerPlugin extends Plugin {
     @PermissionCallback
     private void afterLocation(PluginCall call) {
         if (getPermissionState("location") != PermissionState.GRANTED) { call.resolve(status()); return; }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && getPermissionState("background") != PermissionState.GRANTED) requestPermissionForAlias("background", call, "afterBackground");
-        else afterBackground(call);
-    }
-
-    @PermissionCallback
-    private void afterBackground(PluginCall call) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && getPermissionState("notifications") != PermissionState.GRANTED) requestPermissionForAlias("notifications", call, "finished");
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && getPermissionState("background") != PermissionState.GRANTED) requestPermissionForAlias("background", call, "finished");
         else finished(call);
     }
 

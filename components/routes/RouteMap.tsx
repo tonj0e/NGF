@@ -13,14 +13,19 @@ function loadMaps(): Promise<void> {
   if (!key || key === 'your_google_maps_api_key_here') return Promise.reject(new Error('no key'))
   if (w().google?.maps?.Map) return Promise.resolve()
   if (w().__googleMapsLoadPromise) return w().__googleMapsLoadPromise.then(() => undefined)
-  w().__googleMapsLoadPromise = new Promise<void>((resolve, reject) => {
+  // a phone on a weak connection can drop the script once: try again a couple of times before giving up
+  const attempt = (n: number): Promise<void> => new Promise<void>((resolve, reject) => {
     const s = document.createElement('script')
     s.src = `https://maps.googleapis.com/maps/api/js?key=${key}&libraries=marker`
     s.async = true; s.defer = true
     s.onload = () => { w().__googleMapsLoaded = true; resolve() }
-    s.onerror = () => { w().__googleMapsLoadPromise = null; reject(new Error('load failed')) }
+    s.onerror = () => { s.remove(); reject(new Error('load failed')) }
     document.head.appendChild(s)
+  }).catch((e) => {
+    if (n >= 3) throw e
+    return new Promise<void>(r => setTimeout(r, 1500 * (n + 1))).then(() => attempt(n + 1))
   })
+  w().__googleMapsLoadPromise = attempt(0).catch((e) => { w().__googleMapsLoadPromise = null; throw e })
   return w().__googleMapsLoadPromise
 }
 
