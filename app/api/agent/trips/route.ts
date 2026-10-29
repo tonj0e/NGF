@@ -5,6 +5,7 @@ import { readTable, appendRow, makeId, nowIso, formatDateYmd, addDays, getNextSa
 import { validateBody, tripSchema } from '@/lib/validation'
 import { createAuditLogger, AUDIT_ACTIONS } from '@/lib/audit'
 import { csrfProtection } from '@/lib/csrf'
+import { APP_CONFIG } from '@/lib/config'
 
 function getDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371
@@ -93,9 +94,18 @@ export const GET = apiHandler(async (req: NextRequest) => {
   }
   trips.sort((a, b) => new Date(b['Created At']).getTime() - new Date(a['Created At']).getTime())
 
+  // customer name and place for each trip's lead (only the leads that appear, not the whole table)
+  const leadIds = Array.from(new Set(trips.map(t => t['Lead ID']).filter(Boolean)))
+  const who: Record<string, { name: string; place: string }> = {}
+  if (leadIds.length) {
+    const rows = await queryTable('Leads', qb => qb.in('lead_id', leadIds))
+    rows.forEach(r => { who[r['Lead ID']] = { name: r['Customer Name'] || '', place: r['Place'] || '' } })
+  }
+
   // The Trip Details page expects camelCase fields (it crashed on the raw column names)
-  return ok({ trips: trips.map(t => ({
+  return ok({ ratePerKm: APP_CONFIG.TRIP_RATE_PER_KM, trips: trips.map(t => ({
     tripId: t['Trip ID'], agentId: t['Agent ID'], leadId: t['Lead ID'] || '',
+    customerName: who[t['Lead ID']]?.name || '', place: who[t['Lead ID']]?.place || '',
     startLatitude: Number(t['Start Latitude']), startLongitude: Number(t['Start Longitude']),
     endLatitude: Number(t['End Latitude']), endLongitude: Number(t['End Longitude']),
     distanceKm: Number(t['Distance Km']) || 0, tripDate: t['Trip Date'], weekStart: t['Week Start'], createdAt: t['Created At'],

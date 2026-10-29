@@ -198,6 +198,8 @@ export interface AgentTrip {
   tripId: string
   agentId: string
   leadId: string
+  customerName?: string
+  place?: string
   startLatitude: number
   startLongitude: number
   endLatitude: number

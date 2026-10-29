@@ -7,6 +7,7 @@ export const APP_CONFIG = {
   LEADS_SPREADSHEET_ID: '1ck04r3rt_IeO0jJfRFbC-4s33tSHUe7J1xTzj5jAR68',
   PHOTO_ROOT_FOLDER_ID: '1vZ9Xv_40zu2N5FRCvomF2kvxb-Y6VwaJ',
   SESSION_TTL_SECONDS: 21600,
+  TRIP_RATE_PER_KM: 3,   // what an agent is paid per kilometre of travel (Trip Details page)
   LOAN_PRODUCTS: [
     { key: '10K10W', label: '10K10W', principal: 10000, durationWeeks: 10, weeklyCollection: 1000, totalCollection: 10000, interestDeduction: 1500, guarantorCommission: 500, netDisbursed: 8500 },
   ],

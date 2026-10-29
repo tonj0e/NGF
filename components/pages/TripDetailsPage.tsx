@@ -24,8 +24,18 @@ function weekRangeLabel(weekIso: string): string {
   return `${fmt(start)} – ${fmt(end)} ${end.getFullYear()}`
 }
 
+function straightKm(a: AgentTrip): number {
+  const R = 6371, rad = (x: number) => x * Math.PI / 180
+  const dLat = rad(a.endLatitude - a.startLatitude), dLon = rad(a.endLongitude - a.startLongitude)
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.startLatitude)) * Math.cos(rad(a.endLatitude)) * Math.sin(dLon / 2) ** 2
+  return 2 * R * Math.asin(Math.sqrt(h))
+}
+
+const dayLabel = (ymd: string) => new Date(ymd.slice(0, 10) + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'long', day: '2-digit', month: 'short', year: 'numeric' })
+
 export default function TripDetailsPage({ session }: { session: Session }) {
   const [trips, setTrips] = useState<AgentTrip[]>([])
+  const [rate, setRate] = useState(3)
   const [loading, setLoading] = useState(true)
   const loadedOnce = useRef(false)
   const [selectedWeek, setSelectedWeek] = useState<string>('')
@@ -38,13 +48,12 @@ export default function TripDetailsPage({ session }: { session: Session }) {
       const json = await res.json()
       if (json.success) {
         const data = (json.data.trips || []) as AgentTrip[]
+        if (typeof json.data.ratePerKm === 'number') setRate(json.data.ratePerKm)
         setTrips(data)
         const weekSet = new Set(data.map(t => t.weekStart).filter((w): w is string => Boolean(w)))
         const sortedWeeks = Array.from(weekSet).sort((a, b) => new Date(b).getTime() - new Date(a).getTime())
         setWeeks(sortedWeeks)
-        if (sortedWeeks.length > 0 && !selectedWeek) {
-          setSelectedWeek(sortedWeeks[0])
-        }
+        if (sortedWeeks.length > 0 && !selectedWeek) setSelectedWeek(sortedWeeks[0])
       }
     } finally {
       loadedOnce.current = true
@@ -54,101 +63,100 @@ export default function TripDetailsPage({ session }: { session: Session }) {
 
   useEffect(() => { load() }, [session.token])
 
-  const filteredTrips = useMemo(() => {
-    if (!selectedWeek) return trips
-    return trips.filter(t => t.weekStart === selectedWeek)
-  }, [trips, selectedWeek])
+  const weekTrips = useMemo(() => selectedWeek ? trips.filter(t => t.weekStart === selectedWeek) : trips, [trips, selectedWeek])
 
-  const weeklyStats = useMemo(() => {
-    if (!selectedWeek) return { totalKm: 0, totalTrips: 0, totalAmount: 0 }
-    const weekTrips = trips.filter(t => t.weekStart === selectedWeek)
+  const stats = useMemo(() => {
     const totalKm = weekTrips.reduce((sum, t) => sum + t.distanceKm, 0)
-    const totalTrips = weekTrips.length
-    const totalAmount = totalKm * 10 // ₹10 per km (configurable)
-    return { totalKm, totalTrips, totalAmount }
-  }, [trips, selectedWeek])
+    const days = new Set(weekTrips.map(t => t.tripDate)).size
+    return { totalKm, totalTrips: weekTrips.length, totalAmount: totalKm * rate, days, avg: weekTrips.length ? totalKm / weekTrips.length : 0 }
+  }, [weekTrips, rate])
+
+  // newest day first; inside a day, the first trip of the morning first
+  const byDay = useMemo(() => {
+    const m = new Map<string, AgentTrip[]>()
+    weekTrips.forEach(t => { const k = t.tripDate.slice(0, 10); m.set(k, [...(m.get(k) || []), t]) })
+    return Array.from(m.entries()).sort((a, b) => b[0].localeCompare(a[0])).map(([day, list]) => ({ day, list: list.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()) }))
+  }, [weekTrips])
 
   if (loading && !loadedOnce.current) return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-ink border-t-transparent" /></div>
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex gap-2 flex-wrap">
-          <select value={selectedWeek} onChange={e => setSelectedWeek(e.target.value)}
-            className="rounded-2xl border border-line bg-white px-4 py-2 text-sm font-medium outline-none focus:border-ink">
-            {weeks.map(w => (
-              <option key={w} value={w}>{weekRangeLabel(w)}</option>
-            ))}
-            {weeks.length === 0 && <option value="">No trips yet</option>}
-          </select>
-        </div>
-        <div className="flex gap-2 text-sm text-soft">
-          <span>Total: {weeklyStats.totalTrips} trips</span>
-          <span>{weeklyStats.totalKm.toFixed(2)} km</span>
-          <span className="font-semibold text-ink">{currencyInr(weeklyStats.totalAmount)}</span>
-        </div>
-      </div>
-
-      <div className="overflow-hidden rounded-[1.75rem] border border-white/70 bg-white shadow-panel divide-y divide-black/5">
-        {filteredTrips.length === 0 ? (
-          <p className="p-8 text-center text-sm text-soft">No trips recorded for this week.</p>
-        ) : (
+      {/* the summary comes first */}
+      <div className="rounded-[1.75rem] border border-white/70 bg-white p-5 shadow-panel">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="border-b border-black/5 px-5 py-3 bg-panel">
-              <div className="grid grid-cols-[1fr_80px_100px_100px_80px] gap-3 text-xs font-semibold uppercase tracking-wider text-soft">
-                <span>Date / Lead</span>
-                <span className="text-right">Distance</span>
-                <span className="text-right">Amount</span>
-                <span className="text-right">Start → End</span>
-                <span>Time</span>
-              </div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-soft">Weekly summary</p>
+            <select value={selectedWeek} onChange={e => setSelectedWeek(e.target.value)}
+              className="mt-1 rounded-2xl border border-line bg-white px-4 py-2 text-sm font-medium outline-none focus:border-ink">
+              {weeks.map(w => <option key={w} value={w}>{weekRangeLabel(w)}</option>)}
+              {weeks.length === 0 && <option value="">No trips yet</option>}
+            </select>
+          </div>
+          <div className="text-right">
+            <p className="text-3xl font-bold text-green-700">{currencyInr(stats.totalAmount)}</p>
+            <p className="text-xs text-soft">travel allowance @ ₹{rate}/km</p>
+          </div>
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {[['Trips', String(stats.totalTrips)], ['Distance', `${stats.totalKm.toFixed(1)} km`], ['Days worked', String(stats.days)], ['Average trip', `${stats.avg.toFixed(1)} km`]].map(([l, v]) => (
+            <div key={l} className="rounded-2xl bg-mist px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-soft">{l}</p>
+              <p className="mt-0.5 text-lg font-semibold">{v}</p>
             </div>
-            {filteredTrips.map((t, i) => (
-              <div key={t.tripId || i} className="grid grid-cols-[1fr_80px_100px_100px_80px] gap-3 px-5 py-3 hover:bg-panel">
-                <div className="min-w-0">
-                  <p className="font-medium truncate">{t.leadId ? `Lead: ${t.leadId}` : 'Manual Entry'}</p>
-                  <p className="text-xs text-soft">{t.tripDate}</p>
+          ))}
+        </div>
+        {byDay.length > 1 && (
+          <div className="mt-4 divide-y divide-black/5 rounded-2xl border border-line">
+            {byDay.map(({ day, list }) => {
+              const km = list.reduce((a, t) => a + t.distanceKm, 0)
+              return (
+                <div key={day} className="flex items-center justify-between px-4 py-2.5 text-sm">
+                  <span className="font-medium">{dayLabel(day)}</span>
+                  <span className="text-soft">{list.length} trips · {km.toFixed(1)} km · <span className="font-semibold text-green-700">{currencyInr(km * rate)}</span></span>
                 </div>
-                <div className="text-right font-medium">{t.distanceKm.toFixed(2)} km</div>
-                <div className="text-right font-medium text-green-700">{currencyInr(t.distanceKm * 10)}</div>
-                <div className="text-right text-xs text-soft">
-                  {t.startLatitude.toFixed(4)},{t.startLongitude.toFixed(4)} → {t.endLatitude.toFixed(4)},{t.endLongitude.toFixed(4)}
-                </div>
-                <div className="text-xs text-soft">{new Date(t.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>
 
-      {/* Weekly Summary */}
-      {weeks.length > 0 && (
-        <div className="rounded-[1.75rem] border border-white/70 bg-white shadow-panel">
-          <div className="border-b border-black/5 px-5 py-4">
-            <p className="text-sm font-semibold">Weekly Summary</p>
+      {byDay.length === 0 && <p className="rounded-[1.75rem] border border-white/70 bg-white p-8 text-center text-sm text-soft shadow-panel">No trips recorded for this week.</p>}
+
+      {byDay.map(({ day, list }) => (
+        <div key={day} className="overflow-hidden rounded-[1.75rem] border border-white/70 bg-white shadow-panel">
+          <div className="flex items-center justify-between border-b border-black/5 bg-panel px-5 py-3">
+            <p className="text-sm font-semibold">{dayLabel(day)}</p>
+            <p className="text-xs text-soft">{list.length} trips · {list.reduce((a, t) => a + t.distanceKm, 0).toFixed(1)} km</p>
           </div>
           <div className="divide-y divide-black/5">
-            {weeks.map(w => {
-              const weekTrips = trips.filter(t => t.weekStart === w)
-              const totalKm = weekTrips.reduce((sum, t) => sum + t.distanceKm, 0)
-              const totalTrips = weekTrips.length
-              const totalAmount = totalKm * 10
+            {list.map((t, i) => {
+              const crow = straightKm(t)
               return (
-                <div key={w} className="flex items-center justify-between gap-4 px-5 py-4 hover:bg-panel">
-                  <div>
-                    <p className="font-medium">{weekRangeLabel(w)}</p>
-                    <p className="text-xs text-soft">{totalTrips} trips • {totalKm.toFixed(2)} km</p>
+                <div key={t.tripId || i} className="px-5 py-3.5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold">{t.customerName || (t.leadId ? t.leadId : 'Manual entry')}</p>
+                      <p className="truncate text-xs text-soft">
+                        {[t.place, t.leadId && t.customerName ? t.leadId : '', new Date(t.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })].filter(Boolean).join(' · ')}
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="font-semibold">{t.distanceKm.toFixed(2)} km</p>
+                      <p className="text-sm font-semibold text-green-700">{currencyInr(t.distanceKm * rate)}</p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-semibold text-green-700">{currencyInr(totalAmount)}</p>
-                    <p className="text-xs text-soft">@ ₹10/km</p>
+                  <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-soft">
+                    <span>Straight line {crow.toFixed(2)} km</span>
+                    <a className="font-semibold text-blue-600" target="_blank" rel="noopener noreferrer"
+                      href={`https://www.google.com/maps/dir/${t.startLatitude},${t.startLongitude}/${t.endLatitude},${t.endLongitude}`}>View route on map</a>
                   </div>
                 </div>
               )
             })}
           </div>
         </div>
-      )}
+      ))}
     </div>
   )
 }
