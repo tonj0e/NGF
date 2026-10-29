@@ -23,7 +23,13 @@ export default function PendingSubmitPrompt({ session, onOpen }: { session: Sess
   }, [session.userId])
 
   // tell the Android service how many are waiting, so it can notify when the phone has good network
-  useEffect(() => { nativeTracker()?.setPending({ count: list.length }).catch(() => {}) }, [list.length])
+  // (an app installed before version 1.3 does not have this function: never let that crash the page)
+  useEffect(() => {
+    try {
+      const n = nativeTracker()
+      if (n && typeof n.setPending === 'function') Promise.resolve(n.setPending({ count: list.length })).catch(() => {})
+    } catch { /* older app */ }
+  }, [list.length])
 
   const good = net.level === 'good' || net.level === 'average'
   useEffect(() => {
