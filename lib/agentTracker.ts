@@ -33,7 +33,7 @@ const STALE_MS = 25_000                             // no position for this long
 type NativeStatus = { active: boolean; lastSent: number; error: string; lat: number; lng: number; location: boolean; background: boolean; notifications: boolean; batteryUnrestricted: boolean; version: string }
 type NativeTracker = {
   status(): Promise<NativeStatus>; requestPermissions(): Promise<NativeStatus>; start(o: { token: string; baseUrl: string }): Promise<NativeStatus>
-  stop(): Promise<NativeStatus>; openBatterySettings(): Promise<void>; openAppSettings(): Promise<void>; setPending(o: { count: number }): Promise<void>; saveImage?(o: { data: string; name: string }): Promise<void>
+  stop(): Promise<NativeStatus>; openBatterySettings(): Promise<void>; openAppSettings(): Promise<void>; setPending(o: { count: number }): Promise<void>; saveImage?(o: { data: string; name: string }): Promise<void>; saveFile?(o: { data: string; name: string; mime: string }): Promise<void>
 }
 export function nativeTracker(): NativeTracker | null {
   try {

@@ -42,6 +42,8 @@
     "googleapis": "^171.4.0",
     "jose": "^6.2.3",
     "jsonwebtoken": "^9.0.3",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.9",
     "jsqr": "^1.4.0",
     "leaflet": "^1.9.4",
     "lucide-react": "^1.52.0",

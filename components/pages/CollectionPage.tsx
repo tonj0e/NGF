@@ -1,5 +1,6 @@
 'use client'
 import { Fragment, createContext, useContext, useEffect, useRef, useState, useCallback } from 'react'
+import { downloadSheetPdf } from '@/lib/collectionSheetPdf'
 import { Session } from '@/types'
 import StatusPill from '@/components/ui/StatusPill'
 import Pager from '@/components/ui/Pager'
@@ -619,80 +620,6 @@ function isSheetWindowOpen() {
   return (day === 5 && hour >= 17) || day === 6
 }
 
-function buildSheetHtml(data: any) {
-  const esc = (s: any) => String(s ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c] as string))
-  const rows = data.rows || []
-  // A specific-guarantor sheet (guarantor portal / admin filtered by one guarantor)
-  // stays a flat list; the all-customers sheet groups rows under guarantor headings.
-  const grouped = !data.guarantorName
-  const title = data.guarantorName
-    ? `${data.guarantorName}${data.guarantorCode ? ` (${data.guarantorCode})` : ''}`
-    : 'ALL CUSTOMERS'
-
-  const customerRow = (r: any, i: number) => `
-    <tr>
-      <td class="c">${i + 1}</td>
-      <td>${esc(r.name)}</td>
-      <td class="r">₹${Number(r.balance).toLocaleString('en-IN')}</td>
-      <td class="c">${esc(r.rp)}</td>
-      <td class="c">${esc(r.code)}</td>
-      <td>${esc(r.number)}</td>
-      <td>${esc(r.place)}</td>
-    </tr>`
-
-  let body: string
-  if (grouped) {
-    // Build guarantor → rows map preserving the API's sorted order
-    const groups: { key: string; label: string; rows: any[] }[] = []
-    const idx = new Map<string, number>()
-    for (const r of rows) {
-      const key = r.guarantorName || 'Unassigned'
-      if (!idx.has(key)) {
-        idx.set(key, groups.length)
-        const label = r.guarantorCode ? `${key} (${r.guarantorCode})` : key
-        groups.push({ key, label, rows: [] })
-      }
-      groups[idx.get(key)!].rows.push(r)
-    }
-    body = groups.map(g => {
-      const groupTotal = g.rows.reduce((s, r) => s + Number(r.balance || 0), 0)
-      const header = `
-        <tr class="grp"><td colspan="7">${esc(g.label)} — ${g.rows.length} customer${g.rows.length !== 1 ? 's' : ''} · ₹${groupTotal.toLocaleString('en-IN')}</td></tr>`
-      // Number resets within each guarantor group
-      return header + g.rows.map((r: any, i: number) => customerRow(r, i)).join('')
-    }).join('')
-  } else {
-    body = rows.map((r: any, i: number) => customerRow(r, i)).join('')
-  }
-
-  return `<!doctype html><html><head><meta charset="utf-8"><title>Collection Sheet ${esc(data.saturday)}</title>
-  <style>
-    @page { margin: 14mm; }
-    * { box-sizing: border-box; }
-    body { font-family: Arial, Helvetica, sans-serif; color: #111; margin: 0; }
-    h1 { text-align: center; font-size: 18px; margin: 0 0 4px; }
-    .sub { text-align: center; font-size: 12px; color: #555; margin: 0 0 14px; }
-    table { width: 100%; border-collapse: collapse; font-size: 12px; }
-    th, td { border: 1px solid #444; padding: 6px 8px; text-align: left; }
-    th { background: #f0f0f0; }
-    td.c, th.c { text-align: center; }
-    td.r, th.r { text-align: right; }
-    tr { page-break-inside: avoid; }
-    tr.grp td { background: #1a1a2e; color: #fff; font-weight: bold; font-size: 12.5px; }
-  </style></head>
-  <body onload="window.print()">
-    <h1>COLLECTION SHEET — ${esc(title)}</h1>
-    <p class="sub">Saturday ${esc(data.saturday)} · ${data.count} customers · generated ${esc(data.generatedAt)}</p>
-    <table>
-      <thead><tr>
-        <th class="c">NO</th><th>NAME</th><th class="r">BALANCE</th><th class="c">RP</th>
-        <th class="c">CODE</th><th>NUMBER</th><th>PLACE</th>
-      </tr></thead>
-      <tbody>${body}</tbody>
-    </table>
-  </body></html>`
-}
-
 // `perms`: what a Staff user may do (role defaults + extras). Other roles are not limited here; the server checks every action too.
 const hasPart = (perms: string[] | undefined, part: string) => !perms || perms.includes('collection') || perms.includes(part)
 
@@ -713,10 +640,8 @@ export default function CollectionPage({ session, perms }: { session: Session; p
       const json = await res.json()
       if (!json.success) { alert(json.error || 'Could not generate sheet.'); return }
       if (!json.data.rows.length) { alert('No active customers to collect from.'); return }
-      const w = window.open('', '_blank')
-      if (!w) { alert('Please allow pop-ups to download the sheet.'); return }
-      w.document.write(buildSheetHtml(json.data))
-      w.document.close()
+      const note = await downloadSheetPdf(json.data)
+      if (note) alert(note)
     } catch {
       alert('Something went wrong generating the sheet.')
     } finally {
@@ -750,20 +675,19 @@ export default function CollectionPage({ session, perms }: { session: Session; p
   return (
     <RecordAllowed.Provider value={can('collectionRecord')}>
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex gap-2 flex-wrap">
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
           {visibleTabs.map(t => (
             <button key={t.key} onClick={() => setTab(t.key)}
               className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${tab === t.key ? 'bg-ink text-white' : 'border border-line bg-white text-soft hover:text-ink'}`}>
               {t.label}
             </button>
           ))}
-        </div>
         <button
           onClick={downloadSheet}
           disabled={!canDownload || downloading}
           hidden={!sheetAllowed}
-          title={canDownload ? 'Download collection sheet' : 'Available Friday 5pm through Saturday'}
+          title={canDownload ? 'Download collection sheet as PDF' : 'Available Friday 5pm through Saturday'}
           className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-semibold transition ${
             canDownload
               ? 'bg-green-600 text-white hover:bg-green-700'
@@ -776,8 +700,9 @@ export default function CollectionPage({ session, perms }: { session: Session; p
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
             </svg>
           )}
-          {downloading ? 'Preparing…' : 'Download Sheet'}
+          {downloading ? 'Preparing…' : 'Sheet'}
         </button>
+        </div>
       </div>
       {!canDownload && (
         <p className="text-xs text-gray-400">The collection sheet can be downloaded from Friday 5:00 PM through Saturday.</p>

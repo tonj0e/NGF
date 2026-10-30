@@ -116,6 +116,37 @@ public class NgfTrackerPlugin extends Plugin {
         } catch (Exception e) { call.reject(e.getMessage() == null ? "Could not save" : e.getMessage()); }
     }
 
+    /** Saves a file (the collection sheet PDF) into Downloads and opens it. */
+    @PluginMethod
+    public void saveFile(PluginCall call) {
+        try {
+            byte[] bytes = Base64.decode(call.getString("data", ""), Base64.DEFAULT);
+            String name = call.getString("name", "ngf-file.pdf");
+            String mime = call.getString("mime", "application/pdf");
+            if (bytes.length == 0) { call.reject("No file"); return; }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                ContentValues v = new ContentValues();
+                v.put(MediaStore.Downloads.DISPLAY_NAME, name);
+                v.put(MediaStore.Downloads.MIME_TYPE, mime);
+                v.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS);
+                Uri uri = getContext().getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
+                if (uri == null) { call.reject("Could not save"); return; }
+                try (OutputStream out = getContext().getContentResolver().openOutputStream(uri)) { out.write(bytes); }
+                try {
+                    Intent open = new Intent(Intent.ACTION_VIEW).setDataAndType(uri, mime).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+                    getContext().startActivity(open);
+                } catch (Exception ignored) { /* no PDF viewer: the file is still in Downloads */ }
+            } else {
+                File dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+                dir.mkdirs();
+                File f = new File(dir, name);
+                try (FileOutputStream out = new FileOutputStream(f)) { out.write(bytes); }
+                android.media.MediaScannerConnection.scanFile(getContext(), new String[] { f.getAbsolutePath() }, null, null);
+            }
+            call.resolve();
+        } catch (Exception e) { call.reject(e.getMessage() == null ? "Could not save" : e.getMessage()); }
+    }
+
     @PluginMethod
     public void start(PluginCall call) {
         String token = call.getString("token", "");
