@@ -5,7 +5,14 @@ import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
+import android.content.ContentValues;
+import android.os.Environment;
 import android.os.PowerManager;
+import android.provider.MediaStore;
+import android.util.Base64;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.OutputStream;
 import android.provider.Settings;
 
 import androidx.core.content.ContextCompat;
@@ -81,6 +88,32 @@ public class NgfTrackerPlugin extends Plugin {
     public void setPending(PluginCall call) {
         new TrackerPrefs(getContext()).pending(call.getInt("count", 0));
         call.resolve();
+    }
+
+    /** Saves a camera photo into the phone's gallery (Pictures/NGF) as a spare copy. */
+    @PluginMethod
+    public void saveImage(PluginCall call) {
+        try {
+            byte[] bytes = Base64.decode(call.getString("data", ""), Base64.DEFAULT);
+            String name = call.getString("name", "ngf-" + System.currentTimeMillis() + ".jpg");
+            if (bytes.length == 0) { call.reject("No image"); return; }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                ContentValues v = new ContentValues();
+                v.put(MediaStore.Images.Media.DISPLAY_NAME, name);
+                v.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
+                v.put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/NGF");
+                Uri uri = getContext().getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, v);
+                if (uri == null) { call.reject("Could not save"); return; }
+                try (OutputStream out = getContext().getContentResolver().openOutputStream(uri)) { out.write(bytes); }
+            } else {
+                File dir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "NGF");
+                dir.mkdirs();
+                File f = new File(dir, name);
+                try (FileOutputStream out = new FileOutputStream(f)) { out.write(bytes); }
+                android.media.MediaScannerConnection.scanFile(getContext(), new String[] { f.getAbsolutePath() }, null, null);
+            }
+            call.resolve();
+        } catch (Exception e) { call.reject(e.getMessage() == null ? "Could not save" : e.getMessage()); }
     }
 
     @PluginMethod

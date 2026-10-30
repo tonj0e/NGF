@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
+import { nativeTracker } from '@/lib/agentTracker'
 import { useNetworkLight, NetworkLight } from '@/components/agent/NetworkLight'
 import OtpPanel, { OtpState } from './OtpPanel'
 import { Session, Lead, AgentTrip } from '@/types'
@@ -79,19 +80,33 @@ const PHOTO_FIELDS = [
 
 type PhotoKey = typeof PHOTO_FIELDS[number]['key']
 
+// spare copy of a camera photo in the phone's gallery (Android app only; older installed apps lack the method, so it is guarded)
+function copyToGallery(f: File) {
+  const n = nativeTracker()
+  if (!n || typeof n.saveImage !== 'function') return
+  const r = new FileReader()
+  r.onload = () => { try { n.saveImage!({ data: String(r.result).split(',')[1] || '', name: `NGF-${Date.now()}.jpg` }).catch(() => {}) } catch { /* ignore */ } }
+  r.readAsDataURL(f)
+}
+
 function UploadBox({ photoKey, preview, onChange }: { photoKey: PhotoKey; preview: string | null; onChange: (key: PhotoKey, file: File) => void }) {
   const label = PHOTO_FIELDS.find(f => f.key === photoKey)!.label
   return (
     <div className="block">
       <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-soft">{label}</p>
-      <label className="relative flex h-44 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-300 bg-panel transition hover:border-ink hover:bg-mist overflow-hidden">
-        {preview ? (
-          <img src={preview} alt={label} className="h-full w-full object-cover rounded-2xl" />
-        ) : (
-          <span className="text-sm text-soft">+ Upload {label}</span>
-        )}
-        <input type="file" accept="image/*" className="absolute inset-0 cursor-pointer opacity-0" onChange={e => { const f = e.target.files?.[0]; if (f) onChange(photoKey, f) }} />
-      </label>
+      <div className="flex h-44 flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-gray-300 bg-panel">
+        {preview ? <img src={preview} alt={label} className="h-full w-full rounded-2xl object-cover" /> : <span className="text-sm text-soft">No {label} yet</span>}
+      </div>
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        <label className="cursor-pointer rounded-2xl bg-ink px-3 py-2.5 text-center text-sm font-semibold text-white">
+          {preview ? 'Retake photo' : 'Take photo'}
+          <input type="file" accept="image/*" capture="environment" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) { onChange(photoKey, f); copyToGallery(f) } e.target.value = '' }} />
+        </label>
+        <label className="cursor-pointer rounded-2xl border border-line px-3 py-2.5 text-center text-sm font-semibold">
+          From gallery
+          <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) onChange(photoKey, f); e.target.value = '' }} />
+        </label>
+      </div>
     </div>
   )
 }
