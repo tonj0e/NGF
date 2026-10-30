@@ -16,6 +16,7 @@ import { normalizeIndianMobile } from './phone'
 export const PERM_PLAN = 'verificationPlanning'
 const PLANNER_ROLES = ['manager', 'assistant_manager', 'accountant']
 const CALL_OUTCOMES = ['Reached', 'Not reachable', 'Call back later']
+const REASONS = ['Not answering', 'No check', 'Not at home']
 const STOP_STATUSES = ['On the way', 'Reached', 'Absent']
 const DONE_LEAD_STATUSES = new Set(['Verification Submitted', 'Approved', 'Rejected', 'Converted'])
 
@@ -610,7 +611,7 @@ export async function mine(session: Session, q: { date?: string }) {
   }
 }
 
-export async function stopStatus(session: Session, b: { leadId: string; status: string }) {
+export async function stopStatus(session: Session, b: { leadId: string; status: string; reason?: string }) {
   const a = await getRouteAccess(session)
   if (!a.isAgent || !a.agentId) throw new Error('No permission')
   if (!STOP_STATUSES.includes(b.status)) throw new RouteError('Invalid status')
@@ -621,7 +622,7 @@ export async function stopStatus(session: Session, b: { leadId: string; status: 
   invalidateCache('Leads')
   if (b.status === 'Absent') {
     const ids = await branchPlannerUserIds(await branchOfGuarantor(lead.guarantor_id || ''))
-    await Promise.all(ids.map(id => notifyUser(id, 'Staff', 'Customer not at home', `${lead.customer_name} was not found at the visit. Please call and reschedule.`, 'Lead', b.leadId)))
+    await Promise.all(ids.map(id => notifyUser(id, 'Staff', 'Visit not done', `${lead.customer_name}: ${REASONS.includes(b.reason || '') ? b.reason : 'Not at home'}. Please call and reschedule.`, 'Lead', b.leadId)))
   }
   return { success: true }
 }

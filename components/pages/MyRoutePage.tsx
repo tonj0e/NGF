@@ -1,7 +1,7 @@
 'use client'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Session } from '@/types'
-import { Phone, Navigation, MapPin } from 'lucide-react'
+import { Phone, Navigation, MapPin, X } from 'lucide-react'
 import RouteMap from '@/components/routes/RouteMap'
 import VerificationsPage from './VerificationsPage'
 import { fetchRoads } from '@/lib/clientRoads'
@@ -70,9 +70,10 @@ export default function MyRoutePage({ session, active = true }: { session: Sessi
     setBusy('')
   }
 
-  async function setStatus(leadId: string, status: string) {
+  const [noVisit, setNoVisit] = useState<string | null>(null)
+  async function setStatus(leadId: string, status: string, reason?: string) {
     setBusy(leadId + status)
-    try { await api(session, '/api/routes', { action: 'stopStatus', leadId, status }); await load(true) }
+    try { await api(session, '/api/routes', { action: 'stopStatus', leadId, status, reason }); await load(true) }
     catch (e) { flash(e instanceof Error ? e.message : 'Failed') }
     setBusy('')
   }
@@ -190,13 +191,26 @@ export default function MyRoutePage({ session, active = true }: { session: Sessi
                   {s.visitStatus === 'Reached'
                     ? <button onClick={() => setVerifyId(s.leadId)} className="rounded-2xl bg-gold px-3 py-3 text-sm font-bold text-[#1a1400]">Start verification</button>
                     : <button onClick={() => setStatus(s.leadId, 'Reached')} disabled={!!busy} className="rounded-2xl border border-line px-3 py-3 text-sm font-semibold disabled:opacity-40">I have reached</button>}
-                  <button onClick={() => { if (confirm('Mark the customer as not at home? The branch will be told to reschedule.')) setStatus(s.leadId, 'Absent') }} disabled={!!busy} className="rounded-2xl border border-red-200 px-3 py-3 text-sm font-semibold text-red-600 disabled:opacity-40">Not at home</button>
+                  <button onClick={() => setNoVisit(s.leadId)} disabled={!!busy} aria-label="Could not verify" className="inline-flex items-center justify-center rounded-2xl border border-red-200 px-3 py-3 text-red-600 disabled:opacity-40"><X className="h-5 w-5" /></button>
                 </div>
               )}
             </div>
           )
         })}
       </div>
+      {noVisit && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 sm:items-center" onClick={() => setNoVisit(null)}>
+          <div className="w-full max-w-sm rounded-[1.75rem] bg-white p-5 shadow-panel" onClick={e => e.stopPropagation()}>
+            <p className="text-base font-semibold">Why could the visit not be done?</p>
+            <div className="mt-3 grid gap-2">
+              {['Not answering', 'No check', 'Not at home'].map(r => (
+                <button key={r} onClick={() => { const id = noVisit; setNoVisit(null); setStatus(id, 'Absent', r) }} className="rounded-2xl border border-red-200 px-4 py-3 text-left text-sm font-semibold text-red-600">{r}</button>
+              ))}
+            </div>
+            <button onClick={() => setNoVisit(null)} className="mt-3 w-full rounded-2xl border border-line px-4 py-3 text-sm font-semibold">Cancel</button>
+          </div>
+        </div>
+      )}
       {verifyId && (
         // the verification form opens over this page; the map underneath stays loaded
         <div className="fixed inset-0 z-40 overflow-y-auto bg-mist px-3 pb-8 pt-[max(0.75rem,env(safe-area-inset-top))]">
