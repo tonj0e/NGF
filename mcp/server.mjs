@@ -4,7 +4,7 @@
 // and audit log in the app still applies. It never touches the database directly and never bypasses the login.
 //
 // Config (env or mcp/.env, never committed):
-//   NGF_API_URL         base URL of the CRM (default http://localhost:3000; set https://ngffincorp.com for live)
+//   NGF_API_URL         base URL of the CRM (default http://localhost:3000; set https://secret.ngffincorp.com for live)
 //   NGF_MCP_USERNAME    username of a dedicated Admin account for Claude
 //   NGF_MCP_PASSWORD    its password
 //   NGF_MCP_READONLY    "1" = block the write tool
