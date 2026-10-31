@@ -150,6 +150,9 @@ function Bubble({ m, session, me, onFix, onApprove, busy }: { m: Msg; session: S
             <button disabled={busy || !utr.trim()} onClick={() => onApprove(m, utr)} className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Record</button>
           </div>
         )}
+        {m.status === 'Pending Staff' && staffView && me.access.canChat && (
+          <button onClick={() => onFix(m, 'image')} className="w-full rounded-xl border border-line px-3 py-2 text-xs font-semibold">Resubmit screenshot</button>
+        )}
       </div>
     </div>
   )

@@ -191,7 +191,9 @@ export async function submitSlip(session: Session, access: Access, input: Submit
   if (input.messageId) {
     const { data } = await sb.from('payment_chat').select('*').eq('message_id', input.messageId).maybeSingle()
     if (!data || data.guarantor_id !== guarantorId || data.kind !== 'slip') throw new PaymentError('Message not found')
-    if (!FIX_STATUSES.includes(data.status)) throw new PaymentError('This message does not need fixing')
+    // Office staff may also send a new screenshot for a message that is waiting with the office (for example when it could not be read)
+    const staffResend = data.status === 'Pending Staff' && !access.isGuarantor
+    if (!FIX_STATUSES.includes(data.status) && !staffResend) throw new PaymentError('This message does not need fixing')
     existing = data
   } else {
     const { data: open } = await sb.from('payment_chat').select('message_id').eq('guarantor_id', guarantorId).eq('kind', 'slip').in('status', FIX_STATUSES).limit(1)

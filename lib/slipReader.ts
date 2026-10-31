@@ -133,12 +133,14 @@ async function nvidiaCall(model: string, userContent: unknown): Promise<{ text: 
   const res = await fetch(`${base}/chat/completions`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify({ model, messages: [{ role: 'system', content: SYSTEM + ' ' + JSON_SHAPE }, { role: 'user', content: userContent }], max_tokens: 600, temperature: 0, stream: false }),
-    signal: AbortSignal.timeout(45_000),
+    body: JSON.stringify({ model, messages: [{ role: 'system', content: SYSTEM + ' ' + JSON_SHAPE + ' /no_think' }, { role: 'user', content: userContent }], max_tokens: 2000, temperature: 0, stream: false }),
+    signal: AbortSignal.timeout(60_000),
   })
   if (!res.ok) throw new Error(`NVIDIA ${res.status} at ${base}/chat/completions with model "${model}": ${(await res.text().catch(() => '')).trim().slice(0, 200)}`)
-  const j = await res.json() as { choices?: { message?: { content?: string } }[]; usage?: { prompt_tokens?: number; completion_tokens?: number } }
-  const text = j.choices?.[0]?.message?.content
+  const j = await res.json() as { choices?: { message?: { content?: string | null; reasoning_content?: string | null } }[]; usage?: { prompt_tokens?: number; completion_tokens?: number } }
+  // A thinking model may put the JSON in reasoning_content when its answer is empty
+  const msg = j.choices?.[0]?.message
+  const text = msg?.content || (msg?.reasoning_content && msg.reasoning_content.includes('{') ? msg.reasoning_content : '')
   if (!text) throw new Error('NVIDIA gave no answer')
   return { text, inT: j.usage?.prompt_tokens || 0, outT: j.usage?.completion_tokens || 0 }
 }
