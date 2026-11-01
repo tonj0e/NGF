@@ -3,6 +3,7 @@ import { APP_CONFIG } from './config'
 import { Readable } from 'stream'
 import { FilePayload } from '@/types'
 import { reportError } from './monitor'
+import { checkUpload } from './uploadGuard'
 import {
   BUCKETS,
   uploadToSupabase,
@@ -31,15 +32,12 @@ export async function getOrCreateFolder(parentId: string, name: string): Promise
 }
 
 export async function saveFile(folderId: string, fileName: string, mimeType: string, base64Data: string): Promise<string> {
-  if (!/^(image\/(jpe?g|png|webp|gif|heic|heif)|application\/pdf)$/.test(mimeType)) throw new Error('Only images and PDF files are allowed')
-  if (base64Data.length > 11_000_000) throw new Error('File is too large (limit 8 MB)')
+  // The type comes from the file's own first bytes; the type the caller claims is not trusted
+  const f = checkUpload(base64Data, { maxBytes: 8 * 1024 * 1024 })
   const drive = getOAuthDriveClient()
-  const b64 = base64Data.replace(/^data:[^;]+;base64,/, '')
-  const buffer = Buffer.from(b64, 'base64')
-  const stream = Readable.from(buffer)
   const res = await drive.files.create({
     requestBody: { name: fileName, parents: [folderId] },
-    media: { mimeType, body: stream },
+    media: { mimeType: f.mime, body: Readable.from(f.buffer) },
     fields: 'id',
     supportsAllDrives: true,
   })
@@ -131,10 +129,9 @@ async function fitUnderOneMb(buf: Buffer, mime: string): Promise<{ buf: Buffer; 
 // One file per document type in the customer's folder (aadhaar_front.jpg, house.jpg ...). A new upload of the same
 // type replaces the old one in place, so the link already saved on the lead keeps working.
 export async function uploadLeadPhoto(folderId: string, prefix: string, file: FilePayload, label = ''): Promise<string> {
-  if (!/^(image\/(jpe?g|png|webp|gif|heic|heif)|application\/pdf)$/.test(file.mimeType)) throw new Error('Only images and PDF files are allowed')
-  if (file.base64Data.length > 11_000_000 * 3) throw new Error('File is too large')
-  const raw = Buffer.from(file.base64Data.replace(/^data:[^;]+;base64,/, ''), 'base64')
-  const { buf, mime } = await fitUnderOneMb(raw, file.mimeType)
+  // Photos are shrunk below, so the limit here is generous; the type comes from the first bytes, not from file.mimeType
+  const checked = checkUpload(file.base64Data, { maxBytes: 12 * 1024 * 1024 })
+  const { buf, mime } = await fitUnderOneMb(checked.buffer, checked.mime)
   const type = prefix.replace(/[^a-zA-Z0-9_-]/g, '_')
   const name = `${label ? `${label} - ` : ''}${type}.${EXT[mime] || 'jpg'}`
 

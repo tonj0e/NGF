@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, requireRole, ok, err, getSession } from '@/lib/api'
+import { checkUploadRate } from '@/lib/uploadRate'
 import { requireFeature } from '@/lib/access'
 import { lead as leadKeys } from '@/lib/features'
 import { readTable, selectRows, selectAll, countRows, getRowById, updateById, appendRow, deleteRow, findRecord, makeId, nowIso, formatDateYmd, addDays, deleteById, invalidateCache, getSupabase } from '@/lib/supabase-db'
@@ -153,6 +154,9 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
     }
 
     // Upload photos with error handling
+    if (body.customerPhoto || body.housePhoto || body.landmarkPhoto || body.chequePhoto || body.aadhaarFront || body.aadhaarBack) {
+    try { checkUploadRate(session.userId) } catch (e) { return err(e instanceof Error ? e.message : 'Too many uploads') }
+    }
     try {
       if (body.customerPhoto) customerPhotoUrl = await uploadLeadPhoto(folderId, 'customer', toPayload(body.customerPhoto, 'customer_lead.jpg'), docLabel(lead['Customer Name'], leadId))
       if (body.housePhoto) housePhotoUrl = await uploadLeadPhoto(folderId, 'house', toPayload(body.housePhoto, 'house_lead.jpg'), docLabel(lead['Customer Name'], leadId))

@@ -6,6 +6,8 @@ import type { TableName } from '@/lib/supabase-db'
 import { readTable, selectRows, countRows, getRowById, updateById, appendRow, makeId, nowIso, invalidateCache, getSupabase } from '@/lib/supabase-db'
 import { APP_CONFIG } from '@/lib/config'
 import { saveFileSupabase } from '@/lib/drive'
+import { checkUpload, randomFileId } from '@/lib/uploadGuard'
+import { checkUploadRate } from '@/lib/uploadRate'
 import { getTodayIST, getThisSaturday, getNextSaturday } from '@/lib/dateUtils'
 import { getBranchAccess, canSeeGuarantor, guarantorBranchMap } from '@/lib/branchAccess'
 import { pageQuery, cleanSearch, scopeOf, withScope } from '@/lib/db'
@@ -162,11 +164,14 @@ export const POST = apiHandler(async (req: NextRequest) => {
 
   let proofFileId = ''
   if (paymentProof) {
+  try { checkUploadRate(session.userId) } catch (e) { return err(e instanceof Error ? e.message : 'Too many uploads') }
     const ts = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, 14)
+    // Our own file name (random id + the type found in the file), never the name the user gave
+    const checkedProof = checkUpload(paymentProof.base64Data, { maxBytes: 8 * 1024 * 1024 })
     proofFileId = await saveFileSupabase(
       'payment-proofs',
-      `${r['Loan ID']}/${ts}_${String(paymentProof.fileName || 'proof').replace(/[^a-zA-Z0-9._-]/g, '_').slice(-60)}`,
-      paymentProof.mimeType,
+      `${r['Loan ID']}/${ts}_${randomFileId()}.${checkedProof.ext}`,
+      checkedProof.mime,
       paymentProof.base64Data
     )
   }

@@ -13,11 +13,12 @@ import { payCodeFromLoanId } from './payCode'
 import { canSeeGuarantor, guarantorBranchMap } from './branchAccess'
 import type { Session } from '../types'
 import { reportError } from './monitor'
+import { checkUpload } from './uploadGuard'
+import { checkUploadRate } from './uploadRate'
 
 // Statuses where the guarantor must fix this message before sending the next screenshot
 export const FIX_STATUSES = ['Needs Retake', 'Duplicate', 'Amount Mismatch', 'Wrong Payee', 'Not Successful']
 const MAX_IMAGE_BYTES = 3 * 1024 * 1024
-const MEDIA: Record<string, 'image/jpeg' | 'image/png' | 'image/webp'> = { 'image/jpeg': 'image/jpeg', 'image/jpg': 'image/jpeg', 'image/png': 'image/png', 'image/webp': 'image/webp' }
 
 type Row = Record<string, any>
 export type ChatLine = { repaymentId: string; customerId: string; name: string; payCode: string; amount: number }
@@ -214,12 +215,14 @@ export async function submitSlip(session: Session, access: Access, input: Submit
   let b64 = ''
   let media: 'image/jpeg' | 'image/png' | 'image/webp' | null = null
   if (input.image?.base64Data) {
-    media = MEDIA[String(input.image.mimeType || '').toLowerCase()] || null
-    if (!media) throw new PaymentError('Send a photo or screenshot (JPG, PNG or WebP)')
-    b64 = input.image.base64Data.replace(/^data:[^,]+,/, '')
-    const buf = Buffer.from(b64, 'base64')
-    if (!buf.length) throw new PaymentError('The picture is empty')
-    if (buf.length > MAX_IMAGE_BYTES) throw new PaymentError('The picture is too big. Try again.')
+    checkUploadRate(session.userId, e => new PaymentError(e))
+    // The type is read from the file's own first bytes; the type the browser claims is not trusted
+    let checked
+    try { checked = checkUpload(input.image.base64Data, { maxBytes: MAX_IMAGE_BYTES, allow: ['image/jpeg', 'image/png', 'image/webp'] }) }
+    catch { throw new PaymentError('Send a photo or screenshot (JPG, PNG or WebP, up to 3 MB)') }
+    media = checked.mime as 'image/jpeg' | 'image/png' | 'image/webp'
+    b64 = checked.buffer.toString('base64')
+    const buf = checked.buffer
     imageHash = createHash('sha256').update(buf).digest('hex')
     imageUrl = await storeProof(guarantorId, lines, media, b64, imageHash)
   } else if (!existing) throw new PaymentError('Upload the payment screenshot')
@@ -378,10 +381,12 @@ export async function testRead(access: Access, provider: string, image: { mimeTy
   if (!access.isAdmin) throw new PaymentError('Only an Admin can test the reader')
   const prov = provider === 'nvidia' ? 'nvidia' : 'claude'
   if (!(await providerKeys())[prov]) throw new PaymentError(prov === 'nvidia' ? 'No NVIDIA key is set (NVIDIA_API_KEY)' : 'No Claude key is set (ANTHROPIC_API_KEY)')
-  const media = MEDIA[String(image?.mimeType || '').toLowerCase()]
-  if (!media || !image?.base64Data) throw new PaymentError('Send a JPG, PNG or WebP picture')
-  const b64 = image.base64Data.replace(/^data:[^,]+,/, '')
-  if (Buffer.from(b64, 'base64').length > MAX_IMAGE_BYTES) throw new PaymentError('The picture is too big')
+  if (!image?.base64Data) throw new PaymentError('Send a JPG, PNG or WebP picture')
+  let checked
+  try { checked = checkUpload(image.base64Data, { maxBytes: MAX_IMAGE_BYTES, allow: ['image/jpeg', 'image/png', 'image/webp'] }) }
+  catch { throw new PaymentError('Send a JPG, PNG or WebP picture up to 3 MB') }
+  const media = checked.mime as 'image/jpeg' | 'image/png' | 'image/webp'
+  const b64 = checked.buffer.toString('base64')
   const t0 = Date.now()
   try {
     const m = prov === 'nvidia' && model && /^[\w.\-/]{3,120}$/.test(model) ? model : undefined

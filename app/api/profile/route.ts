@@ -4,6 +4,8 @@ import { requireFeature } from '@/lib/access'
 import { readTable, appendRow, updateById, nowIso, invalidateCache } from '@/lib/supabase-db'
 import { APP_CONFIG } from '@/lib/config'
 import { saveFileSupabase } from '@/lib/drive'
+import { checkUpload } from '@/lib/uploadGuard'
+import { checkUploadRate } from '@/lib/uploadRate'
 import { getBranchAccess, canSeeBranch, branchesOfUser } from '@/lib/branchAccess'
 
 // Admin: any user. Staff: only people of their own branches (agents, guarantors, branch staff).
@@ -94,10 +96,12 @@ export const POST = apiHandler(async (req: NextRequest) => {
   if (body.photo !== undefined && !okPhoto(body.photo)) return err('Photo must be an image')
   let photoUrl = body.photo !== undefined ? body.photo : (prof?.['Photo'] || '')
   if (body.photo && body.photoFile) {
-    const ext: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' }
-    const type = String(body.photoFileType || 'image/jpeg')
-    if (!ext[type]) return err('Photo must be a JPEG, PNG, WebP or GIF image')
-    photoUrl = await saveFileSupabase('profiles', `${userId}/profile.${ext[type]}`, type, body.photoFile)
+    try { checkUploadRate(session.userId) } catch (e) { return err(e instanceof Error ? e.message : 'Too many uploads') }
+    // The type comes from the photo's own bytes, not from what the browser says
+    let checked
+    try { checked = checkUpload(String(body.photoFile), { maxBytes: 5 * 1024 * 1024, allow: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'] }) }
+    catch (e) { return err(e instanceof Error ? e.message : 'Photo must be a JPEG, PNG, WebP or GIF image') }
+    photoUrl = await saveFileSupabase('profiles', `${userId}/profile.${checked.ext}`, checked.mime, body.photoFile)
   }
 
   const data = {

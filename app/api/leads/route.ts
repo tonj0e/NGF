@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, getSession, requireRole, ok, err } from '@/lib/api'
+import { checkUploadRate } from '@/lib/uploadRate'
 import { needFeature } from '@/lib/access'
 import { lead } from '@/lib/features'
 import { readTable, appendRow, findRecord, makeId, nowIso, countRows, selectRows, selectAll, getRowById } from '@/lib/supabase-db'
@@ -218,6 +219,9 @@ export const POST = apiHandler(async (req: NextRequest) => {
   if (body.submittedDate && (body.submittedDate > addDaysIST(today, 14) || body.submittedDate < addDaysIST(today, -90))) return err('Choose today or a day in the next two weeks.')
   const leadDate = body.submittedDate || today
 
+  if (body.customerPhoto || body.aadhaarFront || body.aadhaarBack || body.landmarkPhoto || body.housePhoto || body.chequePhoto) {
+  try { checkUploadRate(session.userId) } catch (e) { return err(e instanceof Error ? e.message : 'Too many uploads') }
+  }
   let folderId = ''
   let customerPhotoUrl = '', aadhaarFrontUrl = '', aadhaarBackUrl = ''
   let landmarkPhotoUrl = '', housePhotoUrl = '', chequePhotoUrl = ''

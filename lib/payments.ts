@@ -6,6 +6,7 @@ import { loadPermissions } from './access'
 import { payCodeFromLoanId } from './payCode'
 import { getTodayIST, getThisSaturday } from './dateUtils'
 import { saveFileSupabase } from './drive'
+import { checkUpload, randomFileId } from './uploadGuard'
 import { getBranchAccess, canSeeGuarantor, guarantorBranchMap, type BranchAccess } from './branchAccess'
 import type { Session } from '../types'
 
@@ -347,8 +348,9 @@ export async function markPayment(session: Session, access: Access, input: MarkI
   let screenshot = input.screenshotUrl || ''
   if (!screenshot && input.screenshot?.base64Data) {
     const ts = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, 14)
-    const safe = String(input.screenshot.fileName || 'proof').replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 80)
-    screenshot = await saveFileSupabase('payment-proofs', `utr/${input.guarantorId}/${ts}_${safe}`, input.screenshot.mimeType || 'image/jpeg', input.screenshot.base64Data)
+    // Our own file name (random id + the type found in the file), never the name the user gave
+    const checked = checkUpload(input.screenshot.base64Data, { maxBytes: 8 * 1024 * 1024 })
+    screenshot = await saveFileSupabase('payment-proofs', `utr/${input.guarantorId}/${ts}_${randomFileId()}.${checked.ext}`, checked.mime, input.screenshot.base64Data)
   }
 
   const total = reps.reduce((s, r) => s + Number(r.amount), 0)
