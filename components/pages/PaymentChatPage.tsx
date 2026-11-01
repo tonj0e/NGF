@@ -158,6 +158,64 @@ function Bubble({ m, session, me, onFix, onApprove, busy }: { m: Msg; session: S
   )
 }
 
+const istDay = (iso: string) => new Date(iso).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
+const clock = (iso: string) => new Date(iso).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase()
+function dayLabel(iso: string) {
+  const d = istDay(iso)
+  if (d === istDay(new Date().toISOString())) return 'Today'
+  if (d === istDay(new Date(Date.now() - 864e5).toISOString())) return 'Yesterday'
+  return new Date(iso).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+// The guarantor's chat bubble (WhatsApp style). The guarantor's own messages are green and on the right; the office's are white on the left.
+function WaBubble({ m, session, onFix }: { m: Msg; session: Session; onFix: (m: Msg, mode: 'image' | 'customer') => void }) {
+  const mine = m.createdBy === session.userId
+  const shape = mine ? 'rounded-tr-none bg-[#d9fdd3]' : 'rounded-tl-none bg-white'
+  const tick = m.status === 'Recorded' ? <span className="text-[#53bdeb]">✓✓</span> : m.needsFix ? <span className="font-bold text-red-500">!</span> : <span className="text-gray-400">✓</span>
+  const time = <span className="ml-2 inline-flex shrink-0 items-center gap-1 self-end text-[11px] text-[#667781]">{clock(m.createdAt)}{mine && tick}</span>
+  const box = `relative max-w-[86%] rounded-lg px-2 py-1.5 shadow-[0_1px_0.5px_rgba(11,20,26,0.13)] sm:max-w-sm ${shape}`
+  if (m.kind === 'note') {
+    return (
+      <div className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+        <div className={box}>
+          {!mine && <p className="text-xs font-semibold text-[#1f7aec]">{m.createdByName}</p>}
+          <p className="flex flex-wrap items-end whitespace-pre-wrap text-[15px] leading-snug text-[#111b21]"><span className="min-w-0 break-words">{m.note}</span>{time}</p>
+        </div>
+      </div>
+    )
+  }
+  const ok = m.status === 'Recorded'
+  return (
+    <div className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+      <div className={box}>
+        {!mine && <p className="px-1 text-xs font-semibold text-[#1f7aec]">{m.createdByName}</p>}
+        {m.imageUrl && <div className="overflow-hidden rounded-md"><Thumb session={session} url={m.imageUrl} /></div>}
+        <div className="mt-1 space-y-0.5 px-1">
+          {m.lines.map(l => (
+            <div key={l.repaymentId} className="flex items-center justify-between gap-3 text-[13px] text-[#111b21]">
+              <span><b className="font-mono">{l.payCode}</b> · {l.name}</span><b>{money(l.amount)}</b>
+            </div>
+          ))}
+          <p className={`text-xs font-semibold ${ok ? 'text-emerald-700' : m.needsFix ? 'text-red-600' : 'text-amber-700'}`}>{LABEL[m.status] || m.status}</p>
+          {(m.utr || m.amountRead != null) && (
+            <p className="text-[11px] leading-snug text-[#667781]">
+              {m.amountRead != null && <>{money(m.amountRead)}</>}{m.utr && <>{m.amountRead != null ? ' · ' : ''}UTR <b className="font-mono">{m.utr}</b></>}{m.txnDate && <> · {m.txnDate}{m.txnTime ? ` ${m.txnTime}` : ''}</>}{m.payApp && <> · {m.payApp}</>}
+            </p>
+          )}
+          {m.problem && <p className={`rounded-md px-2 py-1 text-xs ${m.needsFix ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-800'}`}>{m.problem}</p>}
+          {m.needsFix && mine && (
+            <div className="grid grid-cols-2 gap-1.5 pt-1">
+              <button onClick={() => onFix(m, 'image')} className="rounded-md bg-[#075e54] px-2 py-1.5 text-xs font-semibold text-white">Send a new screenshot</button>
+              <button onClick={() => onFix(m, 'customer')} className="rounded-md bg-white px-2 py-1.5 text-xs font-semibold text-[#075e54] ring-1 ring-[#075e54]/30">Change customer</button>
+            </div>
+          )}
+          <p className="flex justify-end">{time}</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function PaymentChatPage({ session, onOpenHistory }: { session: Session; onOpenHistory?: () => void }) {
   const [me, setMe] = useState<Me | null>(null)
   const [gid, setGid] = useState('')
@@ -260,46 +318,8 @@ export default function PaymentChatPage({ session, onOpenHistory }: { session: S
     catch (e) { flash(e instanceof Error ? e.message : 'Failed') }
   }
 
-  if (!me) return <div className="p-8 text-center text-sm text-soft">{error || 'Loading…'}</div>
-
-  return (
-    <div className="mx-auto flex h-[calc(100dvh-10rem)] min-h-[30rem] max-w-3xl flex-col gap-3">
-      {stats && <StatsStrip stats={stats} onOpenHistory={onOpenHistory} />}
-      {!stats && onOpenHistory && (
-        <div className="flex justify-end"><button onClick={onOpenHistory} className="rounded-full bg-white px-4 py-2 text-xs font-semibold ring-1 ring-black/10">Payment history →</button></div>
-      )}
-      {!isG && (
-        <select value={gid} onChange={e => setGid(e.target.value)} className="rounded-2xl border border-line bg-white px-4 py-2.5 text-sm">
-          <option value="">All guarantors</option>
-          {me.guarantors.map(g => <option key={g.guarantorId} value={g.guarantorId}>{g.name} ({g.code})</option>)}
-        </select>
-      )}
-
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto rounded-[1.75rem] bg-line p-3 sm:p-4">
-        {error && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
-        {!msgs.length && !error && <p className="py-10 text-center text-sm text-soft">{isG ? 'No payments sent yet. Tap Single payment or Multi payment below.' : 'No screenshots yet.'}</p>}
-        {msgs.map(m => <Bubble key={m.messageId} m={m} session={session} me={me} onFix={startFix} onApprove={approve} busy={busy} />)}
-        <div ref={endRef} />
-      </div>
-
-      {openIssue && isG && <p className="rounded-2xl bg-red-50 px-4 py-2 text-sm font-medium text-red-700">Fix the red message above first. Then you can send the next screenshot.</p>}
-
-      <div className="space-y-2">
-        {me.access.canChat && (isG || gid) && (
-          <div className="grid grid-cols-2 gap-2">
-            <button disabled={openIssue && isG} onClick={() => startNew('single')} className="rounded-2xl bg-ink px-4 py-3 text-sm font-semibold text-white disabled:opacity-40">Single payment</button>
-            <button disabled={openIssue && isG} onClick={() => startNew('multi')} className="rounded-2xl bg-gold px-4 py-3 text-sm font-semibold text-ink disabled:opacity-40">Multi payment</button>
-          </div>
-        )}
-        {me.access.canChat === false && isG && <p className="rounded-2xl bg-amber-50 px-4 py-2 text-sm text-amber-800">The chat is not switched on for you yet. Ask an Admin to switch it on.</p>}
-        {(isG || gid) && (
-          <div className="flex gap-2">
-            <input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendNote()} placeholder="Write a message…" className="min-w-0 flex-1 rounded-2xl border border-line bg-white px-4 py-2.5 text-sm" />
-            <button onClick={sendNote} className="rounded-2xl border border-line bg-white px-4 text-sm font-semibold">Send</button>
-          </div>
-        )}
-      </div>
-
+  const sheetEl = (
+    <>
       {open && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center" onClick={() => !sending && setOpen(false)}>
           <div className="max-h-[92dvh] w-full max-w-lg space-y-3 overflow-y-auto rounded-t-[1.75rem] bg-white p-5 shadow-panel sm:rounded-[1.75rem]" onClick={e => e.stopPropagation()}>
@@ -365,7 +385,125 @@ export default function PaymentChatPage({ session, onOpenHistory }: { session: S
         </div>
       )}
 
+    </>
+  )
+  const toastEl = (
+    <>
       {toast && <div className="fixed bottom-6 left-1/2 z-[70] max-w-[90vw] -translate-x-1/2 rounded-2xl bg-ink px-4 py-3 text-sm text-white shadow-lg">{toast}</div>}
+    </>
+  )
+
+  if (!me) return <div className="p-8 text-center text-sm text-soft">{error || 'Loading…'}</div>
+
+  if (isG) {
+    const day = stats ? new Date(`${stats.collectionDay}T00:00:00Z`).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', timeZone: 'UTC' }) : ''
+    const pct = stats && stats.due ? Math.round(stats.recorded / stats.due * 100) : 0
+    let lastDay = ''
+    return (
+      <div className="relative mx-auto flex h-[calc(100dvh-6.5rem)] min-h-[28rem] max-w-2xl flex-col overflow-hidden rounded-2xl bg-[#efeae2] shadow-panel ring-1 ring-black/10">
+        <div className="bg-[#075e54] text-white">
+          <div className="flex items-center gap-3 px-3 py-2.5">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/ngflogo.png" alt="" className="h-10 w-10 shrink-0 rounded-full bg-white object-contain p-1" />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-base font-semibold leading-tight">NGF FINCORP</p>
+              <p className="truncate text-xs text-white/75">{stats ? (stats.due === 0 ? `No collections due · ${day}` : `${stats.recorded} of ${stats.due} recorded · Saturday ${day}`) : 'Payments'}</p>
+            </div>
+            {onOpenHistory && (
+              <button onClick={onOpenHistory} aria-label="Payment history" className="flex shrink-0 items-center gap-1.5 rounded-full bg-white/15 px-3 py-2 text-xs font-semibold hover:bg-white/25">
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+                History
+              </button>
+            )}
+          </div>
+          {stats && <div className="h-1 bg-white/20"><div className="h-full bg-[#25d366] transition-all" style={{ width: `${pct}%` }} /></div>}
+        </div>
+
+        <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-3 py-3" style={{ backgroundImage: 'radial-gradient(rgba(0,0,0,0.05) 1px, transparent 1px)', backgroundSize: '18px 18px' }}>
+          {stats && (
+            <p className={`mx-auto mb-2 w-fit max-w-[92%] rounded-lg px-3 py-1.5 text-center text-xs shadow-sm ${stats.manualMode ? 'bg-red-100 text-red-800' : stats.wrongLeft <= 3 ? 'bg-amber-100 text-amber-900' : 'bg-[#fff5c4] text-[#54656f]'}`}>
+              {stats.manualMode ? `All ${stats.wrongAllowed} wrong tries used. Type the transaction ID with each screenshot` : `Wrong screenshots left: ${stats.wrongLeft} of ${stats.wrongAllowed}`}
+            </p>
+          )}
+          {error && <p className="mx-auto w-fit rounded-lg bg-red-100 px-3 py-1.5 text-center text-xs text-red-700">{error}</p>}
+          {!msgs.length && !error && <p className="mx-auto mt-6 w-fit max-w-[85%] rounded-lg bg-[#fff5c4] px-3 py-2 text-center text-xs text-[#54656f] shadow-sm">No payments sent yet. Tap Single payment or Multi payment below.</p>}
+          {msgs.map(m => {
+            const d = dayLabel(m.createdAt)
+            const sep = d !== lastDay
+            lastDay = d
+            return (
+              <Fragment key={m.messageId}>
+                {sep && <p className="mx-auto my-2 w-fit rounded-lg bg-white/90 px-3 py-1 text-xs font-medium text-[#54656f] shadow-sm">{d}</p>}
+                <WaBubble m={m} session={session} onFix={startFix} />
+              </Fragment>
+            )
+          })}
+          <div ref={endRef} />
+        </div>
+
+        {openIssue && <p className="mx-3 mb-1 rounded-lg bg-red-100 px-3 py-2 text-center text-xs font-medium text-red-700">Fix the red message above first. Then you can send the next screenshot.</p>}
+        {me.access.canChat === false && <p className="mx-3 mb-1 rounded-lg bg-amber-100 px-3 py-2 text-center text-xs text-amber-900">The chat is not switched on for you yet. Ask an Admin to switch it on.</p>}
+
+        <div className="bg-[#f0f2f5]">
+          {me.access.canChat && (
+            <div className="flex gap-2 overflow-x-auto px-3 pt-2.5">
+              <button disabled={openIssue} onClick={() => startNew('single')} className="shrink-0 rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#075e54] shadow-sm ring-1 ring-black/5 disabled:opacity-40">＋ Single payment</button>
+              <button disabled={openIssue} onClick={() => startNew('multi')} className="shrink-0 rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#075e54] shadow-sm ring-1 ring-black/5 disabled:opacity-40">＋ Multi payment</button>
+            </div>
+          )}
+          <div className="flex items-center gap-2 px-3 py-2.5">
+            <input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendNote()} placeholder="Write a message…" className="min-w-0 flex-1 rounded-full border-0 bg-white px-4 py-2.5 text-[15px] outline-none ring-1 ring-black/5" />
+            <button onClick={sendNote} disabled={!text.trim()} aria-label="Send" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#00a884] text-white shadow-sm transition disabled:opacity-50">
+              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor"><path d="M3.4 20.4 21 12 3.4 3.6 3.3 10.1 15 12 3.3 13.9z" /></svg>
+            </button>
+          </div>
+        </div>
+        {sheetEl}
+        {toastEl}
+      </div>
+    )
+  }
+
+  return (
+    <div className="mx-auto flex h-[calc(100dvh-10rem)] min-h-[30rem] max-w-3xl flex-col gap-3">
+      {stats && <StatsStrip stats={stats} onOpenHistory={onOpenHistory} />}
+      {!stats && onOpenHistory && (
+        <div className="flex justify-end"><button onClick={onOpenHistory} className="rounded-full bg-white px-4 py-2 text-xs font-semibold ring-1 ring-black/10">Payment history →</button></div>
+      )}
+      {!isG && (
+        <select value={gid} onChange={e => setGid(e.target.value)} className="rounded-2xl border border-line bg-white px-4 py-2.5 text-sm">
+          <option value="">All guarantors</option>
+          {me.guarantors.map(g => <option key={g.guarantorId} value={g.guarantorId}>{g.name} ({g.code})</option>)}
+        </select>
+      )}
+
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto rounded-[1.75rem] bg-line p-3 sm:p-4">
+        {error && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+        {!msgs.length && !error && <p className="py-10 text-center text-sm text-soft">{isG ? 'No payments sent yet. Tap Single payment or Multi payment below.' : 'No screenshots yet.'}</p>}
+        {msgs.map(m => <Bubble key={m.messageId} m={m} session={session} me={me} onFix={startFix} onApprove={approve} busy={busy} />)}
+        <div ref={endRef} />
+      </div>
+
+      {openIssue && isG && <p className="rounded-2xl bg-red-50 px-4 py-2 text-sm font-medium text-red-700">Fix the red message above first. Then you can send the next screenshot.</p>}
+
+      <div className="space-y-2">
+        {me.access.canChat && (isG || gid) && (
+          <div className="grid grid-cols-2 gap-2">
+            <button disabled={openIssue && isG} onClick={() => startNew('single')} className="rounded-2xl bg-ink px-4 py-3 text-sm font-semibold text-white disabled:opacity-40">Single payment</button>
+            <button disabled={openIssue && isG} onClick={() => startNew('multi')} className="rounded-2xl bg-gold px-4 py-3 text-sm font-semibold text-ink disabled:opacity-40">Multi payment</button>
+          </div>
+        )}
+        {me.access.canChat === false && isG && <p className="rounded-2xl bg-amber-50 px-4 py-2 text-sm text-amber-800">The chat is not switched on for you yet. Ask an Admin to switch it on.</p>}
+        {(isG || gid) && (
+          <div className="flex gap-2">
+            <input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendNote()} placeholder="Write a message…" className="min-w-0 flex-1 rounded-2xl border border-line bg-white px-4 py-2.5 text-sm" />
+            <button onClick={sendNote} className="rounded-2xl border border-line bg-white px-4 text-sm font-semibold">Send</button>
+          </div>
+        )}
+      </div>
+
+      {sheetEl}
+      {toastEl}
     </div>
   )
 }

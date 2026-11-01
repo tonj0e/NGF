@@ -62,3 +62,6 @@ Two readers behind one function (`lib/slipReader.ts` `readSlip(b64, media, provi
 
 ## Staff: Resubmit screenshot (2026-11-01)
 A message "With the office" (status Pending Staff, for example when the reader failed) now has a **Resubmit screenshot** button for office staff. It opens the same composer as "Send a new screenshot" and re-reads the new picture for the same message (`submitSlip` with `messageId`; allowed for Pending Staff only when the sender is not a guarantor). Guarantors cannot do this, so their wrong-screenshot allowance is unchanged.
+
+## Guarantor chat: WhatsApp-style layout (2026-11-02)
+For a guarantor (no Mark manually or Bank check permission) `PaymentsPage` shows one chat screen with no tabs. `PaymentChatPage` renders a WhatsApp-like layout when `isG`: green header with progress, wallpaper, green bubbles for the guarantor's own messages and white for the office's, day separators, ticks (✓✓ blue = recorded, ✓ = with the office, ! = needs fixing), quick buttons "＋ Single payment" / "＋ Multi payment", a pill message box with a round send button. **History** (icon in the header) opens Payment history as a full-screen page with a back arrow (`PaymentMatchingPage fixedTab="records"`). Staff and Admin keep the old layout and tabs. Bubble: `WaBubble`; the staff bubble is still `Bubble`.
