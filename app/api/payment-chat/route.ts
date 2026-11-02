@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, getSession, ok, err } from '@/lib/api'
 import { getAccess, PaymentError } from '@/lib/payments'
-import { listMessages, submitSlip, postNote, approveMessage, slipSettings, saveSlipSettings, slipUsage, testRead } from '@/lib/paymentChat'
+import { listMessages, submitSlip, submitCash, postNote, approveMessage, slipSettings, saveSlipSettings, slipUsage, testRead } from '@/lib/paymentChat'
 import { createAuditLogger } from '@/lib/audit'
 
 // Payment Chat (screenshots sent by guarantors). The customer list for the search box comes from /api/payments?view=collect.
@@ -30,6 +30,11 @@ export const POST = apiHandler(async (req: NextRequest) => {
       case 'submit': {
         const msg = await submitSlip(session, access, { guarantorId: body.guarantorId, mode: body.mode, repaymentIds: body.repaymentIds, messageId: body.messageId, image: body.image, manualUtr: body.manualUtr })
         await audit.log('PAYMENT_CHAT_SUBMIT', 'PaymentChat', msg.messageId, { status: msg.status, amount: msg.amountRead, utr: msg.utr, customers: msg.lines.length })
+        return ok({ message: msg })
+      }
+      case 'cash': {
+        const msg = await submitCash(session, access, { guarantorId: body.guarantorId, repaymentIds: body.repaymentIds })
+        await audit.log('PAYMENT_CHAT_CASH', 'PaymentChat', msg.messageId, { amount: msg.amountRead, customers: msg.lines.length, groupId: msg.groupId })
         return ok({ message: msg })
       }
       case 'note': await postNote(session, access, String(body.guarantorId || ''), String(body.text || ''), body.parentId); return ok({ success: true })

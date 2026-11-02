@@ -15,6 +15,7 @@ import type { Session } from '../types'
 import { reportError } from './monitor'
 import { checkUpload } from './uploadGuard'
 import { checkUploadRate } from './uploadRate'
+import { rateLimitKey } from './rate-limiter'
 
 // Statuses where the guarantor must fix this message before sending the next screenshot
 export const FIX_STATUSES = ['Needs Retake', 'Duplicate', 'Amount Mismatch', 'Wrong Payee', 'Not Successful']
@@ -338,6 +339,35 @@ export async function submitSlip(session: Session, access: Access, input: Submit
 }
 
 // ─── Office actions ──────────────────────────────────────────────────────────
+
+// Cash: the guarantor picks the customers they collected cash from and marks them paid. No screenshot, no reading.
+// Recorded straight away through markPayment (mode Cash, same rules and same history as Mark manually); the chat shows it as a bubble.
+export async function submitCash(session: Session, access: Access, input: { guarantorId?: string; repaymentIds?: string[] }) {
+  if (!access.canChat) throw new PaymentError('The chat is not switched on for you. Ask an Admin.')
+  if (!access.isGuarantor && !access.canMark) throw new PaymentError('Only a guarantor or office staff who can mark payments can record cash')
+  const rl = rateLimitKey(`cash:${session.userId}`, 60, 3600_000)
+  if (!rl.success) throw new PaymentError(`Too many cash entries. Try again in ${Math.ceil(rl.retryAfterSec / 60)} minutes.`)
+  const act: Access = { ...access, canMark: true }
+  const guarantorId = access.isGuarantor ? access.guarantorId : String(input.guarantorId || '')
+  if (!guarantorId) throw new PaymentError('Choose a guarantor')
+  await needGuarantor(access, guarantorId)
+  const repaymentIds = Array.from(new Set((input.repaymentIds || []).map(String).filter(Boolean)))
+  if (!repaymentIds.length) throw new PaymentError('Choose the customer this cash is for')
+  if (repaymentIds.length > 25) throw new PaymentError('Too many customers in one payment')
+  const lines = await lineDetails(guarantorId, repaymentIds)   // each customer must belong to this guarantor and be unpaid
+  const total = lines.reduce((s, l) => s + l.amount, 0)
+  const res = await markPayment(session, act, { guarantorId, mode: 'Cash', repaymentIds, notes: `Payment Chat. Cash marked by ${session.name}.` })
+  const messageId = makeId('CHT')
+  const ist = nowIST().toISOString()
+  const { error } = await getSupabase().from('payment_chat').insert({
+    message_id: messageId, guarantor_id: guarantorId, kind: 'slip', mode: lines.length > 1 ? 'multi' : 'single', status: 'Recorded', lines,
+    amount_read: total, txn_date: ist.slice(0, 10), txn_time: ist.slice(11, 16), pay_app: 'Cash', group_id: res.group.groupId,
+    collection_day: collectionDay(), created_by: session.userId, created_by_name: session.name, updated_at: new Date().toISOString(),
+  })
+  if (error) throw new Error(error.message)
+  const { data } = await getSupabase().from('payment_chat').select('*').eq('message_id', messageId).single()
+  return publicMsg(data as Row)
+}
 
 export async function postNote(session: Session, access: Access, guarantorId: string, text: string, parentId?: string) {
   if (!access.canChat) throw new PaymentError('No permission')

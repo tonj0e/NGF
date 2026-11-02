@@ -196,6 +196,7 @@ function WaBubble({ m, session, onFix }: { m: Msg; session: Session; onFix: (m: 
   const ok = m.status === 'Recorded'
   const total = m.lines.reduce((t, l) => t + l.amount, 0)
   const when2 = txnWhen(m.txnDate, m.txnTime)
+  const cash = m.payApp === 'Cash'
   return (
     <div className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
       <div className={`${box.replace('max-w-[86%]', 'max-w-[94%]').replace('sm:max-w-sm', 'sm:max-w-md')} w-full`}>
@@ -210,10 +211,10 @@ function WaBubble({ m, session, onFix }: { m: Msg; session: Session; onFix: (m: 
                 {m.lines.length > 1 && <p className="text-xs font-semibold text-[#54656f]">{money(l.amount)}</p>}
               </div>
             ))}
-            <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-bold ${ok ? 'bg-emerald-600/15 text-emerald-800' : m.needsFix ? 'bg-red-500/15 text-red-700' : 'bg-amber-500/20 text-amber-800'}`}>{LABEL[m.status] || m.status}</span>
-            <p className="text-xl font-extrabold leading-none text-[#111b21]">{money(m.amountRead ?? total)}{ok && m.amountRead != null && <span className="ml-1.5 text-[11px] font-semibold text-[#667781]">received</span>}</p>
+            <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-bold ${cash ? 'bg-[#2563eb]/15 text-[#1e40af]' : ok ? 'bg-emerald-600/15 text-emerald-800' : m.needsFix ? 'bg-red-500/15 text-red-700' : 'bg-amber-500/20 text-amber-800'}`}>{cash ? 'Cash received ✓' : LABEL[m.status] || m.status}</span>
+            <p className="text-xl font-extrabold leading-none text-[#111b21]">{money(m.amountRead ?? total)}{ok && !cash && m.amountRead != null && <span className="ml-1.5 text-[11px] font-semibold text-[#667781]">received</span>}</p>
             {m.utr && <p className="text-[11px] leading-snug text-[#667781]">UTR<br /><b className="break-all font-mono text-[13px] text-[#111b21]">{m.utr}</b></p>}
-            {(when2 || m.payApp) && <p className="text-[11px] leading-snug text-[#667781]">{when2}{when2 && m.payApp ? <br /> : null}{m.payApp && <>via <b className="text-[#111b21]">{m.payApp}</b></>}</p>}
+            {(when2 || m.payApp) && <p className="text-[11px] leading-snug text-[#667781]">{when2}{when2 && m.payApp ? <br /> : null}{m.payApp && (cash ? <>paid in <b className="text-[#111b21]">cash</b></> : <>via <b className="text-[#111b21]">{m.payApp}</b></>)}</p>}
           </div>
         </div>
         {m.problem && <p className={`mt-1.5 rounded-md px-2 py-1 text-xs ${m.needsFix ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-800'}`}>{m.problem}</p>}
@@ -246,7 +247,10 @@ export default function PaymentChatPage({ session, onOpenHistory }: { session: S
 
   // composer
   const [open, setOpen] = useState(false)
-  const [mode, setMode] = useState<'single' | 'multi'>('single')
+  const [mode, setMode] = useState<'single' | 'multi' | 'cash'>('single')
+  const [confirmCash, setConfirmCash] = useState(false)
+  const isCash = mode === 'cash'
+  const multi = mode !== 'single'   // multi and cash both take several customers
   const [fixId, setFixId] = useState('')
   const [fixKind, setFixKind] = useState<'image' | 'customer' | ''>('')
   const [sheet, setSheet] = useState<SheetRow[]>([])
@@ -279,8 +283,8 @@ export default function PaymentChatPage({ session, onOpenHistory }: { session: S
   async function loadSheet(g: string) {
     try { const d = await api(session, `/api/payments?view=collect&guarantorId=${encodeURIComponent(g)}`); setSheet(d.rows) } catch (e) { flash(e instanceof Error ? e.message : 'Could not load customers') }
   }
-  function startNew(m: 'single' | 'multi') {
-    setMode(m); setFixId(''); setFixKind(''); setPicked([]); setImg(null); setQ(''); setManualUtr(''); setOpen(true)
+  function startNew(m: 'single' | 'multi' | 'cash') {
+    setMode(m); setConfirmCash(false); setFixId(''); setFixKind(''); setPicked([]); setImg(null); setQ(''); setManualUtr(''); setOpen(true)
     if (activeGid) loadSheet(activeGid)
   }
   function startFix(msg: Msg, kind: 'image' | 'customer') {
@@ -297,7 +301,7 @@ export default function PaymentChatPage({ session, onOpenHistory }: { session: S
   }, [sheet, q, picked])
   const total = picked.reduce((s, p) => s + p.amount, 0)
 
-  function pick(r: SheetRow) { setPicked(mode === 'single' ? [r] : [...picked, r]); setQ('') }
+  function pick(r: SheetRow) { setPicked(mode === 'single' ? [r] : [...picked, r]); setQ(''); setConfirmCash(false) }
 
   async function onFile(f: File | undefined) {
     if (!f) return
@@ -306,6 +310,17 @@ export default function PaymentChatPage({ session, onOpenHistory }: { session: S
 
   async function send() {
     if (sending || !picked.length) return
+    if (isCash) {
+      // Cash is recorded straight away, so ask once more before it is saved
+      if (!confirmCash) { setConfirmCash(true); return }
+      setSending(true)
+      try {
+        await api(session, '/api/payment-chat', { action: 'cash', guarantorId: activeGid, repaymentIds: picked.map(p => p.repaymentId) })
+        setOpen(false); setConfirmCash(false); await load(); flash('Cash recorded ✓')
+      } catch (e) { flash(e instanceof Error ? e.message : 'Failed to record'); setConfirmCash(false) }
+      setSending(false)
+      return
+    }
     if (!img && fixKind !== 'customer') { flash('Add the payment screenshot'); return }
     setSending(true)
     try {
@@ -337,16 +352,16 @@ export default function PaymentChatPage({ session, onOpenHistory }: { session: S
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center" onClick={() => !sending && setOpen(false)}>
           <div className="max-h-[92dvh] w-full max-w-lg space-y-3 overflow-y-auto rounded-t-[1.75rem] bg-white p-5 shadow-panel sm:rounded-[1.75rem]" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
-              <p className="text-lg font-bold text-[#111b21]">{fixId ? 'Fix this payment' : mode === 'multi' ? 'Multi payment' : 'Single payment'}</p>
+              <p className="text-lg font-bold text-[#111b21]">{fixId ? 'Fix this payment' : isCash ? 'Cash payment' : mode === 'multi' ? 'Multi payment' : 'Single payment'}</p>
               <button disabled={sending} onClick={() => setOpen(false)} className="rounded-full bg-mist px-3.5 py-1.5 text-sm font-semibold text-soft">Close</button>
             </div>
 
             {/* 1. Customer: results appear only after the person types something */}
             <div className="space-y-2">
-              <p className="text-xs font-bold uppercase tracking-wider text-[#075e54]">1 · {mode === 'multi' ? 'Customers (add each one)' : 'Customer'}</p>
-              {fixKind !== 'image' && (mode === 'multi' || !picked.length) && (
+              <p className="text-xs font-bold uppercase tracking-wider text-[#075e54]">1 · {multi ? 'Customers (add each one)' : 'Customer'}</p>
+              {fixKind !== 'image' && (multi || !picked.length) && (
                 <>
-                  <input autoFocus value={q} onChange={e => setQ(e.target.value)} inputMode="search" placeholder={mode === 'multi' && picked.length ? 'Add another customer: 4-digit ID or name' : 'Type the 4-digit ID or name'} className="w-full rounded-2xl border border-line bg-mist px-4 py-3 text-[15px] outline-none focus:border-[#00a884] focus:bg-white" />
+                  <input autoFocus value={q} onChange={e => setQ(e.target.value)} inputMode="search" placeholder={multi && picked.length ? 'Add another customer: 4-digit ID or name' : 'Type the 4-digit ID or name'} className="w-full rounded-2xl border border-line bg-mist px-4 py-3 text-[15px] outline-none focus:border-[#00a884] focus:bg-white" />
                   {q.trim() && results.length > 0 && (
                     <div className="max-h-52 overflow-y-auto rounded-2xl border border-line">
                       {results.map(r => (
@@ -371,21 +386,22 @@ export default function PaymentChatPage({ session, onOpenHistory }: { session: S
                   </span>
                   <b className="shrink-0 text-base">{money(p.amount)}</b>
                   {fixKind !== 'image' && (
-                    <button onClick={() => setPicked(picked.filter(x => x.repaymentId !== p.repaymentId))} className="shrink-0 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-red-600 ring-1 ring-red-200">{mode === 'multi' ? 'Remove' : 'Change'}</button>
+                    <button onClick={() => { setPicked(picked.filter(x => x.repaymentId !== p.repaymentId)); setConfirmCash(false) }} className="shrink-0 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-red-600 ring-1 ring-red-200">{multi ? 'Remove' : 'Change'}</button>
                   )}
                 </div>
               ))}
               {picked.length > 0 && (
                 <div className="flex items-center justify-between rounded-2xl bg-[#075e54] px-4 py-3 text-white">
-                  <span className="text-sm font-medium text-white/85">{mode === 'multi' ? 'Total to match' : 'Amount to pay'}</span>
+                  <span className="text-sm font-medium text-white/85">{isCash ? 'Cash received' : mode === 'multi' ? 'Total to match' : 'Amount to pay'}</span>
                   <span className="text-2xl font-extrabold">{money(total)}</span>
                 </div>
               )}
               {mode === 'multi' && picked.length > 0 && fixKind !== 'image' && <p className="text-xs text-soft">The screenshot amount must equal the total.</p>}
+              {isCash && picked.length > 0 && <p className="text-xs text-soft">Add every customer you collected cash from. No screenshot is needed.</p>}
             </div>
 
             {/* 2. Screenshot */}
-            {picked.length > 0 && fixKind !== 'customer' && (
+            {picked.length > 0 && fixKind !== 'customer' && !isCash && (
               <div className="space-y-2">
                 <p className="text-xs font-bold uppercase tracking-wider text-[#075e54]">2 · Payment screenshot</p>
                 <label className="block cursor-pointer">
@@ -408,14 +424,20 @@ export default function PaymentChatPage({ session, onOpenHistory }: { session: S
               </div>
             )}
 
-            {stats?.manualMode && picked.length > 0 && (
+            {stats?.manualMode && picked.length > 0 && !isCash && (
               <div className="space-y-2 rounded-2xl bg-amber-50 p-3">
                 <p className="text-sm text-amber-900">You have used all {stats.wrongAllowed} wrong-screenshot tries for this Saturday. Send the screenshot and type its transaction ID.</p>
                 <input value={manualUtr} onChange={e => setManualUtr(e.target.value.toUpperCase())} placeholder="Transaction ID (UTR) from the screenshot" className="w-full rounded-xl border border-amber-200 bg-white px-3 py-2.5 font-mono text-sm" />
               </div>
             )}
-            <button disabled={sending || !picked.length || (fixKind !== 'customer' && !img) || (!!stats?.manualMode && manualUtr.trim().length < 8)} onClick={send} className="flex w-full items-center justify-center gap-2 rounded-full bg-[#00a884] px-4 py-3.5 text-base font-bold text-white shadow-sm transition disabled:bg-gray-300 disabled:text-white/90">
-              {sending ? (stats?.manualMode ? 'Recording…' : 'Reading the screenshot…') : 'Send'}
+            {isCash && confirmCash && !sending && (
+              <div className="rounded-2xl bg-blue-50 p-3 text-sm text-blue-900 ring-1 ring-blue-300">
+                <p>Record <b>{money(total)}</b> as cash received{picked.length === 1 ? <> from <b>{picked[0].name}</b></> : <> from <b>{picked.length} customers</b></>}? The office will see it.</p>
+                <button onClick={() => setConfirmCash(false)} className="mt-1 text-xs font-semibold text-blue-800 underline">Cancel</button>
+              </div>
+            )}
+            <button disabled={sending || !picked.length || (!isCash && fixKind !== 'customer' && !img) || (!isCash && !!stats?.manualMode && manualUtr.trim().length < 8)} onClick={send} className={`flex w-full items-center justify-center gap-2 rounded-full px-4 py-3.5 text-base font-bold shadow-sm transition disabled:bg-gray-300 disabled:text-white/90 ${isCash ? 'bg-[#2563eb] text-white' : 'bg-[#00a884] text-white'}`}>
+              {sending ? (isCash ? 'Recording…' : stats?.manualMode ? 'Recording…' : 'Reading the screenshot…') : isCash ? (confirmCash ? `Yes, record ${money(total)} cash` : 'Mark paid as cash') : 'Send'}
             </button>
           </div>
         </div>
@@ -482,9 +504,10 @@ export default function PaymentChatPage({ session, onOpenHistory }: { session: S
 
         <div className="bg-[#f0f2f5]">
           {me.access.canChat && (
-            <div className="flex gap-2 overflow-x-auto px-3 pt-2.5">
-              <button disabled={openIssue} onClick={() => startNew('single')} className="shrink-0 rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#075e54] shadow-sm ring-1 ring-black/5 disabled:opacity-40">＋ Single payment</button>
-              <button disabled={openIssue} onClick={() => startNew('multi')} className="shrink-0 rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#075e54] shadow-sm ring-1 ring-black/5 disabled:opacity-40">＋ Multi payment</button>
+            <div className="grid grid-cols-3 gap-2 px-3 pt-2.5">
+              <button disabled={openIssue} onClick={() => startNew('single')} className="rounded-2xl bg-[#00a884] px-2 py-2.5 text-sm font-bold leading-tight text-white shadow-sm disabled:opacity-40">＋ Single<br />payment</button>
+              <button disabled={openIssue} onClick={() => startNew('multi')} className="rounded-2xl bg-[#f97316] px-2 py-2.5 text-sm font-bold leading-tight text-white shadow-sm disabled:opacity-40">＋ Multi<br />payment</button>
+              <button disabled={openIssue} onClick={() => startNew('cash')} className="rounded-2xl bg-[#2563eb] px-2 py-2.5 text-sm font-bold leading-tight text-white shadow-sm disabled:opacity-40">＋ Cash<br />payment</button>
             </div>
           )}
           <div className="flex items-center gap-2 px-3 py-2.5">
