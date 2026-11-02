@@ -158,6 +158,9 @@ function Bubble({ m, session, me, onFix, onApprove, busy }: { m: Msg; session: S
   )
 }
 
+// Weeks run Monday to Sunday (India time)
+const addDays = (d: string, n: number) => { const t = new Date(`${d}T00:00:00Z`); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10) }
+const mondayOf = (d: string) => addDays(d, -((new Date(`${d}T00:00:00Z`).getUTCDay() + 6) % 7))
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 // "2026-10-31" + "09:05" -> "31 Oct 2026 · 9:05 am"
 function txnWhen(date: string, time: string) {
@@ -167,6 +170,8 @@ function txnWhen(date: string, time: string) {
   const tt = t ? `${Number(t[1]) % 12 || 12}:${t[2]} ${Number(t[1]) < 12 ? 'am' : 'pm'}` : ''
   return [d, tt].filter(Boolean).join(' · ')
 }
+const dayMonth = (d: string) => `${Number(d.slice(8, 10))} ${MONTHS[Number(d.slice(5, 7)) - 1]}`
+const weekRange = (monday: string) => `${dayMonth(monday)} – ${dayMonth(addDays(monday, 6))}`
 const istDay = (iso: string) => new Date(iso).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
 const clock = (iso: string) => new Date(iso).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase()
 function dayLabel(iso: string) {
@@ -236,6 +241,10 @@ export default function PaymentChatPage({ session, onOpenHistory }: { session: S
   const [msgs, setMsgs] = useState<Msg[]>([])
   const [openIssue, setOpenIssue] = useState(false)
   const [stats, setStats] = useState<Stats | null>(null)
+  const [weekStats, setWeekStats] = useState<Stats | null>(null)
+  const [openIssueWeek, setOpenIssueWeek] = useState('')
+  const curMonday = mondayOf(new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10))
+  const [weekStart, setWeekStart] = useState(curMonday)
   const [manualUtr, setManualUtr] = useState('')
   const [error, setError] = useState('')
   const [toast, setToast] = useState('')
@@ -268,11 +277,12 @@ export default function PaymentChatPage({ session, onOpenHistory }: { session: S
     if (!me || inFlight.current) return
     inFlight.current = true
     try {
-      const d = await api(session, `/api/payment-chat?view=messages&guarantorId=${encodeURIComponent(gid)}`)
-      setMsgs(d.messages); setOpenIssue(d.openIssue); setStats(d.stats || null); setError('')
+      const wk = me.access.isGuarantor ? `&weekStart=${weekStart}` : ''
+      const d = await api(session, `/api/payment-chat?view=messages&guarantorId=${encodeURIComponent(gid)}${wk}`)
+      setMsgs(d.messages); setOpenIssue(d.openIssue); setOpenIssueWeek(d.openIssueWeek || ''); setStats(d.stats || null); setWeekStats(d.weekStats || null); setError('')
     } catch (e) { setError(e instanceof Error ? e.message : 'Failed to load') }
     inFlight.current = false
-  }, [session, me, gid])
+  }, [session, me, gid, weekStart])
   useEffect(() => { load() }, [load])
   useEffect(() => {
     const t = setInterval(() => { if (!document.hidden) load() }, 8000)
@@ -316,7 +326,7 @@ export default function PaymentChatPage({ session, onOpenHistory }: { session: S
       setSending(true)
       try {
         await api(session, '/api/payment-chat', { action: 'cash', guarantorId: activeGid, repaymentIds: picked.map(p => p.repaymentId) })
-        setOpen(false); setConfirmCash(false); await load(); flash('Cash recorded ✓')
+        setOpen(false); setConfirmCash(false); setWeekStart(curMonday); await load(); flash('Cash recorded ✓')
       } catch (e) { flash(e instanceof Error ? e.message : 'Failed to record'); setConfirmCash(false) }
       setSending(false)
       return
@@ -328,7 +338,7 @@ export default function PaymentChatPage({ session, onOpenHistory }: { session: S
         action: 'submit', guarantorId: activeGid, mode, repaymentIds: picked.map(p => p.repaymentId), messageId: fixId || undefined,
         image: img ? { mimeType: img.mimeType, base64Data: img.base64Data } : undefined, manualUtr: stats?.manualMode ? manualUtr : undefined,
       })
-      setOpen(false); await load()
+      setOpen(false); setWeekStart(curMonday); await load()
       flash(d.message.status === 'Recorded' ? 'Payment recorded ✓' : d.message.problem || 'Sent'); setManualUtr('')
     } catch (e) { flash(e instanceof Error ? e.message : 'Failed to send') }
     setSending(false)
@@ -454,37 +464,53 @@ export default function PaymentChatPage({ session, onOpenHistory }: { session: S
   if (!me) return <div className="p-8 text-center text-sm text-soft">{error || 'Loading…'}</div>
 
   if (isG) {
-    const day = stats ? new Date(`${stats.collectionDay}T00:00:00Z`).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', timeZone: 'UTC' }) : ''
-    const pct = stats && stats.due ? Math.round(stats.recorded / stats.due * 100) : 0
+    const ws = weekStats || stats   // progress of the selected week (its Saturday)
+    const day = ws ? new Date(`${ws.collectionDay}T00:00:00Z`).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', timeZone: 'UTC' }) : ''
+    const pct = ws && ws.due ? Math.round(ws.recorded / ws.due * 100) : 0
+    const weeks = Array.from({ length: 27 }, (_, i) => addDays(curMonday, -7 * i))
+    const wi = Math.max(0, weeks.indexOf(weekStart))
+    const weekName = (w: string, i: number) => `${i === 0 ? 'This week' : i === 1 ? 'Last week' : 'Week'} · ${weekRange(w)}`
     let lastDay = ''
     return (
       <div className="relative -mx-4 -mb-8 -mt-4 flex h-[calc(100dvh-3.75rem-env(safe-area-inset-top))] min-h-[28rem] flex-col overflow-hidden bg-[#efeae2] sm:-mx-6 md:-mb-4 lg:mx-auto lg:mb-0 lg:mt-0 lg:h-[calc(100dvh-7rem)] lg:max-w-2xl lg:rounded-2xl lg:shadow-panel lg:ring-1 lg:ring-black/10">
         <div className="bg-[#075e54] text-white">
-          <div className="flex items-center gap-3 px-3 py-2.5">
+          <div className="flex items-center gap-2 px-3 py-2.5">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/ngflogo.png" alt="" className="h-10 w-10 shrink-0 rounded-full bg-white object-contain p-1" />
             <div className="min-w-0 flex-1">
               <p className="truncate text-base font-semibold leading-tight">NGF FINCORP</p>
-              <p className="truncate text-xs text-white/75">{stats ? (stats.due === 0 ? `No collections due · ${day}` : `${stats.recorded} of ${stats.due} recorded · Saturday ${day}`) : 'Payments'}</p>
+              <p className="truncate text-[11px] text-white/75">{ws ? (ws.due === 0 ? <>No collections<span className="hidden min-[430px]:inline"> · {day}</span></> : <>{ws.recorded} of {ws.due} recorded<span className="hidden min-[430px]:inline"> · Sat {day}</span></>) : 'Payments'}</p>
+            </div>
+            {/* Week picker: Monday to Sunday. Arrows step one week; tapping the label lists the last 27 weeks. */}
+            <div className="flex shrink-0 items-center rounded-full bg-white/15 ring-1 ring-white/20">
+              <button onClick={() => setWeekStart(weeks[Math.min(weeks.length - 1, wi + 1)])} disabled={wi >= weeks.length - 1} aria-label="Older week" className="px-2.5 py-2 text-lg leading-none disabled:opacity-30">‹</button>
+              <label className="relative block min-w-[5.25rem] text-center">
+                <span className="block text-[10px] font-medium leading-tight text-white/70">{wi === 0 ? 'This week' : wi === 1 ? 'Last week' : 'Week'}</span>
+                <span className="block text-[11px] font-bold leading-tight">{weekRange(weeks[wi])}</span>
+                <select value={weeks[wi]} onChange={e => setWeekStart(e.target.value)} aria-label="Choose a week" className="absolute inset-0 h-full w-full cursor-pointer opacity-0">
+                  {weeks.map((w, i) => <option key={w} value={w}>{weekName(w, i)}</option>)}
+                </select>
+              </label>
+              <button onClick={() => setWeekStart(weeks[Math.max(0, wi - 1)])} disabled={wi === 0} aria-label="Newer week" className="px-2.5 py-2 text-lg leading-none disabled:opacity-30">›</button>
             </div>
             {onOpenHistory && (
-              <button onClick={onOpenHistory} aria-label="Payment history" className="flex shrink-0 items-center gap-1.5 rounded-full bg-white/15 px-3 py-2 text-xs font-semibold hover:bg-white/25">
+              <button onClick={onOpenHistory} aria-label="Payment history" className="flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-white/15 px-2.5 text-xs font-semibold hover:bg-white/25">
                 <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
-                History
+                <span className="hidden min-[430px]:inline">History</span>
               </button>
             )}
           </div>
-          {stats && <div className="h-1 bg-white/20"><div className="h-full bg-[#25d366] transition-all" style={{ width: `${pct}%` }} /></div>}
+          {ws && <div className="h-1 bg-white/20"><div className="h-full bg-[#25d366] transition-all" style={{ width: `${pct}%` }} /></div>}
         </div>
 
         <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-3 py-3" style={{ backgroundImage: 'radial-gradient(rgba(0,0,0,0.05) 1px, transparent 1px)', backgroundSize: '18px 18px' }}>
-          {stats && (
+          {stats && weekStart === curMonday && (
             <p className={`mx-auto mb-2 w-fit max-w-[92%] rounded-lg px-3 py-1.5 text-center text-xs shadow-sm ${stats.manualMode ? 'bg-red-100 text-red-800' : stats.wrongLeft <= 3 ? 'bg-amber-100 text-amber-900' : 'bg-[#fff5c4] text-[#54656f]'}`}>
               {stats.manualMode ? `All ${stats.wrongAllowed} wrong tries used. Type the transaction ID with each screenshot` : `Wrong screenshots left: ${stats.wrongLeft} of ${stats.wrongAllowed}`}
             </p>
           )}
           {error && <p className="mx-auto w-fit rounded-lg bg-red-100 px-3 py-1.5 text-center text-xs text-red-700">{error}</p>}
-          {!msgs.length && !error && <p className="mx-auto mt-6 w-fit max-w-[85%] rounded-lg bg-[#fff5c4] px-3 py-2 text-center text-xs text-[#54656f] shadow-sm">No payments sent yet. Tap Single payment or Multi payment below.</p>}
+          {!msgs.length && !error && <p className="mx-auto mt-6 w-fit max-w-[85%] rounded-lg bg-[#fff5c4] px-3 py-2 text-center text-xs text-[#54656f] shadow-sm">{weekStart === curMonday ? 'No payments sent yet this week. Tap Single, Multi or Cash payment below.' : 'No payments in this week.'}</p>}
           {msgs.map(m => {
             const d = dayLabel(m.createdAt)
             const sep = d !== lastDay
@@ -499,7 +525,9 @@ export default function PaymentChatPage({ session, onOpenHistory }: { session: S
           <div ref={endRef} />
         </div>
 
-        {openIssue && <p className="mx-3 mb-1 rounded-lg bg-red-100 px-3 py-2 text-center text-xs font-medium text-red-700">Fix the red message above first. Then you can send the next screenshot.</p>}
+        {openIssue && (openIssueWeek && openIssueWeek !== weekStart
+          ? <button onClick={() => setWeekStart(openIssueWeek)} className="mx-3 mb-1 rounded-lg bg-red-100 px-3 py-2 text-center text-xs font-medium text-red-700">A payment from {weekRange(openIssueWeek)} needs fixing first. Tap here to open it.</button>
+          : <p className="mx-3 mb-1 rounded-lg bg-red-100 px-3 py-2 text-center text-xs font-medium text-red-700">Fix the red message above first. Then you can send the next screenshot.</p>)}
         {me.access.canChat === false && <p className="mx-3 mb-1 rounded-lg bg-amber-100 px-3 py-2 text-center text-xs text-amber-900">The chat is not switched on for you yet. Ask an Admin to switch it on.</p>}
 
         <div className="bg-[#f0f2f5]">

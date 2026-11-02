@@ -1,5 +1,6 @@
 'use client'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Session } from '@/types'
 import PaymentDiagram from '@/components/payments/PaymentDiagram'
 import { parseBankCsv, BankRow } from '@/components/payments/bankCsv'
@@ -498,13 +499,16 @@ function BankTab({ session, me }: { session: Session; me: Me }) {
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 // The manual-marking, history and bank-check parts of the Payments module. `fixedTab` shows just one of them (the module has its own tab bar).
-export default function PaymentMatchingPage({ session, fixedTab }: { session: Session; fixedTab?: 'collect' | 'records' | 'bank' }) {
+// `dateSlotId`: the id of an element (for example the green bar of the guarantor's history page) where the date bar is shown instead of inside the page.
+export default function PaymentMatchingPage({ session, fixedTab, dateSlotId }: { session: Session; fixedTab?: 'collect' | 'records' | 'bank'; dateSlotId?: string }) {
   const [me, setMe] = useState<Me | null>(null)
   const [error, setError] = useState('')
   const [tab, setTab] = useState<'collect' | 'records' | 'bank'>(fixedTab || 'collect')
   const [guarantorId, setGuarantorId] = useState('')
   const [date, setDate] = useState('')
   const [tick, setTick] = useState(0)
+  const [slot, setSlot] = useState<HTMLElement | null>(null)
+  useEffect(() => { setSlot(dateSlotId ? document.getElementById(dateSlotId) : null) }, [dateSlotId])
 
   useEffect(() => {
     api(session, '/api/payments?view=me').then((d: Me) => {
@@ -523,10 +527,17 @@ export default function PaymentMatchingPage({ session, fixedTab }: { session: Se
     ...(me.access.canBank ? [['bank', 'Bank check'] as const] : []),
   ]
   const needsGuarantor = tab !== 'bank' && !me.access.isGuarantor
+  const dateInHeader = !!slot && tab !== 'bank'
 
   return (
     <div className="space-y-4">
-      <div className={fixedTab && tab === 'bank' ? '' : `${card} space-y-3`}>
+      {dateInHeader && createPortal(
+        <div className="flex shrink-0 items-center rounded-full bg-white/15 ring-1 ring-white/20">
+          <button type="button" aria-label="Previous week" onClick={() => setDate(shiftDate(date, -7))} className="px-2 py-2 text-lg leading-none text-white">‹</button>
+          <input type="date" aria-label="Date" value={date} onChange={e => e.target.value && setDate(e.target.value)} className="w-[6.6rem] bg-transparent py-1.5 text-center text-[13px] font-semibold text-white outline-none [color-scheme:dark]" />
+          <button type="button" aria-label="Next week" onClick={() => setDate(shiftDate(date, 7))} className="px-2 py-2 text-lg leading-none text-white">›</button>
+        </div>, slot)}
+      <div className={fixedTab && tab === 'bank' ? '' : (dateInHeader && !needsGuarantor && !!fixedTab) ? 'hidden' : `${card} space-y-3`}>
         {!fixedTab && (<>
         <div>
           <h2 className="text-lg font-bold">{me.access.isGuarantor ? 'Payment history' : 'Payments'}</h2>
@@ -547,11 +558,11 @@ export default function PaymentMatchingPage({ session, fixedTab }: { session: Se
                 {me.guarantors.map(g => <option key={g.guarantorId} value={g.guarantorId}>{g.name}{g.code ? ` (${g.code})` : ''}</option>)}
               </select>
             )}
-            <div className="flex items-center gap-2">
+            {!dateInHeader && <div className="flex items-center gap-2">
               <button type="button" aria-label="Previous week" onClick={() => setDate(shiftDate(date, -7))} className="h-11 w-11 shrink-0 rounded-2xl border border-line text-lg">‹</button>
               <input type="date" className={input} value={date} onChange={e => e.target.value && setDate(e.target.value)} />
               <button type="button" aria-label="Next week" onClick={() => setDate(shiftDate(date, 7))} className="h-11 w-11 shrink-0 rounded-2xl border border-line text-lg">›</button>
-            </div>
+            </div>}
           </div>
         )}
       </div>

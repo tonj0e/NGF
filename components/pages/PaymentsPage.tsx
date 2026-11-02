@@ -48,13 +48,15 @@ export default function PaymentsPage({ session }: { session: Session }) {
         <PaymentChatPage session={session} onOpenHistory={canHistory ? () => setHistoryOpen(true) : undefined} />
         {historyOpen && (
           <div className="fixed inset-0 z-[55] flex flex-col bg-[#f0f2f5]">
-            <div className="flex items-center gap-3 bg-[#075e54] px-3 py-3 text-white">
+            <div className="flex items-center gap-1.5 bg-[#075e54] px-2.5 py-3 text-white">
               <button onClick={() => setHistoryOpen(false)} aria-label="Back to chat" className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-white/15">
                 <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 5l-7 7 7 7" /></svg>
               </button>
-              <p className="text-base font-semibold">Payment history</p>
+              <p className="min-w-0 flex-1 text-[15px] font-semibold leading-tight">Payment history</p>
+              {/* the date bar of the history page is shown here */}
+              <div id="history-date-slot" className="shrink-0" />
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto p-3"><PaymentMatchingPage session={session} fixedTab="records" /></div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-3"><PaymentMatchingPage session={session} fixedTab="records" dateSlotId="history-date-slot" /></div>
           </div>
         )}
       </>

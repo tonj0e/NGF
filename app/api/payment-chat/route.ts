@@ -11,7 +11,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const sp = new URL(req.url).searchParams
   const view = sp.get('view') || 'messages'
   try {
-    if (view === 'messages') return ok(await listMessages(session, access, sp.get('guarantorId') || ''))
+    if (view === 'messages') return ok(await listMessages(session, access, sp.get('guarantorId') || '', sp.get('weekStart') || ''))
     if (view === 'settings') { if (!access.isAdmin) return err('Only an Admin can see this', 403); return ok({ settings: await slipSettings(), usage: await slipUsage(access) }) }
     return err('Unknown view')
   } catch (e) {

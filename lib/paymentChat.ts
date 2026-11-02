@@ -79,9 +79,9 @@ export function collectionDay(): string {
 const WRONG_SHARE = 0.25   // wrong screenshots allowed, as a share of that Saturday's collections
 const WRONG_MIN = 5        // but never fewer than this
 
-export async function chatStats(guarantorId: string) {
+export async function chatStats(guarantorId: string, dayOverride = '') {
   const sb = getSupabase()
-  const day = collectionDay()
+  const day = dayOverride || collectionDay()
   const { data: loans } = await sb.from('loans').select('loan_id').eq('guarantor_id', guarantorId)
   const ids = (loans || []).map(l => l.loan_id)
   let due = 0, recorded = 0
@@ -115,7 +115,13 @@ function publicMsg(m: Row) {
 }
 export type ChatMessage = ReturnType<typeof publicMsg>
 
-export async function listMessages(session: Session, access: Access, guarantorId: string) {
+// Weeks run Monday to Sunday (India time). Any date is turned into the Monday of its week.
+const isoDay = (d: string) => /^\d{4}-\d{2}-\d{2}$/.test(d) && !Number.isNaN(Date.parse(`${d}T00:00:00Z`))
+const addDaysIso = (d: string, n: number) => { const t = new Date(`${d}T00:00:00Z`); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10) }
+const mondayOfIso = (d: string) => { const t = new Date(`${d}T00:00:00Z`); return addDaysIso(d, -((t.getUTCDay() + 6) % 7)) }
+const istDayOf = (iso: string) => new Date(new Date(iso).getTime() + 5.5 * 3600_000).toISOString().slice(0, 10)
+
+export async function listMessages(session: Session, access: Access, guarantorId: string, weekStart = '') {
   if (!access.canChat) throw new PaymentError('The chat is not switched on for you. Ask an Admin.')
   const gid = access.isGuarantor ? access.guarantorId : guarantorId
   const vis = await visibleSet(access)
@@ -123,10 +129,23 @@ export async function listMessages(session: Session, access: Access, guarantorId
   let q = sb.from('payment_chat').select('*').order('created_at', { ascending: false }).limit(120)
   if (gid) { if (vis && !vis.has(gid)) throw new PaymentError('This guarantor belongs to another branch'); q = q.eq('guarantor_id', gid) }
   else if (vis) q = q.in('guarantor_id', Array.from(vis).length ? Array.from(vis) : ['-'])
+  // One Monday-to-Sunday week when asked for (the guarantor chat); otherwise the latest messages as before
+  const monday = isoDay(weekStart) ? mondayOfIso(weekStart) : ''
+  if (monday) q = q.gte('created_at', `${monday}T00:00:00+05:30`).lt('created_at', `${addDaysIso(monday, 7)}T00:00:00+05:30`)
   const { data, error } = await q
   if (error) throw new Error(error.message)
   const msgs = (data || []).reverse().map(publicMsg)
-  return { messages: msgs, openIssue: msgs.some(m => m.needsFix), stats: gid ? await chatStats(gid) : null }
+  let openIssue = msgs.some(m => m.needsFix)
+  let openIssueWeek = ''
+  if (monday && gid && !openIssue) {
+    // A message that still needs fixing in another week still blocks the next screenshot, so say where it is
+    const { data: old } = await sb.from('payment_chat').select('created_at').eq('guarantor_id', gid).eq('kind', 'slip').in('status', FIX_STATUSES).order('created_at', { ascending: true }).limit(1)
+    if (old && old.length) { openIssue = true; openIssueWeek = mondayOfIso(istDayOf(old[0].created_at)) }
+  }
+  // Progress for the Saturday of that week (or the latest collection Saturday while that Saturday has not come yet)
+  let weekStats = null
+  if (monday && gid) { const sat = addDaysIso(monday, 5), cur = collectionDay(); weekStats = await chatStats(gid, sat <= cur ? sat : cur) }
+  return { messages: msgs, openIssue, openIssueWeek, stats: gid ? await chatStats(gid) : null, weekStats, weekStart: monday }
 }
 
 // ─── Submit a screenshot ─────────────────────────────────────────────────────
