@@ -504,18 +504,12 @@ export default function PaymentChatPage({ session, onOpenHistory }: { session: S
 
         <div className="bg-[#f0f2f5]">
           {me.access.canChat && (
-            <div className="grid grid-cols-3 gap-2 px-3 pt-2.5">
+            <div className="grid grid-cols-3 gap-2 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2.5">
               <button disabled={openIssue} onClick={() => startNew('single')} className="rounded-2xl bg-[#00a884] px-2 py-2.5 text-sm font-bold leading-tight text-white shadow-sm disabled:opacity-40">＋ Single<br />payment</button>
               <button disabled={openIssue} onClick={() => startNew('multi')} className="rounded-2xl bg-[#f97316] px-2 py-2.5 text-sm font-bold leading-tight text-white shadow-sm disabled:opacity-40">＋ Multi<br />payment</button>
               <button disabled={openIssue} onClick={() => startNew('cash')} className="rounded-2xl bg-[#2563eb] px-2 py-2.5 text-sm font-bold leading-tight text-white shadow-sm disabled:opacity-40">＋ Cash<br />payment</button>
             </div>
           )}
-          <div className="flex items-center gap-2 px-3 py-2.5">
-            <input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendNote()} placeholder="Write a message…" className="min-w-0 flex-1 rounded-full border-0 bg-white px-4 py-2.5 text-[15px] outline-none ring-1 ring-black/5" />
-            <button onClick={sendNote} disabled={!text.trim()} aria-label="Send" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#00a884] text-white shadow-sm transition disabled:opacity-50">
-              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor"><path d="M3.4 20.4 21 12 3.4 3.6 3.3 10.1 15 12 3.3 13.9z" /></svg>
-            </button>
-          </div>
         </div>
         {sheetEl}
         {toastEl}

@@ -68,3 +68,6 @@ For a guarantor (no Mark manually or Bank check permission) `PaymentsPage` shows
 
 ## Cash from the chat (2026-11-03)
 A third button **Cash payment** (blue; Single is green, Multi is orange) in the guarantor chat. It opens the same search window (customers appear only after typing; several customers allowed, no screenshot). **Mark paid as cash** asks once more ("Record ₹X as cash received…"), then `POST /api/payment-chat {action:'cash'}` → `submitCash` in `lib/paymentChat.ts`: checks the customers belong to the guarantor and are unpaid (`lineDetails`), records the payment through `markPayment` with mode `Cash` (same records and history as Mark manually; staff can edit or discard it there) and adds a chat bubble (`status Recorded`, `pay_app = 'Cash'`, `amount_read` = total, no image). Allowed for a guarantor with the chat permission, or staff who may mark payments. 60 cash entries per hour per user. Audit event `PAYMENT_CHAT_CASH`. The bubble shows "Cash received ✓" and "paid in cash".
+
+## Guarantor chat has no message box (2026-11-03)
+The guarantor chat no longer has the "Write a message…" box and send button: the chat is only for recording payments (Single, Multi, Cash). The office's replies (notes) still show as white bubbles. Staff and Admin keep their message box (`sendNote`, API action `note` unchanged).
