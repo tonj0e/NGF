@@ -400,7 +400,7 @@ export default function PaymentChatPage({ session, onOpenHistory }: { session: S
     const pct = stats && stats.due ? Math.round(stats.recorded / stats.due * 100) : 0
     let lastDay = ''
     return (
-      <div className="relative mx-auto flex h-[calc(100dvh-6.5rem)] min-h-[28rem] max-w-2xl flex-col overflow-hidden rounded-2xl bg-[#efeae2] shadow-panel ring-1 ring-black/10">
+      <div className="relative -mx-4 -mb-8 -mt-4 flex h-[calc(100dvh-3.75rem-env(safe-area-inset-top))] min-h-[28rem] flex-col overflow-hidden bg-[#efeae2] sm:-mx-6 md:-mb-4 lg:mx-auto lg:mb-0 lg:mt-0 lg:h-[calc(100dvh-7rem)] lg:max-w-2xl lg:rounded-2xl lg:shadow-panel lg:ring-1 lg:ring-black/10">
         <div className="bg-[#075e54] text-white">
           <div className="flex items-center gap-3 px-3 py-2.5">
             {/* eslint-disable-next-line @next/next/no-img-element */}
