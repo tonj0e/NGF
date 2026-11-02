@@ -2,7 +2,7 @@
    Purpose: make the site installable and open fast. It stores only the app's own unchanging files (scripts,
    styles, icons). It NEVER stores anything from /api or any signed-in data: customer and payment information
    always comes live from the server. If the phone is offline, a plain "You are offline" page is shown. */
-const VERSION = 'ngf-v1'
+const VERSION = 'ngf-v2'   // v2 (2026-11-03): clears the stale copies the dev address kept
 const STATIC_CACHE = `${VERSION}-static`
 const PRECACHE = ['/offline.html', '/icons/icon-192.png', '/icons/icon-512.png', '/ngflogo.png']
 
@@ -24,6 +24,8 @@ self.addEventListener('fetch', event => {
   if (req.method !== 'GET') return
   const url = new URL(req.url)
   if (url.origin !== self.location.origin) return                       // other sites: untouched
+  // Test addresses (this computer or the ngrok tunnel) rebuild the same file names on every change, so nothing is cached there
+  if (url.hostname === 'localhost' || url.hostname === '127.0.0.1' || /\.ngrok(-free)?\.(dev|app|io)$/.test(url.hostname)) return
   if (url.pathname.startsWith('/api/') || req.headers.has('authorization')) return   // live data: never cached
 
   // Pages: always ask the network first; if there is no connection show the offline page

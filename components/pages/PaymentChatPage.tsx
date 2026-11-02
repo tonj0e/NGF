@@ -75,7 +75,7 @@ function StatsStrip({ stats, onOpenHistory }: { stats: Stats; onOpenHistory?: ()
   )
 }
 
-function Thumb({ session, url }: { session: Session; url: string }) {
+function Thumb({ session, url, compact }: { session: Session; url: string; compact?: boolean }) {
   const [src, setSrc] = useState('')
   const [big, setBig] = useState(false)
   useEffect(() => {
@@ -88,11 +88,11 @@ function Thumb({ session, url }: { session: Session; url: string }) {
   }, [url, session.token])
   if (!url) return null
   if (src === 'error') return <p className="text-xs text-red-600">Could not load the picture</p>
-  if (!src) return <div className="h-40 w-28 animate-pulse rounded-xl bg-line" />
+  if (!src) return <div className={`h-40 animate-pulse rounded-xl bg-black/10 ${compact ? 'w-full' : 'w-28'}`} />
   return (
     <>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={src} alt="Payment screenshot" onClick={() => setBig(true)} className="max-h-56 w-auto cursor-zoom-in rounded-xl border border-line object-contain" />
+      <img src={src} alt="Payment screenshot" onClick={() => setBig(true)} className={compact ? 'max-h-48 w-full cursor-zoom-in rounded-lg border border-black/10 bg-white object-contain' : 'max-h-56 w-auto cursor-zoom-in rounded-xl border border-line object-contain'} />
       {big && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4" onClick={() => setBig(false)}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -158,6 +158,15 @@ function Bubble({ m, session, me, onFix, onApprove, busy }: { m: Msg; session: S
   )
 }
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+// "2026-10-31" + "09:05" -> "31 Oct 2026 · 9:05 am"
+function txnWhen(date: string, time: string) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date || '')
+  const d = m ? `${Number(m[3])} ${MONTHS[Number(m[2]) - 1]} ${m[1]}` : ''
+  const t = /^(\d{2}):(\d{2})$/.exec(time || '')
+  const tt = t ? `${Number(t[1]) % 12 || 12}:${t[2]} ${Number(t[1]) < 12 ? 'am' : 'pm'}` : ''
+  return [d, tt].filter(Boolean).join(' · ')
+}
 const istDay = (iso: string) => new Date(iso).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
 const clock = (iso: string) => new Date(iso).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase()
 function dayLabel(iso: string) {
@@ -185,32 +194,36 @@ function WaBubble({ m, session, onFix }: { m: Msg; session: Session; onFix: (m: 
     )
   }
   const ok = m.status === 'Recorded'
+  const total = m.lines.reduce((t, l) => t + l.amount, 0)
+  const when2 = txnWhen(m.txnDate, m.txnTime)
   return (
     <div className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-      <div className={box}>
+      <div className={`${box.replace('max-w-[86%]', 'max-w-[94%]').replace('sm:max-w-sm', 'sm:max-w-md')} w-full`}>
         {!mine && <p className="px-1 text-xs font-semibold text-[#1f7aec]">{m.createdByName}</p>}
-        {m.imageUrl && <div className="overflow-hidden rounded-md"><Thumb session={session} url={m.imageUrl} /></div>}
-        <div className="mt-1 space-y-0.5 px-1">
-          {m.lines.map(l => (
-            <div key={l.repaymentId} className="flex items-center justify-between gap-3 text-[13px] text-[#111b21]">
-              <span><b className="font-mono">{l.payCode}</b> · {l.name}</span><b>{money(l.amount)}</b>
-            </div>
-          ))}
-          <p className={`text-xs font-semibold ${ok ? 'text-emerald-700' : m.needsFix ? 'text-red-600' : 'text-amber-700'}`}>{LABEL[m.status] || m.status}</p>
-          {(m.utr || m.amountRead != null) && (
-            <p className="text-[11px] leading-snug text-[#667781]">
-              {m.amountRead != null && <>{money(m.amountRead)}</>}{m.utr && <>{m.amountRead != null ? ' · ' : ''}UTR <b className="font-mono">{m.utr}</b></>}{m.txnDate && <> · {m.txnDate}{m.txnTime ? ` ${m.txnTime}` : ''}</>}{m.payApp && <> · {m.payApp}</>}
-            </p>
-          )}
-          {m.problem && <p className={`rounded-md px-2 py-1 text-xs ${m.needsFix ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-800'}`}>{m.problem}</p>}
-          {m.needsFix && mine && (
-            <div className="grid grid-cols-2 gap-1.5 pt-1">
-              <button onClick={() => onFix(m, 'image')} className="rounded-md bg-[#075e54] px-2 py-1.5 text-xs font-semibold text-white">Send a new screenshot</button>
-              <button onClick={() => onFix(m, 'customer')} className="rounded-md bg-white px-2 py-1.5 text-xs font-semibold text-[#075e54] ring-1 ring-[#075e54]/30">Change customer</button>
-            </div>
-          )}
-          <p className="flex justify-end">{time}</p>
+        <div className="flex gap-2.5">
+          {m.imageUrl && <div className="w-[7.5rem] shrink-0"><Thumb session={session} url={m.imageUrl} compact /></div>}
+          <div className="min-w-0 flex-1 space-y-1.5 py-0.5 pr-1">
+            {m.lines.map(l => (
+              <div key={l.repaymentId} className="leading-tight">
+                <p className="font-mono text-lg font-extrabold text-[#111b21]">{l.payCode}</p>
+                <p className="truncate text-[13px] font-semibold text-[#111b21]">{l.name}</p>
+                {m.lines.length > 1 && <p className="text-xs font-semibold text-[#54656f]">{money(l.amount)}</p>}
+              </div>
+            ))}
+            <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-bold ${ok ? 'bg-emerald-600/15 text-emerald-800' : m.needsFix ? 'bg-red-500/15 text-red-700' : 'bg-amber-500/20 text-amber-800'}`}>{LABEL[m.status] || m.status}</span>
+            <p className="text-xl font-extrabold leading-none text-[#111b21]">{money(m.amountRead ?? total)}{ok && m.amountRead != null && <span className="ml-1.5 text-[11px] font-semibold text-[#667781]">received</span>}</p>
+            {m.utr && <p className="text-[11px] leading-snug text-[#667781]">UTR<br /><b className="break-all font-mono text-[13px] text-[#111b21]">{m.utr}</b></p>}
+            {(when2 || m.payApp) && <p className="text-[11px] leading-snug text-[#667781]">{when2}{when2 && m.payApp ? <br /> : null}{m.payApp && <>via <b className="text-[#111b21]">{m.payApp}</b></>}</p>}
+          </div>
         </div>
+        {m.problem && <p className={`mt-1.5 rounded-md px-2 py-1 text-xs ${m.needsFix ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-800'}`}>{m.problem}</p>}
+        {m.needsFix && mine && (
+          <div className="grid grid-cols-2 gap-1.5 pt-1.5">
+            <button onClick={() => onFix(m, 'image')} className="rounded-md bg-[#075e54] px-2 py-1.5 text-xs font-semibold text-white">Send a new screenshot</button>
+            <button onClick={() => onFix(m, 'customer')} className="rounded-md bg-white px-2 py-1.5 text-xs font-semibold text-[#075e54] ring-1 ring-[#075e54]/30">Change customer</button>
+          </div>
+        )}
+        <p className="flex justify-end pt-0.5">{time}</p>
       </div>
     </div>
   )
@@ -324,51 +337,74 @@ export default function PaymentChatPage({ session, onOpenHistory }: { session: S
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center" onClick={() => !sending && setOpen(false)}>
           <div className="max-h-[92dvh] w-full max-w-lg space-y-3 overflow-y-auto rounded-t-[1.75rem] bg-white p-5 shadow-panel sm:rounded-[1.75rem]" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
-              <p className="text-base font-semibold">{fixId ? 'Fix this payment' : mode === 'multi' ? 'Multi payment' : 'Single payment'}</p>
-              <button disabled={sending} onClick={() => setOpen(false)} className="text-sm text-soft">Close</button>
+              <p className="text-lg font-bold text-[#111b21]">{fixId ? 'Fix this payment' : mode === 'multi' ? 'Multi payment' : 'Single payment'}</p>
+              <button disabled={sending} onClick={() => setOpen(false)} className="rounded-full bg-mist px-3.5 py-1.5 text-sm font-semibold text-soft">Close</button>
             </div>
 
-            {fixKind !== 'image' && (
-              <div className="space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-wider text-soft">{mode === 'multi' ? 'Customers (add each one)' : 'Customer'}</p>
-                <input autoFocus value={q} onChange={e => setQ(e.target.value)} inputMode="search" placeholder="Search the 4-digit ID or name" className="w-full rounded-2xl border border-line px-4 py-3 text-sm outline-none focus:border-ink" />
-                {(q.trim() || (mode === 'multi' && picked.length > 0) || !picked.length) && results.length > 0 && (
-                  <div className="max-h-48 overflow-y-auto rounded-2xl border border-line">
-                    {results.map(r => (
-                      <button key={r.repaymentId} onClick={() => pick(r)} className="flex w-full items-center justify-between gap-2 border-b border-line px-4 py-2.5 text-left text-sm last:border-0 hover:bg-mist">
-                        <span><b className="font-mono">{r.payCode}</b> · {r.name}<span className="ml-1 text-xs text-soft">{r.weekNo ? `week ${r.weekNo}` : ''}{r.dueDate ? ` · due ${r.dueDate.slice(5).split('-').reverse().join('/')}` : ''}</span>{r.overdue && <span className="ml-1 text-xs text-red-600">overdue</span>}</span>
-                        <span className="font-semibold">{money(r.amount)}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {q.trim() && results.length === 0 && <p className="text-xs text-soft">No unpaid customer found for that.</p>}
-              </div>
-            )}
+            {/* 1. Customer: results appear only after the person types something */}
+            <div className="space-y-2">
+              <p className="text-xs font-bold uppercase tracking-wider text-[#075e54]">1 · {mode === 'multi' ? 'Customers (add each one)' : 'Customer'}</p>
+              {fixKind !== 'image' && (mode === 'multi' || !picked.length) && (
+                <>
+                  <input autoFocus value={q} onChange={e => setQ(e.target.value)} inputMode="search" placeholder={mode === 'multi' && picked.length ? 'Add another customer: 4-digit ID or name' : 'Type the 4-digit ID or name'} className="w-full rounded-2xl border border-line bg-mist px-4 py-3 text-[15px] outline-none focus:border-[#00a884] focus:bg-white" />
+                  {q.trim() && results.length > 0 && (
+                    <div className="max-h-52 overflow-y-auto rounded-2xl border border-line">
+                      {results.map(r => (
+                        <button key={r.repaymentId} onClick={() => pick(r)} className="flex w-full items-center justify-between gap-2 border-b border-line px-4 py-2.5 text-left text-sm last:border-0 hover:bg-mist">
+                          <span><b className="font-mono">{r.payCode}</b> · {r.name}<span className="ml-1 text-xs text-soft">{r.weekNo ? `week ${r.weekNo}` : ''}{r.dueDate ? ` · due ${r.dueDate.slice(5).split('-').reverse().join('/')}` : ''}</span>{r.overdue && <span className="ml-1 text-xs text-red-600">overdue</span>}</span>
+                          <span className="font-semibold">{money(r.amount)}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {q.trim() && results.length === 0 && <p className="text-xs text-soft">No unpaid customer found for that.</p>}
+                </>
+              )}
+              {picked.map(p => (
+                <div key={p.repaymentId} className="flex items-center gap-3 rounded-2xl bg-emerald-50 p-3 ring-1 ring-emerald-300">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#00a884] text-white">
+                    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+                  </span>
+                  <span className="min-w-0 flex-1 leading-tight">
+                    <b className="block font-mono text-lg">{p.payCode}</b>
+                    <span className="block truncate text-sm font-semibold text-[#111b21]">{p.name}</span>
+                  </span>
+                  <b className="shrink-0 text-base">{money(p.amount)}</b>
+                  {fixKind !== 'image' && (
+                    <button onClick={() => setPicked(picked.filter(x => x.repaymentId !== p.repaymentId))} className="shrink-0 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-red-600 ring-1 ring-red-200">{mode === 'multi' ? 'Remove' : 'Change'}</button>
+                  )}
+                </div>
+              ))}
+              {picked.length > 0 && (
+                <div className="flex items-center justify-between rounded-2xl bg-[#075e54] px-4 py-3 text-white">
+                  <span className="text-sm font-medium text-white/85">{mode === 'multi' ? 'Total to match' : 'Amount to pay'}</span>
+                  <span className="text-2xl font-extrabold">{money(total)}</span>
+                </div>
+              )}
+              {mode === 'multi' && picked.length > 0 && fixKind !== 'image' && <p className="text-xs text-soft">The screenshot amount must equal the total.</p>}
+            </div>
 
-            {picked.length > 0 && (
-              <div className="space-y-1">
-                {picked.map(p => (
-                  <div key={p.repaymentId} className="flex items-center justify-between gap-2 rounded-xl bg-mist px-3 py-2 text-sm">
-                    <span><b className="font-mono">{p.payCode}</b> · {p.name}</span>
-                    <span className="flex items-center gap-2"><b>{money(p.amount)}</b>
-                      {fixKind !== 'image' && <button onClick={() => setPicked(picked.filter(x => x.repaymentId !== p.repaymentId))} className="text-red-600" aria-label="Remove">✕</button>}</span>
-                  </div>
-                ))}
-                <p className="text-right text-sm font-semibold">Total to match: {money(total)}</p>
-              </div>
-            )}
-            {mode === 'multi' && picked.length > 0 && fixKind !== 'image' && <p className="text-xs text-soft">Add another customer by searching again. The screenshot amount must equal the total.</p>}
-
+            {/* 2. Screenshot */}
             {picked.length > 0 && fixKind !== 'customer' && (
               <div className="space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-wider text-soft">Payment screenshot</p>
-                <label className="flex cursor-pointer items-center justify-center rounded-2xl border-2 border-dashed border-line px-4 py-5 text-sm font-semibold text-ink">
-                  {img ? 'Change screenshot' : 'Upload screenshot'}
+                <p className="text-xs font-bold uppercase tracking-wider text-[#075e54]">2 · Payment screenshot</p>
+                <label className="block cursor-pointer">
+                  {img ? (
+                    <span className="flex items-center gap-3 rounded-2xl bg-emerald-50 p-2.5 ring-1 ring-emerald-300">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={img.preview} alt="Selected screenshot" className="h-24 w-16 shrink-0 rounded-lg border border-line bg-white object-cover object-top" />
+                      <span className="min-w-0 flex-1 leading-tight"><b className="block text-sm text-emerald-800">Screenshot added ✓</b><span className="text-xs text-soft">Check it is the right payment</span></span>
+                      <span className="shrink-0 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-[#075e54] ring-1 ring-[#075e54]/30">Change</span>
+                    </span>
+                  ) : (
+                    <span className="flex flex-col items-center gap-1.5 rounded-2xl border-2 border-dashed border-[#00a884]/50 bg-emerald-50/60 px-4 py-6 text-center">
+                      <svg viewBox="0 0 24 24" className="h-8 w-8 text-[#00a884]" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="16" rx="3" /><circle cx="9" cy="10" r="1.8" /><path d="M21 16l-5-5-8 9" /></svg>
+                      <b className="text-sm text-[#075e54]">Tap to add the payment screenshot</b>
+                      <span className="text-xs text-soft">The success screen of Google Pay, PhonePe or Paytm</span>
+                    </span>
+                  )}
                   <input type="file" accept="image/*" className="hidden" onChange={e => onFile(e.target.files?.[0])} />
                 </label>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                {img && <img src={img.preview} alt="Selected screenshot" className="mx-auto max-h-56 rounded-xl border border-line" />}
               </div>
             )}
 
@@ -378,7 +414,7 @@ export default function PaymentChatPage({ session, onOpenHistory }: { session: S
                 <input value={manualUtr} onChange={e => setManualUtr(e.target.value.toUpperCase())} placeholder="Transaction ID (UTR) from the screenshot" className="w-full rounded-xl border border-amber-200 bg-white px-3 py-2.5 font-mono text-sm" />
               </div>
             )}
-            <button disabled={sending || !picked.length || (fixKind !== 'customer' && !img) || (!!stats?.manualMode && manualUtr.trim().length < 8)} onClick={send} className="w-full rounded-2xl bg-ink px-4 py-3 text-sm font-semibold text-white disabled:opacity-40">
+            <button disabled={sending || !picked.length || (fixKind !== 'customer' && !img) || (!!stats?.manualMode && manualUtr.trim().length < 8)} onClick={send} className="flex w-full items-center justify-center gap-2 rounded-full bg-[#00a884] px-4 py-3.5 text-base font-bold text-white shadow-sm transition disabled:bg-gray-300 disabled:text-white/90">
               {sending ? (stats?.manualMode ? 'Recording…' : 'Reading the screenshot…') : 'Send'}
             </button>
           </div>
