@@ -5,6 +5,7 @@ import { Phone, Navigation, MapPin, X } from 'lucide-react'
 import RouteMap from '@/components/routes/RouteMap'
 import VerificationsPage from './VerificationsPage'
 import { fetchRoads } from '@/lib/clientRoads'
+import { openMapsClick } from '@/lib/openMaps'
 
 type Stop = {
   leadId: string; customerName: string; phone: string; altPhone?: string; altPhoneLabel?: string; place: string; address: string; landmark: string; guarantorName: string
@@ -179,13 +180,13 @@ export default function MyRoutePage({ session, active = true }: { session: Sessi
               </div>
               {s.kind === 'waypoint' && !s.done && (
                 <div className="mt-3 grid grid-cols-2 gap-2">
-                  {nav && <a href={nav} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-ink px-3 py-3 text-sm font-semibold text-white"><Navigation className="h-4 w-4" />Navigate</a>}
+                  {nav && <a href={nav} target="_blank" rel="noreferrer" onClick={openMapsClick(s.visitLat, s.visitLng)} className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-ink px-3 py-3 text-sm font-semibold text-white"><Navigation className="h-4 w-4" />Navigate</a>}
                   <button onClick={() => markWaypointDone(s.leadId)} disabled={!!busy} className="rounded-2xl bg-violet-600 px-3 py-3 text-sm font-bold text-white disabled:opacity-40">Mark done</button>
                 </div>
               )}
               {s.kind !== 'waypoint' && !s.done && (
                 <div className="mt-3 grid grid-cols-2 gap-2">
-                  {nav && <a href={nav} target="_blank" rel="noreferrer" onClick={() => s.visitStatus !== 'On the way' && setStatus(s.leadId, 'On the way')} className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-ink px-3 py-3 text-sm font-semibold text-white"><Navigation className="h-4 w-4" />Navigate</a>}
+                  {nav && <a href={nav} target="_blank" rel="noreferrer" onClick={e => { openMapsClick(s.visitLat, s.visitLng)(e); if (s.visitStatus !== 'On the way') setStatus(s.leadId, 'On the way') }} className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-ink px-3 py-3 text-sm font-semibold text-white"><Navigation className="h-4 w-4" />Navigate</a>}
                   {s.phone && <a href={`tel:${s.phone}`} className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-green-600 px-3 py-3 text-sm font-semibold text-white"><Phone className="h-4 w-4" />Call</a>}
                   {s.altPhone && <a href={`tel:${s.altPhone}`} className="inline-flex items-center justify-center gap-1.5 rounded-2xl border border-green-200 px-3 py-3 text-sm font-semibold text-green-700"><Phone className="h-4 w-4" />{s.altPhoneLabel || 'Other'}</a>}
                   {s.visitStatus === 'Reached'

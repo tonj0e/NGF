@@ -6,7 +6,7 @@
     "url": "https://secret.ngffincorp.com",
     "cleartext": false,
     "errorPath": "offline.html",
-    "allowNavigation": ["ngffincorp.com", "*.ngffincorp.com", "maps.google.com", "www.google.com", "maps.app.goo.gl"]
+    "allowNavigation": ["ngffincorp.com", "*.ngffincorp.com"]
   },
   "android": {
     "allowMixedContent": false,
