@@ -55,3 +55,10 @@ tags: [ngf, money, repayments, collection]
 
 ## Related
 - [[Money Brain]], [[Settlements]], [[Loan Products and Math]], [[Lead to Loan]], [[Enums and Status Values]], [[Tables]], [[Roles and Permissions]]
+
+## Paid / Not paid tab (2026-11-04)
+Collection page, tab **Paid / Not paid** (everyone who sees Collection; Staff need `collectionView`). Component `CollectionStatusTab` in `components/pages/CollectionPage.tsx`, data from `GET /api/collection-status` (`app/api/collection-status/route.ts`, read only, no migration).
+- Controls: **guarantor dropdown (Admin and Staff only**; Staff only among their branches' guarantors; a guarantor never gets the dropdown, the server ignores any `guarantorId` they send and returns no guarantor list), a collection-Saturday picker (‹ › arrows and a date input that snaps to the Saturday of that Monday-Sunday week), search (4 digits = last 4 digits of the loan id, otherwise name, mobile or loan id).
+- Summary bar for the whole day and scope: X of Y paid, progress line, To collect / Collected / Still to collect. Totals come from the existing database function `repayment_day_summary` (all and unpaid; paid = difference), so they are right even with thousands of customers.
+- Two buttons side by side, **Paid** (left) and **Not paid** (right, opens first), with counts. Not paid rows show the 4-digit code, name, amount, phone and Call button, "Overdue" for past days. Paid rows show UPI/Cash, paid date and the UTR (read from the repayment notes). Rows come 50 per page from the view `repayments_enriched` (`pageQuery`), sorted by guarantor then name; the guarantor name shows when "All guarantors" is chosen.
+- Refreshes every 20 s while open, so a payment recorded from the chat moves from Not paid to Paid by itself (and back when the office undoes it).

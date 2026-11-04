@@ -477,7 +477,7 @@ function HistoryTab({ session }: { session: Session }) {
 
 // ─── Main CollectionPage ─────────────────────────────────────────────────────
 
-type CollectionTab = 'all' | 'today' | 'list' | 'coming' | 'pastMonth' | 'history'
+type CollectionTab = 'all' | 'today' | 'list' | 'coming' | 'pastMonth' | 'history' | 'status'
 
 // ─── Tap-to-call button (triggers the dialer on mobile) ──────────────────────
 
@@ -611,6 +611,140 @@ function CollectionListTab({ session }: { session: Session }) {
   )
 }
 
+
+// ─── Paid / Not paid for one collection Saturday ─────────────────────────────
+const addDaysIso = (d: string, n: number) => { const t = new Date(`${d}T00:00:00Z`); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10) }
+const saturdayOfWeek = (d: string) => { const t = new Date(`${d}T00:00:00Z`); return addDaysIso(d, -((t.getUTCDay() + 6) % 7) + 5) }
+const thisSaturday = () => { const t = new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10); const dy = new Date(`${t}T00:00:00Z`).getUTCDay(); return addDaysIso(t, dy === 6 ? 0 : 6 - dy) }
+const prettyDay = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' })
+
+type StatusRow = { repaymentId: string; name: string; code: string; phone: string; amount: number; weekNo: number; guarantorName: string; paidDate: string; mode: string; utr: string; overdue: boolean }
+type StatusData = {
+  date: string; rows: StatusRow[]; total: number; page: number; totalPages: number
+  summary: { dueCount: number; dueTotal: number; paidCount: number; paidTotal: number; unpaidCount: number; unpaidTotal: number }
+  guarantors: { guarantorId: string; name: string; code: string }[]
+}
+
+function CollectionStatusTab({ session }: { session: Session }) {
+  const picker = session.role === 'Admin' || session.role === 'Staff'   // only Admin and Staff choose a guarantor
+  const [date, setDate] = useState(thisSaturday())
+  const [guarantorId, setGuarantorId] = useState('')
+  const [status, setStatus] = useState<'paid' | 'unpaid'>('unpaid')
+  const [q, setQ] = useState('')
+  const [page, setPage] = useState(1)
+  const [data, setData] = useState<StatusData | null>(null)
+  const [guarantors, setGuarantors] = useState<StatusData['guarantors']>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const PAGE = 50
+  const isThis = date === thisSaturday()
+
+  useEffect(() => { setPage(1) }, [date, guarantorId, status, q])
+  const load = useCallback(async (quiet: boolean) => {
+    if (!quiet) setLoading(true)
+    try {
+      const p = new URLSearchParams({ date, status, page: String(page), pageSize: String(PAGE) })
+      if (picker && guarantorId) p.set('guarantorId', guarantorId)
+      if (q.trim()) p.set('q', q.trim())
+      const res = await fetch(`/api/collection-status?${p}`, { headers: { Authorization: `Bearer ${session.token}` } })
+      const j = await res.json()
+      if (!j.success) throw new Error(j.error || 'Could not load')
+      setData(j.data); setError('')
+      if (j.data.guarantors?.length) setGuarantors(j.data.guarantors)
+    } catch (e) { setError(e instanceof Error ? e.message : 'Could not load') }
+    setLoading(false)
+  }, [date, status, page, guarantorId, q, picker, session.token])
+  useEffect(() => { const t = setTimeout(() => load(false), q ? 300 : 0); return () => clearTimeout(t) }, [load, q])
+  // Payments recorded from the chat move across by themselves
+  useEffect(() => { const t = setInterval(() => { if (!document.hidden) load(true) }, 20000); return () => clearInterval(t) }, [load])
+
+  const s = data?.summary
+  const pct = s && s.dueCount ? Math.round(s.paidCount / s.dueCount * 100) : 0
+  const seg = (k: 'paid' | 'unpaid', label: string, n: number | undefined, tone: string) => (
+    <button onClick={() => setStatus(k)} className={`flex-1 rounded-2xl px-3 py-3 text-sm font-bold transition ${status === k ? `${tone} text-white shadow` : 'border border-line bg-white text-soft'}`}>
+      {label}{n != null && <span className="ml-1.5 opacity-80">({n})</span>}
+    </button>
+  )
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        {picker && (
+          <select value={guarantorId} onChange={e => setGuarantorId(e.target.value)} className="min-w-0 flex-1 rounded-2xl border border-line bg-white px-4 py-2.5 text-sm sm:max-w-xs">
+            <option value="">All guarantors</option>
+            {guarantors.map(g => <option key={g.guarantorId} value={g.guarantorId}>{g.name}{g.code ? ` (${g.code})` : ''}</option>)}
+          </select>
+        )}
+        <div className="flex items-center gap-1.5">
+          <button onClick={() => setDate(addDaysIso(date, -7))} aria-label="Earlier Saturday" className="rounded-xl border border-line bg-white px-3 py-2 text-lg leading-none">‹</button>
+          <label className="relative block rounded-2xl border border-line bg-white px-3 py-1.5 text-center">
+            <span className="block text-[10px] font-medium leading-tight text-soft">{isThis ? 'This Saturday' : 'Collection day'}</span>
+            <span className="block text-sm font-bold leading-tight">{prettyDay(date)}</span>
+            <input type="date" value={date} onChange={e => e.target.value && setDate(saturdayOfWeek(e.target.value))} aria-label="Pick a date" className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
+          </label>
+          <button onClick={() => setDate(addDaysIso(date, 7))} aria-label="Later Saturday" className="rounded-xl border border-line bg-white px-3 py-2 text-lg leading-none">›</button>
+        </div>
+      </div>
+
+      {s && (
+        <div className="rounded-[1.5rem] bg-ink p-4 text-white">
+          <div className="flex items-end justify-between gap-3">
+            <p className="text-2xl font-extrabold leading-none">{s.paidCount} <span className="text-base font-semibold text-white/70">of {s.dueCount} paid</span></p>
+            <p className="text-sm font-bold text-emerald-300">{pct}%</p>
+          </div>
+          <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/20"><div className="h-full rounded-full bg-emerald-400 transition-all" style={{ width: `${pct}%` }} /></div>
+          <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+            <div className="rounded-xl bg-white/10 px-1 py-2"><p className="text-[10px] font-semibold uppercase text-white/60">To collect</p><p className="text-sm font-bold">{currency(s.dueTotal)}</p></div>
+            <div className="rounded-xl bg-emerald-500/25 px-1 py-2"><p className="text-[10px] font-semibold uppercase text-emerald-100/80">Collected</p><p className="text-sm font-bold">{currency(s.paidTotal)}</p></div>
+            <div className="rounded-xl bg-red-500/25 px-1 py-2"><p className="text-[10px] font-semibold uppercase text-red-100/80">Still to collect</p><p className="text-sm font-bold">{currency(s.unpaidTotal)}</p></div>
+          </div>
+        </div>
+      )}
+
+      <div className="flex gap-2">
+        {seg('paid', 'Paid', s?.paidCount, 'bg-emerald-600')}
+        {seg('unpaid', 'Not paid', s?.unpaidCount, 'bg-red-600')}
+      </div>
+
+      <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search the 4-digit code, name or mobile…" inputMode="search" className="w-full rounded-2xl border border-line bg-white px-4 py-2.5 text-sm" />
+      {error && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+
+      {loading && !data ? (
+        <div className="flex h-32 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-ink border-t-transparent" /></div>
+      ) : (
+        <div className="space-y-2">
+          {data?.rows.length === 0 && <p className="rounded-2xl bg-white p-6 text-center text-sm text-soft">{q ? 'No customer matches that search.' : status === 'paid' ? 'Nobody has paid yet for this day.' : 'Everyone has paid for this day. 🎉'}</p>}
+          {data?.rows.map(r => (
+            <div key={r.repaymentId} className="rounded-2xl border border-line bg-white p-3 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-mono text-lg font-extrabold leading-tight">{r.code}</p>
+                  <p className="truncate text-sm font-semibold">{r.name}</p>
+                  {picker && !guarantorId && <p className="text-[11px] text-soft">{r.guarantorName}</p>}
+                </div>
+                <div className="shrink-0 text-right">
+                  <p className="text-base font-extrabold">{currency(r.amount)}</p>
+                  <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-bold ${status === 'paid' ? 'bg-emerald-100 text-emerald-800' : r.overdue ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-800'}`}>{status === 'paid' ? 'Paid ✓' : r.overdue ? 'Overdue' : 'Not paid'}</span>
+                </div>
+              </div>
+              {status === 'paid' ? (
+                <p className="mt-1.5 text-xs text-soft">{r.mode || 'Paid'}{r.paidDate ? ` · ${r.paidDate}` : ''}{r.utr && <> · UTR <b className="break-all font-mono text-ink">{r.utr}</b></>}</p>
+              ) : (
+                <div className="mt-1.5 flex items-center gap-2 text-sm">
+                  <a href={`tel:${r.phone}`} className="font-mono text-soft hover:text-green-700">{r.phone}</a>
+                  {r.phone && <CallButton phone={r.phone} />}
+                  {r.weekNo > 0 && <span className="ml-auto text-xs text-soft">Week {r.weekNo}</span>}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      <Pager page={data?.page || 1} totalPages={data?.totalPages || 1} total={data?.total || 0} noun="customers" pageSize={PAGE} onPage={setPage} />
+    </div>
+  )
+}
+
 // Friday (IST) 5pm through end of Saturday — when guarantors may pull the sheet
 function isSheetWindowOpen() {
   const istOffset = 5.5 * 60 * 60 * 1000
@@ -659,6 +793,7 @@ export default function CollectionPage({ session, perms }: { session: Session; p
     { key: 'all',       label: 'All Pending',      roles: ['Admin', 'NGF AGENT', 'Staff'] },
     { key: 'today',     label: 'Today (Saturday)' },
     { key: 'list',      label: 'List' },
+    { key: 'status',    label: 'Paid / Not paid' },
     { key: 'coming',    label: 'Coming Saturday',  roles: ['Admin', 'NGF AGENT', 'Staff'] },
     { key: 'pastMonth', label: 'Past Month',        roles: ['Admin', 'Staff'] },
     { key: 'history',   label: 'History',           roles: ['Admin', 'Staff'] },
@@ -710,6 +845,7 @@ export default function CollectionPage({ session, perms }: { session: Session; p
       {tab === 'all'       && <PendingList apiMode=""       session={session} reviewOptions={reviewOptions} />}
       {tab === 'today'     && <PendingList apiMode="today"  session={session} reviewOptions={reviewOptions} />}
       {tab === 'list'      && <CollectionListTab session={session} />}
+      {tab === 'status'    && <CollectionStatusTab session={session} />}
       {tab === 'coming'    && <ComingSaturdayTab session={session} reviewOptions={reviewOptions} />}
       {tab === 'pastMonth' && <PastMonthTab session={session} />}
       {tab === 'history'   && <HistoryTab session={session} />}
