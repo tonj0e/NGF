@@ -32,6 +32,8 @@ export const FIELDS: Field[] = [
   // AI reader for payment screenshots (Payments > Chat)
   { name: 'SENTRY_DSN', group: 'monitor', label: 'Sentry key (DSN)', secret: true, hint: 'sentry.io > Settings > Projects > your project > Client Keys (DSN). A long address starting with https://. Used straight away, no rebuild' },
   { name: 'ANTHROPIC_API_KEY', group: 'ai', label: 'Claude API key', secret: true, hint: 'console.anthropic.com > API keys. Paid, most accurate. Set a monthly spending limit there' },
+  { name: 'OPENROUTER_API_KEY', group: 'ai', label: 'OpenRouter API key', secret: true, hint: 'openrouter.ai > Keys. Lets the reader use Claude and other models from your OpenRouter credit. Set a spending limit on the key there' },
+  { name: 'OPENROUTER_MODEL', group: 'ai', label: 'OpenRouter model', secret: false, placeholder: 'anthropic/claude-haiku-5.5', hint: 'Must be a vision model (one that can read images). Empty = the default shown here' },
   { name: 'NVIDIA_API_KEY', group: 'ai', label: 'NVIDIA API key', secret: true, hint: 'build.nvidia.com > your API key. Free, for testing' },
   { name: 'NVIDIA_MODEL', group: 'ai', label: 'NVIDIA model', secret: false, placeholder: 'nvidia/nemotron-nano-12b-v2-vl', hint: 'Must be a vision model (one that can read images). Empty = the default shown here' },
   // Payment gateway

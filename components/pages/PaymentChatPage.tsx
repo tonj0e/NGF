@@ -15,7 +15,7 @@ type Msg = {
   createdByName: string; createdBy: string; createdAt: string; needsFix: boolean; manual: boolean; reader: string
 }
 type SheetRow = { repaymentId: string; customerId: string; name: string; phone: string; payCode: string; weekNo: number | null; dueDate: string; amount: number; status: string; overdue: boolean; payment: unknown | null }
-type Settings = { enabled: boolean; dailyCap: number; guarantorCap: number; payee: string; keyPresent: boolean; model: string; provider: string; keys: { claude: boolean; nvidia: boolean }; nvidiaModel: string }
+type Settings = { enabled: boolean; dailyCap: number; guarantorCap: number; payee: string; keyPresent: boolean; model: string; provider: string; keys: { claude: boolean; openrouter: boolean; nvidia: boolean }; nvidiaModel: string; openrouterModel: string }
 type TestResult = { ok: boolean; provider: string; model: string; ms: number; reading: Record<string, unknown> | null; inTokens: number; outTokens: number; costUsd: number; error: string }
 type Usage = { today: { reads: number; usd: number }; week: { reads: number; usd: number }; month: { reads: number; usd: number } }
 
@@ -613,12 +613,13 @@ export function ChatSettings({ session }: { session: Session }) {
           <div className="space-y-2 rounded-xl bg-mist p-3">
             <p className="text-xs font-semibold uppercase tracking-wider text-soft">Reader</p>
             <select value={d.settings.provider} onChange={e => save({ provider: e.target.value })} className="w-full rounded-xl border border-line bg-white px-3 py-2 text-sm">
-              <option value="auto">Automatic (Claude if its key is set, otherwise NVIDIA)</option>
-              <option value="claude">Claude (paid, most accurate)</option>
+              <option value="auto">Automatic (Claude, then OpenRouter, then NVIDIA, whichever key is set)</option>
+              <option value="claude">Claude (paid, own Anthropic key)</option>
+              <option value="openrouter">Claude through OpenRouter (paid from OpenRouter credit)</option>
               <option value="nvidia">NVIDIA Nemotron (free, for testing)</option>
             </select>
-            <p className="text-xs text-soft">Claude key: <b>{d.settings.keys.claude ? 'set' : 'not set'}</b> · NVIDIA key: <b>{d.settings.keys.nvidia ? 'set' : 'not set'}</b> · NVIDIA model: <span className="font-mono">{d.settings.nvidiaModel}</span></p>
-            <p className="text-xs text-soft">Keys and the NVIDIA model are entered in Dev &gt; AI Reader.</p>
+            <p className="text-xs text-soft">Claude key: <b>{d.settings.keys.claude ? 'set' : 'not set'}</b> · OpenRouter key: <b>{d.settings.keys.openrouter ? 'set' : 'not set'}</b> · OpenRouter model: <span className="font-mono">{d.settings.openrouterModel}</span> · NVIDIA key: <b>{d.settings.keys.nvidia ? 'set' : 'not set'}</b> · NVIDIA model: <span className="font-mono">{d.settings.nvidiaModel}</span></p>
+            <p className="text-xs text-soft">Keys and models are entered in Dev &gt; AI Reader.</p>
             <p className="text-xs text-soft">The NVIDIA free service is meant for trying things out and has its own speed limits. The picture is sent to NVIDIA for reading. Use it to test, then switch to Claude for real use.</p>
             <ReaderTest session={session} keys={d.settings.keys} />
           </div>
@@ -638,7 +639,7 @@ export function ChatSettings({ session }: { session: Session }) {
 }
 
 // Try a reader on one screenshot without recording anything. Run both readers on the same picture to compare.
-function ReaderTest({ session, keys }: { session: Session; keys: { claude: boolean; nvidia: boolean } }) {
+function ReaderTest({ session, keys }: { session: Session; keys: { claude: boolean; openrouter: boolean; nvidia: boolean } }) {
   const [img, setImg] = useState<{ mimeType: string; base64Data: string; preview: string } | null>(null)
   const [busy, setBusy] = useState('')
   const [res, setRes] = useState<TestResult[]>([])
@@ -649,7 +650,7 @@ function ReaderTest({ session, keys }: { session: Session; keys: { claude: boole
     setBusy(providers.join('+')); setErr(''); setRes([])
     try {
       const out: TestResult[] = []
-      for (const p of providers) out.push(await api(session, '/api/payment-chat', { action: 'testRead', provider: p, model: p === 'nvidia' ? model.trim() : undefined, image: { mimeType: img.mimeType, base64Data: img.base64Data } }))
+      for (const p of providers) out.push(await api(session, '/api/payment-chat', { action: 'testRead', provider: p, model: p !== 'claude' ? model.trim() : undefined, image: { mimeType: img.mimeType, base64Data: img.base64Data } }))
       setRes(out)
     } catch (e) { setErr(e instanceof Error ? e.message : 'Failed') }
     setBusy('')
@@ -663,10 +664,11 @@ function ReaderTest({ session, keys }: { session: Session; keys: { claude: boole
       </label>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       {img && <img src={img.preview} alt="Test screenshot" className="mx-auto max-h-40 rounded-lg border border-line" />}
-      {img && keys.nvidia && <input value={model} onChange={e => setModel(e.target.value)} placeholder="NVIDIA model to try (empty = the saved one)" className="w-full rounded-xl border border-line bg-white px-3 py-2 font-mono text-xs" />}
+      {img && (keys.nvidia || keys.openrouter) && <input value={model} onChange={e => setModel(e.target.value)} placeholder="Model to try with NVIDIA / OpenRouter (empty = the saved one)" className="w-full rounded-xl border border-line bg-white px-3 py-2 font-mono text-xs" />}
       {img && (
         <div className="flex flex-wrap gap-2">
           <button disabled={!!busy || !keys.nvidia} onClick={() => run(['nvidia'])} className="rounded-xl bg-ink px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">Read with NVIDIA</button>
+          <button disabled={!!busy || !keys.openrouter} onClick={() => run(['openrouter'])} className="rounded-xl bg-ink px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">Read with OpenRouter</button>
           <button disabled={!!busy || !keys.claude} onClick={() => run(['claude'])} className="rounded-xl bg-ink px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">Read with Claude</button>
           <button disabled={!!busy || !keys.claude || !keys.nvidia} onClick={() => run(['nvidia', 'claude'])} className="rounded-xl border border-ink px-3 py-2 text-xs font-semibold disabled:opacity-40">Compare both</button>
         </div>
@@ -675,7 +677,7 @@ function ReaderTest({ session, keys }: { session: Session; keys: { claude: boole
       {err && <p className="text-xs text-red-600">{err}</p>}
       {res.map(r => (
         <div key={r.provider} className="rounded-xl bg-white p-3 text-xs ring-1 ring-black/5">
-          <p className="font-semibold">{r.provider === 'nvidia' ? 'NVIDIA' : 'Claude'} <span className="font-mono font-normal text-soft">{r.model}</span> · {(r.ms / 1000).toFixed(1)} s{r.costUsd ? ` · about ₹${(r.costUsd * INR_PER_USD).toFixed(2)}` : ' · free'}</p>
+          <p className="font-semibold">{r.provider === 'nvidia' ? 'NVIDIA' : r.provider === 'openrouter' ? 'OpenRouter' : 'Claude'} <span className="font-mono font-normal text-soft">{r.model}</span> · {(r.ms / 1000).toFixed(1)} s{r.costUsd ? ` · about ₹${(r.costUsd * INR_PER_USD).toFixed(2)}` : ' · free'}</p>
           {r.ok && r.reading ? (
             <dl className="mt-1 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
               {Object.entries(r.reading).map(([k, v]) => (<Fragment key={k}><dt className="text-soft">{k}</dt><dd className="font-mono break-all">{v === null ? '—' : String(v)}</dd></Fragment>))}

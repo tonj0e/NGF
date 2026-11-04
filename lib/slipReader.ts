@@ -64,23 +64,28 @@ async function getClient() {
   return client.c
 }
 
-export type Provider = 'claude' | 'nvidia'
-export const providerKeys = async () => ({ claude: !!(await getConfig('ANTHROPIC_API_KEY')), nvidia: !!(await getConfig('NVIDIA_API_KEY')) })
+export type Provider = 'claude' | 'openrouter' | 'nvidia'
+export const providerKeys = async () => ({ claude: !!(await getConfig('ANTHROPIC_API_KEY')), openrouter: !!(await getConfig('OPENROUTER_API_KEY')), nvidia: !!(await getConfig('NVIDIA_API_KEY')) })
 export const nvidiaModel = async () => (await getConfig('NVIDIA_MODEL')) || 'nvidia/nemotron-nano-12b-v2-vl'
-export const slipReaderConfigured = async () => { const k = await providerKeys(); return k.claude || k.nvidia }
-// 'auto' prefers Claude when its key is present, otherwise NVIDIA
+// OpenRouter lets one key use many models, including Claude (paid from the OpenRouter credit)
+export const openrouterModel = async () => (await getConfig('OPENROUTER_MODEL')) || 'anthropic/claude-haiku-5.5'
+export const slipReaderConfigured = async () => { const k = await providerKeys(); return k.claude || k.openrouter || k.nvidia }
+// 'auto' prefers Claude (own key), then Claude through OpenRouter, then NVIDIA
 export async function pickProvider(setting: string): Promise<Provider | null> {
   const k = await providerKeys()
   if (setting === 'claude') return k.claude ? 'claude' : null
+  if (setting === 'openrouter') return k.openrouter ? 'openrouter' : null
   if (setting === 'nvidia') return k.nvidia ? 'nvidia' : null
-  return k.claude ? 'claude' : k.nvidia ? 'nvidia' : null
+  return k.claude ? 'claude' : k.openrouter ? 'openrouter' : k.nvidia ? 'nvidia' : null
 }
 
 type ReadResult = { reading: SlipReading; inTokens: number; outTokens: number; costUsd: number; provider: Provider; model: string }
 type Media = 'image/jpeg' | 'image/png' | 'image/webp'
 
 export async function readSlip(base64: string, mediaType: Media, provider: Provider = 'claude', modelOverride?: string): Promise<ReadResult> {
-  return provider === 'nvidia' ? readWithNvidia(base64, mediaType, modelOverride) : readWithClaude(base64, mediaType)
+  if (provider === 'nvidia') return readWithNvidia(base64, mediaType, modelOverride)
+  if (provider === 'openrouter') return readWithOpenRouter(base64, mediaType, modelOverride)
+  return readWithClaude(base64, mediaType)
 }
 
 async function readWithClaude(base64: string, mediaType: Media): Promise<ReadResult> {
@@ -157,6 +162,44 @@ async function readWithNvidia(base64: string, mediaType: Media, modelOverride?: 
     out = await nvidiaCall(model, `Extract the payment details from this screenshot. <img src="data:${mediaType};base64,${base64}" />`)
   }
   return { reading: parseLoose(out.text), inTokens: out.inT, outTokens: out.outT, costUsd: 0, provider: 'nvidia', model }
+}
+
+// ─── OpenRouter (OpenAI-compatible; one key, many models, Claude included) ───
+
+const OPENROUTER_BASE = () => (process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1').replace(/\/$/, '')
+
+async function readWithOpenRouter(base64: string, mediaType: Media, modelOverride?: string): Promise<ReadResult> {
+  const model = modelOverride || await openrouterModel()
+  const apiKey = await getConfig('OPENROUTER_API_KEY')
+  const res = await fetch(`${OPENROUTER_BASE()}/chat/completions`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json', Accept: 'application/json', 'X-Title': 'NGF CRM' },
+    body: JSON.stringify({
+      model, max_tokens: 600, temperature: 0, stream: false, usage: { include: true },
+      messages: [
+        { role: 'system', content: SYSTEM + ' ' + JSON_SHAPE },
+        { role: 'user', content: [{ type: 'text', text: 'Extract the payment details from this screenshot.' }, { type: 'image_url', image_url: { url: `data:${mediaType};base64,${base64}` } }] },
+      ],
+    }),
+    signal: AbortSignal.timeout(45_000),
+  })
+  if (!res.ok) throw new Error(`OpenRouter ${res.status} with model "${model}": ${(await res.text().catch(() => '')).trim().slice(0, 200)}`)
+  const j = await res.json() as { choices?: { message?: { content?: string | null } }[]; usage?: { prompt_tokens?: number; completion_tokens?: number; cost?: number }; error?: { message?: string } }
+  const text = j.choices?.[0]?.message?.content
+  if (!text) throw new Error(`OpenRouter gave no answer${j.error?.message ? `: ${String(j.error.message).slice(0, 150)}` : ''}`)
+  const inTokens = j.usage?.prompt_tokens || 0, outTokens = j.usage?.completion_tokens || 0
+  // OpenRouter reports the real cost of the call (in US dollars)
+  return { reading: parseLoose(text), inTokens, outTokens, costUsd: Number(j.usage?.cost) || 0, provider: 'openrouter', model }
+}
+
+// Claude/vision models OpenRouter offers (public list), to help pick the model id. Empty when it cannot be fetched.
+export async function openrouterModelList(): Promise<string[]> {
+  try {
+    const res = await fetch(`${OPENROUTER_BASE()}/models`, { signal: AbortSignal.timeout(15_000) })
+    if (!res.ok) return []
+    const j = await res.json() as { data?: { id?: string; architecture?: { input_modalities?: string[] } }[] }
+    return (j.data || []).filter(m => m.architecture?.input_modalities?.includes('image') && /^anthropic\//.test(String(m.id))).map(m => String(m.id))
+  } catch { return [] }
 }
 
 // Models this NVIDIA key can call (to help pick a vision model). Empty list when it cannot be fetched.

@@ -8,7 +8,7 @@ import { getTodayIST, nowIST } from './dateUtils'
 import { getOrCreateFolder, saveFile, driveUrl } from './drive'
 import { APP_CONFIG } from './config'
 import { getAccess, markPayment, lookupUtr, normalizeUtr, validUtr, needGuarantor, PaymentError, type Access } from './payments'
-import { readSlip, slipReaderConfigured, providerKeys, pickProvider, nvidiaModel, nvidiaModelList, SLIP_MODEL, type SlipReading, type Provider } from './slipReader'
+import { readSlip, slipReaderConfigured, providerKeys, pickProvider, nvidiaModel, nvidiaModelList, openrouterModel, openrouterModelList, SLIP_MODEL, type SlipReading, type Provider } from './slipReader'
 import { payCodeFromLoanId } from './payCode'
 import { canSeeGuarantor, guarantorBranchMap } from './branchAccess'
 import type { Session } from '../types'
@@ -35,10 +35,10 @@ export async function slipSettings() {
     dailyCap: Math.max(0, Number(v(KEYS.dayCap) ?? 3000) || 0),
     guarantorCap: Math.max(0, Number(v(KEYS.guarantorCap) ?? 300) || 0),
     payee: String(v(KEYS.payee) ?? ''),
-    provider: ['claude', 'nvidia'].includes(String(v(KEYS.provider))) ? String(v(KEYS.provider)) : 'auto',
+    provider: ['claude', 'openrouter', 'nvidia'].includes(String(v(KEYS.provider))) ? String(v(KEYS.provider)) : 'auto',
     keys: await providerKeys(),
     keyPresent: await slipReaderConfigured(),
-    model: SLIP_MODEL, nvidiaModel: await nvidiaModel(),
+    model: SLIP_MODEL, nvidiaModel: await nvidiaModel(), openrouterModel: await openrouterModel(),
   }
 }
 export async function saveSlipSettings(access: Access, input: { enabled?: boolean; dailyCap?: number; guarantorCap?: number; payee?: string; provider?: string }) {
@@ -48,7 +48,7 @@ export async function saveSlipSettings(access: Access, input: { enabled?: boolea
   if (input.dailyCap !== undefined) rows.push({ key: KEYS.dayCap, value: String(Math.min(50000, Math.max(0, Math.floor(Number(input.dailyCap) || 0)))) })
   if (input.guarantorCap !== undefined) rows.push({ key: KEYS.guarantorCap, value: String(Math.min(5000, Math.max(0, Math.floor(Number(input.guarantorCap) || 0)))) })
   if (input.payee !== undefined) rows.push({ key: KEYS.payee, value: String(input.payee).slice(0, 200) })
-  if (input.provider !== undefined && ['auto', 'claude', 'nvidia'].includes(input.provider)) rows.push({ key: KEYS.provider, value: input.provider })
+  if (input.provider !== undefined && ['auto', 'claude', 'openrouter', 'nvidia'].includes(input.provider)) rows.push({ key: KEYS.provider, value: input.provider })
   if (rows.length) { const { error } = await getSupabase().from('settings').upsert(rows, { onConflict: 'key' }); if (error) throw new Error(error.message) }
   return slipSettings()
 }
@@ -428,8 +428,8 @@ export { getAccess }
 // Admin test: read one screenshot with a chosen reader and show the result. Nothing is saved or recorded.
 export async function testRead(access: Access, provider: string, image: { mimeType: string; base64Data: string } | null | undefined, model?: string) {
   if (!access.isAdmin) throw new PaymentError('Only an Admin can test the reader')
-  const prov = provider === 'nvidia' ? 'nvidia' : 'claude'
-  if (!(await providerKeys())[prov]) throw new PaymentError(prov === 'nvidia' ? 'No NVIDIA key is set (NVIDIA_API_KEY)' : 'No Claude key is set (ANTHROPIC_API_KEY)')
+  const prov: Provider = provider === 'nvidia' ? 'nvidia' : provider === 'openrouter' ? 'openrouter' : 'claude'
+  if (!(await providerKeys())[prov]) throw new PaymentError(prov === 'nvidia' ? 'No NVIDIA key is set (NVIDIA_API_KEY)' : prov === 'openrouter' ? 'No OpenRouter key is set (OPENROUTER_API_KEY)' : 'No Claude key is set (ANTHROPIC_API_KEY)')
   if (!image?.base64Data) throw new PaymentError('Send a JPG, PNG or WebP picture')
   let checked
   try { checked = checkUpload(image.base64Data, { maxBytes: MAX_IMAGE_BYTES, allow: ['image/jpeg', 'image/png', 'image/webp'] }) }
@@ -438,16 +438,19 @@ export async function testRead(access: Access, provider: string, image: { mimeTy
   const b64 = checked.buffer.toString('base64')
   const t0 = Date.now()
   try {
-    const m = prov === 'nvidia' && model && /^[\w.\-/]{3,120}$/.test(model) ? model : undefined
+    const m = prov !== 'claude' && model && /^[\w.\-/]{3,120}$/.test(model) ? model : undefined
     const r = await readSlip(b64, media, prov, m)
     return { ok: true, provider: r.provider, model: r.model, ms: Date.now() - t0, reading: r.reading, inTokens: r.inTokens, outTokens: r.outTokens, costUsd: r.costUsd, error: '' }
   } catch (e) {
     let hint = ''
-    if (prov === 'nvidia') {
+    if (prov === 'openrouter') {
+      const all = await openrouterModelList()
+      hint = all.length ? ` Claude models OpenRouter offers: ${all.slice(0, 12).join(', ')}` : ' (Could not list the models.)'
+    } else if (prov === 'nvidia') {
       const all = await nvidiaModelList()
       const vis = all.filter(id => /vl|vision|vila|neva|omni|paligemma|phi-.*vision|llama-3\.2-\d+b-vision|gemma-3|kosmos|fuyu/i.test(id))
       hint = all.length ? ` Models this key can use that look like vision models: ${(vis.length ? vis : all).slice(0, 12).join(', ')}` : ' (Could not list the models for this key.)'
     }
-    return { ok: false, provider: prov, model: prov === 'nvidia' ? await nvidiaModel() : SLIP_MODEL, ms: Date.now() - t0, reading: null, inTokens: 0, outTokens: 0, costUsd: 0, error: (e instanceof Error ? e.message.slice(0, 300) : 'Failed') + hint }
+    return { ok: false, provider: prov, model: prov === 'nvidia' ? await nvidiaModel() : prov === 'openrouter' ? await openrouterModel() : SLIP_MODEL, ms: Date.now() - t0, reading: null, inTokens: 0, outTokens: 0, costUsd: 0, error: (e instanceof Error ? e.message.slice(0, 300) : 'Failed') + hint }
   }
 }
