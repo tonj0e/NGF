@@ -49,9 +49,9 @@ const TONE: Record<string, string> = {
   Recorded: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
   'Pending Staff': 'bg-amber-50 text-amber-700 ring-amber-200',
   'Needs Retake': 'bg-red-50 text-red-700 ring-red-200', Duplicate: 'bg-red-50 text-red-700 ring-red-200', 'Amount Mismatch': 'bg-red-50 text-red-700 ring-red-200',
-  'Wrong Payee': 'bg-red-50 text-red-700 ring-red-200', 'Not Successful': 'bg-red-50 text-red-700 ring-red-200',
+  'Wrong Payee': 'bg-red-50 text-red-700 ring-red-200', 'Not Successful': 'bg-red-50 text-red-700 ring-red-200', Resubmit: 'bg-red-50 text-red-700 ring-red-200',
 }
-const LABEL: Record<string, string> = { Recorded: 'Recorded ✓', 'Pending Staff': 'With the office', 'Needs Retake': 'Send a clearer screenshot', Duplicate: 'Already used', 'Amount Mismatch': 'Amount does not match', 'Wrong Payee': 'Wrong receiver', 'Not Successful': 'Payment not successful' }
+const LABEL: Record<string, string> = { Recorded: 'Recorded ✓', 'Pending Staff': 'With the office', 'Needs Retake': 'Send a clearer screenshot', Duplicate: 'Already used', 'Amount Mismatch': 'Amount does not match', 'Wrong Payee': 'Wrong receiver', 'Not Successful': 'Payment not successful', Resubmit: 'Send again (office asked)', Cancelled: 'Cancelled by the office' }
 
 function StatsStrip({ stats, onOpenHistory }: { stats: Stats; onOpenHistory?: () => void }) {
   const pct = stats.due ? Math.round(stats.recorded / stats.due * 100) : 0
@@ -103,9 +103,11 @@ function Thumb({ session, url, compact }: { session: Session; url: string; compa
   )
 }
 
-function Bubble({ m, session, me, onFix, onApprove, busy }: { m: Msg; session: Session; me: Me; onFix: (m: Msg, mode: 'image' | 'customer') => void; onApprove: (m: Msg, utr: string) => void; busy: boolean }) {
+function Bubble({ m, session, me, onFix, onApprove, onResubmit, busy }: { m: Msg; session: Session; me: Me; onFix: (m: Msg, mode: 'image' | 'customer') => void; onApprove: (m: Msg, utr: string) => void; onResubmit: (m: Msg, reason: string) => Promise<boolean>; busy: boolean }) {
   const mine = m.createdBy === session.userId
   const [utr, setUtr] = useState(m.utr)
+  const [askOpen, setAskOpen] = useState(false)
+  const [reason, setReason] = useState('')
   const staffView = !me.access.isGuarantor
   if (m.kind === 'note') {
     return (
@@ -152,6 +154,18 @@ function Bubble({ m, session, me, onFix, onApprove, busy }: { m: Msg; session: S
         )}
         {m.status === 'Pending Staff' && staffView && me.access.canChat && (
           <button onClick={() => onFix(m, 'image')} className="w-full rounded-xl border border-line px-3 py-2 text-xs font-semibold">Resubmit screenshot</button>
+        )}
+        {staffView && me.access.canChat && me.access.canMark && !m.needsFix && m.status !== 'Cancelled' && m.status !== 'Processing' && (
+          askOpen ? (
+            <div className="space-y-2 rounded-xl bg-red-50 p-2.5">
+              <p className="text-xs font-semibold text-red-800">Ask the guarantor to send this payment again{m.status === 'Recorded' ? '. The recorded payment will be UNDONE (the customer goes back to unpaid)' : ''}.</p>
+              <input data-no-upper value={reason} onChange={e => setReason(e.target.value)} maxLength={300} placeholder="What is wrong? The guarantor will read this" className="w-full rounded-lg border border-red-200 bg-white px-3 py-2 text-xs" />
+              <div className="grid grid-cols-2 gap-2">
+                <button onClick={() => { setAskOpen(false); setReason('') }} className="rounded-lg border border-line bg-white px-3 py-2 text-xs font-semibold">Cancel</button>
+                <button disabled={busy || reason.trim().length < 5} onClick={async () => { if (await onResubmit(m, reason)) { setAskOpen(false); setReason('') } }} className="rounded-lg bg-red-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-40">{m.status === 'Recorded' ? 'Undo and ask again' : 'Ask to send again'}</button>
+              </div>
+            </div>
+          ) : <button onClick={() => setAskOpen(true)} className="w-full rounded-xl border border-red-200 px-3 py-2 text-xs font-semibold text-red-700">Ask to send again</button>
         )}
       </div>
     </div>
@@ -223,7 +237,7 @@ function WaBubble({ m, session, onFix }: { m: Msg; session: Session; onFix: (m: 
           </div>
         </div>
         {m.problem && <p className={`mt-1.5 rounded-md px-2 py-1 text-xs ${m.needsFix ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-800'}`}>{m.problem}</p>}
-        {m.needsFix && mine && (
+        {m.needsFix && (mine || m.status === 'Resubmit') && (
           <div className="grid grid-cols-2 gap-1.5 pt-1.5">
             <button onClick={() => onFix(m, 'image')} className="rounded-md bg-[#075e54] px-2 py-1.5 text-xs font-semibold text-white">Send a new screenshot</button>
             <button onClick={() => onFix(m, 'customer')} className="rounded-md bg-white px-2 py-1.5 text-xs font-semibold text-[#075e54] ring-1 ring-[#075e54]/30">Change customer</button>
@@ -240,6 +254,7 @@ export default function PaymentChatPage({ session, onOpenHistory }: { session: S
   const [gid, setGid] = useState('')
   const [msgs, setMsgs] = useState<Msg[]>([])
   const [openIssue, setOpenIssue] = useState(false)
+  const [resubmits, setResubmits] = useState<Msg[]>([])   // payments the office asked to send again (any week)
   const [stats, setStats] = useState<Stats | null>(null)
   const [weekStats, setWeekStats] = useState<Stats | null>(null)
   const [openIssueWeek, setOpenIssueWeek] = useState('')
@@ -279,7 +294,7 @@ export default function PaymentChatPage({ session, onOpenHistory }: { session: S
     try {
       const wk = me.access.isGuarantor ? `&weekStart=${weekStart}` : ''
       const d = await api(session, `/api/payment-chat?view=messages&guarantorId=${encodeURIComponent(gid)}${wk}`)
-      setMsgs(d.messages); setOpenIssue(d.openIssue); setOpenIssueWeek(d.openIssueWeek || ''); setStats(d.stats || null); setWeekStats(d.weekStats || null); setError('')
+      setMsgs(d.messages); setResubmits(d.resubmits || []); setOpenIssue(d.openIssue); setOpenIssueWeek(d.openIssueWeek || ''); setStats(d.stats || null); setWeekStats(d.weekStats || null); setError('')
     } catch (e) { setError(e instanceof Error ? e.message : 'Failed to load') }
     inFlight.current = false
   }, [session, me, gid, weekStart])
@@ -288,7 +303,8 @@ export default function PaymentChatPage({ session, onOpenHistory }: { session: S
     const t = setInterval(() => { if (!document.hidden) load() }, 8000)
     return () => clearInterval(t)
   }, [load])
-  useEffect(() => { endRef.current?.scrollIntoView({ block: 'end' }) }, [msgs.length])
+  // New messages scroll to the bottom; while the office has asked for something to be sent again, the top (the important card) is shown first
+  useEffect(() => { if (resubmits.length) endRef.current?.parentElement?.scrollTo({ top: 0 }); else endRef.current?.scrollIntoView({ block: 'end' }) }, [msgs.length, resubmits.length])
 
   async function loadSheet(g: string) {
     try { const d = await api(session, `/api/payments?view=collect&guarantorId=${encodeURIComponent(g)}`); setSheet(d.rows) } catch (e) { flash(e instanceof Error ? e.message : 'Could not load customers') }
@@ -349,6 +365,11 @@ export default function PaymentChatPage({ session, onOpenHistory }: { session: S
     try { await api(session, '/api/payment-chat', { action: 'approve', messageId: m.messageId, utr }); await load(); flash('Recorded ✓') }
     catch (e) { flash(e instanceof Error ? e.message : 'Failed') }
     setBusy(false)
+  }
+  async function resubmit(m: Msg, reason: string): Promise<boolean> {
+    setBusy(true)
+    try { await api(session, '/api/payment-chat', { action: 'resubmit', messageId: m.messageId, reason }); await load(); flash('The guarantor has been asked to send it again'); setBusy(false); return true }
+    catch (e) { flash(e instanceof Error ? e.message : 'Failed'); setBusy(false); return false }
   }
   async function sendNote() {
     if (!text.trim() || !activeGid) return
@@ -504,6 +525,22 @@ export default function PaymentChatPage({ session, onOpenHistory }: { session: S
         </div>
 
         <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-3 py-3" style={{ backgroundImage: 'radial-gradient(rgba(0,0,0,0.05) 1px, transparent 1px)', backgroundSize: '18px 18px' }}>
+          {resubmits.length > 0 && (
+            <div className="mb-2 space-y-2 rounded-xl border-2 border-red-500 bg-red-50 p-2.5 shadow-md">
+              <p className="text-sm font-extrabold uppercase tracking-wide text-red-700">Important · send again first</p>
+              <p className="text-xs text-red-800">The office found a mistake. Send {resubmits.length === 1 ? 'this payment' : 'these payments'} again. You can send new payments after that.</p>
+              {resubmits.map(r => (
+                <div key={r.messageId} className="space-y-1.5 rounded-lg bg-white p-2 ring-1 ring-red-200">
+                  {r.lines.map(l => <p key={l.repaymentId} className="text-sm leading-tight"><b className="font-mono text-base">{l.payCode}</b> · <b>{l.name}</b> · {money(l.amount)}</p>)}
+                  <p className="text-xs text-red-700">{r.problem}</p>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button onClick={() => startFix(r, 'image')} className="rounded-md bg-red-600 px-2 py-1.5 text-xs font-bold text-white">Send a new screenshot</button>
+                    <button onClick={() => startFix(r, 'customer')} className="rounded-md bg-white px-2 py-1.5 text-xs font-semibold text-red-700 ring-1 ring-red-300">Change customer</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
           {stats && weekStart === curMonday && (
             <p className={`mx-auto mb-2 w-fit max-w-[92%] rounded-lg px-3 py-1.5 text-center text-xs shadow-sm ${stats.manualMode ? 'bg-red-100 text-red-800' : stats.wrongLeft <= 3 ? 'bg-amber-100 text-amber-900' : 'bg-[#fff5c4] text-[#54656f]'}`}>
               {stats.manualMode ? `All ${stats.wrongAllowed} wrong tries used. Type the transaction ID with each screenshot` : `Wrong screenshots left: ${stats.wrongLeft} of ${stats.wrongAllowed}`}
@@ -561,7 +598,7 @@ export default function PaymentChatPage({ session, onOpenHistory }: { session: S
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto rounded-[1.75rem] bg-line p-3 sm:p-4">
         {error && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
         {!msgs.length && !error && <p className="py-10 text-center text-sm text-soft">{isG ? 'No payments sent yet. Tap Single payment or Multi payment below.' : 'No screenshots yet.'}</p>}
-        {msgs.map(m => <Bubble key={m.messageId} m={m} session={session} me={me} onFix={startFix} onApprove={approve} busy={busy} />)}
+        {msgs.map(m => <Bubble key={m.messageId} m={m} session={session} me={me} onFix={startFix} onApprove={approve} onResubmit={resubmit} busy={busy} />)}
         <div ref={endRef} />
       </div>
 

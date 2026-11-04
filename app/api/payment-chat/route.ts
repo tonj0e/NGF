@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, getSession, ok, err } from '@/lib/api'
 import { getAccess, PaymentError } from '@/lib/payments'
-import { listMessages, submitSlip, submitCash, postNote, approveMessage, slipSettings, saveSlipSettings, slipUsage, testRead } from '@/lib/paymentChat'
+import { listMessages, submitSlip, submitCash, postNote, approveMessage, requestResubmit, slipSettings, saveSlipSettings, slipUsage, testRead } from '@/lib/paymentChat'
 import { createAuditLogger } from '@/lib/audit'
 
 // Payment Chat (screenshots sent by guarantors). The customer list for the search box comes from /api/payments?view=collect.
@@ -42,6 +42,11 @@ export const POST = apiHandler(async (req: NextRequest) => {
         await approveMessage(session, access, String(body.messageId || ''), String(body.utr || ''))
         await audit.log('PAYMENT_CHAT_APPROVE', 'PaymentChat', String(body.messageId), {})
         return ok({ success: true })
+      }
+      case 'resubmit': {
+        const r = await requestResubmit(session, access, String(body.messageId || ''), String(body.reason || ''))
+        await audit.log('PAYMENT_CHAT_RESUBMIT', 'PaymentChat', String(body.messageId), { guarantorId: r.guarantorId, wasRecorded: r.wasRecorded, status: r.status, reason: String(body.reason || '').slice(0, 300) })
+        return ok({ success: true, status: r.status })
       }
       case 'testRead': return ok(await testRead(access, String(body.provider || ''), body.image, body.model ? String(body.model) : undefined))
       case 'settings': {

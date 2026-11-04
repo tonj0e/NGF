@@ -7,7 +7,7 @@ import { getSupabase, readTable, makeId } from './supabase-db'
 import { getTodayIST, nowIST } from './dateUtils'
 import { getOrCreateFolder, saveFile, driveUrl } from './drive'
 import { APP_CONFIG } from './config'
-import { getAccess, markPayment, lookupUtr, normalizeUtr, validUtr, needGuarantor, PaymentError, type Access } from './payments'
+import { getAccess, markPayment, undoPaymentGroup, lookupUtr, normalizeUtr, validUtr, needGuarantor, PaymentError, type Access } from './payments'
 import { readSlip, slipReaderConfigured, providerKeys, pickProvider, nvidiaModel, nvidiaModelList, openrouterModel, openrouterModelList, SLIP_MODEL, type SlipReading, type Provider } from './slipReader'
 import { payCodeFromLoanId } from './payCode'
 import { canSeeGuarantor, guarantorBranchMap } from './branchAccess'
@@ -18,7 +18,8 @@ import { checkUploadRate } from './uploadRate'
 import { rateLimitKey } from './rate-limiter'
 
 // Statuses where the guarantor must fix this message before sending the next screenshot
-export const FIX_STATUSES = ['Needs Retake', 'Duplicate', 'Amount Mismatch', 'Wrong Payee', 'Not Successful']
+// 'Resubmit' = the office asked for this payment to be sent again. Like the others it blocks new payments until it is fixed.
+export const FIX_STATUSES = ['Needs Retake', 'Duplicate', 'Amount Mismatch', 'Wrong Payee', 'Not Successful', 'Resubmit']
 const MAX_IMAGE_BYTES = 3 * 1024 * 1024
 
 type Row = Record<string, any>
@@ -145,7 +146,13 @@ export async function listMessages(session: Session, access: Access, guarantorId
   // Progress for the Saturday of that week (or the latest collection Saturday while that Saturday has not come yet)
   let weekStats = null
   if (monday && gid) { const sat = addDaysIso(monday, 5), cur = collectionDay(); weekStats = await chatStats(gid, sat <= cur ? sat : cur) }
-  return { messages: msgs, openIssue, openIssueWeek, stats: gid ? await chatStats(gid) : null, weekStats, weekStart: monday }
+  // Payments the office asked to be sent again, from any week: shown at the top as important
+  let resubmits: ChatMessage[] = []
+  if (gid) {
+    const { data: rs } = await sb.from('payment_chat').select('*').eq('guarantor_id', gid).eq('kind', 'slip').eq('status', 'Resubmit').order('created_at', { ascending: true }).limit(50)
+    resubmits = (rs || []).map(publicMsg)
+  }
+  return { messages: msgs, resubmits, openIssue, openIssueWeek, stats: gid ? await chatStats(gid) : null, weekStats, weekStart: monday }
 }
 
 // ─── Submit a screenshot ─────────────────────────────────────────────────────
@@ -420,6 +427,34 @@ export async function approveMessage(session: Session, access: Access, messageId
     status, utr, group_id: res.group.groupId, updated_at: new Date().toISOString(),
     problem: res.flagged ? 'This transaction ID is already recorded for another payment. The guarantor must send the correct screenshot.' : null,
   }).eq('message_id', messageId)
+}
+
+// Staff: ask the guarantor to send a payment again (a mistake was found). The guarantor sees it first, marked important,
+// and cannot send new payments until it is done. A payment that was already recorded is undone first.
+export async function requestResubmit(session: Session, access: Access, messageId: string, reasonRaw: string) {
+  if (access.isGuarantor || !access.canChat) throw new PaymentError('Only office staff can do this')
+  if (!access.canMark) throw new PaymentError('You need the permission to mark payments to do this')
+  const reason = String(reasonRaw || '').trim().slice(0, 300)
+  if (reason.length < 5) throw new PaymentError('Write what is wrong (at least 5 characters), so the guarantor knows what to fix')
+  const sb = getSupabase()
+  const { data: m } = await sb.from('payment_chat').select('*').eq('message_id', messageId).maybeSingle()
+  if (!m || m.kind !== 'slip') throw new PaymentError('Message not found')
+  await needGuarantor(access, m.guarantor_id)
+  if (FIX_STATUSES.includes(m.status) || m.status === 'Processing' || m.status === 'Cancelled') throw new PaymentError('This message already needs to be fixed or is cancelled')
+  const wasRecorded = m.status === 'Recorded'
+  const cash = m.pay_app === 'Cash'
+  if (wasRecorded) {
+    if (!m.group_id) throw new PaymentError('This payment has no record to undo. Use Mark manually.')
+    await undoPaymentGroup(session, { ...access, canMark: true }, m.group_id, reason)
+  }
+  // A cash payment has no screenshot to send again: it is cancelled and the guarantor records it again if it was real
+  const status = cash ? 'Cancelled' : 'Resubmit'
+  const problem = cash
+    ? `The office cancelled this cash payment: ${reason}. Record it again if you did receive the cash.`
+    : `The office asked you to send this again: ${reason}${wasRecorded ? ' (The payment was undone. It counts again once you send it.)' : ''}`
+  const { error } = await sb.from('payment_chat').update({ status, problem, group_id: null, updated_at: new Date().toISOString() }).eq('message_id', messageId)
+  if (error) throw new Error(error.message)
+  return { status, wasRecorded, guarantorId: m.guarantor_id as string }
 }
 
 export { getAccess }

@@ -504,6 +504,39 @@ export async function discardGroup(session: Session, access: Access, groupId: st
   return { success: true }
 }
 
+// Cancel a payment that was recorded by mistake (Payment Chat "ask to send again"). The customers go back to unpaid,
+// the collection entries are removed, a loan that this payment completed runs again, and the payment itself is deleted
+// (so its UTR is free for the corrected one). The event is written first and kept, with who did it and why.
+export async function undoPaymentGroup(session: Session, access: Access, groupId: string, reason: string) {
+  need(access.canMark)
+  const why = String(reason || '').trim()
+  if (why.length < 5) throw new PaymentError('Write the reason (at least 5 characters)')
+  const group = await getGroupRow(groupId)
+  await needGuarantor(access, group.guarantor_id)
+  const sb = getSupabase()
+  const { data: lines } = await sb.from('payment_lines').select('*').eq('group_id', groupId)
+  const ls = (lines || []) as LineRow[]
+  await logEvent(groupId, 'undone', session, { oldUtr: group.utr, reason: `Undone, to be sent again: ${why.slice(0, 250)}` })
+  const loanIds = new Set<string>()
+  for (const l of ls) {
+    if (!l.applied) continue
+    // Only the repayment this payment paid goes back to unpaid
+    await sb.from('repayments').update({
+      status: 'Pending', paid_date: null, collection_agent_id: null, payment_mode: null, proof_file_id: null, notes: null, updated_at: new Date().toISOString(),
+    }).eq('repayment_id', l.repayment_id).eq('status', 'Paid')
+    await sb.from('collections').delete().eq('repayment_id', l.repayment_id).eq('payment_mode', group.mode).eq('amount', l.amount)
+    if (l.loan_id) loanIds.add(l.loan_id)
+  }
+  for (const loanId of loanIds) {
+    const { data: loan } = await sb.from('loans').select('status').eq('loan_id', loanId).maybeSingle()
+    if (loan?.status === 'Completed') await sb.from('loans').update({ status: 'Active', updated_at: new Date().toISOString() }).eq('loan_id', loanId)
+  }
+  const { error } = await sb.from('payment_groups').delete().eq('group_id', groupId)
+  if (error) throw new PaymentError(error.message)
+  for (const t of ['Repayments', 'Collections', 'Loans'] as const) invalidateCache(t)
+  return { success: true, customers: ls.length }
+}
+
 // ─── Records ─────────────────────────────────────────────────────────────────
 
 export async function records(access: Access, guarantorId: string, date: string) {
