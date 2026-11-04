@@ -194,9 +194,9 @@ function Bubble({ m, session, me, onFix, onApprove, onResubmit, busy }: { m: Msg
             {m.manual ? 'Typed by the guarantor' : m.amountRead != null ? 'Read from screenshot' : 'Confirmed by the office'}: {m.amountRead != null && <b className="text-ink">{money(m.amountRead)}</b>}{m.utr && <> · UTR <b className="font-mono text-ink">{m.utr}</b></>}{m.txnDate && <> · {m.txnDate}{m.txnTime ? ` ${m.txnTime}` : ''}</>}{m.payApp && <> · {m.payApp}</>}
           </p>
         )}
-        {staffView && <ReadBy m={m} admin={me.access.isAdmin} />}
+        {me.access.isAdmin && <ReadBy m={m} admin />}
         {m.problem && <p className={`rounded-xl px-3 py-2 text-sm ${m.needsFix ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-800'}`}>{m.problem}</p>}
-        <EarlierList m={m} session={session} showReader={staffView} />
+        <EarlierList m={m} session={session} showReader={me.access.isAdmin} />
         {m.needsFix && mine && (
           <div className="grid grid-cols-2 gap-2">
             <button onClick={() => onFix(m, 'image')} className="rounded-xl bg-ink px-3 py-2 text-xs font-semibold text-white">Send a new screenshot</button>

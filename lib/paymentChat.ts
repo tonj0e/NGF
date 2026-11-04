@@ -164,7 +164,7 @@ export async function listMessages(session: Session, access: Access, guarantorId
   if (error) throw new Error(error.message)
   const msgs = (data || []).reverse().map(publicMsg)
   await attachEarlier(msgs)
-  if (access.isGuarantor) for (const m of msgs) { m.reader = ''; m.readMs = 0; m.costUsd = 0; for (const e of m.earlier) { e.reader = ''; e.readMs = 0; e.costUsd = 0 } }
+  if (!access.isAdmin) for (const m of msgs) { m.reader = ''; m.readMs = 0; m.costUsd = 0; for (const e of m.earlier) { e.reader = ''; e.readMs = 0; e.costUsd = 0 } }
   let openIssue = msgs.some(m => m.needsFix)
   let openIssueWeek = ''
   if (monday && gid && !openIssue) {
@@ -181,7 +181,7 @@ export async function listMessages(session: Session, access: Access, guarantorId
     const { data: rs } = await sb.from('payment_chat').select('*').eq('guarantor_id', gid).eq('kind', 'slip').eq('status', 'Resubmit').order('created_at', { ascending: true }).limit(50)
     resubmits = (rs || []).map(publicMsg)
     await attachEarlier(resubmits)
-    if (access.isGuarantor) for (const m of resubmits) { m.reader = ''; m.readMs = 0; m.costUsd = 0; for (const e of m.earlier) { e.reader = ''; e.readMs = 0; e.costUsd = 0 } }
+    if (!access.isAdmin) for (const m of resubmits) { m.reader = ''; m.readMs = 0; m.costUsd = 0; for (const e of m.earlier) { e.reader = ''; e.readMs = 0; e.costUsd = 0 } }
   }
   return { messages: msgs, resubmits, openIssue, openIssueWeek, stats: gid ? await chatStats(gid) : null, weekStats, weekStart: monday }
 }
