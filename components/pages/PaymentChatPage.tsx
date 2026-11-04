@@ -350,7 +350,7 @@ export default function PaymentChatPage({ session, onOpenHistory }: { session: S
     if (!me || inFlight.current) return
     inFlight.current = true
     try {
-      const wk = me.access.isGuarantor ? `&weekStart=${weekStart}` : ''
+      const wk = weekStart ? `&weekStart=${weekStart}` : ''   // staff can also choose 'All recent' (empty)
       const d = await api(session, `/api/payment-chat?view=messages&guarantorId=${encodeURIComponent(gid)}${wk}`)
       setMsgs(d.messages); setResubmits(d.resubmits || []); setOpenIssue(d.openIssue); setOpenIssueWeek(d.openIssueWeek || ''); setStats(d.stats || null); setWeekStats(d.weekStats || null); setError('')
     } catch (e) { setError(e instanceof Error ? e.message : 'Failed to load') }
@@ -652,10 +652,26 @@ export default function PaymentChatPage({ session, onOpenHistory }: { session: S
           {me.guarantors.map(g => <option key={g.guarantorId} value={g.guarantorId}>{g.name} ({g.code})</option>)}
         </select>
       )}
+      {!isG && (() => {
+        // Week filter (Monday to Sunday, India time): with many screenshots coming in, look at one week at a time
+        const weeks = Array.from({ length: 27 }, (_, i) => addDays(curMonday, -7 * i))
+        const wi = weekStart ? Math.max(0, weeks.indexOf(weekStart)) : -1
+        const name = (w: string, i: number) => `${i === 0 ? 'This week' : i === 1 ? 'Last week' : 'Week'} · ${weekRange(w)}`
+        return (
+          <div className="flex items-center gap-2">
+            <button onClick={() => setWeekStart(weeks[Math.min(weeks.length - 1, (wi < 0 ? 0 : wi + 1))])} disabled={wi >= weeks.length - 1} aria-label="Older week" className="rounded-xl border border-line bg-white px-3 py-2 text-lg leading-none disabled:opacity-30">‹</button>
+            <select value={weekStart} onChange={e => setWeekStart(e.target.value)} aria-label="Choose a week" className="min-w-0 flex-1 rounded-2xl border border-line bg-white px-3 py-2.5 text-sm">
+              <option value="">All recent (latest 120)</option>
+              {weeks.map((w, i) => <option key={w} value={w}>{name(w, i)}</option>)}
+            </select>
+            <button onClick={() => setWeekStart(weeks[Math.max(0, wi - 1)])} disabled={wi <= 0} aria-label="Newer week" className="rounded-xl border border-line bg-white px-3 py-2 text-lg leading-none disabled:opacity-30">›</button>
+          </div>
+        )
+      })()}
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto rounded-[1.75rem] bg-line p-3 sm:p-4">
         {error && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
-        {!msgs.length && !error && <p className="py-10 text-center text-sm text-soft">{isG ? 'No payments sent yet. Tap Single payment or Multi payment below.' : 'No screenshots yet.'}</p>}
+        {!msgs.length && !error && <p className="py-10 text-center text-sm text-soft">{isG ? 'No payments sent yet. Tap Single payment or Multi payment below.' : weekStart ? 'No screenshots in this week.' : 'No screenshots yet.'}</p>}
         {msgs.map(m => <Bubble key={m.messageId} m={m} session={session} me={me} onFix={startFix} onApprove={approve} onResubmit={resubmit} busy={busy} />)}
         <div ref={endRef} />
       </div>
