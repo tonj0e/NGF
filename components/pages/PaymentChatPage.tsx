@@ -12,12 +12,14 @@ type Line = { repaymentId: string; customerId: string; name: string; payCode: st
 type Msg = {
   messageId: string; guarantorId: string; kind: 'slip' | 'note'; mode: string; status: string; problem: string; lines: Line[]; note: string
   utr: string; amountRead: number | null; txnDate: string; txnTime: string; payee: string; payApp: string; imageUrl: string
-  createdByName: string; createdBy: string; createdAt: string; needsFix: boolean; manual: boolean; reader: string
+  createdByName: string; createdBy: string; createdAt: string; needsFix: boolean; manual: boolean; reader: string; readMs: number; costUsd: number; earlier: Earlier[]
 }
+type Earlier = { messageId: string; at: string; status: string; problem: string; utr: string; amountRead: number | null; txnDate: string; txnTime: string; imageUrl: string; reader: string; readMs: number; costUsd: number; payApp: string }
 type SheetRow = { repaymentId: string; customerId: string; name: string; phone: string; payCode: string; weekNo: number | null; dueDate: string; amount: number; status: string; overdue: boolean; payment: unknown | null }
 type Settings = { enabled: boolean; dailyCap: number; guarantorCap: number; payee: string; keyPresent: boolean; model: string; provider: string; keys: { claude: boolean; openrouter: boolean; nvidia: boolean }; nvidiaModel: string; openrouterModel: string }
 type TestResult = { ok: boolean; provider: string; model: string; ms: number; reading: Record<string, unknown> | null; inTokens: number; outTokens: number; costUsd: number; error: string }
-type Usage = { today: { reads: number; usd: number }; week: { reads: number; usd: number }; month: { reads: number; usd: number } }
+type Recent = { id: string; at: string; guarantor: string; status: string; utr: string; amount: number | null; reader: string; ms: number; usd: number; customers: string }
+type Usage = { today: { reads: number; usd: number }; week: { reads: number; usd: number }; month: { reads: number; usd: number }; recent?: Recent[] }
 
 const money = (n: number) => `₹${Number(n).toLocaleString('en-IN')}`
 const when = (iso: string) => new Date(iso).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
@@ -103,6 +105,59 @@ function Thumb({ session, url, compact }: { session: Session; url: string; compa
   )
 }
 
+// "openrouter:anthropic/claude-haiku-5.5" -> "Claude via OpenRouter · anthropic/claude-haiku-5.5"
+function readerName(reader: string) {
+  if (!reader) return ''
+  const [prov, ...rest] = reader.split(':')
+  const model = rest.join(':')
+  const who = prov === 'openrouter' ? 'Claude via OpenRouter' : prov === 'claude' ? 'Claude (own key)' : prov === 'nvidia' ? 'NVIDIA' : prov
+  return model ? `${who} · ${model}` : who
+}
+const secs = (ms: number) => (ms ? ` · ${(ms / 1000).toFixed(1)} s` : '')
+
+// Who read this payment (office view only): the AI reader and how long it took, or that no AI was used
+function ReadBy({ m, admin }: { m: Msg; admin: boolean }) {
+  const cash = m.payApp === 'Cash'
+  const txt = m.reader
+    ? `Read by ${readerName(m.reader)}${secs(m.readMs)}${admin && m.costUsd ? ` · about ₹${(m.costUsd * INR_PER_USD).toFixed(2)}` : ''}`
+    : cash ? 'Cash: no screenshot to read' : m.manual ? 'Transaction ID typed by the guarantor (not read by AI)' : m.status === 'Recorded' ? 'Confirmed by the office (not read by AI)' : ''
+  if (!txt) return null
+  return <p className={`rounded-lg px-2 py-1 text-[11px] font-medium ${m.reader ? 'bg-indigo-50 text-indigo-800' : 'bg-gray-100 text-gray-600'}`}>{txt}</p>
+}
+
+// Earlier tries of this message: what was sent before, so staff can compare it with the current screenshot
+function EarlierList({ m, session, showReader, wa }: { m: Msg; session: Session; showReader: boolean; wa?: boolean }) {
+  const [open, setOpen] = useState(false)
+  if (!m.earlier.length) return null
+  const n = m.earlier.length + 1
+  return (
+    <div className={wa ? 'mt-1.5' : ''}>
+      <button onClick={() => setOpen(!open)} className="flex w-full items-center justify-between rounded-lg bg-violet-50 px-2.5 py-1.5 text-left text-xs font-semibold text-violet-800">
+        <span>Sent again · this is try {n} · {open ? 'hide' : 'see'} earlier {m.earlier.length === 1 ? 'try' : 'tries'}</span><span>{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div className="mt-1.5 space-y-2">
+          {m.earlier.map((e, i) => (
+            <div key={e.messageId} className="flex gap-2.5 rounded-lg border border-violet-100 bg-white p-2">
+              {e.imageUrl && <div className="w-20 shrink-0"><Thumb session={session} url={e.imageUrl} compact /></div>}
+              <div className="min-w-0 flex-1 space-y-0.5 text-[11px] leading-snug text-[#54656f]">
+                <p className="font-bold text-ink">Try {i + 1} · {when(e.at)}</p>
+                <p><b>{LABEL[e.status] || e.status || 'Sent'}</b></p>
+                {e.amountRead != null && <p>Amount <b className="text-ink">{money(e.amountRead)}</b></p>}
+                {e.utr && <p>UTR <b className="break-all font-mono text-ink">{e.utr}</b></p>}
+                {(e.txnDate || e.payApp) && <p>{txnWhen(e.txnDate, e.txnTime)}{e.payApp ? ` · ${e.payApp}` : ''}</p>}
+                {e.problem && <p className="rounded bg-amber-50 px-1.5 py-0.5 text-amber-800">{e.problem}</p>}
+                {showReader && e.reader && <p className="text-indigo-800">Read by {readerName(e.reader)}{secs(e.readMs)}</p>}
+              </div>
+            </div>
+          ))}
+          {m.utr && m.earlier.some(e => e.utr && e.utr !== m.utr) && <p className="rounded-lg bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-800">The transaction ID is different now: <b className="font-mono">{m.utr}</b></p>}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function Bubble({ m, session, me, onFix, onApprove, onResubmit, busy }: { m: Msg; session: Session; me: Me; onFix: (m: Msg, mode: 'image' | 'customer') => void; onApprove: (m: Msg, utr: string) => void; onResubmit: (m: Msg, reason: string) => Promise<boolean>; busy: boolean }) {
   const mine = m.createdBy === session.userId
   const [utr, setUtr] = useState(m.utr)
@@ -139,7 +194,9 @@ function Bubble({ m, session, me, onFix, onApprove, onResubmit, busy }: { m: Msg
             {m.manual ? 'Typed by the guarantor' : m.amountRead != null ? 'Read from screenshot' : 'Confirmed by the office'}: {m.amountRead != null && <b className="text-ink">{money(m.amountRead)}</b>}{m.utr && <> · UTR <b className="font-mono text-ink">{m.utr}</b></>}{m.txnDate && <> · {m.txnDate}{m.txnTime ? ` ${m.txnTime}` : ''}</>}{m.payApp && <> · {m.payApp}</>}
           </p>
         )}
+        {staffView && <ReadBy m={m} admin={me.access.isAdmin} />}
         {m.problem && <p className={`rounded-xl px-3 py-2 text-sm ${m.needsFix ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-800'}`}>{m.problem}</p>}
+        <EarlierList m={m} session={session} showReader={staffView} />
         {m.needsFix && mine && (
           <div className="grid grid-cols-2 gap-2">
             <button onClick={() => onFix(m, 'image')} className="rounded-xl bg-ink px-3 py-2 text-xs font-semibold text-white">Send a new screenshot</button>
@@ -237,6 +294,7 @@ function WaBubble({ m, session, onFix }: { m: Msg; session: Session; onFix: (m: 
           </div>
         </div>
         {m.problem && <p className={`mt-1.5 rounded-md px-2 py-1 text-xs ${m.needsFix ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-800'}`}>{m.problem}</p>}
+        <EarlierList m={m} session={session} showReader={false} wa />
         {m.needsFix && (mine || m.status === 'Resubmit') && (
           <div className="grid grid-cols-2 gap-1.5 pt-1.5">
             <button onClick={() => onFix(m, 'image')} className="rounded-md bg-[#075e54] px-2 py-1.5 text-xs font-semibold text-white">Send a new screenshot</button>
@@ -647,6 +705,7 @@ export function ChatSettings({ session }: { session: Session }) {
             ))}
           </div>
           <p className="text-xs text-soft">Estimated from Claude&apos;s published prices ({d.settings.model}). The real bill is in your Anthropic account, where you should also set a monthly spending limit. {d.settings.keyPresent ? '' : 'No reader key is set yet, so reading is off and every screenshot goes to the office.'}</p>
+          <RecentReads rows={d.usage.recent || []} />
           <div className="space-y-2 rounded-xl bg-mist p-3">
             <p className="text-xs font-semibold uppercase tracking-wider text-soft">Reader</p>
             <select value={d.settings.provider} onChange={e => save({ provider: e.target.value })} className="w-full rounded-xl border border-line bg-white px-3 py-2 text-sm">
@@ -671,6 +730,29 @@ export function ChatSettings({ session }: { session: Session }) {
         </div>
       )}
       {open && !d && <p className="mt-2 text-xs text-soft">{msg || 'Loading…'}</p>}
+    </div>
+  )
+}
+
+// The latest automatic reads: which reader read which payment, how long it took and what it cost
+function RecentReads({ rows }: { rows: Recent[] }) {
+  const [open, setOpen] = useState(false)
+  if (!rows.length) return null
+  return (
+    <div className="rounded-xl bg-mist p-3">
+      <button onClick={() => setOpen(!open)} className="flex w-full items-center justify-between text-left text-xs font-semibold uppercase tracking-wider text-soft"><span>Recent reads ({rows.length}) · which reader read what</span><span>{open ? '▲' : '▼'}</span></button>
+      {open && (
+        <div className="mt-2 space-y-1.5">
+          {rows.map(r => (
+            <div key={r.id} className="rounded-lg bg-white p-2 text-[11px] leading-snug ring-1 ring-black/5">
+              <p className="font-bold text-ink">{when(r.at)} · {r.guarantor} · {r.status}</p>
+              {r.customers && <p className="text-soft">{r.customers}</p>}
+              <p>{r.amount != null && <b>{money(r.amount)}</b>}{r.utr && <> · UTR <span className="font-mono">{r.utr}</span></>}</p>
+              <p className="font-semibold text-indigo-800">{readerName(r.reader)}{secs(r.ms)}{r.usd ? ` · about ₹${(r.usd * INR_PER_USD).toFixed(2)}` : r.reader.startsWith('nvidia') ? ' · free' : ''}</p>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

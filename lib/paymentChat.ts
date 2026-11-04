@@ -66,7 +66,16 @@ export async function slipUsage(access: Access) {
   const { data } = await sb.from('payment_chat').select('created_at, in_tokens, cost_usd').gt('in_tokens', 0).gte('created_at', since)
   const rows = data || []
   const sum = (from: string) => { const r = rows.filter(x => x.created_at >= from); return { reads: r.length, usd: r.reduce((s, x) => s + Number(x.cost_usd), 0) } }
-  return { today: sum(istStart(0)), week: sum(istStart(6)), month: sum(istStart(29)) }
+  // The latest reads, newest first, so the Admin can see which reader read which screenshot
+  const { data: rec } = await sb.from('payment_chat').select('message_id, parent_id, guarantor_id, status, utr, amount_read, reader, cost_usd, created_at, updated_at, lines').gt('in_tokens', 0).order('created_at', { ascending: false }).limit(40)
+  const gs = await readTable('Guarantors')
+  const gname = (id: string) => String(gs.find(x => x['Guarantor ID'] === id)?.['Name'] || id)
+  const recent = (rec || []).map((r: Row) => ({
+    id: r.message_id, at: r.created_at, guarantor: gname(r.guarantor_id), status: r.status === EARLIER ? 'Earlier try' : r.status, utr: r.utr || '', amount: r.amount_read == null ? null : Number(r.amount_read),
+    reader: String(r.reader || '').split('@')[0], ms: Number(String(r.reader || '').split('@')[1]) || 0, usd: Number(r.cost_usd || 0),
+    customers: ((r.lines || []) as ChatLine[]).map(l => `${l.payCode} ${l.name}`).join(', '),
+  }))
+  return { today: sum(istStart(0)), week: sum(istStart(6)), month: sum(istStart(29)), recent }
 }
 
 // ─── Collection day, counters and the wrong-screenshot allowance ─────────────
@@ -111,10 +120,21 @@ function publicMsg(m: Row) {
     lines: (m.lines || []) as ChatLine[], note: m.note || '', utr: m.utr || '', amountRead: m.amount_read == null ? null : Number(m.amount_read),
     txnDate: m.txn_date || '', txnTime: m.txn_time || '', payee: m.payee || '', payApp: m.pay_app || '', confidence: m.confidence || '',
     imageUrl: m.image_url || '', groupId: m.group_id || '', createdByName: m.created_by_name || '', createdBy: m.created_by || '', createdAt: m.created_at,
-    needsFix: m.kind === 'slip' && FIX_STATUSES.includes(m.status), manual: !!m.manual, reader: m.reader || '',
+    needsFix: m.kind === 'slip' && FIX_STATUSES.includes(m.status), manual: !!m.manual,
+    // reader is stored as "provider:model@milliseconds" (for example openrouter:anthropic/claude-haiku-5.5@12300)
+    reader: String(m.reader || '').split('@')[0], readMs: Number(String(m.reader || '').split('@')[1]) || 0, costUsd: Number(m.cost_usd || 0),
+    earlier: [] as EarlierTry[],
   }
 }
+// An earlier try of the same message (the guarantor sent it again, or the office asked for it again)
+export type EarlierTry = { messageId: string; at: string; status: string; problem: string; utr: string; amountRead: number | null; txnDate: string; txnTime: string; imageUrl: string; reader: string; readMs: number; costUsd: number; payApp: string }
 export type ChatMessage = ReturnType<typeof publicMsg>
+const EARLIER = 'Earlier try'   // status of an archived earlier try; hidden from the normal message list
+const toEarlier = (m: Row): EarlierTry => ({
+  messageId: m.message_id, at: m.created_at, status: m.problem ? String(m.problem).split(': ')[0] : '', problem: String(m.problem || '').split(': ').slice(1).join(': '),
+  utr: m.utr || '', amountRead: m.amount_read == null ? null : Number(m.amount_read), txnDate: m.txn_date || '', txnTime: m.txn_time || '', imageUrl: m.image_url || '',
+  reader: String(m.reader || '').split('@')[0], readMs: Number(String(m.reader || '').split('@')[1]) || 0, costUsd: Number(m.cost_usd || 0), payApp: m.pay_app || '',
+})
 
 // Weeks run Monday to Sunday (India time). Any date is turned into the Monday of its week.
 const isoDay = (d: string) => /^\d{4}-\d{2}-\d{2}$/.test(d) && !Number.isNaN(Date.parse(`${d}T00:00:00Z`))
@@ -122,12 +142,19 @@ const addDaysIso = (d: string, n: number) => { const t = new Date(`${d}T00:00:00
 const mondayOfIso = (d: string) => { const t = new Date(`${d}T00:00:00Z`); return addDaysIso(d, -((t.getUTCDay() + 6) % 7)) }
 const istDayOf = (iso: string) => new Date(new Date(iso).getTime() + 5.5 * 3600_000).toISOString().slice(0, 10)
 
+async function attachEarlier(msgs: ChatMessage[]) {
+  const slips = msgs.filter(m => m.kind === 'slip')
+  if (!slips.length) return
+  const { data } = await getSupabase().from('payment_chat').select('*').eq('status', EARLIER).in('parent_id', slips.map(m => m.messageId)).order('created_at', { ascending: true })
+  for (const r of (data || []) as Row[]) { const m = slips.find(x => x.messageId === r.parent_id); if (m) m.earlier.push(toEarlier(r)) }
+}
+
 export async function listMessages(session: Session, access: Access, guarantorId: string, weekStart = '') {
   if (!access.canChat) throw new PaymentError('The chat is not switched on for you. Ask an Admin.')
   const gid = access.isGuarantor ? access.guarantorId : guarantorId
   const vis = await visibleSet(access)
   const sb = getSupabase()
-  let q = sb.from('payment_chat').select('*').order('created_at', { ascending: false }).limit(120)
+  let q = sb.from('payment_chat').select('*').neq('status', EARLIER).order('created_at', { ascending: false }).limit(120)
   if (gid) { if (vis && !vis.has(gid)) throw new PaymentError('This guarantor belongs to another branch'); q = q.eq('guarantor_id', gid) }
   else if (vis) q = q.in('guarantor_id', Array.from(vis).length ? Array.from(vis) : ['-'])
   // One Monday-to-Sunday week when asked for (the guarantor chat); otherwise the latest messages as before
@@ -136,6 +163,8 @@ export async function listMessages(session: Session, access: Access, guarantorId
   const { data, error } = await q
   if (error) throw new Error(error.message)
   const msgs = (data || []).reverse().map(publicMsg)
+  await attachEarlier(msgs)
+  if (access.isGuarantor) for (const m of msgs) { m.reader = ''; m.readMs = 0; m.costUsd = 0; for (const e of m.earlier) { e.reader = ''; e.readMs = 0; e.costUsd = 0 } }
   let openIssue = msgs.some(m => m.needsFix)
   let openIssueWeek = ''
   if (monday && gid && !openIssue) {
@@ -151,6 +180,8 @@ export async function listMessages(session: Session, access: Access, guarantorId
   if (gid) {
     const { data: rs } = await sb.from('payment_chat').select('*').eq('guarantor_id', gid).eq('kind', 'slip').eq('status', 'Resubmit').order('created_at', { ascending: true }).limit(50)
     resubmits = (rs || []).map(publicMsg)
+    await attachEarlier(resubmits)
+    if (access.isGuarantor) for (const m of resubmits) { m.reader = ''; m.readMs = 0; m.costUsd = 0; for (const e of m.earlier) { e.reader = ''; e.readMs = 0; e.costUsd = 0 } }
   }
   return { messages: msgs, resubmits, openIssue, openIssueWeek, stats: gid ? await chatStats(gid) : null, weekStats, weekStart: monday }
 }
@@ -261,8 +292,19 @@ export async function submitSlip(session: Session, access: Access, input: Submit
   }
   const finish = async (status: string, problem: string, extra: Row = {}) => {
     const wrong = access.isGuarantor && FIX_STATUSES.includes(status) ? 1 : 0
+    // Keep the previous try as its own (hidden) row so the screenshot, transaction ID and reader of every try can be compared later.
+    // Its reading cost moves with it, so the current row starts again at zero.
+    if (existing) {
+      const { message_id: _id, ...old } = existing
+      const { error: aerr } = await sb.from('payment_chat').insert({
+        ...old, message_id: makeId('CHT'), parent_id: existing.message_id, status: EARLIER, wrong_count: 0,
+        problem: `${existing.status}${existing.problem ? `: ${existing.problem}` : ''}`, created_at: existing.updated_at || existing.created_at,
+      })
+      if (aerr) reportError('Could not keep the earlier try', aerr)
+    }
     const row = {
-      ...base, status, problem: problem || null, ...extra,
+      ...base, status, problem: problem || null,
+      ...(existing ? { in_tokens: 0, out_tokens: 0, cost_usd: 0, reader: null } : {}), ...extra,
       collection_day: existing?.collection_day || collectionDay(), wrong_count: Number(existing?.wrong_count || 0) + wrong, manual: manualMode,
     }
     const { error } = existing
@@ -315,7 +357,8 @@ export async function submitSlip(session: Session, access: Access, input: Submit
 
   // Read it
   let reading: SlipReading, inT = 0, outT = 0, cost = 0, readerName = ''
-  try { const r = await readSlip(b64, media, prov); ({ reading, inTokens: inT, outTokens: outT, costUsd: cost } = r); readerName = `${r.provider}:${r.model}` }
+  const t0 = Date.now()
+  try { const r = await readSlip(b64, media, prov); ({ reading, inTokens: inT, outTokens: outT, costUsd: cost } = r); readerName = `${r.provider}:${r.model}@${Date.now() - t0}` }
   catch (e) { reportError('Slip read failed', e); return toOffice('The screenshot could not be read just now.') }
   const utr = normalizeUtr(reading.utr)
   const usage = { in_tokens: Math.max(1, inT), out_tokens: outT, cost_usd: cost, reader: readerName }
