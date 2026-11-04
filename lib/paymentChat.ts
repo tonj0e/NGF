@@ -270,6 +270,7 @@ export async function submitSlip(session: Session, access: Access, input: Submit
   // The picture: required for a new message, optional when only the customer is being changed
   let imageUrl: string = existing?.image_url || ''
   let imageHash: string = existing?.image_hash || ''
+  let proofP: Promise<string> | null = null   // the Drive upload runs while the screenshot is being read (it used to run first, one after the other)
   let b64 = ''
   let media: 'image/jpeg' | 'image/png' | 'image/webp' | null = null
   if (input.image?.base64Data) {
@@ -282,7 +283,8 @@ export async function submitSlip(session: Session, access: Access, input: Submit
     b64 = checked.buffer.toString('base64')
     const buf = checked.buffer
     imageHash = createHash('sha256').update(buf).digest('hex')
-    imageUrl = await storeProof(guarantorId, lines, media, b64, imageHash)
+    proofP = storeProof(guarantorId, lines, media, b64, imageHash)
+    proofP.catch(() => {})   // the real error is raised where the result is awaited
   } else if (!existing) throw new PaymentError('Upload the payment screenshot')
 
   const messageId = existing?.message_id || makeId('CHT')
@@ -290,7 +292,9 @@ export async function submitSlip(session: Session, access: Access, input: Submit
     message_id: messageId, guarantor_id: guarantorId, kind: 'slip', mode, lines, image_url: imageUrl, image_hash: imageHash || null,
     created_by: session.userId, created_by_name: session.name, updated_at: new Date().toISOString(),
   }
+  const settleProof = async () => { if (proofP) { const p = proofP; proofP = null; imageUrl = await p; base.image_url = imageUrl } }
   const finish = async (status: string, problem: string, extra: Row = {}) => {
+    await settleProof()
     const wrong = access.isGuarantor && FIX_STATUSES.includes(status) ? 1 : 0
     // Keep the previous try as its own (hidden) row so the screenshot, transaction ID and reader of every try can be compared later.
     // Its reading cost moves with it, so the current row starts again at zero.
@@ -334,7 +338,7 @@ export async function submitSlip(session: Session, access: Access, input: Submit
       return finish('Duplicate', `This transaction ID is already recorded for ${who}. Check the ID you typed.`, { ...reset, utr: typedUtr, duplicate_group_id: holder.groupId })
     }
     try {
-      const res = await markPayment(session, act, { guarantorId, mode: 'UPI', utr: typedUtr, repaymentIds, screenshotUrl: imageUrl, notes: 'Payment Chat. Transaction ID typed by the guarantor (not read from the screenshot).' })
+      const res = await markPayment(session, act, { guarantorId, mode: 'UPI', utr: typedUtr, repaymentIds, screenshotUrl: (await settleProof(), imageUrl), notes: 'Payment Chat. Transaction ID typed by the guarantor (not read from the screenshot).' })
       if (res.flagged) return finish('Duplicate', 'This transaction ID was just recorded by someone else. Check the ID you typed.', { ...reset, utr: typedUtr, duplicate_group_id: res.group.conflicts?.[0]?.groupId || null })
       return finish('Recorded', '', { ...reset, utr: typedUtr, group_id: res.group.groupId })
     } catch (e) {
@@ -396,7 +400,7 @@ export async function submitSlip(session: Session, access: Access, input: Submit
   // All good: record it exactly like a staff-marked UPI payment
   try {
     const res = await markPayment(session, act, {
-      guarantorId, mode: 'UPI', utr, repaymentIds, screenshotUrl: imageUrl,
+      guarantorId, mode: 'UPI', utr, repaymentIds, screenshotUrl: (await settleProof(), imageUrl),
       notes: `Payment Chat. Read from screenshot: ${reading.date || ''} ${reading.time || ''} ${reading.app || ''}`.trim().slice(0, 480),
     })
     if (res.flagged) return finish('Duplicate', 'This transaction ID was just recorded by someone else. Send the correct screenshot.', { ...read, duplicate_group_id: res.group.conflicts?.[0]?.groupId || null })

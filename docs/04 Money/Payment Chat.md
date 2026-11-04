@@ -94,3 +94,6 @@ Staff (chat on + permission to mark payments, Admin too) see **Ask to send again
 
 ## Week filter for staff (2026-11-04)
 The staff chat has the same Monday-to-Sunday (India time) week picker as the guarantor chat: ‹ › arrows and a list of 27 weeks, default **This week**, plus **All recent (latest 120)**. It uses the same `weekStart` the server already accepted (`listMessages`), combined with the guarantor filter. Messages that need fixing from other weeks are still found through the guarantor's own red/Important card.
+
+## Speed: Drive upload runs while the screenshot is read (2026-11-04)
+`submitSlip` used to save the picture to Google Drive (several folder lookups and the upload) and only then read it. The upload is now started first and runs at the same time as the AI read; `settleProof()` waits for it before the row is saved or the payment is marked. The "Read by ... N s" time and the Admin test time measure only the AI call, so a send takes longer than that figure (upload, checks, recording).
