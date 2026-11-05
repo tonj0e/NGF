@@ -376,10 +376,17 @@ export async function submitSlip(session: Session, access: Access, input: Submit
   if (Math.abs(Number(reading.amount) - expected) > 0.001) {
     return finish('Amount Mismatch', `The screenshot shows ${money(reading.amount)} but the customers you chose add up to ${money(expected)}. Choose the right customers or send the right screenshot.`, read)
   }
-  if (cfg.payee) {
-    const want = cfg.payee.toLowerCase().split(',').map(s => s.trim()).filter(Boolean)
-    const got = String(reading.payee || '').toLowerCase()
-    if (want.length && !want.some(w => got.includes(w))) return finish('Wrong Payee', `The payment went to "${reading.payee || 'unknown'}", not to NGF. Send the screenshot of the payment made to NGF.`, read)
+  // Receiver check: always on. The Dev setting can list more names; with none set, "ngf" is used.
+  const want = (cfg.payee || 'ngf').toLowerCase().split(',').map(s => s.trim()).filter(Boolean)
+  const gotPayee = String(reading.payee || '').trim()
+  if (!gotPayee) {
+    return finish('Pending Staff', 'The screenshot does not show who the money was paid to. Sent to the office to check.', read)
+  }
+  if (!want.some(w => gotPayee.toLowerCase().includes(w))) {
+    return finish('Wrong Payee', `The payment went to "${gotPayee}", not to NGF. Send the screenshot of the payment made to NGF.`, read)
+  }
+  if (!String(reading.payer || '').trim()) {
+    return finish('Pending Staff', 'The screenshot does not show who sent the money. Sent to the office to check.', read)
   }
 
   // Duplicate UTR: show who already holds it

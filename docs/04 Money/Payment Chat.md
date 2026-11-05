@@ -97,3 +97,6 @@ The staff chat has the same Monday-to-Sunday (India time) week picker as the gua
 
 ## Speed: Drive upload runs while the screenshot is read (2026-11-04)
 `submitSlip` used to save the picture to Google Drive (several folder lookups and the upload) and only then read it. The upload is now started first and runs at the same time as the AI read; `settleProof()` waits for it before the row is saved or the payment is marked. The "Read by ... N s" time and the Admin test time measure only the AI call, so a send takes longer than that figure (upload, checks, recording).
+
+## Receiver check (2026-11-05)
+Always on, even if the Dev "receiver name" setting is blank (then "ngf" is used). After amount check: no receiver shown → "Pending Staff" (office checks); receiver shown but not NGF → "Wrong Payee" (guarantor must resend); sender not shown → "Pending Staff". The AI prompt now says a "Payment received from X" screen means X is the payer, never the payee. Found because a screenshot read as payee "REVATHY A S" was recorded (SONINI 8401, 2026-10-31) — review that one manually.
