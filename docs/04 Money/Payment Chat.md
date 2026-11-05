@@ -100,3 +100,6 @@ The staff chat has the same Monday-to-Sunday (India time) week picker as the gua
 
 ## Receiver check (2026-11-05)
 Always on, even if the Dev "receiver name" setting is blank (then "ngf" is used). After amount check: no receiver shown → "Pending Staff" (office checks); receiver shown but not NGF → "Wrong Payee" (guarantor must resend); sender not shown → "Pending Staff". The AI prompt now says a "Payment received from X" screen means X is the payer, never the payee. Found because a screenshot read as payee "REVATHY A S" was recorded (SONINI 8401, 2026-10-31) — review that one manually.
+
+## Fix pop-up (2026-11-05)
+`listMessages` also returns `issues`: every slip of that guarantor still in a fix status (Wrong Payee, Needs Retake, Duplicate, Amount Mismatch, Not Successful, Resubmit), any week. The guarantor chat shows the oldest one as a full-screen pop-up that cannot be closed; it goes away only when the guarantor fixes it (Send a new screenshot / Change customer). Hidden while the fix form is open. Staff do not get the pop-up.

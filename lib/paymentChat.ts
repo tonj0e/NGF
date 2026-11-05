@@ -183,7 +183,15 @@ export async function listMessages(session: Session, access: Access, guarantorId
     await attachEarlier(resubmits)
     if (!access.isAdmin) for (const m of resubmits) { m.reader = ''; m.readMs = 0; m.costUsd = 0; for (const e of m.earlier) { e.reader = ''; e.readMs = 0; e.costUsd = 0 } }
   }
-  return { messages: msgs, resubmits, openIssue, openIssueWeek, stats: gid ? await chatStats(gid) : null, weekStats, weekStart: monday }
+  // Everything of this guarantor that still needs fixing (any week): the guarantor app shows it as a pop-up until it is fixed
+  let issues: ChatMessage[] = []
+  if (gid) {
+    const { data: iss } = await sb.from('payment_chat').select('*').eq('guarantor_id', gid).eq('kind', 'slip').in('status', FIX_STATUSES).order('created_at', { ascending: true }).limit(20)
+    issues = (iss || []).map(publicMsg)
+    await attachEarlier(issues)
+    if (!access.isAdmin) for (const m of issues) { m.reader = ''; m.readMs = 0; m.costUsd = 0; for (const e of m.earlier) { e.reader = ''; e.readMs = 0; e.costUsd = 0 } }
+  }
+  return { messages: msgs, resubmits, issues, openIssue, openIssueWeek, stats: gid ? await chatStats(gid) : null, weekStats, weekStart: monday }
 }
 
 // ─── Submit a screenshot ─────────────────────────────────────────────────────

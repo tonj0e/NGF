@@ -312,6 +312,7 @@ export default function PaymentChatPage({ session, onOpenHistory }: { session: S
   const [gid, setGid] = useState('')
   const [msgs, setMsgs] = useState<Msg[]>([])
   const [openIssue, setOpenIssue] = useState(false)
+  const [issues, setIssues] = useState<Msg[]>([])   // everything that still needs fixing, any week: shown as a pop-up to the guarantor
   const [resubmits, setResubmits] = useState<Msg[]>([])   // payments the office asked to send again (any week)
   const [stats, setStats] = useState<Stats | null>(null)
   const [weekStats, setWeekStats] = useState<Stats | null>(null)
@@ -352,7 +353,7 @@ export default function PaymentChatPage({ session, onOpenHistory }: { session: S
     try {
       const wk = weekStart ? `&weekStart=${weekStart}` : ''   // staff can also choose 'All recent' (empty)
       const d = await api(session, `/api/payment-chat?view=messages&guarantorId=${encodeURIComponent(gid)}${wk}`)
-      setMsgs(d.messages); setResubmits(d.resubmits || []); setOpenIssue(d.openIssue); setOpenIssueWeek(d.openIssueWeek || ''); setStats(d.stats || null); setWeekStats(d.weekStats || null); setError('')
+      setMsgs(d.messages); setResubmits(d.resubmits || []); setIssues(d.issues || []); setOpenIssue(d.openIssue); setOpenIssueWeek(d.openIssueWeek || ''); setStats(d.stats || null); setWeekStats(d.weekStats || null); setError('')
     } catch (e) { setError(e instanceof Error ? e.message : 'Failed to load') }
     inFlight.current = false
   }, [session, me, gid, weekStart])
@@ -620,6 +621,24 @@ export default function PaymentChatPage({ session, onOpenHistory }: { session: S
           <div ref={endRef} />
         </div>
 
+        {isG && !open && issues.length > 0 && (() => {
+          const m = issues[0]
+          return (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4" role="alertdialog" aria-modal="true">
+              <div className="max-h-[90vh] w-full max-w-sm space-y-3 overflow-y-auto rounded-2xl border-2 border-red-500 bg-white p-4 shadow-2xl">
+                <p className="text-base font-extrabold uppercase tracking-wide text-red-700">Fix this first{issues.length > 1 ? ` · 1 of ${issues.length}` : ''}</p>
+                <p className="text-xs text-red-800">You cannot send or use the chat until this payment is fixed.</p>
+                {m.lines.map(l => <p key={l.repaymentId} className="text-sm leading-tight"><b className="font-mono text-lg">{l.payCode}</b> · <b>{l.name}</b> · {money(l.amount)}</p>)}
+                <span className="inline-block rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-bold text-red-700">{LABEL[m.status] || m.status}</span>
+                {m.problem && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{m.problem}</p>}
+                <div className="grid grid-cols-2 gap-2">
+                  <button onClick={() => startFix(m, 'image')} className="rounded-xl bg-red-600 px-3 py-2.5 text-sm font-bold text-white">Send a new screenshot</button>
+                  <button onClick={() => startFix(m, 'customer')} className="rounded-xl bg-white px-3 py-2.5 text-sm font-semibold text-red-700 ring-1 ring-red-300">Change customer</button>
+                </div>
+              </div>
+            </div>
+          )
+        })()}
         {openIssue && (openIssueWeek && openIssueWeek !== weekStart
           ? <button onClick={() => setWeekStart(openIssueWeek)} className="mx-3 mb-1 rounded-lg bg-red-100 px-3 py-2 text-center text-xs font-medium text-red-700">A payment from {weekRange(openIssueWeek)} needs fixing first. Tap here to open it.</button>
           : <p className="mx-3 mb-1 rounded-lg bg-red-100 px-3 py-2 text-center text-xs font-medium text-red-700">Fix the red message above first. Then you can send the next screenshot.</p>)}
