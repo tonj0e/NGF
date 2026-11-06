@@ -126,17 +126,25 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
     setCounts(json.data.counts); setBranchList(json.data.branches || [])
   }
 
+  // The agent and product lists are needed only inside the pop-ups: load them once, in the background, not on every refresh
+  const sideLoaded = useRef(false)
+  async function loadSide() {
+    if (!isManager || sideLoaded.current) return
+    sideLoaded.current = true
+    try {
+      const [sj, pj] = await Promise.all([
+        fetch('/api/staff', { headers: { Authorization: `Bearer ${session.token}` } }).then(r => r.json()),
+        fetch('/api/loan-products', { headers: { Authorization: `Bearer ${session.token}` } }).then(r => r.json()),
+      ])
+      if (sj.success) setAgents(sj.data.agents)
+      if (pj.success) setProducts(pj.data.products || [])
+    } catch { sideLoaded.current = false }
+  }
+
   async function load(showLoading = true) {
     if (showLoading && !loadedOnce.current) setLoading(true)
+    loadSide()   // runs next to the leads request, and the list shows without waiting for it
     await loadLeads()
-    if (isManager) {
-      const s = await fetch('/api/staff', { headers: { Authorization: `Bearer ${session.token}` } })
-      const sj = await s.json()
-      if (sj.success) setAgents(sj.data.agents)
-      const p = await fetch('/api/loan-products', { headers: { Authorization: `Bearer ${session.token}` } })
-      const pj = await p.json()
-      if (pj.success) setProducts(pj.data.products || [])
-    }
     loadedOnce.current = true
     if (showLoading) setLoading(false)
   }

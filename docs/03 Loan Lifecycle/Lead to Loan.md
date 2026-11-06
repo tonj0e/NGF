@@ -67,3 +67,6 @@ Statuses in the order the code uses them (enum `lead_status`, `supabase_schema.s
 - On phones the Leads tabs scroll sideways in one row, short labels ("Renewal"), and the search/branch/delete controls stack.
 
 - Guarantor "In Progress" page now has two side-by-side tabs under the New Lead / Renewal buttons (tap one to show only that list): **Not completed** (Pending, Agent Assigned) and **Completed** (agent submitted the verification, or Approved). A lead moves to Completed by itself when the agent finishes; Converted/Rejected go to History.
+
+## Leads page speed (2026-11-07)
+`GET /api/leads` now counts the tab badges at the same time as it loads the page rows (before, counting waited for the rows), and reads the branch tables while the scope is worked out. The Leads screen loads the agent and loan-product lists once, in parallel, in the background (before: two more calls in a row after the leads, and again every 15 seconds). Database is Supabase ap-southeast-2 (Sydney): every sequential round trip costs time, so fewer sequential steps = faster.

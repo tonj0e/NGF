@@ -33,6 +33,8 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const text = cleanSearch(searchParams.get('q'))
   const dayParam = /^\d{4}-\d{2}-\d{2}$/.test(searchParams.get('day') || '') ? searchParams.get('day')! : ''   // one submitted day (History, by week and day)
 
+  // the small branch tables load at the same time as the scope, not after it
+  const branchesP = Promise.all([readTable('Branches'), readTable('GuarantorBranches')])
   // who may see which leads: a guarantor their own, an agent their assigned, Staff their branches' guarantors
   let scope = await scopeOf(session)
   let agentId = ''
@@ -41,7 +43,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
     agentId = agent?.['Agent ID'] || '__none__'
     scope = { kind: 'all' }
   }
-  const [branches, guarantorBranches] = await Promise.all([readTable('Branches'), readTable('GuarantorBranches')])
+  const [branches, guarantorBranches] = await branchesP
   const activeLinks = guarantorBranches.filter(x => String(x['Is Active']) !== 'false')
   const branchOf = new Map(activeLinks.map(x => [x['Guarantor ID'], x['Branch ID']]))
 
@@ -84,21 +86,24 @@ export const GET = apiHandler(async (req: NextRequest) => {
     return ok({ perDay, since })
   }
 
-  const r = await pageQuery('Leads', {
-    filters, order: [{ column: 'submitted_date', ascending: false }, { column: 'lead_id', ascending: false }],
-    page: searchParams.get('page') || 1, pageSize: searchParams.get('pageSize') || 20,
-  })
-
-  const [guarantors, agents, sameAadhaar, counts] = await Promise.all([
-    byIds('Guarantors', 'guarantor_id', r.rows.map(l => l['Guarantor ID'])),
-    byIds('Agents', 'agent_id', r.rows.map(l => l['Assigned Agent ID'])),
-    byIds('Leads', 'aadhaar_no', r.rows.map(l => l['Aadhaar No'])),
+  // The tab counts do not depend on the page rows, so they are counted while the page loads
+  const [r, counts] = await Promise.all([
+    pageQuery('Leads', {
+      filters, order: [{ column: 'submitted_date', ascending: false }, { column: 'lead_id', ascending: false }],
+      page: searchParams.get('page') || 1, pageSize: searchParams.get('pageSize') || 20,
+    }),
     Promise.all([
       countRows('Leads', qb => inTab(scoped(qb), 'new')), countRows('Leads', qb => inTab(scoped(qb), 'history')),
       countRows('Leads', qb => inTab(scoped(qb), 'renewal')), countRows('Leads', qb => scoped(qb).eq('status', 'Approved')),
       countRows('Leads', qb => inStage(inTab(scoped(qb), 'new'), 'new')), countRows('Leads', qb => inStage(inTab(scoped(qb), 'new'), 'assigned')),
       countRows('Leads', qb => inStage(inTab(scoped(qb), 'new'), 'completed')),
     ]),
+  ])
+
+  const [guarantors, agents, sameAadhaar] = await Promise.all([
+    byIds('Guarantors', 'guarantor_id', r.rows.map(l => l['Guarantor ID'])),
+    byIds('Agents', 'agent_id', r.rows.map(l => l['Assigned Agent ID'])),
+    byIds('Leads', 'aadhaar_no', r.rows.map(l => l['Aadhaar No'])),
   ])
   const gById = new Map(guarantors.map(g => [g['Guarantor ID'], g]))
   const aById = new Map(agents.map(a => [a['Agent ID'], a]))
