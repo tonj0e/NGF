@@ -2,11 +2,11 @@ import { NextRequest } from 'next/server'
 import { apiHandler, getSession, ok, err } from '@/lib/api'
 import { needFeature } from '@/lib/access'
 import { coll } from '@/lib/features'
-import { readTable, getSupabase } from '@/lib/supabase-db'
+import { readTable, getSupabase, selectAll } from '@/lib/supabase-db'
 import { getThisSaturday, getTodayIST } from '@/lib/dateUtils'
 import { pageQuery, cleanSearch, scopeOf, withScope } from '@/lib/db'
 
-// GET /api/collection-status?date=YYYY-MM-DD&status=paid|unpaid&guarantorId=&q=&page=&pageSize=
+// GET /api/collection-status?date=YYYY-MM-DD&status=paid|unpaid|cash&guarantorId=&q=&page=&pageSize=
 // Paid and not paid customers for one collection Saturday, with totals. Read only: it changes nothing.
 // Admin and Staff may pick a guarantor (Staff only among their branches' guarantors). A guarantor always gets
 // their own customers: the guarantorId they send is ignored and no guarantor list is returned to them.
@@ -21,7 +21,8 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const picker = session.role === 'Admin' || session.role === 'Staff'   // who may choose a guarantor
   const dateIn = sp.get('date') || ''
   const date = isDate(dateIn) ? saturdayOf(dateIn) : getThisSaturday()
-  const status = sp.get('status') === 'paid' ? 'paid' : 'unpaid'
+  const st = sp.get('status')
+  const status = st === 'paid' ? 'paid' : st === 'cash' ? 'cash' : 'unpaid'   // cash = the paid ones that were collected in cash
   const page = Math.max(1, Math.floor(Number(sp.get('page') || 1)) || 1)
   const pageSize = Math.min(200, Math.max(1, Math.floor(Number(sp.get('pageSize') || 50)) || 50))
   const text = cleanSearch(sp.get('q'))
@@ -47,7 +48,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
     if (agentId) q = q.eq('assigned_agent_id', agentId)
     if (guarantorFilter) q = q.eq('guarantor_id', guarantorFilter)
     q = q.eq('due_date', date)
-    q = status === 'paid' ? q.eq('status', 'Paid') : q.neq('status', 'Paid')
+    q = status === 'paid' ? q.eq('status', 'Paid') : status === 'cash' ? q.eq('status', 'Paid').ilike('payment_mode', 'cash') : q.neq('status', 'Paid')
     if (text) {
       // 4 digits = the last 4 digits of the loan id (the customer's code); otherwise name, mobile or loan id
       q = /^\d{4}$/.test(text) ? q.ilike('loan_id', `%${text}`) : q.or(`customer_name.ilike.%${text}%,customer_phone.ilike.%${text}%,loan_id.ilike.%${text}%`)
@@ -73,11 +74,19 @@ export const GET = apiHandler(async (req: NextRequest) => {
     const s = (data && data[0]) || {}
     return { count: Number(s.customer_count || 0), total: Number(s.total_amount || 0) }
   }
-  const [all, unpaid] = await Promise.all([sum(false), sum(true)])
+  // Cash collected for the day: the paid customers whose payment mode is Cash
+  const cashRows = selectAll('RepaymentsEnriched', qb => {
+    let c = withScope(qb, scope)
+    if (agentId) c = c.eq('assigned_agent_id', agentId)
+    if (guarantorFilter) c = c.eq('guarantor_id', guarantorFilter)
+    return c.eq('due_date', date).eq('status', 'Paid').ilike('payment_mode', 'cash')
+  })
+  const [all, unpaid, cash] = await Promise.all([sum(false), sum(true), cashRows])
   const summary = {
     dueCount: all.count, dueTotal: all.total,
     paidCount: Math.max(0, all.count - unpaid.count), paidTotal: Math.max(0, all.total - unpaid.total),
     unpaidCount: unpaid.count, unpaidTotal: unpaid.total,
+    cashCount: cash.length, cashTotal: cash.reduce((t, x) => t + (Number(x['Amount']) || 0), 0),
   }
 
   // The guarantor list for the dropdown: Admin and Staff only

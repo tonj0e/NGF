@@ -621,7 +621,7 @@ const prettyDay = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString('
 type StatusRow = { repaymentId: string; name: string; code: string; phone: string; amount: number; weekNo: number; guarantorName: string; paidDate: string; mode: string; utr: string; overdue: boolean }
 type StatusData = {
   date: string; rows: StatusRow[]; total: number; page: number; totalPages: number
-  summary: { dueCount: number; dueTotal: number; paidCount: number; paidTotal: number; unpaidCount: number; unpaidTotal: number }
+  summary: { dueCount: number; dueTotal: number; paidCount: number; paidTotal: number; unpaidCount: number; unpaidTotal: number; cashCount: number; cashTotal: number }
   guarantors: { guarantorId: string; name: string; code: string }[]
 }
 
@@ -629,7 +629,7 @@ function CollectionStatusTab({ session }: { session: Session }) {
   const picker = session.role === 'Admin' || session.role === 'Staff'   // only Admin and Staff choose a guarantor
   const [date, setDate] = useState(thisSaturday())
   const [guarantorId, setGuarantorId] = useState('')
-  const [status, setStatus] = useState<'paid' | 'unpaid'>('unpaid')
+  const [status, setStatus] = useState<'paid' | 'unpaid' | 'cash'>('unpaid')
   const [q, setQ] = useState('')
   const [page, setPage] = useState(1)
   const [data, setData] = useState<StatusData | null>(null)
@@ -660,7 +660,7 @@ function CollectionStatusTab({ session }: { session: Session }) {
 
   const s = data?.summary
   const pct = s && s.dueCount ? Math.round(s.paidCount / s.dueCount * 100) : 0
-  const seg = (k: 'paid' | 'unpaid', label: string, n: number | undefined, tone: string) => (
+  const seg = (k: 'paid' | 'unpaid' | 'cash', label: string, n: number | undefined, tone: string) => (
     <button onClick={() => setStatus(k)} className={`flex-1 rounded-2xl px-3 py-3 text-sm font-bold transition ${status === k ? `${tone} text-white shadow` : 'border border-line bg-white text-soft'}`}>
       {label}{n != null && <span className="ml-1.5 opacity-80">({n})</span>}
     </button>
@@ -693,10 +693,11 @@ function CollectionStatusTab({ session }: { session: Session }) {
             <p className="text-sm font-bold text-emerald-300">{pct}%</p>
           </div>
           <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/20"><div className="h-full rounded-full bg-emerald-400 transition-all" style={{ width: `${pct}%` }} /></div>
-          <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-            <div className="rounded-xl bg-white/10 px-1 py-2"><p className="text-[10px] font-semibold uppercase text-white/60">To collect</p><p className="text-sm font-bold">{currency(s.dueTotal)}</p></div>
-            <div className="rounded-xl bg-emerald-500/25 px-1 py-2"><p className="text-[10px] font-semibold uppercase text-emerald-100/80">Collected</p><p className="text-sm font-bold">{currency(s.paidTotal)}</p></div>
-            <div className="rounded-xl bg-red-500/25 px-1 py-2"><p className="text-[10px] font-semibold uppercase text-red-100/80">Still to collect</p><p className="text-sm font-bold">{currency(s.unpaidTotal)}</p></div>
+          <div className="mt-3 grid grid-cols-4 gap-1.5 text-center">
+            <div className="rounded-xl bg-white/10 px-1 py-2"><p className="text-[10px] font-semibold uppercase text-white/60">To collect</p><p className="text-xs font-bold">{currency(s.dueTotal)}</p></div>
+            <div className="rounded-xl bg-emerald-500/25 px-1 py-2"><p className="text-[10px] font-semibold uppercase text-emerald-100/80">Collected</p><p className="text-xs font-bold">{currency(s.paidTotal)}</p></div>
+            <div className="rounded-xl bg-red-500/25 px-1 py-2"><p className="text-[10px] font-semibold uppercase text-red-100/80">Still to collect</p><p className="text-xs font-bold">{currency(s.unpaidTotal)}</p></div>
+            <div className="rounded-xl bg-amber-400/25 px-1 py-2"><p className="text-[10px] font-semibold uppercase leading-tight text-amber-100/80">Cash</p><p className="text-xs font-bold">{currency(s.cashTotal)}</p></div>
           </div>
         </div>
       )}
@@ -704,6 +705,7 @@ function CollectionStatusTab({ session }: { session: Session }) {
       <div className="flex gap-2">
         {seg('paid', 'Paid', s?.paidCount, 'bg-emerald-600')}
         {seg('unpaid', 'Not paid', s?.unpaidCount, 'bg-red-600')}
+        {seg('cash', 'Cash', s?.cashCount, 'bg-amber-600')}
       </div>
 
       <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search the 4-digit code, name or mobile…" inputMode="search" className="w-full rounded-2xl border border-line bg-white px-4 py-2.5 text-sm" />
@@ -713,7 +715,7 @@ function CollectionStatusTab({ session }: { session: Session }) {
         <div className="flex h-32 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-ink border-t-transparent" /></div>
       ) : (
         <div className="space-y-2">
-          {data?.rows.length === 0 && <p className="rounded-2xl bg-white p-6 text-center text-sm text-soft">{q ? 'No customer matches that search.' : status === 'paid' ? 'Nobody has paid yet for this day.' : 'Everyone has paid for this day. 🎉'}</p>}
+          {data?.rows.length === 0 && <p className="rounded-2xl bg-white p-6 text-center text-sm text-soft">{q ? 'No customer matches that search.' : status === 'paid' ? 'Nobody has paid yet for this day.' : status === 'cash' ? 'No cash collected for this day.' : 'Everyone has paid for this day. 🎉'}</p>}
           {data?.rows.map(r => (
             <div key={r.repaymentId} className="rounded-2xl border border-line bg-white p-3 shadow-sm">
               <div className="flex items-start justify-between gap-3">
@@ -724,10 +726,10 @@ function CollectionStatusTab({ session }: { session: Session }) {
                 </div>
                 <div className="shrink-0 text-right">
                   <p className="text-base font-extrabold">{currency(r.amount)}</p>
-                  <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-bold ${status === 'paid' ? 'bg-emerald-100 text-emerald-800' : r.overdue ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-800'}`}>{status === 'paid' ? 'Paid ✓' : r.overdue ? 'Overdue' : 'Not paid'}</span>
+                  <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-bold ${status !== 'unpaid' ? 'bg-emerald-100 text-emerald-800' : r.overdue ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-800'}`}>{status === 'paid' ? 'Paid ✓' : r.overdue ? 'Overdue' : 'Not paid'}</span>
                 </div>
               </div>
-              {status === 'paid' ? (
+              {status !== 'unpaid' ? (
                 <p className="mt-1.5 text-xs text-soft">{r.mode || 'Paid'}{r.paidDate ? ` · ${r.paidDate}` : ''}{r.utr && <> · UTR <b className="break-all font-mono text-ink">{r.utr}</b></>}</p>
               ) : (
                 <div className="mt-1.5 flex items-center gap-2 text-sm">
@@ -791,7 +793,7 @@ export default function CollectionPage({ session, perms }: { session: Session; p
   type TabDef = { key: CollectionTab; label: string; roles?: string[] }
   const TABS: TabDef[] = [
     { key: 'all',       label: 'All Pending',      roles: ['Admin', 'NGF AGENT', 'Staff'] },
-    { key: 'today',     label: 'Today (Saturday)' },
+    { key: 'today',     label: 'Saturday' },
     { key: 'list',      label: 'List' },
     { key: 'status',    label: 'Paid / Not paid' },
     { key: 'coming',    label: 'Coming Saturday',  roles: ['Admin', 'NGF AGENT', 'Staff'] },
@@ -810,11 +812,11 @@ export default function CollectionPage({ session, perms }: { session: Session; p
   return (
     <RecordAllowed.Provider value={can('collectionRecord')}>
     <div className="space-y-4">
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="flex items-center gap-2 flex-wrap">
+      <div className="flex items-center gap-3">
+        <div className="flex flex-1 items-center gap-1.5 flex-wrap sm:gap-2">
           {visibleTabs.map(t => (
             <button key={t.key} onClick={() => setTab(t.key)}
-              className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${tab === t.key ? 'bg-ink text-white' : 'border border-line bg-white text-soft hover:text-ink'}`}>
+              className={`rounded-2xl px-2.5 py-2 text-[13px] font-medium transition sm:px-4 sm:text-sm ${tab === t.key ? 'bg-ink text-white' : 'border border-line bg-white text-soft hover:text-ink'}`}>
               {t.label}
             </button>
           ))}
@@ -823,7 +825,7 @@ export default function CollectionPage({ session, perms }: { session: Session; p
           disabled={!canDownload || downloading}
           hidden={!sheetAllowed}
           title={canDownload ? 'Download collection sheet as PDF' : 'Available Friday 5pm through Saturday'}
-          className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-semibold transition ${
+          className={`inline-flex items-center gap-1 rounded-2xl px-2.5 py-2 text-[13px] font-semibold transition sm:gap-1.5 sm:px-4 sm:text-sm ${
             canDownload
               ? 'bg-green-600 text-white hover:bg-green-700'
               : 'border border-line bg-mist text-gray-400 cursor-not-allowed'

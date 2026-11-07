@@ -29,7 +29,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* apply the saved dark mode before the page paints, so there is no light flash (login page too) */}
         <script dangerouslySetInnerHTML={{ __html: "try{if(localStorage.getItem('ngf_dark_mode')==='1')document.documentElement.classList.add('ngf-dark')}catch(e){}" }} />
       </head>
-      <body className="min-h-full bg-mist text-ink antialiased">
+      <body className="min-h-full bg-mist text-ink antialiased" suppressHydrationWarning>   {/* browser extensions add attributes to <body> before the page loads */}
         <AutoUppercase />
         {children}
         <PwaClient />
