@@ -104,3 +104,6 @@ Always on, even if the Dev "receiver name" setting is blank (then "ngf" is used)
 ## Fix pop-up (2026-11-05)
 `listMessages` also returns `issues`: every slip of that guarantor still in a fix status (Wrong Payee, Needs Retake, Duplicate, Amount Mismatch, Not Successful, Resubmit), any week. The guarantor chat shows the oldest one as a full-screen pop-up that cannot be closed; it goes away only when the guarantor fixes it (Send a new screenshot / Change customer). Hidden while the fix form is open. Staff do not get the pop-up.
 The pop-up has a View screenshot button next to the customer line; it shows the not-accepted screenshot and earlier tries so the guarantor sends a different one.
+
+## Reader answer limit (2026-11-09)
+The OpenRouter (Claude Haiku) read now allows `max_tokens: 1200` (was 600) in `lib/slipReader.ts`; one read had been cut off while thinking. Typical cost stays about $0.0003 per read (see memory note on cost watch).

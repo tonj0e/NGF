@@ -2,7 +2,7 @@
 title: Money Brain
 section: Money
 status: current
-last_verified: 2026-10-18
+last_verified: 2026-11-09
 tags: [ngf, money, brain]
 ---
 # Money Brain
@@ -39,7 +39,7 @@ flowchart LR
 | [[Commissions and Payouts]] | Commission cycle, request, approve, QR | Changing guarantor payouts |
 | [[Deposits]] | Deposit ledger, interest rule, withdrawals | Changing deposit scheme |
 | [[Capital and Dashboard Metrics]] | Every dashboard formula, capital, projection | Dashboard number looks wrong |
-| [[Reports]] | Reports page tabs and data source | Changing reports |
+| [[Reports]] | Reports page tabs and data source, incl. the Tally summary for the accountant | Changing reports |
 
 ## Known issues
 - Commission QR scan sends PATCH without `action`; payout stays Pending. [[Commissions and Payouts]]

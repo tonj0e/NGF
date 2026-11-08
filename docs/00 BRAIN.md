@@ -2,7 +2,7 @@
 title: 00 BRAIN
 section: Home
 status: current
-last_verified: 2026-10-21
+last_verified: 2026-11-09
 tags: [ngf, brain,home]
 ---
 

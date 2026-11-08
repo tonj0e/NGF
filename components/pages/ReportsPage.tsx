@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { Session } from '@/types'
 import Pager from '@/components/ui/Pager'
+import TallyReport from './TallyReport'
 
 function currency(n: number) {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n)
@@ -18,7 +19,7 @@ function statusColor(s: string) {
   return 'bg-mist text-soft'
 }
 
-type Tab = 'summary' | 'transactions' | 'customers' | 'guarantors'
+type Tab = 'summary' | 'transactions' | 'customers' | 'guarantors' | 'tally'
 
 // A debounced copy of a value (used for the search boxes: the server is asked after a short pause)
 function useDebounced<T>(value: T, ms = 300): T {
@@ -217,6 +218,7 @@ export default function ReportsPage({ session }: { session: Session }) {
     { key: 'transactions', label: 'Transactions' },
     { key: 'customers',    label: 'Customer Transactions' },
     { key: 'guarantors',   label: 'Guarantor Transactions' },
+    { key: 'tally',        label: 'Tally summary' },
   ]
   const tabBar = (
     <div className="flex gap-2 flex-wrap">
@@ -228,6 +230,9 @@ export default function ReportsPage({ session }: { session: Session }) {
       ))}
     </div>
   )
+
+  // ── TALLY SUMMARY (accountant) ──
+  if (tab === 'tally') return <div className="space-y-5">{tabBar}<TallyReport session={session} /></div>
 
   // ── SUMMARY ──
   if (tab === 'summary') {

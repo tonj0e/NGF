@@ -42,3 +42,6 @@ Primary-key columns are listed twice in `getPrimaryKeyColumn` / `getPascalPrimar
 
 ## Related
 - [[Architecture Brain]], [[Tables]], [[Enums and Status Values]], [[Integrations]], [[Config and Env Vars]], [[Open Security Leads]]
+
+## Short-lived reads (2026-11-09)
+`readTable(table, { maxAgeMs })` accepts a cached copy up to that age (permission, branch-role, guarantor-branch, agent and guarantor lookups use 10 s; login's Users read 5 s). `forceFresh` still always asks the database. Reads of one table that are already in flight share one database call. Saves through the app clear the cache for that table; changes made directly in the database show within the age. In the browser, `components/CsrfFetch.tsx` reuses answers of `/api/branches`, `/api/review-options`, `/api/loan-products` and `/api/settings` for 30 s (any save clears them), and `lib/clientApi.ts` `apiSend` keeps its CSRF token for 10 minutes.

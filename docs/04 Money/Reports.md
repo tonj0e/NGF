@@ -12,7 +12,7 @@ tags: [ngf, money, reports]
 | Item | Value |
 |---|---|
 | Page | `components/pages/ReportsPage.tsx`, view key `reports` |
-| Tabs | Summary, Transactions, Customer Transactions, Guarantor Transactions (`ReportsPage.tsx:79`) |
+| Tabs | Summary, Transactions, Customer Transactions, Guarantor Transactions, **Tally summary** (added 2026-11-09) |
 | Data | `/api/loans?filter=all`, `/api/repayments?mode=all&pageSize=5000`, `/api/settlements`, `/api/customers`, `/api/staff` (`:43-47`) |
 | Access | Admin menu item; Staff only if granted `reports` in Dev -> Branches (`lib/config.ts:22`); not in Guarantor or Agent menus (`components/AppShell.tsx:66-108`) |
 
@@ -37,3 +37,10 @@ tags: [ngf, money, reports]
 
 ## Related
 - [[Money Brain]], [[Capital and Dashboard Metrics]], [[Repayments and Collections]], [[Settlements]], [[Roles and Permissions]], [[Screens Map]]
+
+## Tally summary (2026-11-09)
+For the accountant to enter payments in Tally. Tab on the Reports page (`components/pages/TallyReport.tsx`), API `GET /api/reports/tally?date=YYYY-MM-DD[&guarantorId=]` (feature `reports`; Admin all, Staff their branches' guarantors). Read only.
+- Source: `payment_lines` whose `due_date` = the chosen Saturday (the customers due that day; NOT `payment_groups.saturday_date`, which is the Saturday the payment was recorded in and moves a payment entered a day late to the next Saturday), their `payment_groups` (status Verified or Overridden), customer names, and `bank_transactions` (the statement uploaded in Payments > Bank check) by transaction id.
+- Two statements kept apart: **Transaction ID statement** (UPI / Bank: guarantor, customer, 4-digit code, amount, mode, transaction id, paid date (the date on the screenshot, `payment_chat.txn_date`; falls back to the day it was recorded), bank statement name, bank check = Matched / Amount differs / Not in statement / No statement uploaded) and **Cash statement** (Cash, Cheque, Other: no transaction id).
+- Download as Excel (`.xlsx`, one sheet per statement, subtotal per guarantor and grand total) or PDF, for both statements or one. Files built in the browser by `lib/tallyExport.ts` (`fflate` for the xlsx zip, `jspdf` for the PDF).
+- Limit: only payments recorded through the Payments module (chat or manual marking) appear; the bank name is empty until a bank statement is uploaded.

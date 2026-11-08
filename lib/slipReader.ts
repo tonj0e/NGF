@@ -175,7 +175,7 @@ async function readWithOpenRouter(base64: string, mediaType: Media, modelOverrid
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json', Accept: 'application/json', 'X-Title': 'NGF CRM' },
     body: JSON.stringify({
-      model, max_tokens: 600, temperature: 0, stream: false, usage: { include: true },
+      model, max_tokens: 1200, temperature: 0, stream: false, usage: { include: true },
       messages: [
         { role: 'system', content: SYSTEM + ' ' + JSON_SHAPE },
         { role: 'user', content: [{ type: 'text', text: 'Extract the payment details from this screenshot.' }, { type: 'image_url', image_url: { url: `data:${mediaType};base64,${base64}` } }] },
