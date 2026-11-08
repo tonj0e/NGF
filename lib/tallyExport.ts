@@ -101,3 +101,9 @@ export async function downloadTallyPdf(data: TallyData, which: TallyWhich, tag: 
   const part = which === 'both' ? 'statements' : which === 'upi' ? 'transaction-id-statement' : 'cash-statement'
   return save(`tally-${part}-${data.date}${tag}.pdf`, 'application/pdf', new Uint8Array(doc.output('arraybuffer')))
 }
+
+// A plain one-sheet Excel file from a header and rows (used by the AI usage page)
+export async function downloadSheetXlsx(fileName: string, sheetName: string, head: string[], rows: (string | number)[][]): Promise<string> {
+  const bytes = await buildXlsx([{ name: sheetName.slice(0, 31), head, body: rows.map(cells => ({ cells, bold: false })) }])
+  return save(fileName, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', bytes)
+}

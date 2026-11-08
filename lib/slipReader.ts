@@ -4,6 +4,7 @@
 // downscaled by the API (about 1,500 tokens at most). Nothing here can run a loop.
 import Anthropic from '@anthropic-ai/sdk'
 import { getConfig } from './integrations'
+import { getSupabase } from './supabase-db'
 
 export const SLIP_MODEL = 'claude-haiku-5-5'
 // Published prices for this model, USD per million tokens (prompts up to 100K tokens). Used only for the cost meter.
@@ -79,13 +80,34 @@ export async function pickProvider(setting: string): Promise<Provider | null> {
   return k.claude ? 'claude' : k.openrouter ? 'openrouter' : k.nvidia ? 'nvidia' : null
 }
 
-type ReadResult = { reading: SlipReading; inTokens: number; outTokens: number; costUsd: number; provider: Provider; model: string }
+type ReadResult = { reading: SlipReading; inTokens: number; outTokens: number; costUsd: number; provider: Provider; model: string; reasoningTokens?: number; cachedTokens?: number; finishReason?: string }
+// Who asked for the read, so the AI usage page can show it (all optional)
+export type ReadContext = { purpose?: 'slip' | 'test'; guarantorId?: string | null; messageId?: string | null; userId?: string | null }
 type Media = 'image/jpeg' | 'image/png' | 'image/webp'
 
-export async function readSlip(base64: string, mediaType: Media, provider: Provider = 'claude', modelOverride?: string): Promise<ReadResult> {
-  if (provider === 'nvidia') return readWithNvidia(base64, mediaType, modelOverride)
-  if (provider === 'openrouter') return readWithOpenRouter(base64, mediaType, modelOverride)
-  return readWithClaude(base64, mediaType)
+export async function readSlip(base64: string, mediaType: Media, provider: Provider = 'claude', modelOverride?: string, ctx: ReadContext = {}): Promise<ReadResult> {
+  const t0 = Date.now()
+  try {
+    const r = provider === 'nvidia' ? await readWithNvidia(base64, mediaType, modelOverride)
+      : provider === 'openrouter' ? await readWithOpenRouter(base64, mediaType, modelOverride)
+      : await readWithClaude(base64, mediaType)
+    await logAiUsage({ provider: r.provider, model: r.model, ctx, tokensIn: r.inTokens, tokensOut: r.outTokens, reasoning: r.reasoningTokens, cached: r.cachedTokens, cost: r.costUsd, ms: Date.now() - t0, status: 'ok', finish: r.finishReason })
+    return r
+  } catch (e) {
+    await logAiUsage({ provider, model: modelOverride || '', ctx, ms: Date.now() - t0, status: 'error', error: e instanceof Error ? e.message : String(e) })
+    throw e
+  }
+}
+
+// One row in ai_usage for every AI call. Never lets a logging problem break a payment read.
+async function logAiUsage(i: { provider: string; model: string; ctx: ReadContext; tokensIn?: number; tokensOut?: number; reasoning?: number; cached?: number; cost?: number; ms: number; status: 'ok' | 'error'; finish?: string; error?: string }) {
+  try {
+    await getSupabase().from('ai_usage').insert({
+      provider: i.provider, model: i.model, purpose: i.ctx.purpose || 'slip', guarantor_id: i.ctx.guarantorId || null, message_id: i.ctx.messageId || null, user_id: i.ctx.userId || null,
+      tokens_in: i.tokensIn || 0, tokens_out: i.tokensOut || 0, tokens_reasoning: i.reasoning || 0, tokens_cached: i.cached || 0, cost_usd: i.cost || 0,
+      duration_ms: i.ms, status: i.status, finish_reason: i.finish || null, error: i.error ? i.error.slice(0, 300) : null,
+    })
+  } catch { /* the log is a convenience only */ }
 }
 
 async function readWithClaude(base64: string, mediaType: Media): Promise<ReadResult> {
@@ -105,7 +127,7 @@ async function readWithClaude(base64: string, mediaType: Media): Promise<ReadRes
   const text = res.content.find(b => b.type === 'text')
   if (res.stop_reason === 'refusal' || !text || text.type !== 'text') throw new Error('The reader gave no answer')
   const r = JSON.parse(text.text) as SlipReading
-  return { reading: r, inTokens, outTokens, costUsd, provider: 'claude', model: SLIP_MODEL }
+  return { reading: r, inTokens, outTokens, costUsd, provider: 'claude', model: SLIP_MODEL, cachedTokens: res.usage.cache_read_input_tokens || 0, finishReason: res.stop_reason || undefined }
 }
 
 // ─── NVIDIA Nemotron (OpenAI-compatible endpoint) ────────────────────────────
@@ -184,12 +206,12 @@ async function readWithOpenRouter(base64: string, mediaType: Media, modelOverrid
     signal: AbortSignal.timeout(45_000),
   })
   if (!res.ok) throw new Error(`OpenRouter ${res.status} with model "${model}": ${(await res.text().catch(() => '')).trim().slice(0, 200)}`)
-  const j = await res.json() as { choices?: { message?: { content?: string | null } }[]; usage?: { prompt_tokens?: number; completion_tokens?: number; cost?: number }; error?: { message?: string } }
+  const j = await res.json() as { choices?: { message?: { content?: string | null }; finish_reason?: string }[]; usage?: { prompt_tokens?: number; completion_tokens?: number; cost?: number; completion_tokens_details?: { reasoning_tokens?: number }; prompt_tokens_details?: { cached_tokens?: number } }; error?: { message?: string } }
   const text = j.choices?.[0]?.message?.content
   if (!text) throw new Error(`OpenRouter gave no answer${j.error?.message ? `: ${String(j.error.message).slice(0, 150)}` : ''}`)
   const inTokens = j.usage?.prompt_tokens || 0, outTokens = j.usage?.completion_tokens || 0
   // OpenRouter reports the real cost of the call (in US dollars)
-  return { reading: parseLoose(text), inTokens, outTokens, costUsd: Number(j.usage?.cost) || 0, provider: 'openrouter', model }
+  return { reading: parseLoose(text), inTokens, outTokens, costUsd: Number(j.usage?.cost) || 0, provider: 'openrouter', model, reasoningTokens: j.usage?.completion_tokens_details?.reasoning_tokens || 0, cachedTokens: j.usage?.prompt_tokens_details?.cached_tokens || 0, finishReason: j.choices?.[0]?.finish_reason }
 }
 
 // Claude/vision models OpenRouter offers (public list), to help pick the model id. Empty when it cannot be fetched.

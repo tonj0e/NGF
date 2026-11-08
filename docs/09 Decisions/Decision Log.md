@@ -50,3 +50,6 @@ The site felt slow (first Leads load 6 s). Four audits (browser, server and data
 
 ## 2026-11-09: Slip reader answer limit raised to 1200 tokens
 One Haiku read hit the 600-token cap while thinking and was cut off. The limit is now 1200 (`lib/slipReader.ts`); cost only grows when a read uses the room. Switching thinking off was offered and not chosen. See [[Payment Chat]].
+
+## 2026-11-09: Own AI usage log and an Admin "AI" page
+The owner is moving from OpenRouter to the Anthropic API, whose console shows only daily totals. Every AI call is now logged in `ai_usage` (provider-neutral) and the Admin menu has an **AI** page below Dev (NGF > Activity | Logs, like the OpenRouter dashboard) with Excel download. Thinking tokens are visible with OpenRouter and are inside output tokens with Anthropic direct. See [[AI Usage]].

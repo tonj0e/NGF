@@ -370,7 +370,7 @@ export async function submitSlip(session: Session, access: Access, input: Submit
   // Read it
   let reading: SlipReading, inT = 0, outT = 0, cost = 0, readerName = ''
   const t0 = Date.now()
-  try { const r = await readSlip(b64, media, prov); ({ reading, inTokens: inT, outTokens: outT, costUsd: cost } = r); readerName = `${r.provider}:${r.model}@${Date.now() - t0}` }
+  try { const r = await readSlip(b64, media, prov, undefined, { purpose: 'slip', guarantorId, messageId, userId: session.userId }); ({ reading, inTokens: inT, outTokens: outT, costUsd: cost } = r); readerName = `${r.provider}:${r.model}@${Date.now() - t0}` }
   catch (e) { reportError('Slip read failed', e); return toOffice('The screenshot could not be read just now.') }
   const utr = normalizeUtr(reading.utr)
   const usage = { in_tokens: Math.max(1, inT), out_tokens: outT, cost_usd: cost, reader: readerName }
@@ -536,7 +536,7 @@ export async function testRead(access: Access, provider: string, image: { mimeTy
   const t0 = Date.now()
   try {
     const m = prov !== 'claude' && model && /^[\w.\-/]{3,120}$/.test(model) ? model : undefined
-    const r = await readSlip(b64, media, prov, m)
+    const r = await readSlip(b64, media, prov, m, { purpose: 'test' })
     return { ok: true, provider: r.provider, model: r.model, ms: Date.now() - t0, reading: r.reading, inTokens: r.inTokens, outTokens: r.outTokens, costUsd: r.costUsd, error: '' }
   } catch (e) {
     let hint = ''

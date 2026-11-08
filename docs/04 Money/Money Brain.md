@@ -39,6 +39,7 @@ flowchart LR
 | [[Commissions and Payouts]] | Commission cycle, request, approve, QR | Changing guarantor payouts |
 | [[Deposits]] | Deposit ledger, interest rule, withdrawals | Changing deposit scheme |
 | [[Capital and Dashboard Metrics]] | Every dashboard formula, capital, projection | Dashboard number looks wrong |
+| [[AI Usage]] | Admin AI page: tokens and cost of every AI call (Activity, Logs) | Changing the readers or providers |
 | [[Reports]] | Reports page tabs and data source, incl. the Tally summary for the accountant | Changing reports |
 
 ## Known issues
