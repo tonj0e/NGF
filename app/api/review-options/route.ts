@@ -4,7 +4,7 @@ import { requireFeature } from '@/lib/access'
 import { readTable, appendRow, updateById, deleteRow, findRecord, makeId, nowIso, deleteById, invalidateCache } from '@/lib/supabase-db'
 
 export const GET = apiHandler(async (_req: NextRequest) => {
-  const opts = await readTable('ReviewOptions', { forceFresh: true })
+  const opts = await readTable('ReviewOptions')
   return ok({ options: opts })
 })
 

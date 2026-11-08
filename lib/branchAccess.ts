@@ -14,7 +14,7 @@ export async function getBranchAccess(session: Pick<Session, 'userId' | 'role'>)
   if (session.role === 'Admin') return { admin: true, roleIn: new Map() }
   const roleIn = new Map<string, string>()
   if (session.role === 'Staff') {
-    const rows = await readTable('BranchStaffRoles', { forceFresh: true })
+    const rows = await readTable('BranchStaffRoles', { maxAgeMs: 10_000 })
     for (const r of rows) if (r['User ID'] === session.userId && String(r['Is Active']) !== 'false') roleIn.set(r['Branch ID'], r['Role In Branch'])
   }
   return { admin: false, roleIn }
@@ -26,13 +26,13 @@ export const canSeeBranch = (a: BranchAccess, branchId: string) => a.admin || (!
 
 /** The branch a guarantor belongs to (their active link), or '' */
 export async function branchOfGuarantor(guarantorId: string): Promise<string> {
-  const rows = await readTable('GuarantorBranches', { forceFresh: true })
+  const rows = await readTable('GuarantorBranches', { maxAgeMs: 10_000 })
   return rows.find(x => x['Guarantor ID'] === guarantorId && String(x['Is Active']) !== 'false')?.['Branch ID'] || ''
 }
 
 /** guarantor id -> branch id (active links), read once for list filtering */
 export async function guarantorBranchMap(): Promise<Map<string, string>> {
-  const rows = await readTable('GuarantorBranches', { forceFresh: true })
+  const rows = await readTable('GuarantorBranches', { maxAgeMs: 10_000 })
   const m = new Map<string, string>()
   for (const x of rows) if (String(x['Is Active']) !== 'false' && x['Guarantor ID']) m.set(x['Guarantor ID'], x['Branch ID'])
   return m
@@ -51,7 +51,7 @@ export function customerGuarantorId(c: Record<string, string>, loans: Record<str
 export async function branchesOfUser(userId: string): Promise<Set<string>> {
   const out = new Set<string>()
   const [agents, guarantors, gMap, roles] = await Promise.all([
-    readTable('Agents', { forceFresh: true }), readTable('Guarantors', { forceFresh: true }), guarantorBranchMap(), readTable('BranchStaffRoles', { forceFresh: true }),
+    readTable('Agents', { maxAgeMs: 10_000 }), readTable('Guarantors', { maxAgeMs: 10_000 }), guarantorBranchMap(), readTable('BranchStaffRoles', { maxAgeMs: 10_000 }),
   ])
   for (const a of agents) if (a['User ID'] === userId && a['Branch ID']) out.add(a['Branch ID'])
   for (const g of guarantors) if (g['User ID'] === userId) { const b = gMap.get(g['Guarantor ID']); if (b) out.add(b) }
@@ -62,7 +62,7 @@ export async function branchesOfUser(userId: string): Promise<Set<string>> {
 /** User ids of active staff in a branch holding one of the roles (for notifications) */
 export async function branchStaffUserIds(branchId: string, roles = APPROVER_ROLES): Promise<string[]> {
   if (!branchId) return []
-  const rows = await readTable('BranchStaffRoles', { forceFresh: true })
+  const rows = await readTable('BranchStaffRoles', { maxAgeMs: 10_000 })
   return rows.filter(r => r['Branch ID'] === branchId && String(r['Is Active']) !== 'false' && roles.includes(r['Role In Branch'])).map(r => r['User ID'])
 }
 

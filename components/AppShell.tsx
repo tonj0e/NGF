@@ -8,7 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel } from '@/components/ui/dropdown-menu'
 import { Sheet, SheetContent, SheetClose } from '@/components/ui/sheet'
 import { Menu, X, Bell, User, LogOut, LayoutDashboard, Users, FileText, Truck, BarChart3, LandPlot, Upload, CreditCard, Settings, Shield, MessageSquare, MapPin, ClipboardList, Wallet, History, Sparkles, HelpCircle, ChevronLeft, ChevronRight, DollarSign, Coins, Banknote, Pin, PinOff, PieChart, TrendingUp, Route as RouteIcon, Navigation, Building2, Link2, LayoutGrid, ChevronDown, Smartphone } from 'lucide-react'
-import Dashboard from './pages/Dashboard'
+const Dashboard = dynamic(() => import('./pages/Dashboard'), { loading: () => <PageLoading /> })   // charts and animation load only when the dashboard opens
 const LeadsPage = dynamic(() => import('./pages/LeadsPage'), { loading: () => <PageLoading /> })
 import InstallAppButton from './InstallAppButton'
 import { HeaderNetworkLight } from './agent/NetworkLight'

@@ -22,7 +22,34 @@ export default function CsrfFetch() {
       } catch { return '' }
     }
 
+    // Settings-type lookups that every page re-asks for: reuse an answer up to 30 seconds old, and share one request when
+    // several screens ask at the same moment. Any save clears them, so a change shows at once.
+    const SHARED = ['/api/branches', '/api/review-options', '/api/loan-products', '/api/settings']
+    const shared = new Map<string, { at: number; p: Promise<{ body: string; status: number; type: string }> }>()
+
     window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      try {
+        const req0 = input instanceof Request ? input : null
+        const m0 = (init?.method || req0?.method || 'GET').toUpperCase()
+        const u0 = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : req0!.url, window.location.origin)
+        if (u0.origin === window.location.origin && u0.pathname.startsWith('/api/')) {
+          if (m0 !== 'GET' && m0 !== 'HEAD' && m0 !== 'OPTIONS') shared.clear()
+          else if (m0 === 'GET' && SHARED.includes(u0.pathname) && !init?.signal && !req0) {
+            const auth = new Headers(init?.headers || undefined).get('Authorization') || ''
+            const key = `${auth}|${u0.pathname}${u0.search}`
+            const hit = shared.get(key)
+            if (hit && Date.now() - hit.at < 30_000) {
+              const r = await hit.p
+              return new Response(r.body, { status: r.status, headers: { 'Content-Type': r.type } })
+            }
+            const p = original(input, init).then(async res => ({ body: await res.clone().text(), status: res.status, type: res.headers.get('Content-Type') || 'application/json' }))
+            shared.set(key, { at: Date.now(), p })
+            p.then(r => { if (r.status >= 400) shared.delete(key) }, () => shared.delete(key))
+            const r = await p
+            return new Response(r.body, { status: r.status, headers: { 'Content-Type': r.type } })
+          }
+        }
+      } catch { /* fall through to the normal request */ }
       try {
         const req = input instanceof Request ? input : null
         const method = (init?.method || req?.method || 'GET').toUpperCase()

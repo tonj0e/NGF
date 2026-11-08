@@ -9,7 +9,7 @@ export const ROLE_DEFAULTS_KEY = 'role_defaults'
 /** Role defaults the Admin saved (settings key `role_defaults`). Until saved, nobody gets defaults: only the
  *  permissions already ticked per person count, so turning this on changes nothing by surprise. */
 export async function savedRoleDefaults(): Promise<Record<string, string[]> | null> {
-  const rows = await readTable('Settings', { forceFresh: true })
+  const rows = await readTable('Settings', { maxAgeMs: 10_000 })
   const raw = rows.find(r => r['Key'] === ROLE_DEFAULTS_KEY)?.['Value']
   if (!raw) return null
   try {
@@ -22,8 +22,8 @@ export async function savedRoleDefaults(): Promise<Record<string, string[]> | nu
 export async function loadPermissions(session: Pick<Session, 'userId' | 'role'>): Promise<string[]> {
   if (session.role === 'Admin') return FEATURES.map(f => f.key)
   const [access, branchRoles, defaults] = await Promise.all([
-    readTable('StaffAccess', { forceFresh: true }),
-    session.role === 'Staff' ? readTable('BranchStaffRoles', { forceFresh: true }) : Promise.resolve([]),
+    readTable('StaffAccess', { maxAgeMs: 10_000 }),
+    session.role === 'Staff' ? readTable('BranchStaffRoles', { maxAgeMs: 10_000 }) : Promise.resolve([]),
     savedRoleDefaults(),
   ])
   const extras = permsOf(access.find(a => a['User ID'] === session.userId)?.['Permissions'])

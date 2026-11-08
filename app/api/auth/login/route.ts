@@ -22,7 +22,8 @@ export const POST = apiHandler(async (req: NextRequest) => {
   const perUser = rateLimitKey(`login-user:${String(username).trim().toLowerCase()}`, 15, 5 * 60 * 1000)
   if (!perUser.success) return NextResponse.json({ success: false, error: 'Too many attempts for this account. Please try again later.' }, { status: 429, headers: { 'Retry-After': String(perUser.retryAfterSec) } })
 
-  const users = await readTable('Users', { forceFresh: true })
+  const settingsP = readTable('Settings').catch(() => [] as Record<string, string>[])   // needed later; start now
+  const users = await readTable('Users', { maxAgeMs: 5_000 })
   
   // Try to find user by username first, then by name, then by email
   let user = findRecord(users, 'Username', username)
@@ -81,7 +82,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
   // unless this device is already trusted ("remember me").
   const role = user['Role']
   if (role !== 'Admin' && QR_LOGIN_ROLES.includes(role)) {
-    const settings = await readTable('Settings')
+    const settings = await settingsP
     const qrRequired = settings.find(s => s['Key'] === `qrlogin:${role}`)?.['Value'] === '1'
     if (qrRequired) {
       let trusted = false

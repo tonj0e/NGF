@@ -167,11 +167,13 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
   ), [showSubmit, showRenewal, approving, detail, editing, deleteMode, busy, selected.size])
 
   // Auto-refresh leads every 15 seconds (only when UI is idle)
+  const loadRef = useRef(load)
+  loadRef.current = load   // the refresh always uses the current filters and page
   useEffect(() => {
     if (!isIdle) return
     const interval = setInterval(() => {
-      load(false)
-    }, 15000)
+      if (!document.hidden) loadRef.current(false)   // not while the app is in the background
+    }, 30000)
     return () => clearInterval(interval)
   }, [isIdle])
 

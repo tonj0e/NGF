@@ -11,12 +11,21 @@ export async function apiGet<T = any>(token: string, url: string): Promise<ApiRe
   try { return await parse(await fetch(url, { headers: { Authorization: `Bearer ${token}` } })) } catch { return { ok: false, status: 0, error: 'Network problem. Check the connection.' } }
 }
 
+const csrfCache = new Map<string, { token: string; at: number }>()   // a save token is good for a while: no extra round trip on each save
+
 export async function apiSend<T = any>(token: string, method: 'POST' | 'PATCH' | 'DELETE', url: string, body?: unknown): Promise<ApiResult<T>> {
   try {
-    const csrf = await fetch('/api/csrf', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()).catch(() => null)
+    let csrfToken = ''
+    const c = csrfCache.get(token)
+    if (c && Date.now() - c.at < 10 * 60_000) csrfToken = c.token
+    else {
+      const csrf = await fetch('/api/csrf', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()).catch(() => null)
+      csrfToken = csrf?.csrfToken || csrf?.data?.csrfToken || ''
+      if (csrfToken) csrfCache.set(token, { token: csrfToken, at: Date.now() })
+    }
     return await parse(await fetch(url, {
       method,
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'X-CSRF-Token': csrf?.csrfToken || csrf?.data?.csrfToken || '' },
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
       body: body === undefined ? undefined : JSON.stringify(body),
     }))
   } catch { return { ok: false, status: 0, error: 'Network problem. Check the connection.' } }

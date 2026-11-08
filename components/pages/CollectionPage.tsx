@@ -1,6 +1,5 @@
 'use client'
 import { Fragment, createContext, useContext, useEffect, useRef, useState, useCallback } from 'react'
-import { downloadSheetPdf } from '@/lib/collectionSheetPdf'
 import { Session } from '@/types'
 import StatusPill from '@/components/ui/StatusPill'
 import Pager from '@/components/ui/Pager'
@@ -778,6 +777,7 @@ export default function CollectionPage({ session, perms }: { session: Session; p
       const json = await res.json()
       if (!json.success) { alert(json.error || 'Could not generate sheet.'); return }
       if (!json.data.rows.length) { alert('No active customers to collect from.'); return }
+      const { downloadSheetPdf } = await import('@/lib/collectionSheetPdf')   // the PDF library loads only when Sheet is used
       const note = await downloadSheetPdf(json.data)
       if (note) alert(note)
     } catch {

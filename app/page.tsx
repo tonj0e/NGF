@@ -1,7 +1,9 @@
 'use client'
 import { useEffect, useState } from 'react'
+import dynamic from 'next/dynamic'
 import Login from '@/components/Login'
-import AppShell from '@/components/AppShell'
+// the app itself is a separate download, so the sign-in screen opens fast; it is fetched quietly while the person types
+const AppShell = dynamic(() => import('@/components/AppShell'), { loading: () => null })
 import SplashLogo from '@/components/SplashLogo'
 import { Session } from '@/types'
 
@@ -142,7 +144,12 @@ export default function Home() {
     const standalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as unknown as { standalone?: boolean }).standalone === true
     if (!standalone) return
     setOpenSplash(true)
-    const t = setTimeout(() => setOpenSplash(false), 3000)
+    const t = setTimeout(() => setOpenSplash(false), 1200)
+    return () => clearTimeout(t)
+  }, [])
+
+  useEffect(() => {
+    const t = setTimeout(() => { import('@/components/AppShell').catch(() => {}) }, 1500)
     return () => clearTimeout(t)
   }, [])
 
@@ -156,15 +163,12 @@ export default function Home() {
         if (!payload || !(payload.exp * 1000 > Date.now())) { localStorage.removeItem('ngf_token'); payload = null }
       }
       if (stored && payload) {
-        // Confirm the server still accepts the token (e.g. not revoked by a password change) BEFORE showing
-        // the signed-in UI, so a revoked session never flashes the previous user's portal.
-        try {
-          const r = await fetch('/api/auth/session', { headers: { Authorization: `Bearer ${stored}` } })
-          if (r.status === 401) localStorage.removeItem('ngf_token')
-          else if (!cancelled) setSession({ ...payload, token: stored })
-        } catch {
-          if (!cancelled) setSession({ ...payload, token: stored }) // offline: keep existing behaviour
-        }
+        // Show the signed-in screen at once and confirm with the server in the background: a revoked token
+        // (e.g. password changed) signs the person out as soon as the answer arrives.
+        if (!cancelled) { setSession({ ...payload, token: stored }); setLoading(false) }
+        fetch('/api/auth/session', { headers: { Authorization: `Bearer ${stored}` } })
+          .then(r => { if (r.status === 401 && !cancelled) { localStorage.removeItem('ngf_token'); setSession(null) } })
+          .catch(() => { /* offline: keep the session */ })
       }
       if (!cancelled) setLoading(false)
     })()
@@ -174,7 +178,7 @@ export default function Home() {
   const onLogin = (s: Session) => {
     localStorage.setItem('ngf_token', s.token)
     setSplash(true)
-    setTimeout(() => setSplash(false), 3200)
+    setTimeout(() => setSplash(false), 1600)
     if (s.role === 'NGF AGENT') {
       setShowAttendance(true)
     } else {

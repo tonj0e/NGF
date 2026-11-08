@@ -232,10 +232,23 @@ function cacheKey(table: TableName) { return table }
 
 export function invalidateCache(table: TableName) { cache.delete(cacheKey(table)) }
 
-export async function readTable(table: TableName, options?: { forceFresh?: boolean }): Promise<Record<string, string>[]> {
+// Reads of the same table that are already in flight share one database call
+const inflight = new Map<string, Promise<Record<string, string>[]>>()
+
+// forceFresh: always ask the database. maxAgeMs: accept a copy no older than this (permission / branch lookups that run on every request).
+export async function readTable(table: TableName, options?: { forceFresh?: boolean; maxAgeMs?: number }): Promise<Record<string, string>[]> {
   const key = cacheKey(table)
   const hit = cache.get(key)
-  if (!options?.forceFresh && hit && Date.now() - hit.ts < CACHE_TTL) return hit.data
+  const ttl = options?.maxAgeMs ?? (options?.forceFresh ? 0 : CACHE_TTL)
+  if (ttl > 0 && hit && Date.now() - hit.ts < ttl) return hit.data
+  const pending = inflight.get(key)
+  if (pending) return pending
+  const p = readTableFromDb(table, key)
+  inflight.set(key, p)
+  try { return await p } finally { inflight.delete(key) }
+}
+
+async function readTableFromDb(table: TableName, key: string): Promise<Record<string, string>[]> {
 
   const supabase = getSupabase()
   const dbTable = TABLE_MAP[table]

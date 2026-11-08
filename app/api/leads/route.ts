@@ -24,7 +24,7 @@ import { normalizeIndianMobile } from '@/lib/phone'
 // `counts` (new / history / renewal / approved) feeds the tab badges for the caller's whole scope.
 export const GET = apiHandler(async (req: NextRequest) => {
   const session = await getSession(req)
-  await needFeature(session, [])
+  const [, scope0] = await Promise.all([needFeature(session, []), scopeOf(session)])   // permission and scope do not depend on each other
   const { searchParams } = new URL(req.url)
   const status = searchParams.get('status') || ''
   const tab = searchParams.get('tab') || ''
@@ -36,7 +36,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
   // the small branch tables load at the same time as the scope, not after it
   const branchesP = Promise.all([readTable('Branches'), readTable('GuarantorBranches')])
   // who may see which leads: a guarantor their own, an agent their assigned, Staff their branches' guarantors
-  let scope = await scopeOf(session)
+  let scope = scope0
   let agentId = ''
   if (session.role === 'NGF AGENT') {
     const agent = (await readTable('Agents')).find(a => a['User ID'] === session.userId)

@@ -16,7 +16,7 @@ const saturdayOf = (d: string) => { const t = new Date(`${d}T00:00:00Z`); t.setU
 
 export const GET = apiHandler(async (req: NextRequest) => {
   const session = await getSession(req)
-  await needFeature(session, coll('collectionView'))
+  const [, scope0] = await Promise.all([needFeature(session, coll('collectionView')), scopeOf(session)])   // permission and scope do not depend on each other
   const sp = new URL(req.url).searchParams
   const picker = session.role === 'Admin' || session.role === 'Staff'   // who may choose a guarantor
   const dateIn = sp.get('date') || ''
@@ -28,7 +28,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const text = cleanSearch(sp.get('q'))
 
   // Who may see which customers
-  let scope = await scopeOf(session)
+  let scope = scope0
   let agentId = ''
   if (session.role === 'NGF AGENT') {
     const a = (await readTable('Agents')).find(x => x['User ID'] === session.userId)
@@ -55,11 +55,28 @@ export const GET = apiHandler(async (req: NextRequest) => {
     }
     return q
   }
-  // payment_mode is not plain text in the database, so "cash" is picked here in code (one day's paid rows only)
   const isCash = (x: Record<string, string>) => String(x['Payment Mode'] || '').trim().toLowerCase() === 'cash'
+  // Totals for the whole day (not just this page): everyone due, and who is still unpaid; paid is the difference
+  const sb = getSupabase()
+  const sum = async (unpaidOnly: boolean) => {
+    const { data } = await sb.rpc('repayment_day_summary', { p_date: date, p_unpaid_only: unpaidOnly, p_guarantors: limit, p_agent: agentId || null })
+    const s = (data && data[0]) || {}
+    return { count: Number(s.customer_count || 0), total: Number(s.total_amount || 0) }
+  }
+  // Cash collected for the day: the paid customers whose payment mode is Cash
+  const cashRows = selectAll('RepaymentsEnriched', qb => {
+    let c = withScope(qb, scope)
+    if (agentId) c = c.eq('assigned_agent_id', agentId)
+    if (guarantorFilter) c = c.eq('guarantor_id', guarantorFilter)
+    return c.eq('due_date', date).eq('status', 'Paid')
+  }).then(rows => rows.filter(isCash))
+  const allP = sum(false), unpaidP = sum(true)   // start at once, awaited below with the page
+  for (const p of [allP, unpaidP, cashRows]) p.catch(() => {})   // a failure is reported where they are awaited
+
+  // payment_mode is not plain text in the database, so "cash" is picked here in code (one day's paid rows only)
   let r: { rows: Record<string, string>[]; page: number; pageSize: number; total: number; totalPages: number }
   if (status === 'cash') {
-    const cashAll = (await selectAll('RepaymentsEnriched', filters)).filter(isCash)
+    const cashAll = (text ? (await selectAll('RepaymentsEnriched', filters)).filter(isCash) : await cashRows)
       .sort((a, b) => String(a['Guarantor Name'] || '').localeCompare(String(b['Guarantor Name'] || '')) || String(a['Customer Name'] || '').localeCompare(String(b['Customer Name'] || '')))
     const totalPages = Math.max(1, Math.ceil(cashAll.length / pageSize))
     r = { rows: cashAll.slice((page - 1) * pageSize, page * pageSize), page, pageSize, total: cashAll.length, totalPages }
@@ -77,21 +94,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
     overdue: x['Status'] !== 'Paid' && date < getTodayIST(),
   }))
 
-  // Totals for the whole day (not just this page): everyone due, and who is still unpaid; paid is the difference
-  const sb = getSupabase()
-  const sum = async (unpaidOnly: boolean) => {
-    const { data } = await sb.rpc('repayment_day_summary', { p_date: date, p_unpaid_only: unpaidOnly, p_guarantors: limit, p_agent: agentId || null })
-    const s = (data && data[0]) || {}
-    return { count: Number(s.customer_count || 0), total: Number(s.total_amount || 0) }
-  }
-  // Cash collected for the day: the paid customers whose payment mode is Cash
-  const cashRows = selectAll('RepaymentsEnriched', qb => {
-    let c = withScope(qb, scope)
-    if (agentId) c = c.eq('assigned_agent_id', agentId)
-    if (guarantorFilter) c = c.eq('guarantor_id', guarantorFilter)
-    return c.eq('due_date', date).eq('status', 'Paid')
-  }).then(rows => rows.filter(isCash))
-  const [all, unpaid, cash] = await Promise.all([sum(false), sum(true), cashRows])
+  const [all, unpaid, cash] = await Promise.all([allP, unpaidP, cashRows])
   const summary = {
     dueCount: all.count, dueTotal: all.total,
     paidCount: Math.max(0, all.count - unpaid.count), paidTotal: Math.max(0, all.total - unpaid.total),

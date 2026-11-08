@@ -52,7 +52,7 @@ export default function BranchTownPage({ session }: { session: Session }) {
     } finally { setLoading(false) }
   }, [session.token])
 
-  useEffect(() => { load(); const t = setInterval(load, 30000); return () => clearInterval(t) }, [load])
+  useEffect(() => { load(); const t = setInterval(() => { if (!document.hidden) load() }, 60000); return () => clearInterval(t) }, [load])
 
   const sel = branches.find(b => b.branchId === selected) || null
   const totals = useMemo(() => ({

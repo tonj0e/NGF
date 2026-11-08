@@ -19,14 +19,14 @@ export const maxDuration = 30
 // Only the rows on the page are enriched with loan, guarantor, agent and lead details.
 export const GET = apiHandler(async (req: NextRequest) => {
   const session = await getSession(req)
-  await needFeature(session, [])
+  const [, scope0] = await Promise.all([needFeature(session, []), scopeOf(session)])   // permission and scope do not depend on each other
   const sp = new URL(req.url).searchParams
   const id = sp.get('id') || ''
   const paged = sp.has('page')
 
   // who may see which customers
   let agentCustomerIds: string[] | null = null
-  let scope = await scopeOf(session)
+  let scope = scope0
   if (session.role === 'NGF AGENT') {
     const a = (await readTable('Agents')).find(x => x['User ID'] === session.userId)
     const mine = a ? await selectAll('Loans', qb => qb.eq('assigned_agent_id', a['Agent ID'])) : []

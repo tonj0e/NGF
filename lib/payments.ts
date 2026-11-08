@@ -57,7 +57,7 @@ export async function getAccess(session: Session): Promise<Access> {
     return { isAdmin: true, isGuarantor: false, guarantorId: '', canMark: true, canChat: true, canHistory: true, canBank: true, canOverride: true, canView: true }
   }
   if (session.role === 'Guarantor') {
-    const guarantors = await readTable('Guarantors', { forceFresh: true })
+    const guarantors = await readTable('Guarantors', { maxAgeMs: 10_000 })
     const g = guarantors.find(x => x['User ID'] === session.userId)
     // A guarantor sends screenshots only when an Admin switched the chat on for them. They always see their own payments
     // until an Admin saves a custom page list, after which payHistory must be ticked. Manual marking, bank check and
@@ -67,7 +67,7 @@ export async function getAccess(session: Session): Promise<Access> {
     const canHistory = !!g && perms.includes(PERM_HISTORY)
     return { isAdmin: false, isGuarantor: true, guarantorId: g?.['Guarantor ID'] || '', canMark: false, canChat, canHistory, canBank: false, canOverride: false, canView: canChat || canHistory }
   }
-  const access = await readTable('StaffAccess', { forceFresh: true })
+  const access = await readTable('StaffAccess', { maxAgeMs: 10_000 })
   const mine = access.find(a => a['User ID'] === session.userId)
   const perms = permsOf(mine?.['Permissions'])
   const canMark = perms.includes(PERM_USE), canChat = perms.includes(PERM_CHAT), canHistory = perms.includes(PERM_HISTORY)
@@ -212,7 +212,7 @@ async function getGroupRow(groupId: string): Promise<GroupRow> {
 // ─── Collect sheet ────────────────────────────────────────────────────────────
 
 export async function listGuarantors(access?: Access): Promise<{ guarantorId: string; name: string; code: string }[]> {
-  const guarantors = await readTable('Guarantors', { forceFresh: true })
+  const guarantors = await readTable('Guarantors', { maxAgeMs: 10_000 })
   const v = access ? await visibleGuarantors(access) : null
   return guarantors.filter(g => g['Status'] !== 'Inactive' && (!v || v.has(g['Guarantor ID']))).map(g => ({ guarantorId: g['Guarantor ID'], name: g['Name'], code: g['Code'] || '' }))
     .sort((a, b) => a.name.localeCompare(b.name))

@@ -14,7 +14,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const { searchParams } = new URL(req.url)
 
   if (searchParams.get('self') === '1') {
-    const [access, branches] = await Promise.all([readTable('StaffAccess'), readTable('Branches')])
+    const [access, branches, effective] = await Promise.all([readTable('StaffAccess'), readTable('Branches'), loadPermissions(session)])
     const mine = access.find(a => a['User ID'] === session.userId)
     const branch = mine ? branches.find(b => b['Branch ID'] === mine['Branch ID']) : null
     const perms = mine?.['Permissions']
@@ -24,7 +24,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
       branchName: branch?.['Name'] || '',
       permissions,
       // what this person can really use: role defaults + their own extras - their removals (menus are built from it)
-      effective: await loadPermissions(session),
+      effective,
     })
   }
 
