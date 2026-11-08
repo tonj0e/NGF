@@ -16,16 +16,16 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const guarantorIdParam = searchParams.get('guarantorId') || ''
   const isDownload = searchParams.get('download') === '1'
 
-  // Download window: Friday (IST) from 5pm through end of Saturday.
+  // Download window: Friday (IST) from 8am through end of Saturday.
   // On-screen viewing (the List tab) is allowed anytime; only the PDF download
   // is restricted. Admins can download anytime for oversight/testing.
   const istOffset = 5.5 * 60 * 60 * 1000
   const nowIst = new Date(Date.now() + istOffset)
   const day = nowIst.getUTCDay() // 5 = Fri, 6 = Sat
   const hour = nowIst.getUTCHours()
-  const windowOpen = (day === 5 && hour >= 17) || day === 6
+  const windowOpen = (day === 5 && hour >= 8) || day === 6
   if (isDownload && session.role !== 'Admin' && session.role !== 'Staff' && !windowOpen) {
-    return err('Collection sheet can be downloaded only from Friday 5pm through Saturday.')
+    return err('Collection sheet can be downloaded only from Friday 8am through Saturday.')
   }
 
   // Resolve which guarantor this sheet is for (drives title + filtering)

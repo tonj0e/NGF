@@ -747,13 +747,13 @@ function CollectionStatusTab({ session }: { session: Session }) {
   )
 }
 
-// Friday (IST) 5pm through end of Saturday — when guarantors may pull the sheet
+// Friday (IST) 8am through end of Saturday — when guarantors may pull the sheet
 function isSheetWindowOpen() {
   const istOffset = 5.5 * 60 * 60 * 1000
   const d = new Date(Date.now() + istOffset)
   const day = d.getUTCDay()
   const hour = d.getUTCHours()
-  return (day === 5 && hour >= 17) || day === 6
+  return (day === 5 && hour >= 8) || day === 6
 }
 
 // `perms`: what a Staff user may do (role defaults + extras). Other roles are not limited here; the server checks every action too.
@@ -764,12 +764,14 @@ export default function CollectionPage({ session, perms }: { session: Session; p
   const [tab, setTab] = useState<CollectionTab>(session.role === 'Guarantor' ? 'today' : 'all')
   const [reviewOptions, setReviewOptions] = useState<ReviewOption[]>([])
   const [downloading, setDownloading] = useState(false)
+  const [sheetNote, setSheetNote] = useState(false)   // pop-up: sheet is not available yet
 
   const canDownload = session.role === 'Admin' || session.role === 'Staff' || isSheetWindowOpen()
   const sheetAllowed = can('collectionSheet')
 
   async function downloadSheet() {
     if (downloading) return
+    if (!canDownload) { setSheetNote(true); return }
     setDownloading(true)
     try {
       const res = await fetch('/api/collection-sheet?download=1', { headers: { Authorization: `Bearer ${session.token}` } })
@@ -822,13 +824,13 @@ export default function CollectionPage({ session, perms }: { session: Session; p
           ))}
         <button
           onClick={downloadSheet}
-          disabled={!canDownload || downloading}
+          disabled={downloading}
           hidden={!sheetAllowed}
-          title={canDownload ? 'Download collection sheet as PDF' : 'Available Friday 5pm through Saturday'}
+          title={canDownload ? 'Download collection sheet as PDF' : 'Available Friday 8am through Saturday'}
           className={`inline-flex items-center gap-1 rounded-2xl px-2.5 py-2 text-[13px] font-semibold transition sm:gap-1.5 sm:px-4 sm:text-sm ${
             canDownload
               ? 'bg-green-600 text-white hover:bg-green-700'
-              : 'border border-line bg-mist text-gray-400 cursor-not-allowed'
+              : 'border border-line bg-mist text-gray-500'
           } ${downloading ? 'opacity-60' : ''}`}>
           {downloading ? (
             <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
@@ -841,8 +843,14 @@ export default function CollectionPage({ session, perms }: { session: Session; p
         </button>
         </div>
       </div>
-      {!canDownload && (
-        <p className="text-xs text-gray-400">The collection sheet can be downloaded from Friday 5:00 PM through Saturday.</p>
+      {sheetNote && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={() => setSheetNote(false)}>
+          <div className="w-full max-w-sm rounded-2xl bg-white p-5 text-center shadow-xl" onClick={e => e.stopPropagation()}>
+            <p className="text-base font-semibold text-ink">Sheet not available yet</p>
+            <p className="mt-2 text-sm text-soft">The collection sheet can be downloaded from Friday 8:00 AM through Saturday.</p>
+            <button onClick={() => setSheetNote(false)} className="mt-4 w-full rounded-2xl bg-ink px-4 py-2.5 text-sm font-semibold text-white">OK</button>
+          </div>
+        </div>
       )}
       {tab === 'all'       && <PendingList apiMode=""       session={session} reviewOptions={reviewOptions} />}
       {tab === 'today'     && <PendingList apiMode="today"  session={session} reviewOptions={reviewOptions} />}
