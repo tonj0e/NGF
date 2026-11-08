@@ -26,6 +26,13 @@ The owner is moving from OpenRouter to the Anthropic API directly. Anthropic's c
 - **Activity:** cards (total spend, requests, token volume, cache hit rate, average per read, blended $ per 1M tokens, change against the period before), a warning for failed or cut-off calls, charts (spend by day, requests by day, token breakdown, thinking tokens) and usage by model.
 - **Logs:** one row per call (date, model, provider, screenshot or test, guarantor, input, output, thinking, cost, speed, result OK / Cut off / Failed). Filters: provider, model, result, guarantor. Sort by date, tokens or cost. Pages of 50. **Download Excel** (up to 5,000 rows).
 
+## Rupees, provider filter, pricing (2026-11-09)
+- Every money amount shows dollars and rupees. The rate (rupees per $1) is the box at the top of the page, saved in Settings key `ai:usdInr` (`POST /api/ai-usage`, Admin; default 90 until set).
+- **Token volume = input + output tokens** (OpenRouter counts the same way; thinking tokens are inside output). The Activity tab has a provider filter. "All providers" adds NVIDIA's free tokens to OpenRouter's, so compare with OpenRouter's dashboard using the OpenRouter filter.
+- **Blended price per 1M** = spend divided by the tokens of calls that cost money only (free NVIDIA tests left out).
+- **Pricing tab:** every Anthropic model price from Anthropic's pricing page (copied 2026-11-09) in `lib/aiPricing.ts`, plus notes (Haiku 5.5 long prompts, cache, batch, US-only 1.1x, tokenizer +30%, web search). `claudeCostUsd()` uses it for the cost of Claude direct calls (cache reads and writes included; Haiku 5.5 prompts over 100K tokens use the higher prices). Update the file when Anthropic changes prices.
+- History: the OpenRouter rows were rebuilt from OpenRouter's activity CSV on 2026-11-09 (28 reads, 57,746 tokens, $0.009103, matching its dashboard). The first backfill from `payment_chat` had missed 4 reads because a re-sent screenshot resets that row's token count. New reads are logged live, so this can no longer happen.
+
 ## Gotchas
 - Aggregates are added up in code from the log rows (up to 20,000 rows per request); fine at this volume.
 - A call that fails before an answer is logged with zero tokens and status `error`.

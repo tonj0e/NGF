@@ -5,11 +5,10 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { getConfig } from './integrations'
 import { getSupabase } from './supabase-db'
+import { claudeCostUsd } from './aiPricing'
 
 export const SLIP_MODEL = 'claude-haiku-5-5'
-// Published prices for this model, USD per million tokens (prompts up to 100K tokens). Used only for the cost meter.
-const USD_PER_M_IN = 0.10
-const USD_PER_M_OUT = 0.50
+// Prices live in lib/aiPricing.ts (copied from Anthropic's pricing page); used for the cost meter.
 
 export type SlipReading = {
   isPaymentScreenshot: boolean
@@ -122,12 +121,14 @@ async function readWithClaude(base64: string, mediaType: Media): Promise<ReadRes
       { type: 'text', text: 'Extract the payment details from this screenshot.' },
     ] }],
   })
-  const inTokens = res.usage.input_tokens, outTokens = res.usage.output_tokens
-  const costUsd = (inTokens * USD_PER_M_IN + outTokens * USD_PER_M_OUT) / 1e6
+  const cacheRead = res.usage.cache_read_input_tokens || 0, cacheWrite = res.usage.cache_creation_input_tokens || 0
+  // Anthropic reports new input, cache reads and cache writes separately; the prompt total adds them up (like OpenRouter's prompt tokens)
+  const inTokens = res.usage.input_tokens + cacheRead + cacheWrite, outTokens = res.usage.output_tokens
+  const costUsd = claudeCostUsd(SLIP_MODEL, { input: res.usage.input_tokens, output: res.usage.output_tokens, cacheRead, cacheWrite5m: cacheWrite })
   const text = res.content.find(b => b.type === 'text')
   if (res.stop_reason === 'refusal' || !text || text.type !== 'text') throw new Error('The reader gave no answer')
   const r = JSON.parse(text.text) as SlipReading
-  return { reading: r, inTokens, outTokens, costUsd, provider: 'claude', model: SLIP_MODEL, cachedTokens: res.usage.cache_read_input_tokens || 0, finishReason: res.stop_reason || undefined }
+  return { reading: r, inTokens, outTokens, costUsd, provider: 'claude', model: SLIP_MODEL, cachedTokens: cacheRead, finishReason: res.stop_reason || undefined }
 }
 
 // ─── NVIDIA Nemotron (OpenAI-compatible endpoint) ────────────────────────────

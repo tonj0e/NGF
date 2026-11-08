@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, requireRole, ok, err } from '@/lib/api'
-import { getSupabase, readTable } from '@/lib/supabase-db'
+import { getSupabase, readTable, appendRow, updateById, findRecord, nowIso, invalidateCache } from '@/lib/supabase-db'
 import { getTodayIST } from '@/lib/dateUtils'
 
 // GET /api/ai-usage (Admin only): what the AI readers used, from the ai_usage log. Dates are India dates (YYYY-MM-DD).
@@ -39,10 +39,29 @@ function totals(rows: Row[]) {
   const tin = rows.reduce((t, r) => t + (r.tokens_in || 0), 0), tout = rows.reduce((t, r) => t + (r.tokens_out || 0), 0)
   const cached = rows.reduce((t, r) => t + (r.tokens_cached || 0), 0)
   const tokens = tin + tout
+  const paid = rows.filter(r => Number(r.cost_usd) > 0)   // blended price counts only calls that cost money (free NVIDIA tests would lower it)
+  const paidTokens = paid.reduce((t, r) => t + (r.tokens_in || 0) + (r.tokens_out || 0), 0)
   return { spend, requests: rows.length, okRequests: okRows.length, errors: rows.length - okRows.length, tokensIn: tin, tokensOut: tout, tokens,
-    cacheRate: tin ? cached / tin : 0, perRead: okRows.length ? spend / okRows.length : 0, perMillion: tokens ? spend / tokens * 1e6 : 0,
+    cacheRate: tin ? cached / tin : 0, perRead: okRows.length ? spend / okRows.length : 0, perMillion: paidTokens ? spend / paidTokens * 1e6 : 0,
     cutOff: rows.filter(r => r.finish_reason === 'max_tokens' || r.finish_reason === 'length').length }
 }
+
+const RATE_KEY = 'ai:usdInr'
+const DEFAULT_RATE = 90
+async function usdInr() { const v = Number((await readTable('Settings')).find(r => r['Key'] === RATE_KEY)?.['Value']); return v > 0 ? v : DEFAULT_RATE }
+
+// POST { usdInr: 88.5 }: the rupees per dollar used on the AI page
+export const POST = apiHandler(async (req: NextRequest) => {
+  await requireRole(req, ['Admin'])
+  const { usdInr: v } = await req.json()
+  const n = Number(v)
+  if (!(n >= 1 && n <= 1000)) return err('Enter the rupees for one dollar, for example 88.50')
+  const rows = await readTable('Settings')
+  if (findRecord(rows, 'Key', RATE_KEY)) await updateById('Settings', RATE_KEY, { 'Value': String(n), 'Updated At': nowIso() })
+  else await appendRow('Settings', { 'Key': RATE_KEY, 'Value': String(n), 'Updated At': nowIso() })
+  invalidateCache('Settings')
+  return ok({ usdInr: n })
+})
 
 export const GET = apiHandler(async (req: NextRequest) => {
   await requireRole(req, ['Admin'])
@@ -57,7 +76,8 @@ export const GET = apiHandler(async (req: NextRequest) => {
   if (view === 'activity') {
     const days = Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400_000) + 1
     const prevTo = shiftDay(from, -1), prevFrom = shiftDay(from, -days)
-    const [rows, prev] = await Promise.all([fetchRows(from, to, {}), fetchRows(prevFrom, prevTo, {})])
+    const pf = { provider: filters.provider }
+    const [rows, prev] = await Promise.all([fetchRows(from, to, pf), fetchRows(prevFrom, prevTo, pf)])
     const byDay = new Map<string, { day: string; spend: number; requests: number; tokensIn: number; tokensOut: number; reasoning: number; cached: number }>()
     for (let i = 0; i < Math.min(days, 400); i++) { const d = shiftDay(from, i); byDay.set(d, { day: d, spend: 0, requests: 0, tokensIn: 0, tokensOut: 0, reasoning: 0, cached: 0 }) }
     for (const r of rows) {
@@ -69,7 +89,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
       for (const r of rows) { const k = key(r) || 'unknown'; const g = m.get(k) || { name: k, requests: 0, spend: 0, tokens: 0 }; g.requests++; g.spend += Number(r.cost_usd || 0); g.tokens += (r.tokens_in || 0) + (r.tokens_out || 0); m.set(k, g) }
       return Array.from(m.values()).sort((a, b) => b.spend - a.spend || b.requests - a.requests)
     }
-    return ok({ from, to, totals: totals(rows), previous: totals(prev), hasPrevious: prev.length > 0, byDay: Array.from(byDay.values()), byModel: group(r => `${r.provider} · ${r.model}`), byProvider: group(r => r.provider), byPurpose: group(r => r.purpose) })
+    return ok({ from, to, usdInr: await usdInr(), totals: totals(rows), previous: totals(prev), hasPrevious: prev.length > 0, byDay: Array.from(byDay.values()), byModel: group(r => `${r.provider} · ${r.model}`), byProvider: group(r => r.provider), byPurpose: group(r => r.purpose) })
   }
 
   if (view === 'logs') {
@@ -86,6 +106,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
     const gname = new Map(gs.map(g => [g['Guarantor ID'], g['Name'] as string]))
     const models = Array.from(new Set(rows.map(r => r.model).filter(Boolean))).sort()
     return ok({
+      usdInr: await usdInr(),
       from, to, total: rows.length, page, pageSize, totalPages: Math.max(1, Math.ceil(rows.length / pageSize)), models,
       guarantors: gs.filter(g => g['Status'] !== 'Inactive').map(g => ({ guarantorId: g['Guarantor ID'], name: g['Name'] })).sort((a, b) => String(a.name).localeCompare(String(b.name))),
       rows: slice.map(r => ({
