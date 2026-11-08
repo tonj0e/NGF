@@ -48,17 +48,27 @@ export const GET = apiHandler(async (req: NextRequest) => {
     if (agentId) q = q.eq('assigned_agent_id', agentId)
     if (guarantorFilter) q = q.eq('guarantor_id', guarantorFilter)
     q = q.eq('due_date', date)
-    q = status === 'paid' ? q.eq('status', 'Paid') : status === 'cash' ? q.eq('status', 'Paid').ilike('payment_mode', 'cash') : q.neq('status', 'Paid')
+    q = status === 'paid' ? q.eq('status', 'Paid') : status === 'cash' ? q.eq('status', 'Paid') : q.neq('status', 'Paid')
     if (text) {
       // 4 digits = the last 4 digits of the loan id (the customer's code); otherwise name, mobile or loan id
       q = /^\d{4}$/.test(text) ? q.ilike('loan_id', `%${text}`) : q.or(`customer_name.ilike.%${text}%,customer_phone.ilike.%${text}%,loan_id.ilike.%${text}%`)
     }
     return q
   }
-  const r = await pageQuery('RepaymentsEnriched', {
-    filters, page, pageSize,
-    order: [{ column: 'guarantor_name' }, { column: 'customer_name' }, { column: 'repayment_id' }],
-  })
+  // payment_mode is not plain text in the database, so "cash" is picked here in code (one day's paid rows only)
+  const isCash = (x: Record<string, string>) => String(x['Payment Mode'] || '').trim().toLowerCase() === 'cash'
+  let r: { rows: Record<string, string>[]; page: number; pageSize: number; total: number; totalPages: number }
+  if (status === 'cash') {
+    const cashAll = (await selectAll('RepaymentsEnriched', filters)).filter(isCash)
+      .sort((a, b) => String(a['Guarantor Name'] || '').localeCompare(String(b['Guarantor Name'] || '')) || String(a['Customer Name'] || '').localeCompare(String(b['Customer Name'] || '')))
+    const totalPages = Math.max(1, Math.ceil(cashAll.length / pageSize))
+    r = { rows: cashAll.slice((page - 1) * pageSize, page * pageSize), page, pageSize, total: cashAll.length, totalPages }
+  } else {
+    r = await pageQuery('RepaymentsEnriched', {
+      filters, page, pageSize,
+      order: [{ column: 'guarantor_name' }, { column: 'customer_name' }, { column: 'repayment_id' }],
+    }) as any
+  }
   const utrOf = (notes: string) => /UTR\s+([A-Za-z0-9]{6,40})/i.exec(notes || '')?.[1] || ''
   const rows = r.rows.map(x => ({
     repaymentId: x['Repayment ID'], name: x['Customer Name'] || '', code: String(x['Loan ID'] || '').slice(-4), phone: x['Customer Phone'] || '',
@@ -79,8 +89,8 @@ export const GET = apiHandler(async (req: NextRequest) => {
     let c = withScope(qb, scope)
     if (agentId) c = c.eq('assigned_agent_id', agentId)
     if (guarantorFilter) c = c.eq('guarantor_id', guarantorFilter)
-    return c.eq('due_date', date).eq('status', 'Paid').ilike('payment_mode', 'cash')
-  })
+    return c.eq('due_date', date).eq('status', 'Paid')
+  }).then(rows => rows.filter(isCash))
   const [all, unpaid, cash] = await Promise.all([sum(false), sum(true), cashRows])
   const summary = {
     dueCount: all.count, dueTotal: all.total,
