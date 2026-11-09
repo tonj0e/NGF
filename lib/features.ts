@@ -21,7 +21,7 @@ export const FEATURES: Feature[] = [
   { key: 'leadsRenew',    label: 'Leads: start renewals',           group: 'Leads', holders: ['staff'], view: '' },
   { key: 'leadsClose',    label: 'Leads: close a loan early',       group: 'Leads', holders: ['staff'], view: '' },
   { key: 'leadsDelete',   label: 'Leads: delete leads',             group: 'Leads', holders: ['staff'], view: '' },
-  { key: 'verificationPlanning', label: 'Verification Routes (call customers, plan agent visits)', group: 'Leads', holders: ['staff'], view: 'routes' },
+  { key: 'verificationPlanning', label: 'Verification Routes', group: 'Leads', holders: ['staff'], view: 'routes' },
   { key: 'collection',  label: 'Collection: all parts (everything below)', group: 'Money', holders: ['staff'], view: 'collection' },
   { key: 'collectionView',   label: 'Collection: view pending, today, list, coming Saturday', group: 'Money', holders: ['staff'], view: '' },
   { key: 'collectionRecord', label: 'Collection: record payments',             group: 'Money', holders: ['staff'], view: '' },

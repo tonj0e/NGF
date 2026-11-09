@@ -61,6 +61,7 @@ const COLUMN_MAP: Record<string, string> = {
   'Updated At': 'updated_at',
   'Guarantor ID': 'guarantor_id',
   'Code': 'code',
+  'Guarantor Number': 'guarantor_number',
   'Phone': 'phone',
   'Address': 'address',
   'Commission Earned': 'commission_earned',

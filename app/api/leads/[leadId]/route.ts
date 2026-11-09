@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { isGuarantorNumber } from '@/lib/guarantorNumber'
 import { apiHandler, requireRole, ok, err, getSession } from '@/lib/api'
 import { checkUploadRate } from '@/lib/uploadRate'
 import { requireFeature } from '@/lib/access'
@@ -391,8 +392,9 @@ async function makeLoanId(guarantorCode: string): Promise<string> {
   // pick a random 4-digit number and ask the database whether that loan id is taken (no need to read every loan)
   const prefix = `${guarantorCode}-`
   for (let tries = 0; tries < 60; tries++) {
-    const candidate = `${prefix}${Math.floor(1000 + Math.random() * 9000)}`
-    if ((await countRows('Loans', qb => qb.eq('loan_id', candidate))) === 0) return candidate
+    const digits = Math.floor(1000 + Math.random() * 9000)
+    const candidate = `${prefix}${digits}`
+    if ((await countRows('Loans', qb => qb.eq('loan_id', candidate))) === 0 && !(await isGuarantorNumber(digits))) return candidate
   }
   throw new Error('Could not find a free loan number. Please try again.')
 }

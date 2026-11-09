@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { makeGuarantorNumber } from '@/lib/guarantorNumber'
 import { apiHandler, requireRole, ok, err } from '@/lib/api'
 import { requireFeature } from '@/lib/access'
 import { readTable, appendRow, updateRow, findRecord, makeId, nowIso, deleteById, updateById, getRowsByField, getSupabase } from '@/lib/supabase-db'
@@ -16,7 +17,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
   return ok({
     staff: users.map(u => ({ userId: u['User ID'], username: u['Username'], role: u['Role'], name: u['Name'], email: u['Email'], phone: u['Phone'] || '', status: u['Status'], createdAt: u['Created At'] })),
     agents: agents.map(a => ({ agentId: a['Agent ID'], userId: a['User ID'], name: a['Name'], phone: a['Phone'], agentType: a['Agent Type'], status: a['Status'] })),
-    guarantors: guarantors.map(g => ({ guarantorId: g['Guarantor ID'], userId: g['User ID'], name: g['Name'], code: g['Code'], phone: g['Phone'], address: g['Address'] || '', status: g['Status'], commissionEarned: earnedMap.get(g['Guarantor ID']) || 0 })),
+    guarantors: guarantors.map(g => ({ guarantorId: g['Guarantor ID'], userId: g['User ID'], name: g['Name'], code: g['Code'], number: g['Guarantor Number'] || '', phone: g['Phone'], address: g['Address'] || '', status: g['Status'], commissionEarned: earnedMap.get(g['Guarantor ID']) || 0 })),
   })
 })
 
@@ -54,7 +55,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
       const guarantorId = makeId('GRT')
       await appendRow('Guarantors', {
         'Guarantor ID': guarantorId, 'User ID': userId, 'Name': body.name,
-        'Code': body.guarantorCode || '', 'Phone': body.phone || '',
+        'Code': body.guarantorCode || '', 'Guarantor Number': await makeGuarantorNumber(), 'Phone': body.phone || '',
         'Address': body.address || '', 'Commission Earned': '0',
         'Status': 'Active', 'Created At': nowIso(), 'Updated At': nowIso(),
       })
@@ -279,7 +280,7 @@ export const PATCH = apiHandler(async (req: NextRequest) => {
       // Create new guarantor record
       await appendRow('Guarantors', {
         'Guarantor ID': makeId('GRT'), 'User ID': userId, 'Name': body.name || user['Name'],
-        'Code': body.guarantorCode || '', 'Phone': body.phone || '',
+        'Code': body.guarantorCode || '', 'Guarantor Number': await makeGuarantorNumber(), 'Phone': body.phone || '',
         'Address': body.address || '', 'Commission Earned': '0',
         'Status': 'Active', 'Created At': nowIso(), 'Updated At': nowIso(),
       })

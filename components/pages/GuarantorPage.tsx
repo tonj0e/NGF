@@ -99,7 +99,7 @@ function calcCycle(gLoans: Loan[], gSettlements: Settlement[]): Cycle | null {
   }
 }
 
-type Guarantor = { guarantorId: string; userId?: string; name: string; code: string; phone?: string; status?: string }
+type Guarantor = { guarantorId: string; userId?: string; name: string; code: string; number?: string; phone?: string; status?: string }
 type DetailTab = 'overview' | 'settlement' | 'history' | 'commission' | 'deposits'
 
 export default function GuarantorPage({ session }: { session: Session }) {
@@ -227,7 +227,7 @@ export default function GuarantorPage({ session }: { session: Session }) {
             <div className="rounded-[1.75rem] border border-white/70 bg-white shadow-panel p-6 space-y-4">
               <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-soft">Guarantor Info</p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
-                {[['Name', g.name], ['Code', g.code], ['Phone', g.phone || '—'], ['Status', g.status], ['Guarantor ID', g.guarantorId]].map(([l, v]) => (
+                {[['Name', g.name], ['Code', g.code], ['Number', g.number || '—'], ['Phone', g.phone || '—'], ['Status', g.status], ['Guarantor ID', g.guarantorId]].map(([l, v]) => (
                   <div key={l}>
                     <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-soft">{l}</p>
                     <p className="mt-0.5 font-medium font-mono text-xs">{v}</p>
@@ -448,7 +448,7 @@ export default function GuarantorPage({ session }: { session: Session }) {
   const filtered = guarantors.filter(g => {
     if (!search) return true
     const q = search.toLowerCase()
-    return g.name?.toLowerCase().includes(q) || g.code?.toLowerCase().includes(q) || g.phone?.includes(search)
+    return g.name?.toLowerCase().includes(q) || g.code?.toLowerCase().includes(q) || g.number?.includes(q) || g.phone?.includes(search)
   })
 
   return (
@@ -506,7 +506,7 @@ export default function GuarantorPage({ session }: { session: Session }) {
               <button key={g.guarantorId} onClick={() => setManualPayoutGuarantor(g)}
                 className="w-full px-4 py-2.5 text-left text-sm hover:bg-mist transition">
                 <p className="font-medium">{g.name}</p>
-                <p className="text-xs text-soft font-mono">{g.code}</p>
+                <p className="text-xs text-soft font-mono">{g.code}{g.number ? ` · ${g.number}` : ''}</p>
               </button>
             ))}
           </div>
@@ -526,7 +526,7 @@ export default function GuarantorPage({ session }: { session: Session }) {
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <p className="font-semibold">{g.name}</p>
-                  <p className="text-xs font-mono text-soft">{g.code}</p>
+                  <p className="text-xs font-mono text-soft">{g.code}{g.number ? ` · ${g.number}` : ''}</p>
                   {g.phone && <p className="text-xs text-soft">{g.phone}</p>}
                 </div>
                 <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${g.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{g.status}</span>
