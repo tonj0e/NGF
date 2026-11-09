@@ -79,11 +79,13 @@ export const GET = apiHandler(async (req: NextRequest) => {
     const prevTo = shiftDay(from, -1), prevFrom = shiftDay(from, -days)
     const pf = { provider: filters.provider, purpose: filters.purpose }
     const [rows, prev] = await Promise.all([fetchRows(from, to, pf), fetchRows(prevFrom, prevTo, pf)])
-    const byDay = new Map<string, { day: string; spend: number; requests: number; tokensIn: number; tokensOut: number; reasoning: number; cached: number }>()
-    for (let i = 0; i < Math.min(days, 400); i++) { const d = shiftDay(from, i); byDay.set(d, { day: d, spend: 0, requests: 0, tokensIn: 0, tokensOut: 0, reasoning: 0, cached: 0 }) }
+    const byDay = new Map<string, { day: string; spend: number; requests: number; tokensIn: number; tokensOut: number; reasoning: number; cached: number; models: Record<string, number>; purposes: Record<string, number> }>()
+    for (let i = 0; i < Math.min(days, 400); i++) { const d = shiftDay(from, i); byDay.set(d, { day: d, spend: 0, requests: 0, tokensIn: 0, tokensOut: 0, reasoning: 0, cached: 0, models: {}, purposes: {} }) }
     for (const r of rows) {
       const d = byDay.get(istDay(r.created_at)); if (!d) continue
       d.spend += Number(r.cost_usd || 0); d.requests++; d.tokensIn += r.tokens_in || 0; d.tokensOut += r.tokens_out || 0; d.reasoning += r.tokens_reasoning || 0; d.cached += r.tokens_cached || 0
+      const mk = r.model || 'unknown'; d.models[mk] = (d.models[mk] || 0) + 1                     // requests per model that day
+      d.purposes[r.purpose || 'slip'] = (d.purposes[r.purpose || 'slip'] || 0) + Number(r.cost_usd || 0)   // spend per category that day
     }
     const group = (key: (r: Row) => string) => {
       const m = new Map<string, { name: string; requests: number; spend: number; tokens: number }>()

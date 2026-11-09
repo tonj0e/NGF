@@ -4,11 +4,12 @@ import { Session } from '@/types'
 import { downloadSheetXlsx } from '@/lib/tallyExport'
 import { ANTHROPIC_PRICES, PRICING_NOTES, type ModelPrice } from '@/lib/aiPricing'
 import { apiSend } from '@/lib/clientApi'
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 
 // AI usage (Admin): what the AI readers used, laid out like the OpenRouter dashboard. NGF (the workspace) > Activity | Logs.
 // Data: /api/ai-usage, from the ai_usage log (every screenshot read, whichever provider answered).
 type Totals = { spend: number; requests: number; okRequests: number; errors: number; tokensIn: number; tokensOut: number; tokens: number; cacheRate: number; perRead: number; perMillion: number; cutOff: number }
-type Day = { day: string; spend: number; requests: number; tokensIn: number; tokensOut: number; reasoning: number; cached: number }
+type Day = { day: string; spend: number; requests: number; tokensIn: number; tokensOut: number; reasoning: number; cached: number; models: Record<string, number>; purposes: Record<string, number> }
 type Group = { name: string; requests: number; spend: number; tokens: number }
 const purposeLabel = (p: string) => p === 'aadhaar' ? 'Aadhaar reading' : p === 'test' ? 'Test' : 'Payment screenshot'
 type Activity = { usdInr: number; from: string; to: string; totals: Totals; previous: Totals; hasPrevious: boolean; byDay: Day[]; byModel: Group[]; byProvider: Group[]; byPurpose: Group[] }
@@ -42,24 +43,50 @@ function rangeOf(p: Preset, customFrom: string, customTo: string): { from: strin
   return { from: `${t.slice(0, 8)}01`, to: t }
 }
 
-// A small bar chart: one bar per day (or stacked), with a tooltip on every bar
-function Bars({ days, parts, fmt }: { days: Day[]; parts: { key: keyof Day; label: string; color: string }[]; fmt: (n: number) => string }) {
-  const totalOf = (d: Day) => parts.reduce((t, p) => t + Number(d[p.key] || 0), 0)
-  const max = Math.max(...days.map(totalOf), 0)
-  return (
-    <div>
-      <div className="flex h-40 items-end gap-1">
-        {days.map(d => (
-          <div key={d.day} className="flex h-full min-w-[6px] flex-1 flex-col justify-end" title={`${d.day}\n${parts.map(p => `${p.label}: ${fmt(Number(d[p.key] || 0))}`).join('\n')}`}>
-            {parts.slice().reverse().map(p => {
-              const v = Number(d[p.key] || 0)
-              return v > 0 && max > 0 ? <div key={String(p.key)} style={{ height: `${(v / max) * 100}%`, background: p.color, minHeight: 2 }} /> : null
-            })}
+// Charts (recharts): axes, grid lines, hover tooltip and legend, in the style of the OpenRouter dashboard
+const PALETTE = ['#3b82f6', '#8b5cf6', '#f59e0b', '#10b981', '#ef4444', '#06b6d4', '#ec4899']
+const dayLabel = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString('en-IN', { timeZone: 'UTC', month: 'short', day: 'numeric' })
+type Series = { key: string; label: string; color: string }
+function Chart({ title, total, data, series, kind, fmt, empty }: { title: string; total?: string; data: Record<string, number | string>[]; series: Series[]; kind: 'bar' | 'area'; fmt: (n: number) => string; empty?: boolean }) {
+  const interval = Math.max(0, Math.ceil(data.length / 8) - 1)
+  const axis = { tick: { fontSize: 11, fill: '#8a93a6' }, axisLine: false, tickLine: false } as const
+  const common = (
+    <>
+      <CartesianGrid strokeDasharray="3 3" stroke="#e8ebf2" vertical={false} />
+      <XAxis dataKey="day" tickFormatter={dayLabel} interval={interval} {...axis} />
+      <YAxis width={52} tickFormatter={v => fmt(Number(v))} {...axis} />
+      <Tooltip
+        cursor={kind === 'bar' ? { fill: 'rgba(59,130,246,0.06)' } : { stroke: '#cbd2e0' }}
+        content={({ active, payload, label }) => !active || !payload?.length ? null : (
+          <div className="rounded-xl border border-line bg-white px-3 py-2 text-xs shadow-panel">
+            <p className="mb-1 font-semibold">{dayLabel(String(label))}</p>
+            {payload.slice().reverse().map(p => <p key={String(p.dataKey)} className="flex items-center gap-2"><span className="h-2 w-2 rounded-full" style={{ background: p.color }} /><span className="text-soft">{series.find(x => x.key === p.dataKey)?.label}</span><span className="ml-auto pl-4 font-semibold">{fmt(Number(p.value || 0))}</span></p>)}
           </div>
-        ))}
+        )} />
+    </>
+  )
+  return (
+    <div className="rounded-2xl border border-line bg-white p-4">
+      <div className="mb-3 flex items-baseline justify-between gap-2"><p className="font-semibold">{title}</p>{total && <p className="text-sm font-semibold text-ink">{total}</p>}</div>
+      <div className="h-56">
+        {empty ? <div className="flex h-full items-center justify-center text-sm text-soft">No AI calls in this range.</div> : (
+          <ResponsiveContainer width="100%" height="100%">
+            {kind === 'bar' ? (
+              <BarChart data={data} margin={{ top: 4, right: 22, left: 0, bottom: 0 }}>
+                {common}
+                {series.map((sr, i) => <Bar key={sr.key} dataKey={sr.key} stackId="a" fill={sr.color} radius={i === series.length - 1 ? [4, 4, 0, 0] : 0} maxBarSize={36} />)}
+              </BarChart>
+            ) : (
+              <AreaChart data={data} margin={{ top: 4, right: 22, left: 0, bottom: 0 }}>
+                <defs>{series.map(sr => <linearGradient key={sr.key} id={`g-${sr.key}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={sr.color} stopOpacity={0.45} /><stop offset="100%" stopColor={sr.color} stopOpacity={0.03} /></linearGradient>)}</defs>
+                {common}
+                {series.map(sr => <Area key={sr.key} type="monotone" dataKey={sr.key} stackId="a" stroke={sr.color} strokeWidth={2} fill={`url(#g-${sr.key})`} />)}
+              </AreaChart>
+            )}
+          </ResponsiveContainer>
+        )}
       </div>
-      <div className="mt-1 flex justify-between text-[10px] text-soft"><span>{days[0]?.day.slice(5)}</span><span>{days[days.length - 1]?.day.slice(5)}</span></div>
-      <div className="mt-2 flex flex-wrap gap-3 text-xs text-soft">{parts.map(p => <span key={String(p.key)} className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: p.color }} />{p.label}</span>)}</div>
+      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-soft">{series.map(sr => <span key={sr.key} className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: sr.color }} />{sr.label}</span>)}</div>
     </div>
   )
 }
@@ -199,10 +226,18 @@ export default function AIPage({ session }: { session: Session }) {
             </p>
           )}
           <div className="grid gap-3 lg:grid-cols-2">
-            <div className="rounded-2xl border border-line bg-white p-4"><p className="mb-3 font-semibold">Spend by day</p><Bars days={act.byDay} parts={[{ key: 'spend', label: 'Spend (USD)', color: '#3b82f6' }]} fmt={n => usd(n, 5)} /></div>
-            <div className="rounded-2xl border border-line bg-white p-4"><p className="mb-3 font-semibold">Requests by day</p><Bars days={act.byDay} parts={[{ key: 'requests', label: 'Requests', color: '#3b82f6' }]} fmt={n => String(n)} /></div>
-            <div className="rounded-2xl border border-line bg-white p-4"><p className="mb-3 font-semibold">Token breakdown</p><Bars days={act.byDay} parts={[{ key: 'tokensIn', label: 'Prompt', color: '#3b82f6' }, { key: 'tokensOut', label: 'Completion (incl. thinking)', color: '#a855f7' }]} fmt={n => num(n)} /></div>
-            <div className="rounded-2xl border border-line bg-white p-4"><p className="mb-3 font-semibold">Thinking tokens</p><Bars days={act.byDay} parts={[{ key: 'reasoning', label: 'Thinking', color: '#ef4444' }]} fmt={n => num(n)} /></div>
+            <Chart title="Spend by day" total={`${usd(t.spend, 4)} · ${inr(t.spend, rate)}`} kind="area" fmt={n => usd(n, n < 0.01 ? 4 : 3)} empty={!t.requests}
+              data={act.byDay.map(d => ({ day: d.day, spend: d.spend }))} series={[{ key: 'spend', label: 'Spend (USD)', color: PALETTE[0] }]} />
+            <Chart title="Spend by category" kind="area" fmt={n => usd(n, n < 0.01 ? 4 : 3)} empty={!t.requests}
+              data={act.byDay.map(d => ({ day: d.day, ...d.purposes }))} series={act.byPurpose.map((g, i) => ({ key: g.name, label: purposeLabel(g.name), color: PALETTE[i % PALETTE.length] }))} />
+            <Chart title="Requests by model" total={`${num(t.requests)} requests`} kind="bar" fmt={n => num(n)} empty={!t.requests}
+              data={act.byDay.map(d => ({ day: d.day, ...d.models }))} series={act.byModel.map((g, i) => ({ key: g.name.split(' · ').slice(1).join(' · ') || 'unknown', label: g.name, color: PALETTE[i % PALETTE.length] }))} />
+            <Chart title="Token breakdown" total={`${short(t.tokens)} tokens`} kind="bar" fmt={n => short(n)} empty={!t.requests}
+              data={act.byDay.map(d => ({ day: d.day, prompt: d.tokensIn, completion: Math.max(0, d.tokensOut - d.reasoning), reasoning: d.reasoning }))}
+              series={[{ key: 'prompt', label: 'Prompt', color: PALETTE[0] }, { key: 'completion', label: 'Completion', color: PALETTE[1] }, { key: 'reasoning', label: 'Reasoning (thinking)', color: PALETTE[4] }]} />
+            <Chart title="Prompt token caching" total={`${(t.cacheRate * 100).toFixed(1)}% cached`} kind="bar" fmt={n => short(n)} empty={!t.requests}
+              data={act.byDay.map(d => ({ day: d.day, uncached: Math.max(0, d.tokensIn - d.cached), cached: d.cached }))}
+              series={[{ key: 'uncached', label: 'Uncached', color: '#94a3b8' }, { key: 'cached', label: 'Cached', color: PALETTE[2] }]} />
           </div>
           <div className="rounded-2xl border border-line bg-white">
             <p className="border-b border-line px-4 py-3 font-semibold">Usage by category</p>
