@@ -10,6 +10,7 @@ import { apiSend } from '@/lib/clientApi'
 type Totals = { spend: number; requests: number; okRequests: number; errors: number; tokensIn: number; tokensOut: number; tokens: number; cacheRate: number; perRead: number; perMillion: number; cutOff: number }
 type Day = { day: string; spend: number; requests: number; tokensIn: number; tokensOut: number; reasoning: number; cached: number }
 type Group = { name: string; requests: number; spend: number; tokens: number }
+const purposeLabel = (p: string) => p === 'aadhaar' ? 'Aadhaar reading' : p === 'test' ? 'Test' : 'Payment screenshot'
 type Activity = { usdInr: number; from: string; to: string; totals: Totals; previous: Totals; hasPrevious: boolean; byDay: Day[]; byModel: Group[]; byProvider: Group[]; byPurpose: Group[] }
 type LogRow = { id: string; at: string; provider: string; model: string; purpose: string; guarantor: string; tokensIn: number; tokensOut: number; reasoning: number; cached: number; costUsd: number; ms: number; tokPerSec: number; status: string; finish: string; error: string }
 type Logs = { usdInr: number; total: number; page: number; totalPages: number; models: string[]; guarantors: { guarantorId: string; name: string }[]; rows: LogRow[] }
@@ -74,6 +75,7 @@ export default function AIPage({ session }: { session: Session }) {
   const [rate, setRate] = useState(90)           // rupees for one dollar (saved in Settings)
   const [rateText, setRateText] = useState('90')
   const [actProvider, setActProvider] = useState('')
+  const [purpose, setPurpose] = useState('')   // '' all | slip (payment screenshots) | aadhaar | test
   const [preset, setPreset] = useState<Preset>('month')
   const [cFrom, setCFrom] = useState(todayIst())
   const [cTo, setCTo] = useState(todayIst())
@@ -102,12 +104,12 @@ export default function AIPage({ session }: { session: Session }) {
     const run = tab === 'pricing'
       ? call(`view=activity&from=${range.to}&to=${range.to}`).then(d => { if (!off) setR(d) })
       : tab === 'activity'
-      ? call(`view=activity&${base}&provider=${actProvider}`).then(d => { if (!off) { setAct(d); setR(d) } })
-      : call(`view=logs&${base}&page=${page}&sort=${sort}&dir=${dir}&provider=${provider}&model=${encodeURIComponent(model)}&status=${status}&guarantorId=${guarantorId}`).then(d => { if (!off) { setLogs(d); setR(d) } })
+      ? call(`view=activity&${base}&provider=${actProvider}&purpose=${purpose}`).then(d => { if (!off) { setAct(d); setR(d) } })
+      : call(`view=logs&${base}&page=${page}&sort=${sort}&dir=${dir}&provider=${provider}&model=${encodeURIComponent(model)}&status=${status}&guarantorId=${guarantorId}&purpose=${purpose}`).then(d => { if (!off) { setLogs(d); setR(d) } })
     run.catch(e => { if (!off) setError(e instanceof Error ? e.message : 'Could not load') }).finally(() => { if (!off) setLoading(false) })
     return () => { off = true }
-  }, [tab, range.from, range.to, page, sort, dir, provider, model, status, guarantorId, actProvider, call])
-  useEffect(() => { setPage(1) }, [range.from, range.to, provider, model, status, guarantorId, sort, dir])
+  }, [tab, range.from, range.to, page, sort, dir, provider, model, status, guarantorId, actProvider, purpose, call])
+  useEffect(() => { setPage(1) }, [range.from, range.to, provider, model, status, guarantorId, purpose, sort, dir])
 
   async function saveRate() {
     const n = Number(rateText)
@@ -119,10 +121,10 @@ export default function AIPage({ session }: { session: Session }) {
   async function exportXlsx() {
     setBusy(true)
     try {
-      const d: Logs = await call(`view=logs&from=${range.from}&to=${range.to}&all=1&sort=${sort}&dir=${dir}&provider=${provider}&model=${encodeURIComponent(model)}&status=${status}&guarantorId=${guarantorId}`)
+      const d: Logs = await call(`view=logs&from=${range.from}&to=${range.to}&all=1&sort=${sort}&dir=${dir}&provider=${provider}&model=${encodeURIComponent(model)}&status=${status}&guarantorId=${guarantorId}&purpose=${purpose}`)
       if (!d.rows.length) { alert('There are no calls in this range.'); return }
       const head = ['Date (IST)', 'Provider', 'Model', 'Purpose', 'Guarantor', 'Input tokens', 'Output tokens', 'Thinking tokens', 'Cached tokens', 'Cost (USD)', 'Cost (INR)', 'Time (ms)', 'Tokens/sec', 'Status', 'Finish', 'Error']
-      const rows = d.rows.map(r => [when(r.at), r.provider, r.model, r.purpose, r.guarantor, r.tokensIn, r.tokensOut, r.reasoning, r.cached, r.costUsd, Number((r.costUsd * (d.usdInr || rate)).toFixed(6)), r.ms, r.tokPerSec, r.status, r.finish, r.error])
+      const rows = d.rows.map(r => [when(r.at), r.provider, r.model, purposeLabel(r.purpose), r.guarantor, r.tokensIn, r.tokensOut, r.reasoning, r.cached, r.costUsd, Number((r.costUsd * (d.usdInr || rate)).toFixed(6)), r.ms, r.tokPerSec, r.status, r.finish, r.error])
       const note = await downloadSheetXlsx(`ai-usage-${range.from}-to-${range.to}.xlsx`, 'AI usage', head, rows)
       if (note) alert(note)
     } catch (e) { alert(e instanceof Error ? e.message : 'Could not create the file') }
@@ -157,6 +159,7 @@ export default function AIPage({ session }: { session: Session }) {
           <p className="text-sm text-soft">{tab === 'activity' ? 'What the AI readers used, across providers and models.' : tab === 'logs' ? 'One row for every AI call.' : 'Anthropic prices per million tokens, in dollars and rupees.'}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {tab !== 'pricing' && <select value={purpose} onChange={e => setPurpose(e.target.value)} className={sel}><option value="">All categories</option><option value="slip">Payment screenshots</option><option value="aadhaar">Aadhaar reading</option><option value="test">Tests</option></select>}
           {tab === 'activity' && <select value={actProvider} onChange={e => setActProvider(e.target.value)} className={sel}><option value="">All providers</option><option value="openrouter">OpenRouter</option><option value="claude">Claude (Anthropic)</option><option value="nvidia">NVIDIA</option></select>}
           <label className="flex items-center gap-1 rounded-xl border border-line bg-white px-3 py-2 text-sm">₹ per $1
             <input value={rateText} onChange={e => setRateText(e.target.value)} onBlur={saveRate} onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }} inputMode="decimal" className="w-14 bg-transparent text-right font-semibold outline-none" />
@@ -202,6 +205,16 @@ export default function AIPage({ session }: { session: Session }) {
             <div className="rounded-2xl border border-line bg-white p-4"><p className="mb-3 font-semibold">Thinking tokens</p><Bars days={act.byDay} parts={[{ key: 'reasoning', label: 'Thinking', color: '#ef4444' }]} fmt={n => num(n)} /></div>
           </div>
           <div className="rounded-2xl border border-line bg-white">
+            <p className="border-b border-line px-4 py-3 font-semibold">Usage by category</p>
+            <div className="overflow-x-auto"><table className="min-w-full">
+              <thead><tr className="bg-mist"><th className={th}>Category</th><th className={th}>Requests</th><th className={th}>Tokens</th><th className={th}>Spend</th></tr></thead>
+              <tbody>
+                {act.byPurpose.map(g => <tr key={g.name} className="border-t border-line/60"><td className={td}>{purposeLabel(g.name)}</td><td className={td}>{num(g.requests)}</td><td className={td}>{short(g.tokens)}</td><td className={`${td} font-semibold`}>{usd(g.spend, 5)} <span className="font-normal text-soft">· {inr(g.spend, rate)}</span></td></tr>)}
+                {!act.byPurpose.length && <tr><td colSpan={4} className="px-4 py-6 text-center text-sm text-soft">No AI calls in this range.</td></tr>}
+              </tbody>
+            </table></div>
+          </div>
+          <div className="rounded-2xl border border-line bg-white">
             <p className="border-b border-line px-4 py-3 font-semibold">Usage by model</p>
             <div className="overflow-x-auto"><table className="min-w-full">
               <thead><tr className="bg-mist"><th className={th}>Provider · model</th><th className={th}>Requests</th><th className={th}>Tokens</th><th className={th}>Spend</th></tr></thead>
@@ -230,7 +243,7 @@ export default function AIPage({ session }: { session: Session }) {
               <tbody>
                 {logs.rows.map(r => (
                   <tr key={r.id} className="border-t border-line/60">
-                    <td className={td}>{when(r.at)}</td><td className={td}>{r.model || '—'}</td><td className={td}>{r.provider}</td><td className={td}>{r.purpose === 'test' ? 'Test' : 'Screenshot'}</td><td className={td}>{r.guarantor || '—'}</td>
+                    <td className={td}>{when(r.at)}</td><td className={td}>{r.model || '—'}</td><td className={td}>{r.provider}</td><td className={td}>{purposeLabel(r.purpose)}</td><td className={td}>{r.guarantor || '—'}</td>
                     <td className={td}>{num(r.tokensIn)} tok</td><td className={td}>{num(r.tokensOut)} tok</td><td className={td}>{r.reasoning ? `${num(r.reasoning)} tok` : '—'}</td>
                     <td className={`${td} font-semibold`}>{usd(r.costUsd, 6)} <span className="font-normal text-soft">· {inr(r.costUsd, rate)}</span></td><td className={td}>{r.tokPerSec ? `${r.tokPerSec} tok/s · ` : ''}{(r.ms / 1000).toFixed(1)} s</td>
                     <td className={td}>{r.status === 'error'

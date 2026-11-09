@@ -16,12 +16,13 @@ const shiftDay = (d: string, n: number) => new Date(new Date(`${d}T00:00:00Z`).g
 type Row = { id: string; created_at: string; provider: string; model: string; purpose: string; guarantor_id: string | null; message_id: string | null
   tokens_in: number; tokens_out: number; tokens_reasoning: number; tokens_cached: number; cost_usd: number; duration_ms: number; status: string; finish_reason: string | null; error: string | null }
 
-async function fetchRows(from: string, to: string, filters: { provider?: string; model?: string; status?: string; guarantorId?: string }, max = 20000): Promise<Row[]> {
+async function fetchRows(from: string, to: string, filters: { provider?: string; model?: string; status?: string; guarantorId?: string; purpose?: string }, max = 20000): Promise<Row[]> {
   const sb = getSupabase()
   const out: Row[] = []
   for (let off = 0; off < max; off += 1000) {
     let q = sb.from('ai_usage').select('*').gte('created_at', startOf(from)).lt('created_at', endOf(to)).order('created_at', { ascending: false })
     if (filters.provider) q = q.eq('provider', filters.provider)
+    if (filters.purpose) q = q.eq('purpose', filters.purpose)
     if (filters.model) q = q.eq('model', filters.model)
     if (filters.status) q = q.eq('status', filters.status)
     if (filters.guarantorId) q = q.eq('guarantor_id', filters.guarantorId)
@@ -71,12 +72,12 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const from = isDate(sp.get('from') || '') ? sp.get('from')! : to.slice(0, 8) + '01'
   if (from > to) return err('The start date is after the end date')
   const view = sp.get('view') || 'activity'
-  const filters = { provider: sp.get('provider') || '', model: sp.get('model') || '', status: sp.get('status') || '', guarantorId: sp.get('guarantorId') || '' }
+  const filters = { provider: sp.get('provider') || '', model: sp.get('model') || '', status: sp.get('status') || '', guarantorId: sp.get('guarantorId') || '', purpose: sp.get('purpose') || '' }
 
   if (view === 'activity') {
     const days = Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400_000) + 1
     const prevTo = shiftDay(from, -1), prevFrom = shiftDay(from, -days)
-    const pf = { provider: filters.provider }
+    const pf = { provider: filters.provider, purpose: filters.purpose }
     const [rows, prev] = await Promise.all([fetchRows(from, to, pf), fetchRows(prevFrom, prevTo, pf)])
     const byDay = new Map<string, { day: string; spend: number; requests: number; tokensIn: number; tokensOut: number; reasoning: number; cached: number }>()
     for (let i = 0; i < Math.min(days, 400); i++) { const d = shiftDay(from, i); byDay.set(d, { day: d, spend: 0, requests: 0, tokensIn: 0, tokensOut: 0, reasoning: 0, cached: 0 }) }

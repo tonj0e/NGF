@@ -40,3 +40,6 @@ The owner is moving from OpenRouter to the Anthropic API directly. Anthropic's c
 
 ## Related
 - [[Payment Chat]], [[Money Brain]], [[Integrations]]
+
+## Categories (added 2026-11-09)
+Every call has a category (`ai_usage.purpose`): `slip` payment screenshot, `aadhaar` Aadhaar reading (New Lead > Scan Aadhaar), `test`. The AI page filters by category and shows a Usage by category table, so Aadhaar cost is never mixed into screenshot cost.
