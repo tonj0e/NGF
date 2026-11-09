@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { isGuarantorNumber } from '@/lib/guarantorNumber'
+import { makePayNumber, freeLoanId, payNumberOfCustomer } from '@/lib/payNumber'
 import { apiHandler, requireRole, ok, err, getSession } from '@/lib/api'
 import { checkUploadRate } from '@/lib/uploadRate'
 import { requireFeature } from '@/lib/access'
@@ -10,6 +10,7 @@ import { notifyUser, notifyRole } from '@/lib/notifications'
 import { validateBody, submitVerificationSchema, adminReviewSchema, assignAgentSchema, updateLeadSchema, tripSchema } from '@/lib/validation'
 import { FilePayload } from '@/types'
 import { payCodeFromLoanId } from '@/lib/payCode'
+import { bankIssues, normAccount, normIfsc, normName } from '@/lib/bankFile'
 import { csrfProtection } from '@/lib/csrf'
 import { createAuditLogger } from '@/lib/audit'
 import { firstPaymentSaturdayIST } from '@/lib/dateUtils'
@@ -66,6 +67,11 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
     const lead = await getRowById('Leads', leadId)
     if (!lead) return err('Lead not found')
     if (!(await staffMaySee(session, lead))) return err('This lead belongs to another branch', 403)
+    const bk = { account: normAccount(body.accountNumber ?? lead['Account Number'] ?? ''), ifsc: normIfsc(body.ifscCode ?? lead['IFSC Code'] ?? ''), name: normName(body.accountHolder ?? lead['Account Holder'] ?? '') }
+    if (body.accountNumber || body.ifscCode || body.accountHolder) {
+      const issues = bankIssues(bk)
+      if (issues.length) return err(`Bank details: ${issues.join('. ')}`, 400)
+    }
     await updateById('Leads', leadId, {
       'Customer Name': body.customerName || lead['Customer Name'],
       'Phone': body.phone || lead['Phone'],
@@ -80,6 +86,11 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
       'Occupation': body.occupation || lead['Occupation'],
       'PAN No': body.panNo || lead['PAN No'],
       'Cheque Number': body.chequeNumber || lead['Cheque Number'],
+      ...(body.accountNumber || body.ifscCode || body.accountHolder ? {
+        'Account Number': bk.account, 'IFSC Code': bk.ifsc, 'Account Holder': bk.name,
+        ...(bk.account !== normAccount(lead['Account Number'] || '') || bk.ifsc !== normIfsc(lead['IFSC Code'] || '') || bk.name !== normName(lead['Account Holder'] || '')
+          ? { 'Bank Verified At': null, 'Bank Verified By': null } : {}),   // changed bank details must be checked with the customer again
+      } : {}),
       'Loan Product': body.loanProduct || lead['Loan Product'],
       'Risk Level': body.riskLevel || lead['Risk Level'],
       'Notes': body.notes || lead['Notes'],
@@ -144,6 +155,17 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
     let chequePhotoUrl = lead['Cheque Photo URL']
     let aadhaarFrontUrl = lead['Aadhaar Front URL']
     let aadhaarBackUrl = lead['Aadhaar Back URL']
+    let passbookPhotoUrl = lead['Passbook Photo URL']
+
+    // Bank details are what the loan money is paid into: a verified lead must have a valid account, IFSC and name; anything typed must be valid
+    {
+      const acc = body.accountNumber || lead['Account Number'] || '', ifsc = body.ifscCode || lead['IFSC Code'] || '', holder = body.accountHolder || lead['Account Holder'] || ''
+      const provided = !!(body.accountNumber || body.ifscCode || body.accountHolder)
+      if (body.recommendationStatus === 'Verified' || provided) {
+        const issues = bankIssues({ ifsc, account: acc, name: holder })
+        if (issues.length) return err(`Bank details: ${issues.join('. ')}`)
+      }
+    }
 
     // If folder doesn't exist yet (lead submitted without photos), create it now
     if (!folderId) {
@@ -155,7 +177,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
     }
 
     // Upload photos with error handling
-    if (body.customerPhoto || body.housePhoto || body.landmarkPhoto || body.chequePhoto || body.aadhaarFront || body.aadhaarBack) {
+    if (body.customerPhoto || body.housePhoto || body.landmarkPhoto || body.chequePhoto || body.aadhaarFront || body.aadhaarBack || body.passbookPhoto) {
     try { checkUploadRate(session.userId) } catch (e) { return err(e instanceof Error ? e.message : 'Too many uploads') }
     }
     try {
@@ -163,6 +185,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
       if (body.housePhoto) housePhotoUrl = await uploadLeadPhoto(folderId, 'house', toPayload(body.housePhoto, 'house_lead.jpg'), docLabel(lead['Customer Name'], leadId))
       if (body.landmarkPhoto) landmarkPhotoUrl = await uploadLeadPhoto(folderId, 'landmark', toPayload(body.landmarkPhoto, 'landmark_lead.jpg'), docLabel(lead['Customer Name'], leadId))
       if (body.chequePhoto) chequePhotoUrl = await uploadLeadPhoto(folderId, 'cheque', toPayload(body.chequePhoto, 'cheque_lead.jpg'), docLabel(lead['Customer Name'], leadId))
+      if (body.passbookPhoto) passbookPhotoUrl = await uploadLeadPhoto(folderId, 'passbook', toPayload(body.passbookPhoto, 'passbook_lead.jpg'), docLabel(lead['Customer Name'], leadId))
       if (body.aadhaarFront) aadhaarFrontUrl = await uploadLeadPhoto(folderId, 'aadhaar_front', toPayload(body.aadhaarFront, 'aadhaar_front_lead.jpg'), docLabel(lead['Customer Name'], leadId))
       if (body.aadhaarBack) aadhaarBackUrl = await uploadLeadPhoto(folderId, 'aadhaar_back', toPayload(body.aadhaarBack, 'aadhaar_back_lead.jpg'), docLabel(lead['Customer Name'], leadId))
     } catch (uploadError) {
@@ -190,8 +213,10 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
         'Occupation': body.occupation || lead['Occupation'],
         'PAN No': body.panNo || lead['PAN No'],
         'Cheque Number': body.chequeNumber || lead['Cheque Number'],
-        'Account Number': body.accountNumber || lead['Account Number'],
-        'IFSC Code': body.ifscCode || lead['IFSC Code'],
+        'Account Number': body.accountNumber ? normAccount(body.accountNumber) : lead['Account Number'],
+        'IFSC Code': body.ifscCode ? normIfsc(body.ifscCode) : lead['IFSC Code'],
+        'Account Holder': body.accountHolder ? normName(body.accountHolder) : lead['Account Holder'],
+        'Passbook Photo URL': passbookPhotoUrl,
         'Customer Photo URL': customerPhotoUrl,
         'House Photo URL': housePhotoUrl,
         'Landmark Photo URL': landmarkPhotoUrl,
@@ -296,6 +321,12 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
       reportError('disburse failed', e)
       return err(e.message || 'Failed to disburse')
     }
+    try {   // tick the lead in its live bank file (a cancelled file is left alone)
+      const { data: ln } = await getSupabase().from('bank_payout_lines').select('line_id, batch_id').eq('lead_id', leadId).is('disbursed_at', null)
+      const { data: bt } = ln?.length ? await getSupabase().from('bank_payout_batches').select('batch_id').in('batch_id', ln.map(x => x.batch_id)).eq('status', 'created') : { data: [] }
+      const live = ln?.filter(x => bt?.some(b => b.batch_id === x.batch_id)).map(x => x.line_id) || []
+      if (live.length) await getSupabase().from('bank_payout_lines').update({ disbursed_at: nowIso() }).in('line_id', live)
+    } catch { /* the file log is secondary */ }
     const startDate = firstPaymentSaturdayIST()
     await createAuditLogger(req, session).log('LOAN_DISBURSED', 'Lead', leadId, { renewal: isRenewal, firstPayment: startDate })
     const g = await getRowById('Guarantors', lead['Guarantor ID'])
@@ -326,10 +357,11 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
       else if (n.startsWith('house_') && !lead['House Photo URL'] && !updates['House Photo URL']) { updates['House Photo URL'] = url; matched.add(f.id!) }
       else if (n.startsWith('landmark_') && !lead['Landmark Photo URL'] && !updates['Landmark Photo URL']) { updates['Landmark Photo URL'] = url; matched.add(f.id!) }
       else if (n.startsWith('cheque_') && !lead['Cheque Photo URL'] && !updates['Cheque Photo URL']) { updates['Cheque Photo URL'] = url; matched.add(f.id!) }
+      else if (n.startsWith('passbook_') && !lead['Passbook Photo URL'] && !updates['Passbook Photo URL']) { updates['Passbook Photo URL'] = url; matched.add(f.id!) }
     })
 
     // Pass 2: positional fallback — assign unmatched images to remaining empty slots
-    const unmatched = imgFiles.filter(f => !matched.has(f.id!))
+    const unmatched = imgFiles.filter(f => !matched.has(f.id!) && !(f.name || '').toLowerCase().startsWith('passbook_'))
     const slots = [
       ['Customer Photo URL', lead['Customer Photo URL']],
       ['Aadhaar Front URL', lead['Aadhaar Front URL']],
@@ -388,17 +420,6 @@ export const DELETE = apiHandler(async (req: NextRequest, { params }: any) => {
   return ok({ success: true })
 })
 
-async function makeLoanId(guarantorCode: string): Promise<string> {
-  // pick a random 4-digit number and ask the database whether that loan id is taken (no need to read every loan)
-  const prefix = `${guarantorCode}-`
-  for (let tries = 0; tries < 60; tries++) {
-    const digits = Math.floor(1000 + Math.random() * 9000)
-    const candidate = `${prefix}${digits}`
-    if ((await countRows('Loans', qb => qb.eq('loan_id', candidate))) === 0 && !(await isGuarantorNumber(digits))) return candidate
-  }
-  throw new Error('Could not find a free loan number. Please try again.')
-}
-
 async function approveLoan(lead: Record<string, string>, productKey?: string) {
   const { findLoanProduct, getLoanProducts } = await import('@/lib/loanProducts')
   const product = await findLoanProduct(productKey || lead['Loan Product'])
@@ -418,8 +439,9 @@ async function approveLoan(lead: Record<string, string>, productKey?: string) {
     customerId = makeId('CUST')
   }
 
-  // Generate loanId and dates for both new and existing customers
-  const loanId = await makeLoanId(guarantorCode)
+  // The customer's permanent 4-digit number: reserved when the bank file was made, else made now. The loan id is NGF-<guarantor code>-<number>.
+  const payNumber = lead['Pay Number'] || customer?.['Pay Number'] || await makePayNumber()
+  const loanId = await freeLoanId(guarantorCode, payNumber, 1)
   // the customer's Drive folder and photos switch from the lead ID to the 4-digit loan code
   await renameLeadDocs(lead['Document Folder ID'], lead['Customer Name'], payCodeFromLoanId(loanId))
   const startDate = new Date(firstPaymentSaturdayIST())   // next Saturday AFTER the handover day
@@ -430,6 +452,8 @@ async function approveLoan(lead: Record<string, string>, productKey?: string) {
     await appendRow('Customers', {
       'Customer ID': customerId, 'Lead ID': lead['Lead ID'],
       'Name': lead['Customer Name'], 'Phone': lead['Phone'],
+      'Pay Number': payNumber,
+      'Account Number': lead['Account Number'] || '', 'IFSC Code': lead['IFSC Code'] || '', 'Account Holder': lead['Account Holder'] || '', 'Passbook Photo URL': lead['Passbook Photo URL'] || '',
       'Address': lead['Address'], 'House Name': lead['House Name'],
       'Place': lead['Place'], 'Landmark': lead['Landmark'],
       'Occupation': lead['Occupation'], 'Guarantor ID': lead['Guarantor ID'],
@@ -438,7 +462,12 @@ async function approveLoan(lead: Record<string, string>, productKey?: string) {
     })
   } else {
     // Update existing customer's active loan and status
-    await updateById('Customers', customerId, { 'Active Loan ID': loanId, 'Status': 'Active', 'Updated At': nowIso() })
+    await updateById('Customers', customerId, {
+      'Active Loan ID': loanId, 'Status': 'Active', 'Updated At': nowIso(),
+      ...(customer?.['Pay Number'] ? {} : { 'Pay Number': payNumber }),
+      ...(lead['Account Number'] ? { 'Account Number': lead['Account Number'], 'IFSC Code': lead['IFSC Code'] || '', 'Account Holder': lead['Account Holder'] || '' } : {}),
+      ...(lead['Passbook Photo URL'] ? { 'Passbook Photo URL': lead['Passbook Photo URL'] } : {}),
+    })
   }
 
   // Check if customer already has an active loan (for re-verification re-approval)
@@ -513,7 +542,9 @@ async function approveRenewal(lead: Record<string, string>) {
 
   const g = await getRowById('Guarantors', customer['Guarantor ID'])
   const guarantorCode = g?.['Code'] || 'NGF'
-  const loanId = await makeLoanId(guarantorCode)
+  // the customer keeps the same 4-digit number for life; only the loan id gets a renewal suffix (R2, R3 ...)
+  const payNumber = await payNumberOfCustomer(customer)
+  const loanId = await freeLoanId(guarantorCode, payNumber, (await countRows('Loans', qb => qb.eq('customer_id', customer['Customer ID']))) + 1)
   const startDate = new Date(firstPaymentSaturdayIST())   // next Saturday AFTER the handover day
   const durationWeeks = Number(prev['Duration Weeks']) || 10
   const endDate = addDays(startDate, (durationWeeks - 1) * 7)

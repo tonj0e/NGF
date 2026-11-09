@@ -563,7 +563,7 @@ export default function CustomersPage({ session, perms }: { session: Session; pe
         customerId: detail.customerId,
         name: g('name'), phone: g('phone'), address: g('address'),
         houseName: g('houseName'), place: g('place'), occupation: g('occupation'),
-        accountNumber: g('accountNumber'), ifscCode: g('ifscCode'), panNo: g('panNo'),
+        accountNumber: g('accountNumber'), ifscCode: g('ifscCode'), accountHolder: g('accountHolder'), panNo: g('panNo'),
         ...photoUploads,
       }),
     })
@@ -699,6 +699,7 @@ export default function CustomersPage({ session, perms }: { session: Session; pe
                   <EditField name="occupation" label="Occupation" value={detail.occupation} occupation />
                   <EditField name="accountNumber" label="Account Number" value={detail.accountNumber} />
                   <EditField name="ifscCode" label="IFSC Code" value={detail.ifscCode} />
+                  <EditField name="accountHolder" label="Name in bank account" value={detail.accountHolder} />
                   <EditField name="panNo" label="PAN No" value={detail.panNo} />
                 </>
               ) : (
@@ -708,6 +709,8 @@ export default function CustomersPage({ session, perms }: { session: Session; pe
                   <Field label="Occupation" value={detail.occupation} />
                   {detail.accountNumber && <Field label="Account Number" value={detail.accountNumber} />}
                   {detail.ifscCode && <Field label="IFSC Code" value={detail.ifscCode} />}
+                  {detail.accountHolder && <Field label="Name in bank account" value={detail.accountHolder} />}
+                  {detail.payNumber && <Field label="Customer number (4 digits)" value={detail.payNumber} />}
                   {detail.panNo && <Field label="PAN No" value={detail.panNo} />}
                 </>
               )}

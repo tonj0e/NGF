@@ -4,11 +4,13 @@ import { countRows } from '@/lib/supabase-db'
 export async function makeGuarantorNumber(): Promise<string> {
   for (let tries = 0; tries < 80; tries++) {
     const n = String(Math.floor(1000 + Math.random() * 9000))
-    const [g, l] = await Promise.all([
+    const [g, l, c, ld] = await Promise.all([
       countRows('Guarantors', qb => qb.eq('guarantor_number', n)),
       countRows('Loans', qb => qb.like('loan_id', `%-${n}`)),
+      countRows('Customers', qb => qb.eq('pay_number', n)),
+      countRows('Leads', qb => qb.eq('pay_number', n)),
     ])
-    if (g === 0 && l === 0) return n
+    if (g + l + c + ld === 0) return n
   }
   throw new Error('Could not find a free guarantor number. Please try again.')
 }

@@ -112,7 +112,7 @@ async function enrichCustomers(customers: Record<string, string>[]) {
       nomineePhone: lead?.['Nominee Phone'] || '',
       aadhaarNo: lead?.['Aadhaar No'] || '',
       accountNumber: c['Account Number'] || '',
-      ifscCode: c['IFSC Code'] || '',
+      ifscCode: c['IFSC Code'] || '', accountHolder: c['Account Holder'] || '', payNumber: c['Pay Number'] || '',
       panNo: c['PAN No'] || '',
       customerPhotoUrl: lead?.['Customer Photo URL'] || '',
       aadhaarFrontUrl: lead?.['Aadhaar Front URL'] || '',
@@ -146,6 +146,7 @@ export const PATCH = apiHandler(async (req: NextRequest) => {
     'Occupation': body.occupation || customer['Occupation'],
     'Account Number': body.accountNumber ?? customer['Account Number'] ?? '',
     'IFSC Code': body.ifscCode ?? customer['IFSC Code'] ?? '',
+    'Account Holder': body.accountHolder ?? customer['Account Holder'] ?? '',
     'PAN No': body.panNo ?? customer['PAN No'] ?? '',
     'Updated At': nowIso(),
   })

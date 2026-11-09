@@ -40,7 +40,7 @@ async function compressImage(file: File): Promise<File> {
   })
 }
 
-async function fileToPayload(file: File) {
+export async function fileToPayload(file: File) {
   const processed = await compressImage(file)
   return new Promise<string>((resolve) => {
     const r = new FileReader()

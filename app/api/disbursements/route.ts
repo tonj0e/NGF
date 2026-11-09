@@ -8,6 +8,8 @@ import { findLoanProduct } from '@/lib/loanProducts'
 import { firstPaymentSaturdayIST } from '@/lib/dateUtils'
 import { getBranchAccess, canApproveIn, canSeeBranch } from '@/lib/branchAccess'
 import { customerForRenewalLead } from '@/lib/renewalRules'
+import { getSupabase } from '@/lib/supabase-db'
+import { bankIssues, bankMode, normAccount } from '@/lib/bankFile'
 
 // The disbursement list: leads that are approved and waiting for the money to be handed over.
 // Two sections (renewals, new customers), grouped by guarantor. Branch staff see their own branch only; Admin sees all.
@@ -27,6 +29,9 @@ export const GET = apiHandler(async (req: NextRequest) => {
     byIds('Users', 'user_id', approved.map(l => l['Approved By'])),
     byIds('Loans', 'customer_id', renewalCustomers.filter(Boolean).map(c => c!['Customer ID'])),
   ])
+  // which of these leads are already in a live bank file
+  const { data: lineRows } = approved.length ? await getSupabase().from('bank_payout_lines').select('lead_id, reference_number, batch_id, disbursed_at').in('lead_id', approved.map(l => l['Lead ID'])) : { data: [] }
+  const { data: batchRows } = (lineRows || []).length ? await getSupabase().from('bank_payout_batches').select('batch_id, file_name, status').in('batch_id', [...new Set((lineRows || []).map(x => x.batch_id))]) : { data: [] }
   const rows = await Promise.all(approved.map(async (l, i) => {
     const gid = l['Guarantor ID']; const g = guarantors.find(x => x['Guarantor ID'] === gid)
     const branchId = branchOf(gid)
@@ -40,7 +45,15 @@ export const GET = apiHandler(async (req: NextRequest) => {
       const p = await findLoanProduct(l['Loan Product'])
       if (p) terms = { principal: p.principal, netDisbursed: p.netDisbursed, weekly: p.weeklyCollection, weeks: p.durationWeeks, productLabel: p.label }
     }
+    // bank details: a renewal keeps them on the customer, a new customer on the lead
+    const src = isRenewal ? renewalCustomers[i] : l
+    const bank = { ifsc: src?.['IFSC Code'] || '', account: src?.['Account Number'] || '', name: src?.['Account Holder'] || '' }
+    const live = (lineRows || []).map(x => ({ x, b: (batchRows || []).find(b => b.batch_id === x.batch_id) })).find(y => y.b?.status === 'created')
     return {
+      bankIfsc: bank.ifsc, bankAccount: bank.account, bankName: bank.name, bankMode: bank.ifsc ? bankMode(bank.ifsc) : '', passbookUrl: src?.['Passbook Photo URL'] || '',
+      bankIssues: bankIssues({ ifsc: bank.ifsc, account: normAccount(bank.account), name: bank.name }), bankVerified: !!l['Bank Verified At'],
+      payNumber: (isRenewal ? renewalCustomers[i]?.['Pay Number'] : l['Pay Number']) || '',
+      inFile: live ? { fileName: live.b!.file_name, reference: live.x.reference_number } : null,
       leadId: l['Lead ID'], isRenewal, customerName: l['Customer Name'], phone: l['Phone'], place: l['Place'] || '',
       guarantorId: gid, guarantorCode: g?.['Code'] || '', guarantorName: g?.['Name'] || '',
       branchId, branchName: branches.find(b => b['Branch ID'] === branchId)?.['Name'] || '',

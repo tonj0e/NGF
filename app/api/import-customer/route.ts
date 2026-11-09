@@ -1,22 +1,11 @@
 import { NextRequest } from 'next/server'
-import { isGuarantorNumber } from '@/lib/guarantorNumber'
+import { makePayNumber, freeLoanId } from '@/lib/payNumber'
 import { apiHandler, requireRole, ok, err } from '@/lib/api'
 import { requireFeature } from '@/lib/access'
 import { readTable, countRows, getRowById, appendRow, updateById, findRecord, makeId, nowIso, formatDateYmd, invalidateCache } from '@/lib/supabase-db'
 import { APP_CONFIG } from '@/lib/config'
 import { getLeadDocFolder, uploadLeadPhoto, docLabel } from '@/lib/drive'
 import { payCodeFromLoanId } from '@/lib/payCode'
-
-async function makeLoanId(guarantorCode: string): Promise<string> {
-  // pick a random 4-digit number and ask the database whether that loan id is taken (no need to read every loan)
-  const prefix = `${guarantorCode}-`
-  for (let tries = 0; tries < 60; tries++) {
-    const digits = Math.floor(1000 + Math.random() * 9000)
-    const candidate = `${prefix}${digits}`
-    if ((await countRows('Loans', qb => qb.eq('loan_id', candidate))) === 0 && !(await isGuarantorNumber(digits))) return candidate
-  }
-  throw new Error('Could not find a free loan number. Please try again.')
-}
 
 async function makeCustomerId(guarantorCode: string): Promise<string> {
   const prefix = `NGF${guarantorCode}`
@@ -70,7 +59,8 @@ export const POST = apiHandler(async (req: NextRequest) => {
   const guarantorCode = guarantor['Code'] || 'NGF'
 
   const customerId = await makeCustomerId(guarantorCode)
-  const loanId = await makeLoanId(guarantorCode)
+  const payNumber = await makePayNumber()   // the customer's permanent 4-digit number
+  const loanId = await freeLoanId(guarantorCode, payNumber, 1)
   const startDate = firstSaturday(disburseDate)
   const endDate = addDays(startDate, (product.durationWeeks - 1) * 7)
 
@@ -139,7 +129,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
     'IFSC Code': ifscCode || '',
     'PAN No': panNo || '',
     'Guarantor ID': guarantorId,
-    'Active Loan ID': loanId, 'Status': 'Active',
+    'Pay Number': payNumber, 'Active Loan ID': loanId, 'Status': 'Active',
     'Created At': joinedDate ? new Date(joinedDate).toISOString() : nowIso(),
     'Updated At': nowIso(),
   })

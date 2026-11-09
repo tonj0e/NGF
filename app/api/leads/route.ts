@@ -127,7 +127,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
       houseName: l['House Name'], place: l['Place'], landmark: l['Landmark'],
       nomineeName: l['Nominee Name'], nomineePhone: l['Nominee Phone'], altPhone: l['Alt Phone'] || '', altPhoneLabel: l['Alt Phone Label'] || '',
       occupation: l['Occupation'], panNo: l['PAN No'], chequeNumber: l['Cheque Number'],
-      accountNumber: l['Account Number'] || '', ifscCode: l['IFSC Code'] || '',
+      accountNumber: l['Account Number'] || '', ifscCode: l['IFSC Code'] || '', accountHolder: l['Account Holder'] || '', passbookPhotoUrl: l['Passbook Photo URL'] || '', payNumber: l['Pay Number'] || '',
       pinnedLocation: l['Pinned Location'], loanProduct: l['Loan Product'],
       riskLevel: l['Risk Level'], status: l['Status'],
       assignedAgentId: l['Assigned Agent ID'], assignedAgentName: agent?.['Name'] || '',

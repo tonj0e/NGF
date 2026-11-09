@@ -76,6 +76,7 @@ const PHOTO_FIELDS = [
   { key: 'housePhoto', label: 'House Photo' },
   { key: 'landmarkPhoto', label: 'Landmark Photo' },
   { key: 'chequePhoto', label: 'Cheque Photo' },
+  { key: 'passbookPhoto', label: 'Bank Passbook Photo (first page)' },
 ] as const
 
 type PhotoKey = typeof PHOTO_FIELDS[number]['key']
@@ -337,6 +338,7 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
       landmark: g('landmark'),
       accountNumber: g('accountNumber'),
       ifscCode: g('ifscCode'),
+      accountHolder: g('accountHolder'),
       nomineeName: g('nomineeName'),
       nomineePhone: g('nomineePhone'),
       occupation: g('occupation'),
@@ -463,6 +465,7 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
                   ['landmark', 'Landmark', active.landmark],
                   ['accountNumber', 'Account Number', (active as any).accountNumber],
                   ['ifscCode', 'IFSC Code', (active as any).ifscCode],
+                  ['accountHolder', 'Name in bank account (as in the passbook)', (active as any).accountHolder || active.customerName],
                   ['panNo', 'PAN No', active.panNo],
                   ['chequeNumber', 'Cheque Number', (active as any).chequeNumber],
                   ['nomineeName', 'Nominee Name', active.nomineeName],

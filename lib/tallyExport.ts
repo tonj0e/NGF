@@ -55,7 +55,7 @@ async function buildXlsx(sheets: { name: string; head: string[]; body: { cells: 
   return zipSync(files)
 }
 
-async function save(name: string, mime: string, bytes: Uint8Array): Promise<string> {
+export async function save(name: string, mime: string, bytes: Uint8Array): Promise<string> {
   const n = nativeTracker()
   if (n && typeof n.saveFile === 'function') {
     let bin = ''
