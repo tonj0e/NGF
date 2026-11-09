@@ -70,6 +70,8 @@ export default function SubmitLeadPage({ session, onDone }: { session: Session; 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [dayOptions] = useState(() => leadDays())
+  const isG = session.role === 'Guarantor'   // guarantors fill a short form: loan product (10K10W) and lead day are set for them
+  const defaultDay = (dayOptions.find(d => !/^Today, (Saturday|Sunday)/.test(d.label)) || dayOptions[0]).value
   // First a pop-up asks how to fill the lead: scan the Aadhaar card with AI, or type everything.
   const [step, setStep] = useState<'choose' | 'scan' | 'form'>('choose')
   const [scanned, setScanned] = useState(false)
@@ -110,8 +112,8 @@ export default function SubmitLeadPage({ session, onDone }: { session: Session; 
         customerName: g('customerName'), phone: g('phone'), place: g('place'),
         altPhone: g('altPhone') || undefined, altPhoneLabel: g('altPhone') ? g('altPhoneLabel') : undefined,
         aadhaarNo: g('aadhaarNo'), address: g('address'),
-        loanProduct: g('loanProduct'),
-        submittedDate: g('submittedDate') || undefined,
+        loanProduct: isG ? APP_CONFIG.LOAN_PRODUCTS[0].key : g('loanProduct'),
+        submittedDate: isG ? defaultDay : (g('submittedDate') || undefined),
       }
       const photoFields = ['customerPhoto','aadhaarFront']
       for (const key of photoFields) {
@@ -152,9 +154,9 @@ export default function SubmitLeadPage({ session, onDone }: { session: Session; 
             <p className="mt-1 text-sm text-soft">Take both sides in good light, with the whole card in the picture.</p>
             <div className="mt-4 space-y-3">
               <label className="block"><span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-soft">Aadhaar front</span>
-                <input type="file" accept="image/*" capture="environment" onChange={e => setFront(e.target.files?.[0] || null)} className={pick} /></label>
+                <input type="file" accept="image/*" onChange={e => setFront(e.target.files?.[0] || null)} className={pick} /></label>
               <label className="block"><span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-soft">Aadhaar back</span>
-                <input type="file" accept="image/*" capture="environment" onChange={e => setBack(e.target.files?.[0] || null)} className={pick} /></label>
+                <input type="file" accept="image/*" onChange={e => setBack(e.target.files?.[0] || null)} className={pick} /></label>
             </div>
             {scanError && <p className="mt-3 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">{scanError}</p>}
             <div className="mt-5 flex gap-3">
@@ -175,18 +177,32 @@ export default function SubmitLeadPage({ session, onDone }: { session: Session; 
         {scanned && <p className="mt-1 text-xs text-soft">Read from the Aadhaar card. Check the name, number and address, then add the mobile numbers.</p>}
       </div>
       <form onSubmit={handleSubmit} className="space-y-5 p-6">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {[['customerName','Full Name *'],['phone',scanned ? "Customer's mobile number *" : 'Phone *'],['aadhaarNo','Aadhaar (12 digits)'],['address','Address'],['place','Place *']].map(([k,l]) => (
-            <label key={k} className="block">
-              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-soft">{l}</span>
-              <input name={k} required={l.endsWith('*')} value={(vals as Record<string, string>)[k]} onChange={e => setVal(k, e.target.value)} inputMode={k === 'phone' ? 'tel' : k === 'aadhaarNo' ? 'numeric' : undefined} className="w-full rounded-2xl border border-line bg-mist px-4 py-3 text-sm outline-none focus:border-ink focus:bg-white transition" />
-            </label>
-          ))}
-        </div>
+        {(() => {
+          const locked = scanned && isG   // read from the card: the guarantor cannot change these, only retake the photos
+          const lockCls = 'w-full rounded-2xl border border-line bg-slate-100 px-4 py-3 text-sm text-ink/80 outline-none'
+          const openCls = 'w-full rounded-2xl border border-line bg-mist px-4 py-3 text-sm outline-none focus:border-ink focus:bg-white transition'
+          return (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {[['customerName','Full Name *'],['aadhaarNo','Aadhaar number'],['address','Address'],['place','Place *'],['phone',scanned ? "Customer's mobile number *" : 'Phone *']].map(([k,l]) => {
+                const isLocked = locked && k !== 'phone' && !!(vals as Record<string, string>)[k]   // a box the card did not give stays open
+                return (
+                  <label key={k} className="block">
+                    <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-soft">{l}{isLocked ? ' 🔒' : ''}</span>
+                    <input name={k} required={l.endsWith('*')} readOnly={isLocked} value={(vals as Record<string, string>)[k]} onChange={e => setVal(k, e.target.value)}
+                      inputMode={k === 'phone' ? 'tel' : k === 'aadhaarNo' ? 'numeric' : undefined} placeholder={k === 'phone' ? '10-digit mobile number' : undefined} className={isLocked ? lockCls : openCls} />
+                  </label>
+                )
+              })}
+            </div>
+          )
+        })()}
+        {scanned && isG && <button type="button" onClick={() => { setScanned(false); setAadhaarPics({}); setFront(null); setBack(null); setScanError(''); setStep('scan') }} className="text-xs font-semibold text-soft underline">Wrong details? Scan the card again</button>}
 
         <div>
-          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-soft">{scanned ? 'Another contact number: mother, father, son, daughter, husband, wife or other' : 'Another contact number (optional)'}</p>
-          <p className="mb-3 text-xs text-soft">If the customer cannot be reached, the branch and the agent can call this number: husband, wife, a family member or the nominee.</p>
+          {!isG && <>
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-soft">Another contact number (optional)</p>
+            <p className="mb-3 text-xs text-soft">If the customer cannot be reached, the branch and the agent can call this number: husband, wife, a family member or the nominee.</p>
+          </>}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <label className="block">
               <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-soft">Whose number is it?</span>
@@ -201,24 +217,24 @@ export default function SubmitLeadPage({ session, onDone }: { session: Session; 
           </div>
         </div>
 
-        <div>
+        {(!isG || !scanned) && <div>
           <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-soft">Photos (optional)</p>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {[['customerPhoto','Customer Photo'], ...(scanned ? [] : [['aadhaarFront','Aadhaar Front']])].map(([k,l]) => (
+            {[...(isG ? [] : [['customerPhoto','Customer Photo']]), ...(scanned ? [] : [['aadhaarFront','Aadhaar Front']])].map(([k,l]) => (
               <label key={k} className="block">
                 <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-soft">{l}</span>
                 <input name={k} type="file" accept="image/*" className="w-full rounded-2xl border border-line px-3 py-2 text-sm" />
               </label>
             ))}
           </div>
-        </div>
+        </div>}
 
         {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">{error}</p>}
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        {!isG && <div className="grid gap-4 sm:grid-cols-2">
           <label className="block">
             <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-soft">Lead day</span>
-            <select name="submittedDate" defaultValue={(dayOptions.find(d => !/^Today, (Saturday|Sunday)/.test(d.label)) || dayOptions[0]).value}
+            <select name="submittedDate" defaultValue={defaultDay}
               className="w-full rounded-2xl border border-line bg-mist px-4 py-3 text-sm outline-none focus:border-ink focus:bg-white transition">
               {dayOptions.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
             </select>
@@ -235,7 +251,7 @@ export default function SubmitLeadPage({ session, onDone }: { session: Session; 
               ))}
             </select>
           </label>
-        </div>
+        </div>}
 
         <div className="flex gap-3 pt-2">
           <button type="button" onClick={onDone} className="flex-1 rounded-2xl border border-line px-4 py-3 text-sm font-semibold">Cancel</button>

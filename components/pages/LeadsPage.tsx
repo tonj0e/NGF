@@ -4,6 +4,7 @@ import Pager from '@/components/ui/Pager'
 import { Session, Lead } from '@/types'
 import StatusPill from '@/components/ui/StatusPill'
 import DriveImage from '@/components/ui/DriveImage'
+import { apiSend } from '@/lib/clientApi'
 import SubmitLeadPage from './SubmitLeadPage'
 import RenewalModal from './RenewalModal'
 import LeadsHistoryWeeks from './LeadsHistoryWeeks'
@@ -66,6 +67,9 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
   const [toast, setToast] = useState('')
   const [editing, setEditing] = useState(false)
   const [deleteMode, setDeleteMode] = useState(false)
+  const [productMode, setProductMode] = useState(false)   // pick leads, then give them all one loan product
+  const [bulkProduct, setBulkProduct] = useState('')
+  const pickMode = deleteMode || productMode
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [busy, setBusy] = useState<string | null>(null)
   const [products, setProducts] = useState<any[]>([])
@@ -93,6 +97,24 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
 
   function toggleSelect(id: string) {
     setSelected(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s })
+  }
+
+  // leads whose loan product can still be changed (not renewals, not yet approved)
+  const productEditable = (l: Lead) => l.loanProduct !== 'RENEWAL' && ['Pending', 'Under Review', 'Agent Assigned', 'Verification In Progress', 'Verification Submitted'].includes(l.status)
+  async function setLeadProduct(leadId: string, loanProduct: string) {
+    const res = await apiSend(session.token, 'PATCH', `/api/leads/${leadId}`, { action: 'update', loanProduct })
+    if (!res.ok) { showToast(res.error || 'Could not change the loan product'); return false }
+    return true
+  }
+  async function applyProduct() {
+    const product = bulkProduct || products[0]?.key
+    if (!selected.size || !product) return
+    const ids = leads.filter(l => selected.has(l.leadId) && productEditable(l)).map(l => l.leadId)
+    if (!ids.length) { showToast('None of the selected leads can change product (renewals and approved leads are skipped).'); return }
+    let ok = 0
+    for (const id of ids) if (await setLeadProduct(id, product)) ok++
+    showToast(`${product} applied to ${ok} lead(s).`)
+    setSelected(new Set()); setProductMode(false); load()
   }
 
   async function deleteSelected() {
@@ -163,8 +185,8 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
 
   // Memoize idle state to avoid dependency array churn
   const isIdle = useMemo(() => !(
-    showSubmit || showRenewal || approving || detail || editing || deleteMode || busy || selected.size > 0
-  ), [showSubmit, showRenewal, approving, detail, editing, deleteMode, busy, selected.size])
+    showSubmit || showRenewal || approving || detail || editing || deleteMode || productMode || busy || selected.size > 0
+  ), [showSubmit, showRenewal, approving, detail, editing, deleteMode, productMode, busy, selected.size])
 
   // Auto-refresh leads every 15 seconds (only when UI is idle)
   const loadRef = useRef(load)
@@ -482,11 +504,11 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
 
   const renderLead = (l: Lead, i: number) => (
               <div key={l.leadId || i}
-                onClick={() => deleteMode && toggleSelect(l.leadId)}
-                className={`p-4 sm:p-5 transition ${deleteMode ? 'cursor-pointer' : ''} ${selected.has(l.leadId) ? 'bg-red-50' : ''}`}>
+                onClick={() => pickMode && toggleSelect(l.leadId)}
+                className={`p-4 sm:p-5 transition ${pickMode ? 'cursor-pointer' : ''} ${selected.has(l.leadId) ? (productMode ? 'bg-sky-50' : 'bg-red-50') : ''}`}>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              {deleteMode && (
-                <div className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${selected.has(l.leadId) ? 'border-red-500 bg-red-500' : 'border-line'}`}>
+              {pickMode && (
+                <div className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${selected.has(l.leadId) ? (productMode ? 'border-sky-600 bg-sky-600' : 'border-red-500 bg-red-500') : 'border-line'}`}>
                   {selected.has(l.leadId) && <span className="text-white text-[10px] font-bold">✓</span>}
                 </div>
               )}
@@ -502,6 +524,11 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
                   {l.guarantorName && <span>Guarantor: <span className="font-medium text-ink">{l.guarantorName}</span></span>}
                   {session.role !== 'Guarantor' && l.assignedAgentName && <span>Agent: <span className="font-medium text-ink">{l.assignedAgentName}</span></span>}
                   {l.riskLevel && <span>Risk: <span className="font-medium text-ink">{l.riskLevel}</span></span>}
+                  {session.role !== 'Guarantor' && l.loanProduct && l.loanProduct !== 'RENEWAL' && (
+                    can('leadsEdit') && productEditable(l) && products.length > 1 && !pickMode
+                      ? <span>Loan: <select value={l.loanProduct} onClick={e => e.stopPropagation()} onChange={async e => { if (await setLeadProduct(l.leadId, e.target.value)) { showToast('Loan product changed.'); load() } }} className="rounded-lg border border-line bg-white px-1.5 py-0.5 text-xs font-medium text-ink">{products.map(pr => <option key={pr.key} value={pr.key}>{pr.label}</option>)}</select></span>
+                      : <span>Loan: <span className="font-medium text-ink">{l.loanProduct}</span></span>
+                  )}
                 </div>
                 {l.status === 'Returned' && (
                   <p className="mt-1.5 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900"><span className="font-bold">Returned by the office:</span> {l.returnReason || 'No reason written.'}</p>
@@ -517,7 +544,7 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
                 }
               </div>
               {/* Right: actions */}
-              {!deleteMode && <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+              {!pickMode && <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                 {session.role !== 'Guarantor' && <button onClick={() => setDetail(l)} className="rounded-xl border border-line px-3 py-1.5 text-xs font-semibold">View</button>}
                 {isManager && <button onClick={() => printNote(l)} className="rounded-xl border border-line px-3 py-1.5 text-xs font-semibold">Print Note</button>}
                 {isManager && can('leadsApprove') && l.loanProduct === 'RENEWAL' && l.status === 'Pending' && (
@@ -634,7 +661,23 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
             {branchOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
             <option value="none">No branch</option>
           </select>
-          {can('leadsDelete') && !deleteMode && (
+          {can('leadsEdit') && !pickMode && (
+            <button onClick={() => { setProductMode(true); setSelected(new Set()); setBulkProduct(products[0]?.key || '') }}
+              className="rounded-2xl border border-line px-4 py-2.5 text-sm font-semibold">
+              Apply loan product
+            </button>
+          )}
+          {productMode && (
+            <span className="inline-flex flex-wrap items-center gap-2">
+              <span className="text-sm text-soft">{selected.size} selected</span>
+              <select value={bulkProduct} onChange={e => setBulkProduct(e.target.value)} className="rounded-2xl border border-line bg-white px-3 py-2.5 text-sm">
+                {products.map(pr => <option key={pr.key} value={pr.key}>{pr.label} — ₹{Number(pr.principal).toLocaleString('en-IN')} / {pr.durationWeeks}w</option>)}
+              </select>
+              <button onClick={applyProduct} disabled={!selected.size} className="rounded-2xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-40">Apply</button>
+              <button onClick={() => { setProductMode(false); setSelected(new Set()) }} className="rounded-2xl border border-line px-4 py-2.5 text-sm font-semibold">Cancel</button>
+            </span>
+          )}
+          {can('leadsDelete') && !deleteMode && !productMode && (
             <button onClick={() => { setDeleteMode(true); setSelected(new Set()) }}
               className="rounded-2xl border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-600">
               Delete
