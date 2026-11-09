@@ -15,7 +15,7 @@ import { normalizeIndianMobile } from './phone'
 
 export const PERM_PLAN = 'verificationPlanning'
 const PLANNER_ROLES = ['manager', 'assistant_manager', 'accountant']
-const CALL_OUTCOMES = ['Reached', 'Not reachable', 'Call back later']
+const CALL_OUTCOMES = ['Reached', 'Not reachable', 'Call back later', 'Not answered']
 const REASONS = ['Not answering', 'No check', 'Not at home']
 const STOP_STATUSES = ['On the way', 'Reached', 'Absent']
 const DONE_LEAD_STATUSES = new Set(['Verification Submitted', 'Approved', 'Rejected', 'Converted'])

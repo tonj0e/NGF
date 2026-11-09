@@ -55,6 +55,7 @@ export default function VisitRoutesPage({ session }: { session: Session }) {
   const [branchId, setBranchId] = useState('')
   const [board, setBoard] = useState<Board | null>(null)
   const [tab, setTab] = useState<'plan' | 'routes'>('plan')
+  const [planView, setPlanView] = useState<'plan' | 'noanswer'>('plan')   // inside To plan: left = still to plan, right = did not answer
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [toast, setToast] = useState('')
@@ -84,14 +85,16 @@ export default function VisitRoutesPage({ session }: { session: Session }) {
 
   if (error && !board) return <div className={card}><p className="text-sm text-red-600">{error}</p></div>
 
-  const needCall = board?.toPlan.filter(s => !s.hasLocation || !s.visitDate) || []
+  const needCallAll = board?.toPlan.filter(s => !s.hasLocation || !s.visitDate) || []
+  const needCall = needCallAll.filter(s => s.callOutcome !== 'Not answered')          // still to call
+  const notAnswered = needCallAll.filter(s => s.callOutcome === 'Not answered')       // called, did not pick up
   const ready = board?.toPlan.filter(s => s.hasLocation && s.visitDate) || []
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex gap-2">
-          {([['plan', `To plan${needCall.length + ready.length ? ` (${needCall.length + ready.length})` : ''}`], ['routes', 'Agent routes']] as const).map(([k, label]) => (
+          {([['plan', `To plan${needCall.length + notAnswered.length + ready.length ? ` (${needCall.length + notAnswered.length + ready.length})` : ''}`], ['routes', 'Agent routes']] as const).map(([k, label]) => (
             <button key={k} onClick={() => setTab(k)} className={`${btn} !py-2 ${tab === k ? 'bg-ink text-white' : 'border border-line bg-white text-soft'}`}>{label}</button>
           ))}
         </div>
@@ -117,11 +120,29 @@ export default function VisitRoutesPage({ session }: { session: Session }) {
 
       {board && tab === 'plan' && (
         <div className="space-y-4">
-          {!loading && !needCall.length && !ready.length && <p className="p-8 text-center text-sm text-soft">No leads waiting for a visit plan.</p>}
-          {needCall.length > 0 && <p className="text-xs font-semibold uppercase tracking-wider text-soft">Call the customer and fix the location ({needCall.length})</p>}
+          <div className="grid grid-cols-2 gap-2 rounded-2xl bg-white p-1.5 shadow-panel">
+            {([['plan', 'To plan', needCall.length + ready.length, 'bg-amber-100 text-amber-700'], ['noanswer', 'Not answered', notAnswered.length, 'bg-red-100 text-red-700']] as const).map(([key, title, n, pill]) => (
+              <button key={key} onClick={() => setPlanView(key)}
+                className={`flex flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-xl px-2 py-2.5 text-[13px] font-semibold transition sm:text-sm ${planView === key ? 'bg-ink text-white' : 'text-soft'}`}>
+                {title}
+                <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${planView === key ? 'bg-white/20 text-white' : pill}`}>{n}</span>
+              </button>
+            ))}
+          </div>
+          {planView === 'plan' && (
+            <>
+              {!loading && !needCall.length && !ready.length && <p className="p-8 text-center text-sm text-soft">No leads waiting for a visit plan.</p>}
           {needCall.map(s => <PlanCard key={s.leadId} s={s} board={board} date={date} busy={busy} onSave={(b) => act(`visit${s.leadId}`, { action: 'setVisit', leadId: s.leadId, ...b }, 'Visit saved')} onAssign={(agentId) => act(`assign${s.leadId}`, { action: 'assign', leadId: s.leadId, agentId, date: s.visitDate || date }, 'Added to the agent\'s route')} />)}
-          {ready.length > 0 && <p className="pt-2 text-xs font-semibold uppercase tracking-wider text-soft">Location fixed, choose an agent ({ready.length})</p>}
+              {ready.length > 0 && <p className="pt-2 text-xs font-semibold uppercase tracking-wider text-soft">Location fixed, choose an agent ({ready.length})</p>}
           {ready.map(s => <PlanCard key={s.leadId} s={s} board={board} date={date} busy={busy} onSave={(b) => act(`visit${s.leadId}`, { action: 'setVisit', leadId: s.leadId, ...b }, 'Visit saved')} onAssign={(agentId) => act(`assign${s.leadId}`, { action: 'assign', leadId: s.leadId, agentId, date: s.visitDate || date }, 'Added to the agent\'s route')} />)}
+            </>
+          )}
+          {planView === 'noanswer' && (
+            <>
+              {!loading && !notAnswered.length && <p className="p-8 text-center text-sm text-soft">No customers waiting for a call back. Press Not answered on a customer in To plan when they do not pick up.</p>}
+          {notAnswered.map(s => <PlanCard key={s.leadId} s={s} board={board} date={date} busy={busy} onSave={(b) => act(`visit${s.leadId}`, { action: 'setVisit', leadId: s.leadId, ...b }, 'Visit saved')} onAssign={(agentId) => act(`assign${s.leadId}`, { action: 'assign', leadId: s.leadId, agentId, date: s.visitDate || date }, 'Added to the agent\'s route')} />)}
+            </>
+          )}
         </div>
       )}
 
@@ -261,7 +282,16 @@ function PlanCard({ s, board, date, busy, onSave, onAssign }: {
         </div>
       )}
 
-      <button onClick={() => setOpen(!open)} className="mt-3 text-sm font-semibold text-blue-700">{open ? 'Close' : s.hasLocation ? 'Change visit details' : 'Fix location and day'}</button>
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <button onClick={() => setOpen(!open)} className="text-sm font-semibold text-blue-700">{open ? 'Close' : s.hasLocation ? 'Change visit details' : 'Fix location and day'}</button>
+        {/* a customer who did not pick up moves to the Not answered list; the same card stays there to call back and fix the location */}
+        {!s.hasLocation && s.callOutcome !== 'Not answered' && (
+          <button disabled={busy === `visit${s.leadId}`} onClick={() => onSave({ callOutcome: 'Not answered' })} className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm font-semibold text-amber-800 disabled:opacity-60">Not answered</button>
+        )}
+        {!s.hasLocation && s.callOutcome === 'Not answered' && (
+          <button disabled={busy === `visit${s.leadId}`} onClick={() => { setOutcome(''); onSave({ callOutcome: '' }) }} className="rounded-xl border border-line bg-white px-3 py-1.5 text-sm font-semibold text-soft disabled:opacity-60">Back to call list</button>
+        )}
+      </div>
 
       {open && (
         <div className="mt-3 space-y-3 border-t border-black/5 pt-3">
@@ -290,7 +320,7 @@ function PlanCard({ s, board, date, busy, onSave, onAssign }: {
             <label className="text-xs font-semibold uppercase tracking-wider text-soft">Call result
               <select value={outcome} onChange={e => setOutcome(e.target.value)} className={`${input} mt-1`}>
                 <option value="">Not called</option>
-                {['Reached', 'Not reachable', 'Call back later'].map(o => <option key={o}>{o}</option>)}
+                {['Reached', 'Not reachable', 'Call back later', 'Not answered'].map(o => <option key={o}>{o}</option>)}
               </select>
             </label>
           </div>
