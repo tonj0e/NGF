@@ -26,6 +26,8 @@ export interface Session {
 
 export interface Lead {
   leadId: string
+  returnReason?: string   // set when the office returned the lead to the guarantor
+  returnedAt?: string | null
   submittedDate: string
   guarantorId: string
   guarantorUserId: string

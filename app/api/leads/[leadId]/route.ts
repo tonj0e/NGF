@@ -102,7 +102,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
     const agent = await getRowById('Agents', body.agentId)
     if (!agent) return err('Agent not found')
     if (!(await staffMaySee(session, lead))) return err('This lead belongs to another branch', 403)
-    if (['Approved', 'Converted', 'Rejected'].includes(lead['Status']) || lead['Loan Product'] === 'RENEWAL') return err('This lead cannot be assigned to an agent in its current state')
+    if (['Approved', 'Converted', 'Rejected', 'Returned'].includes(lead['Status']) || lead['Loan Product'] === 'RENEWAL') return err('This lead cannot be assigned to an agent in its current state')
     await updateById('Leads', leadId, {
       'Assigned Agent ID': body.agentId,
       'Status': 'Agent Assigned',

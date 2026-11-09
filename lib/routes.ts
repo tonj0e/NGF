@@ -583,6 +583,28 @@ export async function unplan(session: Session, b: { leadId: string }) {
   return { success: true }
 }
 
+
+// Sends a lead back to its guarantor with a reason (for example "no cheque yet, will call back"). The lead leaves the planner's lists and the
+// guarantor sees it under Returned in their Leads page, with the reason.
+export async function returnLead(session: Session, b: { leadId: string; reason?: string }) {
+  const a = await getRouteAccess(session); needPlanner(a); const cfg = await requireEnabled()
+  const reason = String(b.reason || '').trim().slice(0, 500)
+  if (reason.length < 3) throw new RouteError('Write the reason for returning this customer')
+  const lead = await loadLead(b.leadId)
+  await assertLeadAccess(a, lead)
+  if (DONE_LEAD_STATUSES.has(lead.status) || lead.status === 'Verification In Progress' || lead.status === 'Returned') throw new RouteError('This lead can no longer be returned')
+  const { error } = await getSupabase().from('leads').update({
+    status: 'Returned', return_reason: reason, returned_at: new Date().toISOString(), returned_by: session.userId,
+    assigned_agent_id: null, visit_date: null, route_seq: null, route_pin: null, leg_km: null, leg_min: null, visit_status: null, updated_at: new Date().toISOString(),
+  }).eq('lead_id', b.leadId)
+  if (error) throw new Error(error.message)
+  invalidateCache('Leads')
+  if (lead.assigned_agent_id && lead.visit_date) await recalcRoute(lead.assigned_agent_id, lead.visit_date, { optimize: false, actorId: session.userId, useWindows: cfg.windows })
+  const { data: g } = await getSupabase().from('guarantors').select('user_id').eq('guarantor_id', lead.guarantor_id).maybeSingle()
+  if (g?.user_id) await notifyUser(g.user_id, 'Guarantor', 'Customer returned', `${lead.customer_name}: ${reason}`, 'Lead', b.leadId)
+  return { success: true }
+}
+
 // ─── Agent side ───────────────────────────────────────────────────────────────
 
 export async function mine(session: Session, q: { date?: string }) {

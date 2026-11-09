@@ -11,7 +11,7 @@ export const APP_CONFIG = {
   LOAN_PRODUCTS: [
     { key: '10K10W', label: '10K10W', principal: 10000, durationWeeks: 10, weeklyCollection: 1000, totalCollection: 10000, interestDeduction: 1500, guarantorCommission: 500, netDisbursed: 8500 },
   ],
-  LEAD_STATUSES: ['Pending', 'Under Review', 'Agent Assigned', 'Verification In Progress', 'Verification Submitted', 'Approved', 'Rejected', 'Converted'],
+  LEAD_STATUSES: ['Pending', 'Under Review', 'Agent Assigned', 'Verification In Progress', 'Verification Submitted', 'Approved', 'Rejected', 'Converted', 'Returned'],
   VERIFICATION_RESULTS: ['', 'Submitted', 'Verified', 'Suspicious', 'Rejected Recommendation'],
   ROLES: ['Admin', 'Guarantor', 'NGF AGENT', 'Staff'],
   // Features a branch Staff account can be granted (configured in Dev → Branches).

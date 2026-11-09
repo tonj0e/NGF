@@ -57,7 +57,7 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
   const [loading, setLoading] = useState(true)
   const loadedOnce = useRef(false)
   const [tab, setTab] = useState<LeadTab>(isCollectionAgent ? 'history' : 'new')
-  const [progressView, setProgressView] = useState<'pending' | 'done'>('pending')   // guarantor In Progress: Not completed / Completed
+  const [progressView, setProgressView] = useState<'pending' | 'done' | 'returned'>('pending')   // guarantor In Progress: Not completed / Completed / Returned
   const [showSubmit, setShowSubmit] = useState(false)
   const [showRenewal, setShowRenewal] = useState(false)
   const [approving, setApproving] = useState<Lead | null>(null)
@@ -503,6 +503,9 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
                   {session.role !== 'Guarantor' && l.assignedAgentName && <span>Agent: <span className="font-medium text-ink">{l.assignedAgentName}</span></span>}
                   {l.riskLevel && <span>Risk: <span className="font-medium text-ink">{l.riskLevel}</span></span>}
                 </div>
+                {l.status === 'Returned' && (
+                  <p className="mt-1.5 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900"><span className="font-bold">Returned by the office:</span> {l.returnReason || 'No reason written.'}</p>
+                )}
                 {l.loanProduct !== 'RENEWAL' && l.status === 'Verification Submitted' && (l.otpVerifiedAt
                   ? <span className="mt-1.5 mr-1.5 inline-block rounded-lg bg-green-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-green-700">Customer OTP verified</span>
                   : <span className="mt-1.5 mr-1.5 inline-block rounded-lg bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">OTP not done: {(l.otpOverrideReason || 'no reason').slice(0, 60)}</span>)}
@@ -674,22 +677,23 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
         {session.role === 'Guarantor' && tab === 'new' ? (
           // Guarantor: two tabs side by side. "Not completed" = waiting for the agent; "Completed" = the agent has finished the verification
           <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-2 rounded-2xl bg-white p-1.5 shadow-panel">
-              {([['pending', 'Not completed', visibleLeads.filter(l => !DONE_STATUSES.includes(l.status)).length, 'bg-amber-100 text-amber-700'],
-                 ['done', 'Completed', visibleLeads.filter(l => DONE_STATUSES.includes(l.status)).length, 'bg-green-100 text-green-700']] as const).map(([key, title, n, pill]) => (
+            <div className="grid grid-cols-3 gap-2 rounded-2xl bg-white p-1.5 shadow-panel">
+              {([['pending', 'Not completed', visibleLeads.filter(l => !DONE_STATUSES.includes(l.status) && l.status !== 'Returned').length, 'bg-amber-100 text-amber-700'],
+                 ['done', 'Completed', visibleLeads.filter(l => DONE_STATUSES.includes(l.status)).length, 'bg-green-100 text-green-700'],
+                 ['returned', 'Returned', visibleLeads.filter(l => l.status === 'Returned').length, 'bg-red-100 text-red-700']] as const).map(([key, title, n, pill]) => (
                 <button key={key} onClick={() => setProgressView(key)}
-                  className={`flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${progressView === key ? 'bg-ink text-white' : 'text-soft'}`}>
+                  className={`flex flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-xl px-2 py-2.5 text-[13px] font-semibold transition sm:text-sm ${progressView === key ? 'bg-ink text-white' : 'text-soft'}`}>
                   {title}
                   <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${progressView === key ? 'bg-white/20 text-white' : pill}`}>{n}</span>
                 </button>
               ))}
             </div>
             {(() => {
-              const rows = visibleLeads.filter(l => DONE_STATUSES.includes(l.status) === (progressView === 'done'))
+              const rows = visibleLeads.filter(l => progressView === 'returned' ? l.status === 'Returned' : progressView === 'done' ? DONE_STATUSES.includes(l.status) : !DONE_STATUSES.includes(l.status) && l.status !== 'Returned')
               return (
                 <div className="overflow-hidden rounded-[1.75rem] border border-white/70 bg-white shadow-panel divide-y divide-black/5">
                   {rows.length === 0
-                    ? <p className="p-6 text-center text-sm text-soft">{progressView === 'done' ? 'Nothing completed yet.' : 'Nothing waiting for the agent.'}</p>
+                    ? <p className="p-6 text-center text-sm text-soft">{progressView === 'done' ? 'Nothing completed yet.' : progressView === 'returned' ? 'No returned customers.' : 'Nothing waiting for the agent.'}</p>
                     : rows.map(renderLead)}
                 </div>
               )

@@ -132,15 +132,15 @@ export default function VisitRoutesPage({ session }: { session: Session }) {
           {planView === 'plan' && (
             <>
               {!loading && !needCall.length && !ready.length && <p className="p-8 text-center text-sm text-soft">No leads waiting for a visit plan.</p>}
-          {needCall.map(s => <PlanCard key={s.leadId} s={s} board={board} date={date} busy={busy} onSave={(b) => act(`visit${s.leadId}`, { action: 'setVisit', leadId: s.leadId, ...b }, 'Visit saved')} onAssign={(agentId) => act(`assign${s.leadId}`, { action: 'assign', leadId: s.leadId, agentId, date: s.visitDate || date }, 'Added to the agent\'s route')} />)}
+          {needCall.map(s => <PlanCard key={s.leadId} s={s} board={board} date={date} busy={busy} onSave={(b) => act(`visit${s.leadId}`, { action: 'setVisit', leadId: s.leadId, ...b }, 'Visit saved')} onReturn={(reason) => act(`ret${s.leadId}`, { action: 'returnLead', leadId: s.leadId, reason }, 'Returned to the guarantor')} onAssign={(agentId) => act(`assign${s.leadId}`, { action: 'assign', leadId: s.leadId, agentId, date: s.visitDate || date }, 'Added to the agent\'s route')} />)}
               {ready.length > 0 && <p className="pt-2 text-xs font-semibold uppercase tracking-wider text-soft">Location fixed, choose an agent ({ready.length})</p>}
-          {ready.map(s => <PlanCard key={s.leadId} s={s} board={board} date={date} busy={busy} onSave={(b) => act(`visit${s.leadId}`, { action: 'setVisit', leadId: s.leadId, ...b }, 'Visit saved')} onAssign={(agentId) => act(`assign${s.leadId}`, { action: 'assign', leadId: s.leadId, agentId, date: s.visitDate || date }, 'Added to the agent\'s route')} />)}
+          {ready.map(s => <PlanCard key={s.leadId} s={s} board={board} date={date} busy={busy} onSave={(b) => act(`visit${s.leadId}`, { action: 'setVisit', leadId: s.leadId, ...b }, 'Visit saved')} onReturn={(reason) => act(`ret${s.leadId}`, { action: 'returnLead', leadId: s.leadId, reason }, 'Returned to the guarantor')} onAssign={(agentId) => act(`assign${s.leadId}`, { action: 'assign', leadId: s.leadId, agentId, date: s.visitDate || date }, 'Added to the agent\'s route')} />)}
             </>
           )}
           {planView === 'noanswer' && (
             <>
               {!loading && !notAnswered.length && <p className="p-8 text-center text-sm text-soft">No customers waiting for a call back. Press Not answered on a customer in To plan when they do not pick up.</p>}
-          {notAnswered.map(s => <PlanCard key={s.leadId} s={s} board={board} date={date} busy={busy} onSave={(b) => act(`visit${s.leadId}`, { action: 'setVisit', leadId: s.leadId, ...b }, 'Visit saved')} onAssign={(agentId) => act(`assign${s.leadId}`, { action: 'assign', leadId: s.leadId, agentId, date: s.visitDate || date }, 'Added to the agent\'s route')} />)}
+          {notAnswered.map(s => <PlanCard key={s.leadId} s={s} board={board} date={date} busy={busy} onSave={(b) => act(`visit${s.leadId}`, { action: 'setVisit', leadId: s.leadId, ...b }, 'Visit saved')} onReturn={(reason) => act(`ret${s.leadId}`, { action: 'returnLead', leadId: s.leadId, reason }, 'Returned to the guarantor')} onAssign={(agentId) => act(`assign${s.leadId}`, { action: 'assign', leadId: s.leadId, agentId, date: s.visitDate || date }, 'Added to the agent\'s route')} />)}
             </>
           )}
         </div>
@@ -230,10 +230,12 @@ function StopEditor({ s, busy, onSave }: { s: Stop; busy: string; onSave: (b: Re
   )
 }
 
-function PlanCard({ s, board, date, busy, onSave, onAssign }: {
+function PlanCard({ s, board, date, busy, onSave, onAssign, onReturn }: {
   s: Stop; board: Board; date: string; busy: string
-  onSave: (b: Record<string, unknown>) => void; onAssign: (agentId: string) => void
+  onSave: (b: Record<string, unknown>) => void; onAssign: (agentId: string) => void; onReturn: (reason: string) => void
 }) {
+  const [returning, setReturning] = useState(false)   // the reason box for sending the customer back to the guarantor
+  const [reason, setReason] = useState('')
   const [open, setOpen] = useState(false)
   const [link, setLink] = useState('')
   const [place, setPlace] = useState(s.visitPlace || s.place)
@@ -291,7 +293,20 @@ function PlanCard({ s, board, date, busy, onSave, onAssign }: {
         {!s.hasLocation && s.callOutcome === 'Not answered' && (
           <button disabled={busy === `visit${s.leadId}`} onClick={() => { setOutcome(''); onSave({ callOutcome: '' }) }} className="rounded-xl border border-line bg-white px-3 py-1.5 text-sm font-semibold text-soft disabled:opacity-60">Back to call list</button>
         )}
+        {/* the customer does not want or cannot take the loan now (for example no cheque yet): send them back to the guarantor with a reason */}
+        <button onClick={() => setReturning(!returning)} className="rounded-xl border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-semibold text-red-700">Return</button>
       </div>
+      {returning && (
+        <div className="mt-3 space-y-2 rounded-2xl border border-red-100 bg-red-50/50 p-3">
+          <label className="block text-xs font-semibold uppercase tracking-wider text-soft">Reason for returning (the guarantor will see this)
+            <textarea value={reason} onChange={e => setReason(e.target.value)} rows={3} maxLength={500} placeholder="For example: no cheque yet, will collect it from the bank and call back" className={`${input} mt-1`} />
+          </label>
+          <div className="flex gap-2">
+            <button disabled={reason.trim().length < 3 || busy === `ret${s.leadId}`} onClick={() => onReturn(reason.trim())} className={`${btn} flex-1 bg-red-600 text-white`}>{busy === `ret${s.leadId}` ? 'Returning…' : 'Return to guarantor'}</button>
+            <button onClick={() => { setReturning(false); setReason('') }} className={`${btn} border border-line bg-white`}>Cancel</button>
+          </div>
+        </div>
+      )}
 
       {open && (
         <div className="mt-3 space-y-3 border-t border-black/5 pt-3">

@@ -52,17 +52,20 @@ export const GET = apiHandler(async (req: NextRequest) => {
     if (agentId) q = q.eq('assigned_agent_id', agentId)
     return q
   }
+  // a returned lead is shown to its guarantor (Returned section) and in History; the office's New leads list leaves it out
+  const isG = session.role === 'Guarantor'
   const HISTORY = '(Converted,Rejected)'
+  const NOT_NEW = isG ? '(Converted,Rejected)' : '(Converted,Rejected,Returned)'
   const inTab = (qb: any, t: string) =>
-    t === 'new' ? qb.not('status', 'in', HISTORY).neq('loan_product', 'RENEWAL')
-    : t === 'history' ? qb.in('status', ['Converted', 'Rejected']).neq('loan_product', 'RENEWAL')
+    t === 'new' ? qb.not('status', 'in', NOT_NEW).neq('loan_product', 'RENEWAL')
+    : t === 'history' ? qb.in('status', ['Converted', 'Rejected', 'Returned']).neq('loan_product', 'RENEWAL')
     : t === 'renewal' ? qb.eq('loan_product', 'RENEWAL') : qb
   // New Leads is split in three: not yet assigned, with an agent, and verified (waiting for the decision)
   const STAGE_ASSIGNED = ['Agent Assigned', 'Verification In Progress'], STAGE_DONE = ['Verification Submitted', 'Approved']
   const inStage = (qb: any, s: string) =>
     s === 'assigned' ? qb.in('status', STAGE_ASSIGNED)
     : s === 'completed' ? qb.in('status', STAGE_DONE)
-    : s === 'new' ? qb.not('status', 'in', `(${['Converted', 'Rejected', ...STAGE_ASSIGNED, ...STAGE_DONE].join(',')})`) : qb
+    : s === 'new' ? qb.not('status', 'in', `(${['Converted', 'Rejected', 'Returned', ...STAGE_ASSIGNED, ...STAGE_DONE].join(',')})`) : qb
   const stage = tab === 'new' ? (searchParams.get('stage') || '') : ''
   const filters = (qb: any) => {
     let q = inTab(scoped(qb), tab)
@@ -138,6 +141,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
       aadhaarStatus: existing > 0 ? 'exists' : (l['Aadhaar No'] ? 'new' : ''),
       otpVerifiedAt: l['Otp Verified At'] || null, otpOverrideReason: l['Otp Override Reason'] || '',
       approvedAt: l['Approved At'] || null, disbursedAt: l['Disbursed At'] || null,
+      returnReason: l['Return Reason'] || '', returnedAt: l['Returned At'] || null,
     }
   })
 

@@ -6,6 +6,7 @@ const COLORS: Record<string, string> = {
   'Verification Submitted': 'bg-cyan-50 text-cyan-700',
   Approved: 'bg-green-50 text-green-700',
   Rejected: 'bg-red-50 text-red-700',
+  Returned: 'bg-amber-50 text-amber-700',
   Converted: 'bg-gray-100 text-gray-600',
   Active: 'bg-green-50 text-green-700',
   Completed: 'bg-gray-100 text-gray-600',
