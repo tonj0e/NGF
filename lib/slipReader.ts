@@ -81,7 +81,7 @@ export async function pickProvider(setting: string): Promise<Provider | null> {
 
 type ReadResult = { reading: SlipReading; inTokens: number; outTokens: number; costUsd: number; provider: Provider; model: string; reasoningTokens?: number; cachedTokens?: number; finishReason?: string }
 // Who asked for the read, so the AI usage page can show it (all optional)
-export type ReadContext = { purpose?: 'slip' | 'test' | 'aadhaar'; guarantorId?: string | null; messageId?: string | null; userId?: string | null }
+export type ReadContext = { purpose?: 'slip' | 'test' | 'aadhaar' | 'oreo' | 'oreo_voice'; guarantorId?: string | null; messageId?: string | null; userId?: string | null }
 type Media = 'image/jpeg' | 'image/png' | 'image/webp'
 
 export async function readSlip(base64: string, mediaType: Media, provider: Provider = 'claude', modelOverride?: string, ctx: ReadContext = {}): Promise<ReadResult> {

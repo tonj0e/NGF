@@ -34,6 +34,9 @@ export const FIELDS: Field[] = [
   { name: 'ANTHROPIC_API_KEY', group: 'ai', label: 'Claude API key', secret: true, hint: 'console.anthropic.com > API keys. Paid, most accurate. Set a monthly spending limit there' },
   { name: 'OPENROUTER_API_KEY', group: 'ai', label: 'OpenRouter API key', secret: true, hint: 'openrouter.ai > Keys. Lets the reader use Claude and other models from your OpenRouter credit. Set a spending limit on the key there' },
   { name: 'OPENROUTER_MODEL', group: 'ai', label: 'OpenRouter model', secret: false, placeholder: 'anthropic/claude-haiku-5.5', hint: 'Must be a vision model (one that can read images). Empty = the default shown here' },
+  { name: 'SARVAM_API_KEY', group: 'ai', label: 'Sarvam AI key (Oreo voice)', secret: true, hint: 'dashboard.sarvam.ai > API keys. Oreo listens and speaks Malayalam and other Indian languages with it. About ₹0.5 a minute listening, ₹3 per 1,000 characters speaking' },
+  { name: 'ELEVENLABS_API_KEY', group: 'ai', label: 'ElevenLabs key (Oreo voice)', secret: true, hint: 'elevenlabs.io > API keys. Natural English voice and speech reading. Malayalam needs a v4 voice model' },
+  { name: 'ELEVENLABS_VOICE_ID', group: 'ai', label: 'ElevenLabs voice ID', secret: false, placeholder: '21m00Tcm4TlvDq8ikWAM', hint: 'The voice Oreo speaks with (copy the ID from your ElevenLabs voice library)' },
   { name: 'NVIDIA_API_KEY', group: 'ai', label: 'NVIDIA API key', secret: true, hint: 'build.nvidia.com > your API key. Free, for testing' },
   { name: 'NVIDIA_MODEL', group: 'ai', label: 'NVIDIA model', secret: false, placeholder: 'nvidia/nemotron-nano-12b-v2-vl', hint: 'Must be a vision model (one that can read images). Empty = the default shown here' },
   // Payment gateway

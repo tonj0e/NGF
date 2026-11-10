@@ -36,7 +36,7 @@ const MyRoutePage = dynamic(() => import('./pages/MyRoutePage'), { loading: () =
 const ReviewOptionsPage = dynamic(() => import('./pages/ReviewOptionsPage'), { loading: () => <PageLoading /> })
 const MyCustomersPage = dynamic(() => import('./pages/MyCustomersPage'), { loading: () => <PageLoading /> })
 const DevPage = dynamic(() => import('./pages/DevPage'), { loading: () => <PageLoading /> })
-const AIPage = dynamic(() => import('./pages/AIPage'), { loading: () => <PageLoading /> })
+const OreoPage = dynamic(() => import('./pages/OreoPage'), { loading: () => <PageLoading /> })
 const GuarantorPage = dynamic(() => import('./pages/GuarantorPage'), { loading: () => <PageLoading /> })
 const MyIdCardPage = dynamic(() => import('./pages/MyIdCardPage'), { loading: () => <PageLoading /> })
 const DepositsPage = dynamic(() => import('./pages/DepositsPage'), { loading: () => <PageLoading /> })
@@ -110,7 +110,7 @@ const MENUS: Record<string, { key: string; label: string }[]> = {
     { key: 'notifications',  label: 'Notifications' },
     { key: 'agentTracking',  label: 'Agent Tracking' },
     { key: 'dev',            label: 'Dev' },
-    { key: 'ai',             label: 'AI' },
+    { key: 'ai',             label: 'Oreo (AI)' },
   ],
   Guarantor: [
     { key: 'dashboard',     label: 'Dashboard' },
@@ -355,7 +355,7 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
       case 'agentTracking':  return <AgentTrackingPage session={session} />
       case 'location':       return <AgentLocationPage session={session} />
       case 'dev':           return <DevPage session={session} />
-      case 'ai':            return session.role === 'Admin' ? <AIPage session={session} /> : null
+      case 'ai':            return session.role === 'Admin' ? <OreoPage session={session} /> : null
       case 'financialAnalytics': return <Dashboard session={session} />
       default: return <div className="p-6 text-sm text-soft">Coming soon.</div>
     }

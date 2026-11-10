@@ -213,7 +213,29 @@ export const POST = apiHandler(async (req: NextRequest) => {
     const open = sameAadhaarLeads.find(l => l['Loan Product'] !== 'RENEWAL' && digits(l['Aadhaar No']) === digits(body.aadhaarNo || '') && ['Pending', 'Agent Assigned', 'Verification Submitted', 'Approved'].includes(l['Status']))
     if (open) return err(`A lead for this Aadhaar is already in progress (${open['Customer Name']}, ${open['Status']}). Do not submit it twice.`)
   }
-  const existingConverted = body.aadhaarNo ? (await selectRows('Leads', qb => qb.eq('aadhaar_no', body.aadhaarNo!).eq('status', 'Converted').limit(1))).rows[0] || null : null
+  // An existing customer (same Aadhaar, or same name + phone) must never become a silent, hidden lead: tell the person now and alert Admin
+  if (body.loanProduct !== 'RENEWAL') {
+    const aad = digits(body.aadhaarNo || '')
+    let custRow: Record<string, string> | undefined
+    if (aad.length === 12) {
+      const sameLeads = await selectAll('Leads', qb => qb.ilike('aadhaar_no', `%${aad.split('').join('%')}%`))
+      const ids = sameLeads.filter(l => digits(l['Aadhaar No']) === aad).map(l => l['Lead ID'])
+      if (ids.length) custRow = (await byIds('Customers', 'lead_id', ids))[0]
+    }
+    if (!custRow && body.phone && body.customerName) {
+      custRow = (await selectRows('Customers', qb => qb.eq('phone', body.phone!).ilike('name', body.customerName!.trim()).limit(1))).rows[0]
+    }
+    if (custRow) {
+      const running = custRow['Active Loan ID'] ? ' They have a running loan.' : ''
+      const msg = `${custRow['Name']} is already a customer (${custRow['Customer ID']}, ${custRow['Status'] || 'Active'}).${running} For another loan use Renew on their customer page. No new lead was added.`
+      try {
+        await notifyRole('Admin', 'Duplicate lead blocked', `${session.name} tried to add ${body.customerName}, who is already customer ${custRow['Customer ID']} (${custRow['Name']}).`, 'Customer', custRow['Customer ID'])
+        await notifyUser(session.userId, session.role, 'Customer already exists', msg, 'Customer', custRow['Customer ID'])
+      } catch (e) { reportError('Duplicate lead alert failed', e) }
+      return err(msg)
+    }
+  }
+  const existingConverted = null as null | Record<string, string>
 
   // optional second contact (husband, nominee ...)
   let altPhone = ''

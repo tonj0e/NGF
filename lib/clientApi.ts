@@ -13,6 +13,16 @@ export async function apiGet<T = any>(token: string, url: string): Promise<ApiRe
 
 const csrfCache = new Map<string, { token: string; at: number }>()   // a save token is good for a while: no extra round trip on each save
 
+/** A fresh save token for calls that need their own fetch (streaming, files). */
+export async function csrfFor(token: string): Promise<string> {
+  const c = csrfCache.get(token)
+  if (c && Date.now() - c.at < 10 * 60_000) return c.token
+  const csrf = await fetch('/api/csrf', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()).catch(() => null)
+  const t = csrf?.csrfToken || csrf?.data?.csrfToken || ''
+  if (t) csrfCache.set(token, { token: t, at: Date.now() })
+  return t
+}
+
 export async function apiSend<T = any>(token: string, method: 'POST' | 'PATCH' | 'DELETE', url: string, body?: unknown): Promise<ApiResult<T>> {
   try {
     let csrfToken = ''

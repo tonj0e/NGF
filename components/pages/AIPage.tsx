@@ -11,7 +11,7 @@ import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Too
 type Totals = { spend: number; requests: number; okRequests: number; errors: number; tokensIn: number; tokensOut: number; tokens: number; cacheRate: number; perRead: number; perMillion: number; cutOff: number }
 type Day = { day: string; spend: number; requests: number; tokensIn: number; tokensOut: number; reasoning: number; cached: number; models: Record<string, number>; purposes: Record<string, number> }
 type Group = { name: string; requests: number; spend: number; tokens: number }
-const purposeLabel = (p: string) => p === 'aadhaar' ? 'Aadhaar reading' : p === 'test' ? 'Test' : 'Payment screenshot'
+const purposeLabel = (p: string) => p === 'aadhaar' ? 'Aadhaar reading' : p === 'oreo' ? 'Oreo (chat)' : p === 'oreo_voice' ? 'Oreo (voice)' : p === 'test' ? 'Test' : 'Payment screenshot'
 type Activity = { usdInr: number; from: string; to: string; totals: Totals; previous: Totals; hasPrevious: boolean; byDay: Day[]; byModel: Group[]; byProvider: Group[]; byPurpose: Group[] }
 type LogRow = { id: string; at: string; provider: string; model: string; purpose: string; guarantor: string; tokensIn: number; tokensOut: number; reasoning: number; cached: number; costUsd: number; ms: number; tokPerSec: number; status: string; finish: string; error: string }
 type Logs = { usdInr: number; total: number; page: number; totalPages: number; models: string[]; guarantors: { guarantorId: string; name: string }[]; rows: LogRow[] }
@@ -97,7 +97,7 @@ function Change({ now, before, show }: { now: number; before: number; show: bool
   return <p className={`mt-1 text-xs ${pct > 0 ? 'text-amber-600' : 'text-green-600'}`}>{pct > 0 ? '↑' : '↓'} {Math.abs(pct).toFixed(1)}% <span className="text-soft">vs previous period</span></p>
 }
 
-export default function AIPage({ session }: { session: Session }) {
+export default function AIPage({ session, onBack }: { session: Session; onBack?: () => void }) {
   const [tab, setTab] = useState<'activity' | 'logs' | 'pricing'>('activity')
   const [rate, setRate] = useState(90)           // rupees for one dollar (saved in Settings)
   const [rateText, setRateText] = useState('90')
@@ -179,6 +179,7 @@ export default function AIPage({ session }: { session: Session }) {
 
   return (
     <div className="space-y-4">
+      {onBack && <button onClick={onBack} className="rounded-2xl border border-line bg-white px-4 py-2 text-sm font-semibold">← Back to Oreo</button>}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-soft">NGF</p>
@@ -186,7 +187,7 @@ export default function AIPage({ session }: { session: Session }) {
           <p className="text-sm text-soft">{tab === 'activity' ? 'What the AI readers used, across providers and models.' : tab === 'logs' ? 'One row for every AI call.' : 'Anthropic prices per million tokens, in dollars and rupees.'}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {tab !== 'pricing' && <select value={purpose} onChange={e => setPurpose(e.target.value)} className={sel}><option value="">All categories</option><option value="slip">Payment screenshots</option><option value="aadhaar">Aadhaar reading</option><option value="test">Tests</option></select>}
+          {tab !== 'pricing' && <select value={purpose} onChange={e => setPurpose(e.target.value)} className={sel}><option value="">All categories</option><option value="slip">Payment screenshots</option><option value="aadhaar">Aadhaar reading</option><option value="oreo">Oreo (chat)</option><option value="oreo_voice">Oreo (voice)</option><option value="test">Tests</option></select>}
           {tab === 'activity' && <select value={actProvider} onChange={e => setActProvider(e.target.value)} className={sel}><option value="">All providers</option><option value="openrouter">OpenRouter</option><option value="claude">Claude (Anthropic)</option><option value="nvidia">NVIDIA</option></select>}
           <label className="flex items-center gap-1 rounded-xl border border-line bg-white px-3 py-2 text-sm">₹ per $1
             <input value={rateText} onChange={e => setRateText(e.target.value)} onBlur={saveRate} onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }} inputMode="decimal" className="w-14 bg-transparent text-right font-semibold outline-none" />

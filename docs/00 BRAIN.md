@@ -38,6 +38,7 @@ Details and edge cases: [[Loan Products and Math]], [[Repayments and Collections
 | Architecture | [[Architecture Brain]] | How the app is built, login, data access |
 | Roles and Screens | [[Roles and Screens Brain]] | Who sees what, screen map, mobile layout |
 | Loan Lifecycle | [[Loan Lifecycle Brain]] | Lead to loan, renewals, guarantors |
+| Oreo | [[Oreo]] | The owner's AI assistant: live map, chat and voice, brain, confirm cards |
 | Money | [[Money Brain]] | Collections, settlements, commissions, deposits, UTR payment matching, dashboard figures |
 | Field and Org | [[Field and Org Brain]] | Branches, staff, agents, notifications, files |
 | Database | [[Database Brain]] | Tables, status values, drift between repo and live |
