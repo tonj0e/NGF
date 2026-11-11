@@ -355,7 +355,7 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
       case 'agentTracking':  return <AgentTrackingPage session={session} />
       case 'location':       return <AgentLocationPage session={session} />
       case 'dev':           return <DevPage session={session} />
-      case 'ai':            return session.role === 'Admin' ? <OreoPage session={session} /> : null
+      case 'ai':            return null   // Oreo stays mounted below so it keeps its chat and does not reload
       case 'financialAnalytics': return <Dashboard session={session} />
       default: return <div className="p-6 text-sm text-soft">Coming soon.</div>
     }
@@ -610,6 +610,7 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
             <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 lg:px-8 pb-8 md:pb-4 lg:pb-0">
               {session.role === 'NGF AGENT' && <AppDownloadBanner />}
               <Fragment key={refreshKey}>{renderPage()}</Fragment>
+              {session.role === 'Admin' && <div hidden={view !== 'ai'}><OreoPage session={session} active={view === 'ai'} /></div>}
               {session.role === 'NGF AGENT' && seenRoute && <div hidden={view !== 'myRoute'}><MyRoutePage key={refreshKey} session={session} active={view === 'myRoute'} /></div>}
             </div>
           </main>

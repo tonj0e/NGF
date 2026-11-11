@@ -30,7 +30,9 @@ export async function speechToText(audio: Buffer, mime: string, lang: 'en-IN' | 
     try {
       let text = ''
       const ext = /ogg/.test(mime) ? 'ogg' : /mp4|m4a/.test(mime) ? 'm4a' : /wav/.test(mime) ? 'wav' : 'webm'
-      const form = new FormData(); form.append('file', new Blob([new Uint8Array(audio)], { type: mime || 'audio/webm' }), `speech.${ext}`)
+      // Sarvam refuses a type with a codec suffix (audio/webm;codecs=opus) but accepts the plain type
+      const baseMime = (mime || 'audio/webm').split(';')[0].trim()
+      const form = new FormData(); form.append('file', new Blob([new Uint8Array(audio)], { type: baseMime }), `speech.${ext}`)
       if (prov === 'sarvam') {
         form.append('model', 'saaras:v4'); form.append('language_code', lang)
         const r = await fetch('https://api.sarvam.ai/speech-to-text', { method: 'POST', headers: { 'api-subscription-key': await getConfig('SARVAM_API_KEY') }, body: form, signal: AbortSignal.timeout(45_000) })

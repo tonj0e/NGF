@@ -49,7 +49,7 @@ export async function businessCounts() {
   const today = getTodayIST(), sat = saturdayOnOrAfter(today)
   const monday = addDaysIST(today, -((new Date(`${today}T00:00:00Z`).getUTCDay() + 6) % 7))
   const cnt = async (q: PromiseLike<{ count: number | null }>) => (await q).count || 0
-  const [customers, loansActive, pending, assigned, submitted, approved, returned, dueSat, overdue, paidWeek, chatPending, batchesLive, failedAi, aiToday, linesOpen] = await Promise.all([
+  const [customers, loansActive, pending, assigned, submitted, approved, returned, dueSat, overdue, paidWeek, chatPending, chatStale, batchesLive, failedAi, aiToday, linesOpen] = await Promise.all([
     cnt(sb().from('customers').select('customer_id', { count: 'exact', head: true })),
     cnt(sb().from('loans').select('loan_id', { count: 'exact', head: true }).eq('status', 'Active')),
     cnt(sb().from('leads').select('lead_id', { count: 'exact', head: true }).eq('status', 'Pending')),
@@ -60,7 +60,8 @@ export async function businessCounts() {
     sb().from('repayments').select('amount').eq('status', 'Pending').eq('due_date', sat).limit(5000),
     sb().from('repayments').select('amount').eq('status', 'Pending').lt('due_date', today).limit(5000),
     sb().from('repayments').select('amount').eq('status', 'Paid').gte('paid_date', monday).lte('paid_date', today).limit(5000),
-    cnt(sb().from('payment_chat').select('message_id', { count: 'exact', head: true }).eq('status', 'Pending Staff')),
+    cnt(sb().from('payment_chat').select('message_id', { count: 'exact', head: true }).eq('status', 'Pending Staff').gte('created_at', istStartUtc(addDaysIST(today, -7)))),   // still fresh: staff should act now
+    cnt(sb().from('payment_chat').select('message_id', { count: 'exact', head: true }).eq('status', 'Pending Staff').lt('created_at', istStartUtc(addDaysIST(today, -7)))),   // older than a week, never closed: usually re-sent and recorded since
     cnt(sb().from('bank_payout_batches').select('batch_id', { count: 'exact', head: true }).eq('status', 'created')),
     cnt(sb().from('ai_usage').select('id', { count: 'exact', head: true }).eq('status', 'error').gte('created_at', istStartUtc(today))),
     sb().from('ai_usage').select('cost_usd').gte('created_at', istStartUtc(today)).limit(5000),
@@ -70,7 +71,7 @@ export async function businessCounts() {
     today, nextSaturday: sat, customers, loansActive,
     leads: { pending, verificationInProgress: assigned, awaitingApproval: submitted, approvedWaitingDisbursement: approved, returned },
     collection: { dueSaturdayCount: (dueSat.data || []).length, dueSaturdayAmount: sum(dueSat.data), overdueCount: (overdue.data || []).length, overdueAmount: sum(overdue.data), paidThisWeekCount: (paidWeek.data || []).length, paidThisWeekAmount: sum(paidWeek.data) },
-    paymentScreenshotsNeedingStaff: chatPending, bankFilesLive: batchesLive, bankFileLinesNotDisbursed: linesOpen,
+    paymentScreenshotsNeedingStaff: chatPending, oldScreenshotsNeverClosed: chatStale, bankFilesLive: batchesLive, bankFileLinesNotDisbursed: linesOpen,
     aiCallsFailedToday: failedAi, aiSpendTodayUsd: Number((aiToday.data || []).reduce((t, r) => t + Number(r.cost_usd || 0), 0).toFixed(5)),
   }
 }
@@ -186,7 +187,8 @@ const READ: ToolSpec[] = [
       ])
       const gm = await guarantorNames((waiting || []).map(w => w.guarantor_id))
       const byMode: Record<string, { count: number; amount: number }> = {}; for (const g of groups || []) { const k = g.mode || '?'; byMode[k] = byMode[k] || { count: 0, amount: 0 }; byMode[k].count++; byMode[k].amount += Number(g.total_amount || 0) }
-      return { since, byMode, waitingForStaff: (waiting || []).map(w => ({ guarantor: gm.get(w.guarantor_id)?.name, amount: w.amount_read, utr: w.utr, problem: w.problem, at: w.created_at })) }
+      const ageDays = (at: string) => Math.floor((Date.now() - new Date(at).getTime()) / 86400000)
+      return { since, byMode, note: 'Screenshots older than 7 days that staff never closed are usually duplicates that were re-sent and recorded; say so, do not call them urgent.', waitingForStaff: (waiting || []).map(w => ({ guarantor: gm.get(w.guarantor_id)?.name, amount: w.amount_read, utr: w.utr, problem: w.problem, at: w.created_at, ageDays: ageDays(w.created_at), old: ageDays(w.created_at) > 7 })) }
     } },
 
   { risk: 'read', def: { name: 'ai_spend', description: 'AI usage and cost for the last N days (default 7), by category (payment screenshots, Aadhaar reading, Oreo) with rupees at the saved rate.', input_schema: obj({ days: { type: 'integer' } }) },

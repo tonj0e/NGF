@@ -5,8 +5,14 @@ import { NextRequest } from 'next/server'
 export type ApiResult = { ok: boolean; status: number; data?: any; error?: string }
 export async function callApi(req: NextRequest, method: 'GET' | 'POST' | 'PATCH', path: string, body?: unknown): Promise<ApiResult> {
   const auth = req.headers.get('authorization') || ''
-  const base = process.env.INTERNAL_BASE_URL || req.nextUrl.origin
+  // The server calls itself: try its own local address first (the public address can be a tunnel or proxy it cannot reach)
+  const bases = [process.env.INTERNAL_BASE_URL, `http://127.0.0.1:${process.env.PORT || 3000}`, req.nextUrl.origin].filter((x): x is string => !!x)
+  let base = bases[0], lastErr = 'Network problem'
   try {
+    for (const b of bases) {
+      try { const r = await fetch(`${b}/api/ping`, { signal: AbortSignal.timeout(4000) }); if (r.ok) { base = b; lastErr = ''; break } } catch (e) { lastErr = e instanceof Error ? e.message : lastErr }
+    }
+    if (lastErr) return { ok: false, status: 0, error: `Could not reach the CRM's own API (${lastErr})` }
     let csrf = ''
     if (method !== 'GET') {
       const c = await fetch(`${base}/api/csrf`, { headers: { Authorization: auth } }).then(r => r.json()).catch(() => null)

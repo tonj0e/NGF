@@ -19,13 +19,32 @@ const MODELS: { key: Tier; label: string; hint: string }[] = [
 ]
 const uid = () => Math.random().toString(36).slice(2, 10)
 const CONFIRM = /^(yes[, ]*)?(please )?(confirm(ed)?|confirm it|go ahead|do it)\.?$|^(കൺഫേം|കൺഫർം|ഉറപ്പിക്കുക|ശരി ചെയ്യൂ)\.?$/i
+// Speaking costs by the character, so Oreo reads out only the first sentences (the full answer is on screen) and remembers audio it already made.
+const SPOKEN_MAX = 350
+function shortSpoken(text: string): string {
+  if (text.length <= SPOKEN_MAX) return text
+  const sentences = text.match(/[^.!?।]+[.!?।]*\s*/g) || [text]
+  let out = ''
+  for (const sn of sentences) { if (out && out.length + sn.length > SPOKEN_MAX) break; out += sn }
+  return out.slice(0, SPOKEN_MAX + 120).trim()
+}
+const ttsCache = new Map<string, Promise<Blob | null>>()
+function cachedTts(key: string, make: () => Promise<Blob | null>): Promise<Blob | null> {
+  const hit = ttsCache.get(key); if (hit) return hit
+  const p = make().then(b => { if (!b) ttsCache.delete(key); return b })
+  ttsCache.set(key, p); if (ttsCache.size > 40) ttsCache.delete(ttsCache.keys().next().value as string)
+  return p
+}
+
 type SR = { start: () => void; stop: () => void; abort: () => void; lang: string; interimResults: boolean; continuous: boolean; onresult: ((e: { results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }> }) => void) | null; onerror: ((e: { error: string }) => void) | null; onend: (() => void) | null }
 
-export default function OreoChat({ session, usdInr, prefill, onPrefillUsed, onChanged }: { session: Session; usdInr: number; prefill: string; onPrefillUsed: () => void; onChanged: () => void }) {
+export default function OreoChat({ session, usdInr, prefill, onPrefillUsed, onChanged, active = true }: { session: Session; usdInr: number; prefill: string; onPrefillUsed: () => void; onChanged: () => void; active?: boolean }) {
   const [msgs, setMsgs] = useState<Msg[]>([])
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
-  const [model, setModel] = useState<Tier>('auto')
+  const [model, setModelState] = useState<Tier>('haiku')
+  const setModel = (t: Tier) => { setModelState(t); try { localStorage.setItem('oreo:model', t) } catch { /* not saved */ } }
+  const [wakeOn, setWakeOn] = useState(false)
   const [thread, setThread] = useState<string | undefined>()
   const [lang, setLang] = useState<'en-IN' | 'ml-IN'>('en-IN')
   const [speakOn, setSpeakOn] = useState(true)
@@ -38,10 +57,17 @@ export default function OreoChat({ session, usdInr, prefill, onPrefillUsed, onCh
   const scroller = useRef<HTMLDivElement>(null)
   const recog = useRef<SR | null>(null), media = useRef<{ rec: MediaRecorder; stream: MediaStream; stop: () => void } | null>(null)
   const audio = useRef<HTMLAudioElement | null>(null)
+  const stopped = useRef(false)
   const live = useRef({ msgs, thread, model, handsFree, speakOn, lang, voiceCfg })
   live.current = { msgs, thread, model, handsFree, speakOn, lang, voiceCfg }
   const orb: OreoState = voiceState === 'listening' ? 'listening' : voiceState === 'speaking' ? 'speaking' : busy ? 'thinking' : 'idle'
 
+  useEffect(() => {
+    try {
+      const m = localStorage.getItem('oreo:model'); if (m === 'auto' || m === 'haiku' || m === 'sonnet' || m === 'opus') setModelState(m)  // eslint-disable-line react-hooks/set-state-in-effect
+      if (localStorage.getItem('oreo:wake') === '1') setWakeOn(true)
+    } catch { /* none */ }
+  }, [])
   useEffect(() => { apiGet<VoiceCfg>(session.token, '/api/oreo/voice').then(r => { if (r.ok && r.data) setVoiceCfg(r.data) }) }, [session.token])
   useEffect(() => { scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: 'smooth' }) }, [msgs, interim])
 
@@ -49,6 +75,7 @@ export default function OreoChat({ session, usdInr, prefill, onPrefillUsed, onCh
 
   // ── speaking
   const stopSpeaking = useCallback(() => {
+    stopped.current = true
     try { window.speechSynthesis?.cancel() } catch { /* none */ }
     if (audio.current) { audio.current.pause(); audio.current = null }
     setVoiceState(s => s === 'speaking' ? 'idle' : s)
@@ -57,15 +84,30 @@ export default function OreoChat({ session, usdInr, prefill, onPrefillUsed, onCh
   const speak = useCallback(async (text: string) => {
     const clean = text.replace(/[*_`#>|]/g, '').replace(/\s+/g, ' ').trim()
     if (!live.current.speakOn || !clean) { if (live.current.handsFree) afterSpeech(); return }
+    stopped.current = false
     setVoiceState('speaking')
     if (live.current.voiceCfg.tts !== 'browser') {
       try {
-        const res = await fetch('/api/oreo/tts', { method: 'POST', headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json', 'X-CSRF-Token': await csrfFor(session.token) }, body: JSON.stringify({ text: clean.slice(0, 1500), lang: live.current.lang }) })
-        if (res.ok) {
-          const url = URL.createObjectURL(await res.blob()); const a = new Audio(url); audio.current = a
-          a.onended = () => { URL.revokeObjectURL(url); afterSpeech() }; a.onerror = () => afterSpeech()
-          await a.play(); return
+        // Short first piece so speech starts quickly; the rest is prepared while it plays
+        const sentences = shortSpoken(clean).match(/[^.!?।]+[.!?।]*\s*/g) || [clean]
+        const parts: string[] = []
+        for (const sn of sentences) {
+          const last = parts[parts.length - 1]
+          if (parts.length === 0 || (parts.length === 1 && parts[0].length < 25) || !last || last.length + sn.length > 280) parts.push(sn); else parts[parts.length - 1] = last + sn
         }
+        const csrf = await csrfFor(session.token), lang = live.current.lang
+        const jobs = parts.map(t => cachedTts(`${lang}|${t.trim()}`, () => fetch('/api/oreo/tts', { method: 'POST', headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json', 'X-CSRF-Token': csrf }, body: JSON.stringify({ text: t.trim(), lang }) }).then(r => r.ok ? r.blob() : null).catch(() => null)))
+        let played = 0
+        for (let i = 0; i < jobs.length; i++) {
+          const blob = await jobs[i]
+          if (stopped.current) return
+          if (!blob) { if (i === 0) throw new Error('tts'); continue }
+          const url = URL.createObjectURL(blob); const a = new Audio(url); audio.current = a
+          await new Promise<void>(resolve => { a.onended = () => resolve(); a.onerror = () => resolve(); a.play().catch(() => resolve()) })
+          URL.revokeObjectURL(url); played++
+          if (stopped.current) return
+        }
+        if (played) { afterSpeech(); return }
       } catch { /* fall back to the browser voice */ }
     }
     try {
@@ -172,6 +214,29 @@ export default function OreoChat({ session, usdInr, prefill, onPrefillUsed, onCh
     } catch { setVoiceErr('Allow the microphone in the browser to talk to Oreo.') }
   }, [send, stopSpeaking, session.token])
 
+  // ── wake word: while this page is open and "Say Oreo" is on, the browser listens for the name (free, in the browser) and then Oreo wakes up
+  useEffect(() => {
+    if (!wakeOn || !active || voiceState !== 'idle' || busy) return
+    const W = window as unknown as { SpeechRecognition?: new () => SR; webkitSpeechRecognition?: new () => SR }
+    const Ctor = W.SpeechRecognition || W.webkitSpeechRecognition; if (!Ctor) return
+    let alive = true, woke = false, timer: ReturnType<typeof setTimeout> | undefined
+    const r = new Ctor(); r.lang = lang; r.interimResults = true; r.continuous = true
+    const NAME = /\b(oreo|orio|oriyo|o\s?reo)\b|ഒറിയോ|ഓറിയോ|ഒറിയൊ|ഓറിയൊ/i
+    r.onresult = e => {
+      if (woke) return
+      const res = Array.from(e.results as unknown as ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }>)
+      const last = res[res.length - 1]; const heard = last[0].transcript
+      const m = heard.match(NAME); if (!m) return
+      woke = true; alive = false; try { r.abort() } catch { /* done */ }
+      const rest = heard.slice((m.index || 0) + m[0].length).replace(/^[\s,.!?:-]+/, '')
+      if (last.isFinal && rest.split(/\s+/).filter(Boolean).length >= 3) send(rest, true); else startListening()
+    }
+    r.onerror = e => { if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { alive = false; setWakeOn(false); setVoiceErr('Allow the microphone to use the wake word.') } }
+    r.onend = () => { if (alive && !woke) timer = setTimeout(() => { if (alive) { try { r.start() } catch { /* retry on next change */ } } }, 400) }
+    try { r.start() } catch { /* none */ }
+    return () => { alive = false; clearTimeout(timer); try { r.abort() } catch { /* none */ } }
+  }, [wakeOn, active, voiceState, busy, lang, send, startListening])
+
   const orbClick = () => { if (voiceState === 'listening') stopListening(); else if (voiceState === 'speaking') stopSpeaking(); else startListening() }
   useEffect(() => () => { try { recog.current?.abort() } catch { /* none */ } media.current?.stop(); window.speechSynthesis?.cancel() }, [])
   // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -212,6 +277,7 @@ export default function OreoChat({ session, usdInr, prefill, onPrefillUsed, onCh
         <div className="flex items-center gap-1.5 text-[11px]">
           <button onClick={() => setLang(l => l === 'en-IN' ? 'ml-IN' : 'en-IN')} className="rounded-full border border-line px-2 py-0.5 font-semibold">{lang === 'en-IN' ? 'English' : 'മലയാളം'}</button>
           <button onClick={() => { setSpeakOn(v => !v); if (speakOn) stopSpeaking() }} className={`rounded-full border px-2 py-0.5 font-semibold ${speakOn ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-line text-soft'}`}>{speakOn ? 'Voice on' : 'Voice off'}</button>
+          <button onClick={() => setWakeOn(v => { const n = !v; try { localStorage.setItem('oreo:wake', n ? '1' : '0') } catch { /* none */ } return n })} title="Oreo wakes up when you say its name (needs the microphone, Chrome)" className={`rounded-full border px-2 py-0.5 font-semibold ${wakeOn ? 'border-violet-300 bg-violet-50 text-violet-700' : 'border-line text-soft'}`}>{wakeOn ? 'Listening for “Oreo”' : 'Say “Oreo”'}</button>
           <button onClick={() => setHandsFree(v => !v)} title="Oreo listens again after it speaks" className={`rounded-full border px-2 py-0.5 font-semibold ${handsFree ? 'border-sky-300 bg-sky-50 text-sky-700' : 'border-line text-soft'}`}>{handsFree ? 'Hands-free on' : 'Hands-free'}</button>
         </div>
         {voiceErr && <p className="mt-1 rounded-lg bg-red-50 px-2 py-1 text-center text-[11px] text-red-600">{voiceErr}</p>}

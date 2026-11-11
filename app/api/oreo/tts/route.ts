@@ -13,7 +13,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
   if (!rateLimitKey(`oreo-tts:${session.userId}`, 40, 60_000).success) return err('Slow down a little.', 429)
   if ((await oreoSpentToday()) >= (await dailyCapUsd())) return err("Oreo's daily limit is reached.", 429)
   const b = await req.json().catch(() => ({}))
-  const text = String(b.text || '').trim(); if (!text) return err('Nothing to say')
+  const text = String(b.text || '').trim().slice(0, 500); if (!text) return err('Nothing to say')
   try {
     const r = await textToSpeech(text, b.lang === 'ml-IN' ? 'ml-IN' : 'en-IN', session.userId)
     return new NextResponse(new Uint8Array(r.audio), { status: 200, headers: { 'Content-Type': r.mime, 'Cache-Control': 'no-store' } })
