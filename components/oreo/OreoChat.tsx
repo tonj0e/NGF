@@ -38,7 +38,9 @@ function cachedTts(key: string, make: () => Promise<Blob | null>): Promise<Blob 
 
 type SR = { start: () => void; stop: () => void; abort: () => void; lang: string; interimResults: boolean; continuous: boolean; onresult: ((e: { results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }> }) => void) | null; onerror: ((e: { error: string }) => void) | null; onend: (() => void) | null }
 
-export default function OreoChat({ session, usdInr, prefill, onPrefillUsed, onChanged, active = true }: { session: Session; usdInr: number; prefill: string; onPrefillUsed: () => void; onChanged: () => void; active?: boolean }) {
+export default function OreoChat({ session, usdInr, prefill, onPrefillUsed, onChanged, active = true, onActivity }: { session: Session; usdInr: number; prefill: string; onPrefillUsed: () => void; onChanged: () => void; active?: boolean; onActivity?: (e: { type: 'ask' | 'tool' | 'end' | 'state'; text?: string; name?: string }) => void }) {
+  const actRef = useRef(onActivity)
+  useEffect(() => { actRef.current = onActivity })
   const [msgs, setMsgs] = useState<Msg[]>([])
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
@@ -61,6 +63,7 @@ export default function OreoChat({ session, usdInr, prefill, onPrefillUsed, onCh
   const live = useRef({ msgs, thread, model, handsFree, speakOn, lang, voiceCfg })
   live.current = { msgs, thread, model, handsFree, speakOn, lang, voiceCfg }
   const orb: OreoState = voiceState === 'listening' ? 'listening' : voiceState === 'speaking' ? 'speaking' : busy ? 'thinking' : 'idle'
+  useEffect(() => { actRef.current?.({ type: 'state', name: orb }) }, [orb])
 
   useEffect(() => {
     try {
@@ -142,6 +145,7 @@ export default function OreoChat({ session, usdInr, prefill, onPrefillUsed, onCh
     const aid = uid()
     setMsgs(p => [...p, { id: uid(), role: 'user', text }, { id: aid, role: 'assistant', text: '', busy: true, tools: [] }])
     setBusy(true)
+    actRef.current?.({ type: 'ask', text })
     try {
       const res = await fetch('/api/oreo/chat', { method: 'POST', headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json', 'X-CSRF-Token': await csrfFor(session.token) }, body: JSON.stringify({ message: text, model: forceModel || live.current.model, threadId: live.current.thread, voice: viaVoice }) })
       if (!res.ok || !res.body) { let m = 'Oreo could not answer'; try { m = (await res.json()).error || m } catch { /* keep */ } patch(aid, x => ({ ...x, busy: false, error: true, text: m })); setBusy(false); return }
@@ -155,7 +159,7 @@ export default function OreoChat({ session, usdInr, prefill, onPrefillUsed, onCh
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           let e: any; try { e = JSON.parse(line) } catch { continue }
           if (e.type === 'thread') setThread(e.threadId)
-          else if (e.type === 'tool') patch(aid, x => ({ ...x, tools: [...(x.tools || []), e.name] }))
+          else if (e.type === 'tool') { actRef.current?.({ type: 'tool', name: e.name }); patch(aid, x => ({ ...x, tools: [...(x.tools || []), e.name] })) }
           else if (e.type === 'card') patch(aid, x => ({ ...x, cards: [...(x.cards || []), { actionId: e.actionId, tool: e.tool, summary: e.summary, state: 'pending', at: Date.now() }] }))
           else if (e.type === 'switch') patch(aid, x => ({ ...x, sw: { to: e.to, label: e.label, reason: e.reason, estimateUsd: e.estimateUsd }, retry: text }))
           else if (e.type === 'text') { final = e.text; patch(aid, x => ({ ...x, text: e.text })) }
@@ -164,9 +168,10 @@ export default function OreoChat({ session, usdInr, prefill, onPrefillUsed, onCh
         }
       }
       patch(aid, x => ({ ...x, busy: false }))
+      actRef.current?.({ type: 'end' })
       if (final) speak(viaVoice ? final : final)
       onChanged()
-    } catch { patch(aid, x => ({ ...x, busy: false, error: true, text: 'The connection dropped. Please try again.' })) }
+    } catch { patch(aid, x => ({ ...x, busy: false, error: true, text: 'The connection dropped. Please try again.' })); actRef.current?.({ type: 'end' }) }
     setBusy(false)
   }, [busy, session.token, patch, speak, decide, onChanged])
 

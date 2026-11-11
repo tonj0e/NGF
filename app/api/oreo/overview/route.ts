@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { apiHandler, requireRole, ok } from '@/lib/api'
 import { getSupabase } from '@/lib/supabase-db'
 import { getTodayIST, addDaysIST } from '@/lib/dateUtils'
-import { businessCounts } from '@/lib/oreo/tools'
+import { businessCounts, guarantorStats } from '@/lib/oreo/tools'
 import { dailyCapUsd, oreoSpentToday, usdInr } from '@/lib/oreo/agent'
 
 // What the Oreo page shows: the live business map, the "Needs you" list and Oreo's own numbers.
@@ -16,6 +16,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const days = range in RANGES ? RANGES[range] : 0
   const since = days === null ? '1970-01-01T00:00:00Z' : new Date(`${addDaysIST(getTodayIST(), -days)}T00:00:00+05:30`).toISOString()
 
+  const groupsAll = await guarantorStats().catch(() => [])
   const [c, spent, cap, rate, pendingRules, pendingCards, msgs, acts, spend] = await Promise.all([
     businessCounts(), oreoSpentToday(), dailyCapUsd(), usdInr(),
     sb.from('oreo_brain').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
@@ -49,6 +50,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
       collection: { dueSaturday: c.collection.dueSaturdayAmount, dueCount: c.collection.dueSaturdayCount, paidWeek: c.collection.paidThisWeekAmount, overdue: c.collection.overdueAmount, nextSaturday: c.nextSaturday },
       payments: { needStaff: c.paymentScreenshotsNeedingStaff },
     },
+    groups: groupsAll.sort((a, b) => b.activeLoans - a.activeLoans).slice(0, 6).map(g => ({ code: g.code, name: g.name, loans: g.activeLoans, overdue: g.overdueAmount })),
     oreo: {
       range, questions: msgs.count || 0, actions: (acts.data || []).length,
       spendUsd: Number((spend.data || []).reduce((t, r) => t + Number(r.cost_usd || 0), 0).toFixed(5)), spentTodayUsd: Number(spent.toFixed(4)), dailyCapUsd: cap, usdInr: rate,

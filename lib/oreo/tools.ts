@@ -76,6 +76,20 @@ export async function businessCounts() {
   }
 }
 
+// ───────────────────────── per guarantor numbers (the tool and the live map both use this)
+export async function guarantorStats(code?: string) {
+  const today = getTodayIST()
+  const [{ data: gs }, { data: loans }, { data: reps }] = await Promise.all([
+    sb().from('guarantors').select('guarantor_id, name, code, status, guarantor_number'), sb().from('loans').select('loan_id, guarantor_id').eq('status', 'Active').limit(5000),
+    sb().from('repayments').select('loan_id, amount').eq('status', 'Pending').lt('due_date', today).limit(5000),
+  ])
+  const lg = new Map((loans || []).map(l => [l.loan_id, l.guarantor_id as string]))
+  return (gs || []).filter(g => !code || String(g.code).toLowerCase() === code.toLowerCase()).map(g => {
+    const mine = (loans || []).filter(l => l.guarantor_id === g.guarantor_id); const od = (reps || []).filter(r => lg.get(r.loan_id) === g.guarantor_id)
+    return { name: String(g.name).trim(), code: g.code as string, number: g.guarantor_number, status: g.status, activeLoans: mine.length, overdueWeeks: od.length, overdueAmount: sum(od) }
+  })
+}
+
 // ───────────────────────── read tools
 const READ: ToolSpec[] = [
   { risk: 'read', def: { name: 'business_snapshot', description: 'Live numbers for the whole business right now: customers, active loans, leads at each stage, this Saturday\'s collection due, overdue amount, payments needing staff, bank files, AI spend. Use this first for "how is business", "what needs attention".', input_schema: obj({}) },
@@ -165,18 +179,7 @@ const READ: ToolSpec[] = [
     } },
 
   { risk: 'read', def: { name: 'guarantor_overview', description: 'Per guarantor: customers, active loans, overdue weeks and amount. Optional single guarantor code.', input_schema: obj({ code: str('optional guarantor code') }) },
-    run: async ({ code }) => {
-      const today = getTodayIST()
-      const [{ data: gs }, { data: loans }, { data: reps }] = await Promise.all([
-        sb().from('guarantors').select('guarantor_id, name, code, status, guarantor_number'), sb().from('loans').select('loan_id, guarantor_id').eq('status', 'Active').limit(5000),
-        sb().from('repayments').select('loan_id, amount').eq('status', 'Pending').lt('due_date', today).limit(5000),
-      ])
-      const lg = new Map((loans || []).map(l => [l.loan_id, l.guarantor_id as string]))
-      return (gs || []).filter(g => !code || String(g.code).toLowerCase() === String(code).toLowerCase()).map(g => {
-        const mine = (loans || []).filter(l => l.guarantor_id === g.guarantor_id); const od = (reps || []).filter(r => lg.get(r.loan_id) === g.guarantor_id)
-        return { name: String(g.name).trim(), code: g.code, number: g.guarantor_number, status: g.status, activeLoans: mine.length, overdueWeeks: od.length, overdueAmount: sum(od) }
-      })
-    } },
+    run: async ({ code }) => guarantorStats(code ? String(code) : undefined) },
 
   { risk: 'read', def: { name: 'payments_overview', description: 'Recent recorded payments (UPI/cash) and payment screenshots waiting for staff, for the last N days (default 14).', input_schema: obj({ days: { type: 'integer', description: 'default 14' } }) },
     run: async ({ days }) => {

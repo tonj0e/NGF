@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { Session } from '@/types'
 import { apiGet } from '@/lib/clientApi'
-import OreoMap, { Overview } from '@/components/oreo/OreoMap'
+import OreoMap, { Overview, Activity, Topic } from '@/components/oreo/OreoMap'
 import OreoChat from '@/components/oreo/OreoChat'
 import { OreoStyles } from '@/components/oreo/Mascot'
 
@@ -22,6 +22,10 @@ export default function OreoPage({ session, active = true }: { session: Session;
   const [range, setRange] = useState('today')
   const [prefill, setPrefill] = useState('')
   const [error, setError] = useState('')
+  const [activity, setActivity] = useState<Activity>({ seq: 0, busy: false, question: '', tools: [], state: 'idle' })
+  const onActivity = useCallback((e: { type: 'ask' | 'tool' | 'end' | 'state'; text?: string; name?: string }) => {
+    setActivity(a => e.type === 'state' ? { ...a, state: e.name || 'idle' } : e.type === 'ask' ? { ...a, seq: a.seq + 1, busy: true, question: e.text || '', tools: [] } : e.type === 'tool' ? { ...a, tools: [...a.tools, e.name || ''] } : { ...a, busy: false })
+  }, [])
 
   const load = useCallback(async () => {
     const r = await apiGet<Overview>(session.token, `/api/oreo/overview?range=${range}`)
@@ -40,6 +44,7 @@ export default function OreoPage({ session, active = true }: { session: Session;
     return () => clearInterval(t)
   }, [load, view, active])
 
+  const loadTopic = useCallback(async (key: string) => { const r = await apiGet<Topic>(session.token, `/api/oreo/topic?key=${key}`); return r.ok ? r.data! : null }, [session.token])
   const go = (page: string) => {
     if (page === 'brain') { setView('brain'); return }
     if (page === 'activity') { setView('activity'); return }
@@ -73,9 +78,9 @@ export default function OreoPage({ session, active = true }: { session: Session;
       {error && <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px] xl:h-[calc(100vh-11rem)] xl:min-h-[640px]">
-        <div className="min-h-0 xl:h-full"><OreoMap data={data} onOpen={go} onAsk={setPrefill} /></div>
+        <div className="min-h-0 xl:h-full"><OreoMap data={data} onOpen={go} onAsk={setPrefill} active={active && view === 'oreo'} activity={activity} loadTopic={loadTopic} /></div>
         <div className="order-first min-h-0 xl:order-none xl:h-full">
-          <OreoChat session={session} usdInr={rate} prefill={prefill} onPrefillUsed={() => setPrefill('')} onChanged={load} active={active} />
+          <OreoChat session={session} usdInr={rate} prefill={prefill} onPrefillUsed={() => setPrefill('')} onChanged={load} active={active} onActivity={onActivity} />
         </div>
       </div>
 
