@@ -74,9 +74,9 @@ export const FEATURE_KEYS = new Set(FEATURES.map(f => f.key))
 // Starting defaults per branch role (editable by the Admin: settings key `role_defaults`). Same sets that were
 // only "suggestions" before, so nothing changes until the Admin edits them.
 export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
-  manager:           [...CUSTOMER_PARTS, ...LEAD_PARTS, ...COLLECTION_PARTS, 'settlements', 'reports', 'guarantors', 'agentTracking', 'verificationPlanning'],
+  manager:           [...CUSTOMER_PARTS, ...LEAD_PARTS, ...COLLECTION_PARTS, 'settlements', 'reports', 'guarantors', 'agentTracking', 'verificationPlanning', 'payoutRequests'],
   assistant_manager: ['customersView', 'customersHistory', 'customersEdit', 'leadsView', 'leadsEdit', 'leadsAssign', 'leadsApprove', 'leadsDisburse', 'leadsRenew', 'leadsClose', ...COLLECTION_PARTS, 'reports', 'guarantors', 'agentTracking', 'verificationPlanning'],
-  accountant:        ['customersView', 'customersHistory', 'leadsView', 'leadsApprove', 'leadsDisburse', ...COLLECTION_PARTS, 'reports', 'settlements', 'agentTracking', 'verificationPlanning'],
+  accountant:        ['customersView', 'customersHistory', 'leadsView', 'leadsApprove', 'leadsDisburse', ...COLLECTION_PARTS, 'reports', 'settlements', 'agentTracking', 'verificationPlanning', 'payoutRequests'],
   cashier:           ['collectionView', 'collectionRecord', 'collectionSheet', 'settlements', 'leadsView', 'leadsDisburse'],
   agent:             [],
   // pages a guarantor sees until the Admin customises that one guarantor (everything they always had; chat is off by default)

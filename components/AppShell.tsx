@@ -116,7 +116,6 @@ const MENUS: Record<string, { key: string; label: string }[]> = {
     { key: 'dashboard',     label: 'Dashboard' },
     { key: 'leads',         label: 'Leads' },
     { key: 'collection',    label: 'Collection' },
-    { key: 'payments',      label: 'Payments' },
     { key: 'payLinks',      label: 'Send Payment Link' },
     { key: 'commissions',   label: 'Commissions' },
     { key: 'deposits',      label: 'Deposits' },
@@ -258,6 +257,8 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
     ...(MENUS['NGF AGENT'] || []),
     ...(hasPay ? [{ key: 'payments', label: 'Payments' }] : []),
   ]
+  // a guarantor sees the Payments tab inside Collection unless an Admin switched both parts off for them
+  const guarantorHasPayments = session.role === 'Guarantor' && (!staffPerms.includes('pages:custom') || staffPerms.includes('payChat') || staffPerms.includes('payHistory'))
   const guarantorMenu = (MENUS.Guarantor || []).filter(m =>
     !staffPerms.includes('pages:custom') || m.key === 'notifications' || staffPerms.includes(`gp:${m.key}`) || (m.key === 'payments' && (staffPerms.includes('payChat') || staffPerms.includes('payHistory'))))
   const menu = session.role === 'Staff' ? staffMenu : session.role === 'NGF AGENT' ? agentMenu : session.role === 'Guarantor' ? guarantorMenu : (MENUS[session.role] || [])
@@ -330,9 +331,10 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
       case 'repayments':   return <RepayPage session={session} mode="all" />
       case 'today':        return <RepayPage session={session} mode="today" />
       case 'saturday':     return <RepayPage session={session} mode="saturday" />
-      case 'collection':   return <CollectionPage session={session} perms={session.role === 'Staff' ? staffPerms : undefined} />
+      case 'collection':   return <CollectionPage session={session} perms={session.role === 'Staff' ? staffPerms : undefined} showPayments={guarantorHasPayments} />
       case 'settlements':  return <SettlementsPage session={session} />
-      case 'payments':     return <PaymentsPage session={session} />
+      // a guarantor's Payments now lives inside Collection (old links and notifications still land there)
+      case 'payments':     return guarantorHasPayments ? <CollectionPage session={session} showPayments startOnPayments /> : <PaymentsPage session={session} />
       case 'routes':       return <VisitRoutesPage session={session} />
       case 'myRoute':      return null   // kept alive separately (see below) so its map is not rebuilt on every visit
       case 'reviewOptions': return <ReviewOptionsPage session={session} />

@@ -3,7 +3,7 @@ import { apiHandler, getSession, ok, err } from '@/lib/api'
 import { needFeature } from '@/lib/access'
 import { coll } from '@/lib/features'
 import { readTable, selectAll } from '@/lib/supabase-db'
-import { pageQuery, cleanSearch, scopeOf, withScope } from '@/lib/db'
+import { pageQuery, cleanSearch, scopeOf, withScope, byIds } from '@/lib/db'
 
 // Collection sheet for guarantors: one row per active customer showing the week
 // they are due to pay next, their outstanding balance, and contact details.
@@ -89,7 +89,12 @@ export const GET = apiHandler(async (req: NextRequest) => {
   let total = 0, page = 1, pageSize = 0, totalPages = 1
   if (paged) {
     const r = await pageQuery('CollectionSheetRows', { filters, order, page: searchParams.get('page'), pageSize: searchParams.get('pageSize') })
-    rows = r.rows.map(shape); total = r.total; page = r.page; pageSize = r.pageSize; totalPages = r.totalPages
+    // The on-screen list also shows each customer's nominee (from their lead). The sheet download below does not use this.
+    const custs = await byIds('Customers', 'customer_id', r.rows.map(x => x['Customer ID']))
+    const leadOf = new Map(custs.map(c => [c['Customer ID'], c['Lead ID']]))
+    const leads = await byIds('Leads', 'lead_id', custs.map(c => c['Lead ID']))
+    const nomOf = new Map(leads.map(l => [l['Lead ID'], { nominee: String(l['Nominee Name'] || '').trim(), nomineeNumber: String(l['Nominee Phone'] || '').trim() }]))
+    rows = r.rows.map(x => ({ ...shape(x), ...(nomOf.get(leadOf.get(x['Customer ID']) || '') || { nominee: '', nomineeNumber: '' }) })); total = r.total; page = r.page; pageSize = r.pageSize; totalPages = r.totalPages
   } else {
     rows = (await selectAll('CollectionSheetRows', qb => filters(qb).order('guarantor_name').order('balance').order('name'))).map(shape)   // the sheet download: the whole scope, read page by page
     total = rows.length

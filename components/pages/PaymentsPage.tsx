@@ -9,7 +9,7 @@ type Access = { canMark: boolean; canChat: boolean; canHistory: boolean; canBank
 
 // The Payments module: one menu item, several parts. Which parts a person sees is decided by the permissions an Admin
 // ticks for them (guarantor or staff). The server checks every request again.
-export default function PaymentsPage({ session }: { session: Session }) {
+export default function PaymentsPage({ session, preselect, onPreselectUsed }: { session: Session; preselect?: { repaymentId: string; customerId: string } | null; onPreselectUsed?: () => void }) {
   const [access, setAccess] = useState<Access | null>(null)
   const [tab, setTab] = useState<Tab>('chat')
   const [error, setError] = useState('')
@@ -45,7 +45,7 @@ export default function PaymentsPage({ session }: { session: Session }) {
     const canHistory = access.canHistory || access.canMark
     return (
       <>
-        <PaymentChatPage session={session} onOpenHistory={canHistory ? () => setHistoryOpen(true) : undefined} />
+        <PaymentChatPage session={session} onOpenHistory={canHistory ? () => setHistoryOpen(true) : undefined} preselect={preselect} onPreselectUsed={onPreselectUsed} />
         {historyOpen && (
           <div className="fixed inset-0 z-[55] flex flex-col bg-[#f0f2f5]">
             <div className="flex items-center gap-1.5 bg-[#075e54] px-2.5 py-3 text-white">
@@ -72,7 +72,7 @@ export default function PaymentsPage({ session }: { session: Session }) {
           ))}
         </div>
       )}
-      {current === 'chat' && <PaymentChatPage session={session} onOpenHistory={access.canHistory || access.canMark ? () => setTab('history') : undefined} />}
+      {current === 'chat' && <PaymentChatPage session={session} onOpenHistory={access.canHistory || access.canMark ? () => setTab('history') : undefined} preselect={preselect} onPreselectUsed={onPreselectUsed} />}
       {current === 'history' && <PaymentMatchingPage session={session} fixedTab="records" />}
       {current === 'mark' && <PaymentMatchingPage session={session} fixedTab="collect" />}
       {current === 'bank' && <PaymentMatchingPage session={session} fixedTab="bank" />}

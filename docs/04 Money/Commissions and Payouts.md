@@ -29,6 +29,14 @@ tags: [ngf, money, commissions, payouts]
 8. Manual "Record Payout" on `GuarantorPage` lets the admin record Cash, UPI or Bank Transfer payouts without a request.
 9. "Commission Earned" on the dashboard, staff list, branch hierarchy and edit dialogs is now computed from loans (`lib/guarantorEarned.ts`), the same total as the Commissions page. Money and dates are formatted by `lib/format.ts`.
 
+## One ledger (2026-11-13)
+- Commission paid now counts **two** places as one: `PayoutRequests` rows with status Paid, plus cash-book lines (`Settlements`, entity type `GuarantorCommission`) that do not name a payout (`PYOUT...`). `computeSummary(loans, payouts, today, manualPaid)` and `manualCommissionPaid()` in `lib/commissions.ts`. Before this, a manual "Record Commission Payment" on the Guarantors page never showed on the guarantor's own Commissions page.
+- Approve on Payout Requests now asks how it was paid (Cash, UPI, Bank Transfer) and a reference, and writes the cash-book line (`Notes: "<mode> payment PYOUT... ref ..."`). The QR scan path sends no mode, so it still writes its own line and nothing doubles.
+- `POST /api/commissions/payout {action:'payNow', guarantorId, amount, mode, reference}` (Admin, or Staff with `payoutRequests`, own branch only): pays unlocked commission at once (amount <= available, no Pending request open), writes a Paid payout and the cash-book line.
+- `GET /api/commissions/payout?all=1` also returns `commissions[]` per guarantor in scope (earned, unlocked, locked, paid, aheadPaid, pending, available, nextPayoutDate); the Payout Requests page shows it as the tracker.
+- Staff need the `payoutRequests` feature to see Payout Requests. It is in the built-in manager and accountant defaults, but a saved `role_defaults` setting overrides the built-ins, so on a live database the Admin ticks it under NGF Branches (role defaults).
+- Manual cash-book payments are not blocked before the 35 days end; the tracker shows them as "early".
+
 ## Rules and gotchas
 - Commission is paid on every loan with the field set, whether the loan is Active, Completed or Closed (there is no Cancelled or Foreclosed status; foreclose and settle set `Completed`). Nothing is reversed.
 - Open: renewal reuses the customer's loan row, which may overwrite the old loan's commission. Check against the live database.

@@ -307,7 +307,7 @@ function WaBubble({ m, session, onFix }: { m: Msg; session: Session; onFix: (m: 
   )
 }
 
-export default function PaymentChatPage({ session, onOpenHistory }: { session: Session; onOpenHistory?: () => void }) {
+export default function PaymentChatPage({ session, onOpenHistory, preselect, onPreselectUsed }: { session: Session; onOpenHistory?: () => void; preselect?: { repaymentId: string; customerId: string } | null; onPreselectUsed?: () => void }) {
   const [me, setMe] = useState<Me | null>(null)
   const [gid, setGid] = useState('')
   const [msgs, setMsgs] = useState<Msg[]>([])
@@ -378,6 +378,20 @@ export default function PaymentChatPage({ session, onOpenHistory }: { session: S
     setPicked(msg.lines.map(l => ({ repaymentId: l.repaymentId, customerId: l.customerId, name: l.name, phone: '', payCode: l.payCode, weekNo: null, dueDate: '', amount: l.amount, status: 'Pending', overdue: false, payment: null })))
     loadSheet(msg.guarantorId)
   }
+
+  // "Record payment" in Collection lands here: open the screenshot form with that customer already chosen
+  const usedPre = useRef('')
+  useEffect(() => {
+    if (!preselect || !me || !activeGid || usedPre.current === preselect.repaymentId) return
+    usedPre.current = preselect.repaymentId
+    setMode('single'); setConfirmCash(false); setFixId(''); setFixKind(''); setPicked([]); setImg(null); setQ(''); setManualUtr(''); setOpen(true)
+    api(session, `/api/payments?view=collect&guarantorId=${encodeURIComponent(activeGid)}`).then(d => {
+      setSheet(d.rows)
+      const row = (d.rows as SheetRow[]).find(r => r.repaymentId === preselect.repaymentId) || (d.rows as SheetRow[]).find(r => r.customerId === preselect.customerId && r.status !== 'Paid')
+      if (row) setPicked([row]); else flash('That customer is already paid or not on this week\'s list')
+    }).catch(e => flash(e instanceof Error ? e.message : 'Could not load customers')).finally(() => onPreselectUsed?.())
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preselect, me, activeGid])
 
   const results = useMemo(() => {
     const s = q.trim().toLowerCase()

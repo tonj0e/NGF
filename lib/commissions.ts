@@ -33,14 +33,21 @@ export function buildCycles(loans: Record<string, string>[], today = getTodayIST
   return cycles
 }
 
+/** Commission an Admin or Staff recorded straight in the cash book (Settlements) without a payout request. A settlement that names a
+ *  payout (PYOUT...) is the same money as that payout row, so it is not counted twice. */
+export function manualCommissionPaid(settlements: Record<string, string>[]): number {
+  return r2(settlements.filter(s => s['Entity Type'] === 'GuarantorCommission' && !/PYOUT\d+/.test(String(s['Notes'] || '')))
+    .reduce((t, s) => t + Number(s['Amount Submitted'] || 0), 0))
+}
+
 export function computeSummary(
-  guarantorLoans: Record<string, string>[], payouts: Record<string, string>[], today = getTodayIST(),
+  guarantorLoans: Record<string, string>[], payouts: Record<string, string>[], today = getTodayIST(), manualPaid = 0,
 ): CommissionSummary {
   const cycles = buildCycles(guarantorLoans, today)
   const earned = r2(cycles.reduce((s, c) => s + c.amount, 0))
   const eligible = r2(cycles.filter(c => c.past).reduce((s, c) => s + c.amount, 0))
   const sumBy = (st: string) => r2(payouts.filter(p => p['Status'] === st).reduce((s, p) => s + Number(p['Amount'] || 0), 0))
-  const paid = sumBy('Paid')
+  const paid = r2(sumBy('Paid') + manualPaid)
   const pending = sumBy('Pending')
   const future = cycles.filter(c => !c.past).map(c => c.end).sort()
   return {

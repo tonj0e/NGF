@@ -3,9 +3,12 @@ import { Fragment, createContext, useContext, useEffect, useRef, useState, useCa
 import { Session } from '@/types'
 import StatusPill from '@/components/ui/StatusPill'
 import Pager from '@/components/ui/Pager'
+import PaymentsPage from './PaymentsPage'
 
 // Whether this person may record payments (Staff only get it with the Record part; the server checks too)
 const RecordAllowed = createContext(true)
+// A guarantor records a payment by sending its screenshot: the button hands the customer to the Payments tab
+const RecordViaPayments = createContext<((r: Repayment) => void) | null>(null)
 
 function currency(n: number) {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n)
@@ -176,6 +179,7 @@ function RepaymentCards({ rows, page, search, reviewOptions, session, onSaved, o
   const totalPages = Math.ceil(total / PAGE_SIZE)
   const hint = session.role === 'Guarantor' ? 'Search last 4 digits of Loan ID or mobile' : 'Search Loan ID or mobile'
   const mayRecord = useContext(RecordAllowed)
+  const recordVia = useContext(RecordViaPayments)
   const canRecord = mayRecord && (isTodaySaturday || unlocked)
 
   // Pick up Dev-page toggle changes (fires across tabs; re-read on focus too)
@@ -233,7 +237,7 @@ function RepaymentCards({ rows, page, search, reviewOptions, session, onSaved, o
                     onDone={() => { showToast('Saved.'); onSaved() }}
                     onClose={() => setOpenId(null)} />
                 ) : canRecord ? (
-                  <button onClick={() => setOpenId(r['Repayment ID'])}
+                  <button onClick={() => recordVia ? recordVia(r) : setOpenId(r['Repayment ID'])}
                     className="mt-4 w-full rounded-2xl border border-line bg-mist px-4 py-2.5 text-sm font-semibold text-ink hover:bg-ink hover:text-white transition">
                     Record Payment
                   </button>
@@ -476,7 +480,7 @@ function HistoryTab({ session }: { session: Session }) {
 
 // ─── Main CollectionPage ─────────────────────────────────────────────────────
 
-type CollectionTab = 'all' | 'today' | 'list' | 'coming' | 'pastMonth' | 'history' | 'status'
+type CollectionTab = 'all' | 'today' | 'list' | 'coming' | 'pastMonth' | 'history' | 'status' | 'payments'
 
 // ─── Tap-to-call button (triggers the dialer on mobile) ──────────────────────
 
@@ -503,6 +507,7 @@ function CollectionListTab({ session }: { session: Session }) {
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
   const LIST_PAGE = 100
+  const [openKey, setOpenKey] = useState('')   // the guarantor's list opens one customer at a time
 
   // the server searches and sends one page at a time; a new search starts at page 1
   useEffect(() => { setPage(1) }, [q])
@@ -571,6 +576,42 @@ function CollectionListTab({ session }: { session: Session }) {
         <p className="rounded-2xl border border-dashed border-line bg-white p-8 text-center text-sm text-soft">
           No active customers to collect from.
         </p>
+      ) : session.role === 'Guarantor' ? (
+        // A guarantor's list: number, full name, code, RP with the place under it. Tap a customer for the rest, full width.
+        <div className="overflow-hidden rounded-[1.5rem] border border-white/70 bg-white shadow-panel">
+          <div className="flex items-center gap-2 px-3.5 pb-1.5 pt-3 text-xs font-semibold text-soft">
+            <span className="w-5 text-center">#</span><span className="flex-1">Name</span><span className="w-12 text-center">Code</span><span className="min-w-[5.5rem] text-right">RP and place</span>
+          </div>
+          {filtered.map((r, i) => {
+            const key = `${r.code}-${r.number}-${i}`, open = openKey === key
+            return (
+              <div key={key} className={`border-t border-black/5 ${open ? 'bg-brand/5' : ''}`}>
+                <button onClick={() => setOpenKey(open ? '' : key)} aria-expanded={open} className="flex min-h-[3.9rem] w-full items-center gap-2 px-3.5 py-2 text-left">
+                  <span className="w-5 text-center text-[13px] font-semibold text-soft">{i + 1 + (page - 1) * LIST_PAGE}</span>
+                  <span className="min-w-0 flex-1 text-[15px] font-bold leading-tight">{r.name}</span>
+                  <span className="w-12 text-center text-sm font-bold tracking-wide text-brand">{r.code}</span>
+                  <span className="min-w-[5.5rem] text-right"><span className="block text-[17px] font-extrabold leading-tight">{r.rp}</span><span className="block text-sm font-semibold leading-tight text-gray-700">{r.place}</span></span>
+                </button>
+                {open && (
+                  <div className="border-t border-dashed border-brand/25 px-3.5 pb-2 pt-1">
+                    <div className="flex min-h-12 items-center border-b border-black/5"><span className="flex-1 text-[13px] text-soft">Balance</span><span className="text-lg font-extrabold">{currency(Number(r.balance))}</span></div>
+                    <div className={`flex min-h-14 items-center gap-3 ${r.nominee || r.nomineeNumber ? 'border-b border-black/5' : ''}`}>
+                      <span className="min-w-0 flex-1"><span className="block text-[13px] text-soft">Customer mobile</span><span className="block text-base font-bold tracking-wide">{r.number || '—'}</span></span>
+                      {r.number && <a href={`tel:${r.number}`} aria-label={`Call ${r.name}`} className="inline-flex min-h-11 min-w-[5.5rem] items-center justify-center rounded-2xl bg-brand text-sm font-bold text-white">Call</a>}
+                    </div>
+                    {r.nominee && <div className={`flex min-h-12 items-center ${r.nomineeNumber ? 'border-b border-black/5' : ''}`}><span className="flex-1 text-[13px] text-soft">Nominee</span><span className="text-base font-bold">{r.nominee}</span></div>}
+                    {r.nomineeNumber && (
+                      <div className="flex min-h-14 items-center gap-3">
+                        <span className="min-w-0 flex-1"><span className="block text-[13px] text-soft">Nominee mobile</span><span className="block text-base font-bold tracking-wide">{r.nomineeNumber}</span></span>
+                        <a href={`tel:${r.nomineeNumber}`} aria-label={`Call the nominee of ${r.name}`} className="inline-flex min-h-11 min-w-[5.5rem] items-center justify-center rounded-2xl border border-brand/40 bg-white text-sm font-bold text-brand">Call</a>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
       ) : (
         <div className="overflow-x-auto rounded-[1.5rem] border border-white/70 bg-white shadow-panel">
           <table className="w-full text-sm border-collapse">
@@ -658,7 +699,6 @@ function CollectionStatusTab({ session }: { session: Session }) {
   useEffect(() => { const t = setInterval(() => { if (!document.hidden) load(true) }, 20000); return () => clearInterval(t) }, [load])
 
   const s = data?.summary
-  const pct = s && s.dueCount ? Math.round(s.paidCount / s.dueCount * 100) : 0
   const seg = (k: 'paid' | 'unpaid' | 'cash', label: string, n: number | undefined, tone: string) => (
     <button onClick={() => setStatus(k)} className={`flex-1 rounded-2xl px-3 py-3 text-sm font-bold transition ${status === k ? `${tone} text-white shadow` : 'border border-line bg-white text-soft'}`}>
       {label}{n != null && <span className="ml-1.5 opacity-80">({n})</span>}
@@ -686,17 +726,26 @@ function CollectionStatusTab({ session }: { session: Session }) {
       </div>
 
       {s && (
-        <div className="rounded-[1.5rem] bg-ink p-4 text-white">
-          <div className="flex items-end justify-between gap-3">
-            <p className="text-2xl font-extrabold leading-none">{s.paidCount} <span className="text-base font-semibold text-white/70">of {s.dueCount} paid</span></p>
-            <p className="text-sm font-bold text-emerald-300">{pct}%</p>
+        <div className="grid grid-cols-2 gap-3" aria-label="Collection totals">
+          <div className="rounded-[1.5rem] border border-white/70 bg-white p-4 shadow-panel">
+            <p className="text-sm font-semibold text-soft">To collect</p>
+            <p className="mt-1 text-3xl font-extrabold leading-none tracking-tight sm:text-4xl">{currency(s.dueTotal)}</p>
+            <p className="mt-2 text-xs text-soft">{s.dueCount} {s.dueCount === 1 ? 'customer' : 'customers'}</p>
           </div>
-          <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/20"><div className="h-full rounded-full bg-emerald-400 transition-all" style={{ width: `${pct}%` }} /></div>
-          <div className="mt-3 grid grid-cols-4 gap-1.5 text-center">
-            <div className="rounded-xl bg-white/10 px-1 py-2"><p className="text-[10px] font-semibold uppercase text-white/60">To collect</p><p className="text-xs font-bold">{currency(s.dueTotal)}</p></div>
-            <div className="rounded-xl bg-emerald-500/25 px-1 py-2"><p className="text-[10px] font-semibold uppercase text-emerald-100/80">Collected</p><p className="text-xs font-bold">{currency(s.paidTotal)}</p></div>
-            <div className="rounded-xl bg-red-500/25 px-1 py-2"><p className="text-[10px] font-semibold uppercase text-red-100/80">Still to collect</p><p className="text-xs font-bold">{currency(s.unpaidTotal)}</p></div>
-            <div className="rounded-xl bg-amber-400/25 px-1 py-2"><p className="text-[10px] font-semibold uppercase leading-tight text-amber-100/80">Cash</p><p className="text-xs font-bold">{currency(s.cashTotal)}</p></div>
+          <div className={`rounded-[1.5rem] border p-4 shadow-panel ${s.unpaidTotal > 0 ? 'border-red-200 bg-red-50' : 'border-emerald-200 bg-emerald-50'}`}>
+            <p className={`text-sm font-semibold ${s.unpaidTotal > 0 ? 'text-red-800' : 'text-emerald-800'}`}>Still to collect</p>
+            <p className={`mt-1 text-3xl font-extrabold leading-none tracking-tight sm:text-4xl ${s.unpaidTotal > 0 ? 'text-red-700' : 'text-emerald-700'}`}>{currency(s.unpaidTotal)}</p>
+            <p className={`mt-2 text-xs ${s.unpaidTotal > 0 ? 'text-red-800' : 'text-emerald-800'}`}>{s.unpaidCount} not paid</p>
+          </div>
+          <div className="rounded-[1.5rem] border border-blue-200 bg-blue-50 p-4">
+            <p className="text-sm font-semibold text-blue-900">Account collected</p>
+            <p className="mt-1 text-2xl font-extrabold leading-none text-blue-800 sm:text-3xl">{currency(Math.max(0, s.paidTotal - s.cashTotal))}</p>
+            <p className="mt-2 text-xs text-blue-900">{Math.max(0, s.paidCount - s.cashCount)} paid by UPI or bank</p>
+          </div>
+          <div className="rounded-[1.5rem] border border-amber-200 bg-amber-50 p-4">
+            <p className="text-sm font-semibold text-amber-900">Cash collected</p>
+            <p className="mt-1 text-2xl font-extrabold leading-none text-amber-800 sm:text-3xl">{currency(s.cashTotal)}</p>
+            <p className="mt-2 text-xs text-amber-900">{s.cashCount} paid in cash</p>
           </div>
         </div>
       )}
@@ -758,9 +807,10 @@ function isSheetWindowOpen() {
 // `perms`: what a Staff user may do (role defaults + extras). Other roles are not limited here; the server checks every action too.
 const hasPart = (perms: string[] | undefined, part: string) => !perms || perms.includes('collection') || perms.includes(part)
 
-export default function CollectionPage({ session, perms }: { session: Session; perms?: string[] }) {
+export default function CollectionPage({ session, perms, showPayments, startOnPayments }: { session: Session; perms?: string[]; showPayments?: boolean; startOnPayments?: boolean }) {
   const can = (part: string) => session.role !== 'Staff' || hasPart(perms, part)
-  const [tab, setTab] = useState<CollectionTab>(session.role === 'Guarantor' ? 'today' : 'all')
+  const [tab, setTab] = useState<CollectionTab>(startOnPayments && showPayments ? 'payments' : session.role === 'Guarantor' ? 'status' : 'all')
+  const [payTarget, setPayTarget] = useState<{ repaymentId: string; customerId: string } | null>(null)
   const [reviewOptions, setReviewOptions] = useState<ReviewOption[]>([])
   const [downloading, setDownloading] = useState(false)
   const [sheetNote, setSheetNote] = useState(false)   // pop-up: sheet is not available yet
@@ -795,15 +845,19 @@ export default function CollectionPage({ session, perms }: { session: Session; p
   type TabDef = { key: CollectionTab; label: string; roles?: string[] }
   const TABS: TabDef[] = [
     { key: 'all',       label: 'All Pending',      roles: ['Admin', 'NGF AGENT', 'Staff'] },
-    { key: 'today',     label: 'Saturday' },
+    { key: 'today',     label: 'Saturday',         roles: ['Admin', 'NGF AGENT', 'Staff'] },
     { key: 'list',      label: 'List' },
     { key: 'status',    label: 'Paid / Not paid' },
     { key: 'coming',    label: 'Coming Saturday',  roles: ['Admin', 'NGF AGENT', 'Staff'] },
     { key: 'pastMonth', label: 'Past Month',        roles: ['Admin', 'Staff'] },
     { key: 'history',   label: 'History',           roles: ['Admin', 'Staff'] },
+    { key: 'payments',  label: 'Payments',          roles: ['Guarantor'] },
   ]
 
-  const visibleTabs = TABS.filter(t => (!t.roles || t.roles.includes(session.role)) && can(t.key === 'pastMonth' || t.key === 'history' ? 'collectionPast' : 'collectionView'))
+  // A guarantor's tabs, in this order: Paid / Not paid, Payments, List (the sheet is the icon at the end)
+  const GUARANTOR_ORDER: CollectionTab[] = ['status', 'payments', 'list']
+  const visibleTabs = TABS.filter(t => (!t.roles || t.roles.includes(session.role)) && (t.key === 'payments' ? !!showPayments : can(t.key === 'pastMonth' || t.key === 'history' ? 'collectionPast' : 'collectionView')))
+    .sort((a, b) => session.role === 'Guarantor' ? GUARANTOR_ORDER.indexOf(a.key) - GUARANTOR_ORDER.indexOf(b.key) : 0)
 
   // A person who only holds the Past/History part opens on that tab
   useEffect(() => {
@@ -813,6 +867,7 @@ export default function CollectionPage({ session, perms }: { session: Session; p
 
   return (
     <RecordAllowed.Provider value={can('collectionRecord')}>
+    <RecordViaPayments.Provider value={session.role === 'Guarantor' && showPayments ? (r => { setPayTarget({ repaymentId: r['Repayment ID'], customerId: r['Customer ID'] }); setTab('payments') }) : null}>
     <div className="space-y-4">
       <div className="flex items-center gap-3">
         <div className="flex flex-1 items-center gap-1.5 flex-wrap sm:gap-2">
@@ -827,7 +882,8 @@ export default function CollectionPage({ session, perms }: { session: Session; p
           disabled={downloading}
           hidden={!sheetAllowed}
           title={canDownload ? 'Download collection sheet as PDF' : 'Available Friday 8am through Saturday'}
-          className={`inline-flex items-center gap-1 rounded-2xl px-2.5 py-2 text-[13px] font-semibold transition sm:gap-1.5 sm:px-4 sm:text-sm ${
+          aria-label="Download the collection sheet"
+          className={`${session.role === 'Guarantor' ? 'ml-auto h-11 w-11 justify-center' : 'px-2.5 py-2 sm:px-4'} inline-flex items-center gap-1 rounded-2xl text-[13px] font-semibold transition sm:gap-1.5 sm:text-sm ${
             canDownload
               ? 'bg-green-600 text-white hover:bg-green-700'
               : 'border border-line bg-mist text-gray-500'
@@ -835,11 +891,13 @@ export default function CollectionPage({ session, perms }: { session: Session; p
           {downloading ? (
             <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
           ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+            <svg xmlns="http://www.w3.org/2000/svg" className={session.role === 'Guarantor' ? 'h-5 w-5' : 'h-4 w-4'} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              {session.role === 'Guarantor'
+                ? <><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z" /><path d="M14 3v5h5" /><path d="M12 12v5M9.500 14.500L12 17l2.500-2.500" /></>
+                : <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></>}
             </svg>
           )}
-          {downloading ? 'Preparing…' : 'Sheet'}
+          {session.role === 'Guarantor' ? null : downloading ? 'Preparing…' : 'Sheet'}
         </button>
         </div>
       </div>
@@ -859,7 +917,9 @@ export default function CollectionPage({ session, perms }: { session: Session; p
       {tab === 'coming'    && <ComingSaturdayTab session={session} reviewOptions={reviewOptions} />}
       {tab === 'pastMonth' && <PastMonthTab session={session} />}
       {tab === 'history'   && <HistoryTab session={session} />}
+      {tab === 'payments'  && <PaymentsPage session={session} preselect={payTarget} onPreselectUsed={() => setPayTarget(null)} />}
     </div>
+    </RecordViaPayments.Provider>
     </RecordAllowed.Provider>
   )
 }
