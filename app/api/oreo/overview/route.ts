@@ -47,7 +47,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
       approval: { waiting: c.leads.awaitingApproval },
       disbursement: { waiting: c.leads.approvedWaitingDisbursement, files: c.bankFilesLive },
       loans: { active: c.loansActive, customers: c.customers },
-      collection: { dueSaturday: c.collection.dueSaturdayAmount, dueCount: c.collection.dueSaturdayCount, paidWeek: c.collection.paidThisWeekAmount, overdue: c.collection.overdueAmount, nextSaturday: c.nextSaturday },
+      collection: { dueSaturday: c.collection.dueSaturdayAmount, dueCount: c.collection.dueSaturdayCount, paidWeek: c.collection.paidThisWeekAmount, paidSatCount: c.collection.paidForSaturdayCount, paidSatAmount: c.collection.paidForSaturdayAmount, overdue: c.collection.overdueAmount, nextSaturday: c.nextSaturday },
       payments: { needStaff: c.paymentScreenshotsNeedingStaff },
     },
     groups: groupsAll.sort((a, b) => b.activeLoans - a.activeLoans).slice(0, 6).map(g => ({ code: g.code, name: g.name, loans: g.activeLoans, overdue: g.overdueAmount })),

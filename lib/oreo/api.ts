@@ -1,27 +1,34 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- tool inputs and API answers are checked by each tool */
 import { NextRequest } from 'next/server'
+import { getSession } from '@/lib/api'
+import { generateCsrfToken } from '@/lib/csrf'
 
-// Oreo's actions run through the CRM's own API as the signed-in owner, so every rule, branch check and audit entry still applies.
+// Oreo's actions run through the CRM's own routes as the signed-in owner, so every rule, branch check and audit entry still applies.
+// The route handlers are called inside this same server (no network call), because a hosted server often cannot reach its own public address.
 export type ApiResult = { ok: boolean; status: number; data?: any; error?: string }
+
+type Handler = (req: NextRequest, ctx?: any) => Promise<Response>
+async function resolveHandler(method: string, path: string): Promise<{ fn: Handler; ctx?: any } | null> {
+  const clean = path.split('?')[0]
+  let m: RegExpMatchArray | null
+  if ((m = clean.match(/^\/api\/leads\/([^/]+)$/))) {
+    const mod: any = await import('@/app/api/leads/[leadId]/route')
+    return mod[method] ? { fn: mod[method], ctx: { params: Promise.resolve({ leadId: decodeURIComponent(m[1]) }) } } : null
+  }
+  if (clean === '/api/routes') { const mod: any = await import('@/app/api/routes/route'); return mod[method] ? { fn: mod[method] } : null }
+  if (clean === '/api/disbursements/bank') { const mod: any = await import('@/app/api/disbursements/bank/route'); return mod[method] ? { fn: mod[method] } : null }
+  return null
+}
+
 export async function callApi(req: NextRequest, method: 'GET' | 'POST' | 'PATCH', path: string, body?: unknown): Promise<ApiResult> {
   const auth = req.headers.get('authorization') || ''
-  // The server calls itself: try its own local address first (the public address can be a tunnel or proxy it cannot reach)
-  const bases = [process.env.INTERNAL_BASE_URL, `http://127.0.0.1:${process.env.PORT || 3000}`, req.nextUrl.origin].filter((x): x is string => !!x)
-  let base = bases[0], lastErr = 'Network problem'
   try {
-    for (const b of bases) {
-      try { const r = await fetch(`${b}/api/ping`, { signal: AbortSignal.timeout(4000) }); if (r.ok) { base = b; lastErr = ''; break } } catch (e) { lastErr = e instanceof Error ? e.message : lastErr }
-    }
-    if (lastErr) return { ok: false, status: 0, error: `Could not reach the CRM's own API (${lastErr})` }
-    let csrf = ''
-    if (method !== 'GET') {
-      const c = await fetch(`${base}/api/csrf`, { headers: { Authorization: auth } }).then(r => r.json()).catch(() => null)
-      csrf = c?.csrfToken || c?.data?.csrfToken || ''
-    }
-    const res = await fetch(`${base}${path}`, {
-      method, headers: { Authorization: auth, 'Content-Type': 'application/json', ...(csrf ? { 'X-CSRF-Token': csrf } : {}) },
-      body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(60_000),
-    })
+    const target = await resolveHandler(method, path)
+    if (!target) return { ok: false, status: 0, error: `Oreo has no route for ${method} ${path}` }
+    const headers: Record<string, string> = { Authorization: auth, 'Content-Type': 'application/json' }
+    if (method !== 'GET') headers['X-CSRF-Token'] = await generateCsrfToken((await getSession(req)).userId)
+    const inner = new NextRequest(new URL(path, req.nextUrl.origin), { method, headers, body: body === undefined ? undefined : JSON.stringify(body) })
+    const res = await target.fn(inner, target.ctx)
     const j = await res.json().catch(() => null)
     if (!res.ok || j?.success === false) return { ok: false, status: res.status, error: String(j?.error || `Request failed (${res.status})`) }
     return { ok: true, status: res.status, data: j?.data ?? j }

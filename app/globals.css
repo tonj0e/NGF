@@ -1,12 +1,21 @@
 @import "tailwindcss";
 
-/* NGF colour palette: calm navy with a gold accent. Change the look of the whole app here.
+/* NGF colour palette: white frosted glass over soft light-blue and light-red glows, navy text, blue for main actions,
+   red only where something needs attention. Change the look of the whole app here.
    Components use the names (text-ink, bg-mist, border-line, text-soft, text-gold ...), never hex codes. */
 :root {
   --ink: #14213d;      /* deep navy: text, main buttons, active items */
   --soft: #5b6b82;     /* quiet slate: secondary text, icons */
   --line: #e3e8ef;     /* hairlines and borders */
-  --mist: #f2f5f9;     /* page background and soft panels */
+  --mist: #f1f4fa;     /* page background and soft panels */
+  --brand: #2456c8;    /* NGF blue: main buttons, the active menu item */
+  --brand-deep: #1c46a6;
+  --rose: #c92f3b;     /* NGF red: used sparingly, for the mark and for things that need attention */
+  --glow-blue: rgb(169 205 251 / 0.70);
+  --glow-red: rgb(255 194 200 / 0.55);
+  --glow-ice: rgb(207 224 255 / 0.65);
+  --glass: rgb(255 255 255 / 0.62);
+  --glass-edge: rgb(255 255 255 / 0.9);
   --gold: #c9a227;     /* accent: highlights, small marks */
   --gold-soft: #fbf4dc;
   --panel: #f8fafc;    /* faint panel inside a white card */
@@ -21,6 +30,8 @@
   --color-gold: var(--gold);
   --color-gold-soft: var(--gold-soft);
   --color-panel: var(--panel);
+  --color-brand: var(--brand);
+  --color-rose: var(--rose);
 }
 
 /* Cooler greys (slate) and calmer status greens across the app */
@@ -47,17 +58,46 @@
 }
 
 body {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: var(--font-jakarta), 'Inter', system-ui, -apple-system, sans-serif;
   color: var(--ink);
 }
 
+.tabular, td, th { font-variant-numeric: tabular-nums; }
+
+/* The soft glows behind everything: this is what the frosted panels blur. It never scrolls. */
+.app-backdrop {
+  background-color: #f5f7fb;
+  background-image:
+    radial-gradient(46rem 40rem at -6% -10%, var(--glow-blue), transparent 62%),
+    radial-gradient(40rem 38rem at 104% 28%, var(--glow-red), transparent 62%),
+    radial-gradient(52rem 40rem at 42% 118%, var(--glow-ice), transparent 62%);
+  background-attachment: fixed;
+}
+
+/* Every main card in the app carries shadow-panel, so this one rule turns them all into frosted glass. */
 .shadow-panel {
-  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.06), 0 4px 16px -2px rgb(0 0 0 / 0.06);
+  background-color: var(--glass);
+  border-color: var(--glass-edge);
+  -webkit-backdrop-filter: blur(22px) saturate(1.15);
+  backdrop-filter: blur(22px) saturate(1.15);
+  box-shadow: 0 1px 2px rgb(20 33 61 / 0.04), 0 12px 40px -8px rgb(36 86 200 / 0.14);
 }
 
 .glass-panel {
-  background: rgba(255,255,255,0.85);
-  backdrop-filter: blur(12px);
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(22px) saturate(1.15);
+  backdrop-filter: blur(22px) saturate(1.15);
+}
+
+/* Main buttons and the active menu item are NGF blue (text stays navy through text-ink). */
+.bg-ink { background-color: var(--brand); }
+.hover\:bg-black\/90:hover, .hover\:bg-black:hover { background-color: var(--brand-deep); }
+
+@media (max-width: 640px) {
+  .shadow-panel, .glass-panel { -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .shadow-panel, .glass-panel { background-color: #ffffff; -webkit-backdrop-filter: none; backdrop-filter: none; }
 }
 
 input:not([type="file"]):not([type="password"]):not([type="checkbox"]):not([data-no-upper]),
@@ -191,8 +231,15 @@ html.ngf-dark .hover\:bg-white:hover { background-color: var(--card); }
 html.ngf-dark .bg-ink { background-color: #2b4a7e; color: #fff; }
 html.ngf-dark .hover\:bg-black:hover { background-color: #36588f; }
 html.ngf-dark [class*="border-white"] { border-color: var(--line); }
-html.ngf-dark .glass-panel { background: rgba(17,26,44,0.85); }
-html.ngf-dark .shadow-panel { box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.4), 0 4px 16px -2px rgb(0 0 0 / 0.4); }
+html.ngf-dark .glass-panel { background: rgba(17,26,44,0.72); }
+html.ngf-dark .shadow-panel { background-color: rgb(17 26 44 / 0.66); border-color: var(--line); box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.4), 0 12px 40px -8px rgb(0 0 0 / 0.5); }
+html.ngf-dark .app-backdrop {
+  background-color: #0b1220;
+  background-image:
+    radial-gradient(46rem 40rem at -6% -10%, rgb(36 86 200 / 0.38), transparent 62%),
+    radial-gradient(40rem 38rem at 104% 28%, rgb(201 47 59 / 0.22), transparent 62%),
+    radial-gradient(52rem 40rem at 42% 118%, rgb(36 86 200 / 0.22), transparent 62%);
+}
 
 /* Leaflet default icon fix */
 .leaflet-default-icon-path {

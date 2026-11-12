@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState, useMemo } from 'react'
 import { Session } from '@/types'
+import SaturdayCard from '@/components/SaturdayCard'
 import { formatCurrency as currency } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -429,6 +430,8 @@ export default function Dashboard({ session }: { session: Session }) {
               </span>
             </div>
           </motion.div>
+
+          {isAdmin && <SaturdayCard session={session} />}
 
           {/* Top Metric Cards - directly below header */}
           <TopMetricsRow metrics={metricCards} className="grid-cols-2 lg:grid-cols-4 xl:grid-cols-5" />

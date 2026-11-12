@@ -278,7 +278,7 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
         key={item.key}
         onClick={() => onPick(item.key)}
         variant={view === item.key ? 'default' : 'ghost'}
-        className={`w-full justify-start gap-3 rounded-xl px-3 text-sm font-medium transition-all ${view === item.key ? "shadow-[inset_3px_0_0_0_var(--gold)] " : ""}${nested && !collapsed ? 'py-2 pl-8' : 'py-2.5'} ${collapsed ? 'justify-center px-2' : ''}`}
+        className={`w-full justify-start gap-3 rounded-xl px-3 text-sm font-medium transition-all ${view === item.key ? "shadow-[0_8px_20px_-6px_rgb(36_86_200/0.5)] " : ""}${nested && !collapsed ? 'py-2 pl-8' : 'py-2.5'} ${collapsed ? 'justify-center px-2' : ''}`}
         title={collapsed ? item.label : undefined}
       >
         <MenuIcon name={item.key} />
@@ -366,7 +366,7 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
   }
 
   return (
-    <div className="flex h-screen w-full bg-mist">
+    <div className="app-backdrop flex h-screen w-full">
       {session.role === 'NGF AGENT' && <AgentTracker session={session} />}
       {session.role === 'NGF AGENT' && <PendingSubmitPrompt session={session} onOpen={id => { try { sessionStorage.setItem('ngf_open_verify', id) } catch { /* storage blocked */ } setView('myRoute'); setTimeout(() => window.dispatchEvent(new Event('ngf:openverify')), 50) }} />}
 {/* Mobile Sheet */}
@@ -417,7 +417,7 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
       <div className="flex h-screen w-full flex-1">
         {/* Desktop Sidebar */}
         <aside
-          className={`glass-panel flex flex-col transition-all duration-250 border-r border-line hidden lg:flex ${sidebarCollapsed ? 'w-14' : 'w-64'}`}
+          className={`glass-panel m-3 mr-0 flex flex-col overflow-hidden rounded-[1.75rem] border border-white/90 shadow-[0_12px_40px_-8px_rgb(36_86_200/0.18)] transition-all duration-250 hidden lg:flex ${sidebarCollapsed ? 'w-14' : 'w-64'}`}
           onMouseEnter={() => setSidebarHovered(true)}
           onMouseLeave={() => setSidebarHovered(false)}
         >
@@ -475,7 +475,7 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
           {/* Main */}
           <main className="flex min-w-0 flex-1 flex-col">
             {/* Mobile Header */}
-            <header className="sticky top-0 z-20 border-b border-line bg-white/90 pt-[env(safe-area-inset-top)] backdrop-blur-md lg:hidden">
+            <header className="glass-panel sticky top-0 z-20 border-b border-white/80 pt-[env(safe-area-inset-top)] lg:hidden">
               <div className="flex items-center justify-between gap-2 px-3 py-2.5">
                 <div className="flex items-center gap-2 min-w-0 flex-1">
                   <Button variant="ghost" size="icon" onClick={() => setMobileOpen(true)} aria-label="Open menu">
@@ -542,7 +542,7 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
             </header>
 
             {/* Desktop Header */}
-            <header className="sticky top-0 z-30 border-b border-line bg-white/90 pt-[env(safe-area-inset-top)] backdrop-blur-md hidden lg:block">
+            <header className="glass-panel sticky top-3 z-30 mx-3 mt-3 rounded-2xl border border-white/90 shadow-[0_12px_40px_-8px_rgb(36_86_200/0.14)] hidden lg:block">
               <div className="flex items-center justify-between gap-4 px-4 py-3 sm:px-6">
                 <div className="flex items-center gap-3">
                   <div>

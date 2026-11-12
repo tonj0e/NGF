@@ -49,7 +49,7 @@ export async function businessCounts() {
   const today = getTodayIST(), sat = saturdayOnOrAfter(today)
   const monday = addDaysIST(today, -((new Date(`${today}T00:00:00Z`).getUTCDay() + 6) % 7))
   const cnt = async (q: PromiseLike<{ count: number | null }>) => (await q).count || 0
-  const [customers, loansActive, pending, assigned, submitted, approved, returned, dueSat, overdue, paidWeek, chatPending, chatStale, batchesLive, failedAi, aiToday, linesOpen] = await Promise.all([
+  const [customers, loansActive, pending, assigned, submitted, approved, returned, dueSat, paidSat, overdue, paidWeek, chatPending, chatStale, batchesLive, failedAi, aiToday, linesOpen] = await Promise.all([
     cnt(sb().from('customers').select('customer_id', { count: 'exact', head: true })),
     cnt(sb().from('loans').select('loan_id', { count: 'exact', head: true }).eq('status', 'Active')),
     cnt(sb().from('leads').select('lead_id', { count: 'exact', head: true }).eq('status', 'Pending')),
@@ -58,6 +58,7 @@ export async function businessCounts() {
     cnt(sb().from('leads').select('lead_id', { count: 'exact', head: true }).eq('status', 'Approved').is('disbursed_at', null)),
     cnt(sb().from('leads').select('lead_id', { count: 'exact', head: true }).eq('status', 'Returned')),
     sb().from('repayments').select('amount').eq('status', 'Pending').eq('due_date', sat).limit(5000),
+    sb().from('repayments').select('amount').eq('status', 'Paid').eq('due_date', sat).limit(5000),   // already paid for the coming Saturday
     sb().from('repayments').select('amount').eq('status', 'Pending').lt('due_date', today).limit(5000),
     sb().from('repayments').select('amount').eq('status', 'Paid').gte('paid_date', monday).lte('paid_date', today).limit(5000),
     cnt(sb().from('payment_chat').select('message_id', { count: 'exact', head: true }).eq('status', 'Pending Staff').gte('created_at', istStartUtc(addDaysIST(today, -7)))),   // still fresh: staff should act now
@@ -70,7 +71,7 @@ export async function businessCounts() {
   return {
     today, nextSaturday: sat, customers, loansActive,
     leads: { pending, verificationInProgress: assigned, awaitingApproval: submitted, approvedWaitingDisbursement: approved, returned },
-    collection: { dueSaturdayCount: (dueSat.data || []).length, dueSaturdayAmount: sum(dueSat.data), overdueCount: (overdue.data || []).length, overdueAmount: sum(overdue.data), paidThisWeekCount: (paidWeek.data || []).length, paidThisWeekAmount: sum(paidWeek.data) },
+    collection: { dueSaturdayCount: (dueSat.data || []).length, dueSaturdayAmount: sum(dueSat.data), paidForSaturdayCount: (paidSat.data || []).length, paidForSaturdayAmount: sum(paidSat.data), overdueCount: (overdue.data || []).length, overdueAmount: sum(overdue.data), paidThisWeekCount: (paidWeek.data || []).length, paidThisWeekAmount: sum(paidWeek.data) },
     paymentScreenshotsNeedingStaff: chatPending, oldScreenshotsNeverClosed: chatStale, bankFilesLive: batchesLive, bankFileLinesNotDisbursed: linesOpen,
     aiCallsFailedToday: failedAi, aiSpendTodayUsd: Number((aiToday.data || []).reduce((t, r) => t + Number(r.cost_usd || 0), 0).toFixed(5)),
   }

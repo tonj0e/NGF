@@ -47,7 +47,7 @@ export default function Login({ onLogin }: { onLogin: (s: Session) => void }) {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-mist px-4">
+    <div className="app-backdrop flex min-h-screen items-center justify-center px-4">
       <div className="w-full max-w-md rounded-[2rem] border border-white/70 bg-white p-8 shadow-panel">
         <div className="text-center">
           <div className="inline-flex rounded-full bg-mist px-4 py-2 text-xs font-semibold uppercase tracking-widest text-soft">
@@ -158,7 +158,7 @@ function QrStep({ name, preAuth, remember, setRemember, onVerified, onBack }: {
   }, [])
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-mist px-4">
+    <div className="app-backdrop flex min-h-screen items-center justify-center px-4">
       <div className="w-full max-w-md rounded-[2rem] border border-white/70 bg-white p-8 shadow-panel">
         <div className="text-center">
           <h1 className="text-2xl font-semibold tracking-tight">Scan your ID card</h1>

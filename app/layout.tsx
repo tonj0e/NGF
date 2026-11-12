@@ -1,8 +1,12 @@
 import type { Metadata, Viewport } from 'next'
+import { Plus_Jakarta_Sans } from 'next/font/google'
 import './globals.css'
 import AutoUppercase from '@/components/AutoUppercase'
 import PwaClient from '@/components/PwaClient'
 import CsrfFetch from '@/components/CsrfFetch'
+
+// The app's typeface, self-hosted by Next (no request to Google from the browser)
+const jakarta = Plus_Jakarta_Sans({ subsets: ['latin'], variable: '--font-jakarta', display: 'swap' })
 
 export const metadata: Metadata = {
   title: 'NGF FINCORP',
@@ -24,7 +28,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="h-full" suppressHydrationWarning>
+    <html lang="en" className={`h-full ${jakarta.variable}`} suppressHydrationWarning>
       <head>
         {/* apply the saved dark mode before the page paints, so there is no light flash (login page too) */}
         <script dangerouslySetInnerHTML={{ __html: "try{if(localStorage.getItem('ngf_dark_mode')==='1')document.documentElement.classList.add('ngf-dark')}catch(e){}" }} />
