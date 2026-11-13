@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel } from '@/components/ui/dropdown-menu'
 import { Sheet, SheetContent, SheetClose } from '@/components/ui/sheet'
-import { Menu, X, Bell, User, LogOut, LayoutDashboard, Users, FileText, Truck, BarChart3, LandPlot, Upload, CreditCard, Settings, Shield, MessageSquare, MapPin, ClipboardList, Wallet, History, Sparkles, HelpCircle, ChevronLeft, ChevronRight, DollarSign, Coins, Banknote, Pin, PinOff, PieChart, TrendingUp, Route as RouteIcon, Navigation, Building2, Link2, LayoutGrid, ChevronDown, Smartphone } from 'lucide-react'
+import { Menu, X, Bell, User, LogOut, LayoutDashboard, Users, FileText, Truck, BarChart3, LandPlot, Upload, CreditCard, Settings, Shield, MessageSquare, MapPin, ClipboardList, Wallet, History, Sparkles, HelpCircle, ChevronLeft, ChevronRight, DollarSign, Coins, Banknote, Pin, PinOff, PieChart, TrendingUp, Route as RouteIcon, Navigation, Building2, Link2, LayoutGrid, ChevronDown, Smartphone, Moon, Sun } from 'lucide-react'
 const Dashboard = dynamic(() => import('./pages/Dashboard'), { loading: () => <PageLoading /> })   // charts and animation load only when the dashboard opens
 const LeadsPage = dynamic(() => import('./pages/LeadsPage'), { loading: () => <PageLoading /> })
 import InstallAppButton from './InstallAppButton'
@@ -203,10 +203,20 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
   const [sidebarHovered, setSidebarHovered] = useState(false)
   const [staffPerms, setStaffPerms] = useState<string[]>([])
 
-  // Apply the saved dark-mode preference (toggled from the Dev page)
+  // Dark mode: every person can switch it from their own menu (kept on this device)
+  const [dark, setDark] = useState(false)
   useEffect(() => {
-    document.documentElement.classList.toggle('ngf-dark', localStorage.getItem('ngf_dark_mode') === '1')
+    const on = localStorage.getItem('ngf_dark_mode') === '1'
+    document.documentElement.classList.toggle('ngf-dark', on)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setDark(on)
   }, [])
+  function toggleDark() {
+    const next = !dark
+    setDark(next)
+    try { localStorage.setItem('ngf_dark_mode', next ? '1' : '0') } catch { /* not saved on this device */ }
+    document.documentElement.classList.toggle('ngf-dark', next)
+  }
 
   // Staff menu is built from the features granted in Dev → Branches
   useEffect(() => {
@@ -517,6 +527,10 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
                         </div>
                       </DropdownMenuLabel>
                       <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={toggleDark}>
+                        {dark ? <Sun className="h-4 w-4 mr-2" /> : <Moon className="h-4 w-4 mr-2" />}
+                        {dark ? 'Light mode' : 'Dark mode'}
+                      </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => setView('myIdCard')}>
                         <User className="h-4 w-4 mr-2" />
                         My Profile
@@ -584,6 +598,10 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
                         </div>
                       </DropdownMenuLabel>
                       <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={toggleDark}>
+                        {dark ? <Sun className="h-4 w-4 mr-2" /> : <Moon className="h-4 w-4 mr-2" />}
+                        {dark ? 'Light mode' : 'Dark mode'}
+                      </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => setView('myIdCard')}>
                         <User className="h-4 w-4 mr-2" />
                         My Profile
