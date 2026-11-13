@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, getSession, ok, err } from '@/lib/api'
-import { readTable, selectRows, getSupabase } from '@/lib/supabase-db'
+import { readTable, selectRows, selectAll, getSupabase } from '@/lib/supabase-db'
+import { buildOverview } from '@/lib/commissions'
 import { scopeOf } from '@/lib/db'
 import { getTodayIST, getNextSaturday, addDaysIST } from '@/lib/dateUtils'
 
@@ -64,7 +65,19 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const totalInterest = Number(lo.total_interest)
   const availableCapital = totalCapital - Number(lo.total_principal) + Number(rep.total_collected)
 
+  // A guarantor's commission is shown by cycle: what this 5-week cycle has earned so far, and when it is paid
+  let cycleCard: { start: string; end: string; payoutDate: string; amount: number; loans: number; ready: number } | null = null
+  if (session.role === 'Guarantor') {
+    const g = (await selectRows('Guarantors', qb => qb.eq('user_id', session.userId).limit(1))).rows[0]
+    if (g) {
+      const [loans, payouts] = await Promise.all([selectAll('Loans', qb => qb.eq('guarantor_id', g['Guarantor ID'])), selectAll('PayoutRequests', qb => qb.eq('guarantor_id', g['Guarantor ID']))])
+      const o = buildOverview(loans, payouts, g['Commission Start'] || null, today)
+      if (o.current) cycleCard = { start: o.current.start, end: o.current.end, payoutDate: o.ready?.payoutDate || o.current.payoutDate, amount: o.current.amount, loans: o.current.loans, ready: o.available }
+    }
+  }
+
   return ok({
+    commissionCycle: cycleCard,
     metrics: {
       activeLoans: Number(lo.active_loans),
       overdueLoans: Number(lo.overdue_loans),
@@ -75,7 +88,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
       monthCollected: Number(rep.month_collected),
       totalLoanAmount: Number(lo.total_loan_amount),
       thisWeekCollection: Number(rep.this_week_collection),
-      commissionEarned: session.role === 'Guarantor' ? Number(lo.commission_total) : 0,
+      commissionEarned: session.role === 'Guarantor' ? (cycleCard ? cycleCard.amount : 0) : 0,
       assignedVerifications: Number(m.assigned_verifications || 0),
       todayDue: session.role === 'NGF AGENT' ? Number(rep.today_due) : 0,
       weekCollected: Number(rep.week_collected),

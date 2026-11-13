@@ -39,7 +39,7 @@ tags: [ngf, money, deposits]
 8. Admin GET without `guarantorId` returns summaries (principal, availableInterest, daysRemaining) for all guarantors.
 
 ## Rules and gotchas
-- Known issue: `DepositsPage.tsx:63` reads `data.settings.principalWithdraw`, but `GET /api/deposits` returns `principalWithdrawEnabled` (`lib/deposits.ts:13`). `principalAllowed` is always undefined, so the principal withdrawal form never shows even when the setting is on.
+- Fixed 2026-11-13: the page now reads `settings.principalWithdrawEnabled`, and was redesigned (countdown ring, next interest, passbook as a list). Old note: `DepositsPage.tsx:63` read `data.settings.principalWithdraw`, but `GET /api/deposits` returns `principalWithdrawEnabled` (`lib/deposits.ts:13`). `principalAllowed` is always undefined, so the principal withdrawal form never shows even when the setting is on.
 - Interest is simple, not compounding: unpaid cycles add up, and the full principal earns each cycle.
 - Because an `Interest Payout` resets `cycleStart` to its date, leftover days after the last completed cycle are lost when interest is withdrawn.
 - `computeDepositAccount` uses the server's local date (`ymd(new Date())`, `lib/deposits.ts:56`), not IST.

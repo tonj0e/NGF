@@ -29,6 +29,14 @@ tags: [ngf, money, commissions, payouts]
 8. Manual "Record Payout" on `GuarantorPage` lets the admin record Cash, UPI or Bank Transfer payouts without a request.
 9. "Commission Earned" on the dashboard, staff list, branch hierarchy and edit dialogs is now computed from loans (`lib/guarantorEarned.ts`), the same total as the Commissions page. Money and dates are formatted by `lib/format.ts`.
 
+## Cycles, Monday start (2026-11-13) - this replaces the 35-day rule above
+- A cycle is **5 whole weeks, Monday to Sunday (35 days)**, built in `lib/commissionCycles.ts` (`buildOverview`, `receiptNumber`; `lib/commissions.ts` re-exports it). Cycles run back to back from `Guarantors."Commission Start"` (a Monday; with none set, the Monday of the week of the guarantor's first loan). Loans before that date are not counted: a guarantor is added fresh at a Monday, nothing is migrated.
+- A loan earns its `Guarantor Commission` in the week it was disbursed (`Loans."Created At"`, IST). Weekly loan counts and amounts are shown per cycle.
+- A cycle ends on a Sunday. Status: `running`, `ready` (ended, not requested), `requested` (Pending payout), `paid`. The payout date is the first working day (Mon-Fri) after the end, so always the Monday after.
+- `PayoutRequests` has `cycle_start`, `cycle_end`, `receipt_no` (migration `20261113120000_commission_cycles.sql`). The guarantor requests a whole finished cycle once (`POST {cycleStart}`); Admin or Staff pay it with Approve (mode and reference) or Pay now (`payNow` with `cycleStart`). Receipt number `NGFR-<code>-<cycle start yyyymmdd>`, shown and printable on `CommissionsPage`.
+- The guarantor dashboard's commission box shows the running cycle (`/api/dashboard` `commissionCycle`).
+- Test guarantors Revathy and Bindhu were settled on 2026-11-13 and start Monday 2026-11-16 (first payout Monday 2026-12-21).
+
 ## One ledger (2026-11-13)
 - Commission paid now counts **two** places as one: `PayoutRequests` rows with status Paid, plus cash-book lines (`Settlements`, entity type `GuarantorCommission`) that do not name a payout (`PYOUT...`). `computeSummary(loans, payouts, today, manualPaid)` and `manualCommissionPaid()` in `lib/commissions.ts`. Before this, a manual "Record Commission Payment" on the Guarantors page never showed on the guarantor's own Commissions page.
 - Approve on Payout Requests now asks how it was paid (Cash, UPI, Bank Transfer) and a reference, and writes the cash-book line (`Notes: "<mode> payment PYOUT... ref ..."`). The QR scan path sends no mode, so it still writes its own line and nothing doubles.

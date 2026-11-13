@@ -6,6 +6,10 @@ import QRCode from 'qrcode'
 function currency(n: number) {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n)
 }
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+function longDate(d?: string | null) { if (!d) return '—'; const t = new Date(`${d.slice(0, 10)}T00:00:00Z`); return `${DAYS[t.getUTCDay()]}, ${t.getUTCDate()} ${MONTHS[t.getUTCMonth()]}` }
+function shortDate(d?: string | null) { if (!d) return '—'; const t = new Date(`${d.slice(0, 10)}T00:00:00Z`); return `${t.getUTCDate()} ${MONTHS[t.getUTCMonth()]} ${t.getUTCFullYear()}` }
 
 type Receipt = { requestId: string; type: string; amount: number; qrDataUrl: string }
 
@@ -23,6 +27,7 @@ export default function DepositsPage({ session }: { session: Session }) {
     fetch('/api/deposits', { headers: { Authorization: `Bearer ${session.token}` } })
       .then(r => r.json()).then(j => { if (j.success) setData(j.data) }).catch(() => {}).finally(() => setLoading(false))
   }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load() }, [])
 
   async function buildReceipt(requestId: string, type: string, amount: number) {
@@ -41,7 +46,7 @@ export default function DepositsPage({ session }: { session: Session }) {
         body: JSON.stringify(body),
       }).then(r => r.json())
       if (res.success) {
-        showToast('Withdrawal request submitted!', true)
+        showToast('Withdrawal requested', true)
         setPrincipalAmt('')
         await buildReceipt(res.data.requestId, res.data.type, res.data.amount)
         load()
@@ -59,128 +64,104 @@ export default function DepositsPage({ session }: { session: Session }) {
   if (!data) return <p className="p-8 text-center text-sm text-soft">No deposit account found.</p>
 
   const a = data.account
-  const hasPending = data.requests.some((r: any) => r.status === 'Pending')
-  const principalAllowed = data.settings.principalWithdraw
+  const pending = data.requests.find((r: any) => r.status === 'Pending')
+  const principalAllowed = !!data.settings?.principalWithdrawEnabled
+  // The ring fills as the 122-day cycle runs; it is full once interest can be withdrawn
+  const cycleDays = a.cycleDays || 122
+  const left = a.canWithdrawInterest ? 0 : Math.max(0, a.daysRemaining)
+  const fill = a.principal > 0 ? Math.min(1, Math.max(0, (cycleDays - left) / cycleDays)) : 0
+  const C = 2 * Math.PI * 35
 
   return (
-    <div className="space-y-5">
-      {toast && <div className={`fixed top-5 right-5 z-50 rounded-2xl px-5 py-3 text-sm font-medium text-white shadow-lg ${toast.ok ? 'bg-green-600' : 'bg-red-600'}`}>{toast.msg}</div>}
+    <div className="mx-auto max-w-2xl space-y-4">
+      {toast && <div className={`fixed left-4 right-4 top-4 z-50 rounded-2xl px-5 py-3 text-center text-sm font-medium text-white shadow-lg sm:left-auto sm:right-5 ${toast.ok ? 'bg-emerald-600' : 'bg-red-600'}`}>{toast.msg}</div>}
 
-      {/* Receipt modal */}
+      {/* Payout slip: show this QR to the office */}
       {receipt && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setReceipt(null)}>
-          <div className="w-full max-w-sm rounded-[1.75rem] bg-white shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 py-4 border-b border-black/5">
-              <div>
-                <p className="font-semibold">Withdrawal Receipt</p>
-                <p className="text-xs font-mono text-soft mt-0.5">{receipt.requestId}</p>
-              </div>
-              <button onClick={() => setReceipt(null)} className="rounded-full p-1.5 hover:bg-mist">
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
+          <div className="w-full max-w-sm overflow-hidden rounded-[1.75rem] bg-white shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-black/5 px-5 py-4">
+              <div><p className="font-semibold">Withdrawal slip</p><p className="mt-0.5 font-mono text-xs text-soft">{receipt.requestId}</p></div>
+              <button onClick={() => setReceipt(null)} aria-label="Close" className="rounded-full p-2 hover:bg-mist">✕</button>
             </div>
-            <div className="px-5 py-4 space-y-3 text-center">
-              <p className="text-xs text-soft uppercase tracking-wide">{receipt.type} Withdrawal</p>
-              <p className="text-3xl font-bold text-green-700">{currency(receipt.amount)}</p>
-              <img src={receipt.qrDataUrl} width={160} height={160} alt="QR" className="mx-auto rounded-xl border border-line" />
-              <p className="text-[11px] text-soft">Show this QR to admin to receive your payout</p>
-              <p className="text-[10px] text-amber-700 font-semibold">Status: Pending Admin Approval</p>
+            <div className="space-y-3 px-5 py-4 text-center">
+              <p className="text-xs uppercase tracking-wide text-soft">{receipt.type} withdrawal</p>
+              <p className="text-3xl font-extrabold text-brand">{currency(receipt.amount)}</p>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={receipt.qrDataUrl} width={170} height={170} alt="QR" className="mx-auto rounded-xl border border-line" />
+              <p className="text-xs text-soft">Show this QR to the office to receive your payout.</p>
+              <p className="text-xs font-semibold text-amber-700">Waiting for the office to approve</p>
             </div>
           </div>
         </div>
       )}
 
-      {/* Summary cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-[1.5rem] border border-white/70 bg-white p-5 shadow-panel">
-          <p className="text-xs text-soft">Total Deposit</p>
-          <p className="mt-2 text-3xl font-semibold">{currency(a.principal)}</p>
+      {/* Your deposit and the countdown to the next interest */}
+      <section className="rounded-[1.75rem] border border-white/70 bg-white p-5 shadow-panel">
+        <p className="text-sm text-soft">Your deposit</p>
+        <p className="text-5xl font-extrabold leading-tight tracking-tight">{currency(a.principal)}</p>
+        <p className="mt-1 text-sm text-soft">Earns {a.ratePerCycle}% every {cycleDays} days</p>
+        <div className="mt-5 flex items-center gap-4">
+          <div className="relative h-24 w-24 shrink-0" role="img" aria-label={a.canWithdrawInterest ? 'Interest is ready' : `${left} days left`}>
+            <svg viewBox="0 0 84 84" className="h-24 w-24 -rotate-90" aria-hidden="true">
+              <circle cx="42" cy="42" r="35" fill="none" stroke="rgba(20,33,61,0.10)" strokeWidth="9" />
+              <circle cx="42" cy="42" r="35" fill="none" stroke="var(--brand)" strokeWidth="9" strokeLinecap="round" strokeDasharray={`${C * fill} ${C}`} />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center leading-tight">
+              {a.canWithdrawInterest ? <span className="text-sm font-extrabold text-brand">Ready</span> : <><span className="text-2xl font-extrabold">{left}</span><span className="text-[11px] text-soft">days left</span></>}
+            </div>
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm text-soft">{a.canWithdrawInterest ? 'Interest you can withdraw' : 'Next interest'}</p>
+            <p className="text-3xl font-extrabold">{currency(a.canWithdrawInterest ? a.availableInterest : a.interestPerCycle)}</p>
+            <p className="mt-0.5 text-sm text-soft">{a.canWithdrawInterest ? `${a.completedCycles} finished ${a.completedCycles === 1 ? 'cycle' : 'cycles'}` : `Ready on ${longDate(a.nextWithdrawalDate)}`}</p>
+          </div>
         </div>
-        <div className="rounded-[1.5rem] border border-white/70 bg-white p-5 shadow-panel">
-          <p className="text-xs text-soft">Interest Available</p>
-          <p className={`mt-2 text-3xl font-semibold ${a.availableInterest > 0 ? 'text-green-700' : ''}`}>{currency(a.availableInterest)}</p>
-          <p className="mt-1 text-xs text-soft">{a.ratePerCycle}% per {a.cycleDays} days</p>
-        </div>
-        <div className="rounded-[1.5rem] border border-white/70 bg-white p-5 shadow-panel">
-          <p className="text-xs text-soft">Interest Withdrawn</p>
-          <p className="mt-2 text-3xl font-semibold">{currency(a.totalInterestPaid)}</p>
-        </div>
-        <div className="rounded-[1.5rem] border border-white/70 bg-white p-5 shadow-panel">
-          <p className="text-xs text-soft">Next Withdrawal</p>
-          <p className="mt-2 text-2xl font-semibold text-amber-600">{a.canWithdrawInterest ? 'Available' : `${a.daysRemaining}d`}</p>
-          <p className="mt-1 text-xs text-soft">{a.nextWithdrawalDate || '—'}</p>
-        </div>
-      </div>
+      </section>
 
-      {/* Withdraw hero */}
-      <div className="rounded-[1.75rem] border border-white/70 bg-white p-6 shadow-panel">
-        {hasPending ? (
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-            <div className="flex-1">
-              <p className="font-semibold text-amber-700">Withdrawal Request Pending</p>
-              <p className="text-sm text-soft mt-0.5">Your request of {currency(data.requests.find((r: any) => r.status === 'Pending')?.amount || 0)} is under review.</p>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <button onClick={showPendingReceipt} className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100">Show Receipt</button>
-              <span className="rounded-full bg-amber-100 px-4 py-1.5 text-xs font-semibold text-amber-700">Under Review</span>
-            </div>
+      {/* Withdraw */}
+      <section className="space-y-3 rounded-[1.75rem] border border-white/70 bg-white p-5 shadow-panel">
+        {pending ? (
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="min-w-0 flex-1"><p className="font-bold text-amber-800">Withdrawal requested</p><p className="text-sm text-soft">{currency(pending.amount)} is waiting for the office to approve.</p></div>
+            <button onClick={showPendingReceipt} className="min-h-11 rounded-2xl border border-amber-300 bg-amber-50 px-4 text-sm font-bold text-amber-800">Show my slip</button>
           </div>
         ) : (
-          <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-              <div className="flex-1">
-                <p className="text-xs text-soft mb-1">Interest available to withdraw</p>
-                <p className="text-3xl font-bold text-green-700">{currency(a.availableInterest)}</p>
-                <p className="text-sm text-soft mt-1">
-                  {a.canWithdrawInterest ? `${a.completedCycles} completed cycle${a.completedCycles !== 1 ? 's' : ''}` : `Available in ${a.daysRemaining} day${a.daysRemaining !== 1 ? 's' : ''}`}
-                </p>
-              </div>
-              <button onClick={() => request('Interest')} disabled={busy || !a.canWithdrawInterest}
-                className="rounded-2xl bg-green-700 px-7 py-3 text-sm font-semibold text-white hover:bg-green-800 disabled:opacity-50 transition shrink-0">
-                {busy ? 'Submitting…' : '↓ Withdraw Interest'}
-              </button>
-            </div>
-
-            {principalAllowed && a.principal > 0 && (
-              <div className="flex flex-col sm:flex-row items-start sm:items-end gap-3 border-t border-black/5 pt-4">
-                <label className="flex-1 w-full">
-                  <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-soft">Withdraw Principal (max {currency(a.principal)})</span>
-                  <input type="number" value={principalAmt} data-no-upper onChange={e => setPrincipalAmt(e.target.value)}
-                    className="w-full rounded-2xl border border-line bg-mist px-4 py-2.5 text-sm outline-none focus:border-ink focus:bg-white" />
-                </label>
-                <button onClick={() => request('Principal')} disabled={busy || !principalAmt}
-                  className="rounded-2xl border border-line px-5 py-2.5 text-sm font-semibold hover:bg-mist disabled:opacity-50 transition shrink-0">
-                  Request Principal Withdrawal
-                </button>
-              </div>
-            )}
+          <button onClick={() => request('Interest')} disabled={busy || !a.canWithdrawInterest}
+            className="min-h-12 w-full rounded-2xl bg-brand text-base font-extrabold text-white disabled:opacity-45">
+            {busy ? 'Requesting…' : a.canWithdrawInterest ? `Withdraw ${currency(a.availableInterest)} interest` : `Withdraw interest · in ${left} ${left === 1 ? 'day' : 'days'}`}
+          </button>
+        )}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="rounded-2xl bg-white/85 px-4 py-3"><p className="text-xs text-soft">Interest already taken</p><p className="text-xl font-extrabold">{currency(a.totalInterestPaid)}</p></div>
+          <div className="rounded-2xl bg-white/85 px-4 py-3"><p className="text-xs text-soft">Cycles finished</p><p className="text-xl font-extrabold">{a.completedCycles}</p></div>
+        </div>
+        {principalAllowed && a.principal > 0 && !pending && (
+          <div className="flex flex-col gap-3 border-t border-black/5 pt-4 sm:flex-row sm:items-end">
+            <label className="w-full flex-1"><span className="mb-1 block text-xs text-soft">Withdraw some of your deposit (up to {currency(a.principal)})</span>
+              <input type="number" inputMode="numeric" value={principalAmt} data-no-upper onChange={e => setPrincipalAmt(e.target.value)} className="min-h-12 w-full rounded-2xl border border-line bg-white px-4 text-base outline-none focus:border-brand" />
+            </label>
+            <button onClick={() => request('Principal')} disabled={busy || !principalAmt} className="min-h-12 shrink-0 rounded-2xl border border-brand/40 bg-white px-5 text-sm font-bold text-brand disabled:opacity-50">Request withdrawal</button>
           </div>
         )}
-      </div>
+      </section>
 
       {/* Passbook */}
-      <div className="overflow-hidden rounded-[1.75rem] border border-white/70 bg-white shadow-panel">
-        <div className="border-b border-black/5 px-5 py-4"><p className="text-sm font-semibold">Passbook</p></div>
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-black/5 bg-panel text-soft">
-            <tr>{['Date', 'Type', 'Amount', 'Note'].map(h => <th key={h} className="px-5 py-3 font-medium text-xs">{h}</th>)}</tr>
-          </thead>
-          <tbody className="divide-y divide-black/5">
-            {data.ledger.length === 0 && <tr><td colSpan={4} className="px-5 py-8 text-center text-sm text-soft">No transactions yet.</td></tr>}
-            {data.ledger.map((t: any) => {
-              const isIn = t.type === 'Deposit'
-              return (
-                <tr key={t.txnId} className="hover:bg-panel">
-                  <td className="px-5 py-3 text-soft">{t.date}</td>
-                  <td className="px-5 py-3 font-medium">{t.type}</td>
-                  <td className={`px-5 py-3 font-semibold ${isIn ? 'text-green-700' : 'text-red-600'}`}>{isIn ? '+' : '−'} {currency(t.amount)}</td>
-                  <td className="px-5 py-3 text-soft text-xs">{t.notes || '—'}</td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
+      <section className="overflow-hidden rounded-[1.75rem] border border-white/70 bg-white shadow-panel">
+        <div className="px-5 pb-2 pt-4"><h2 className="text-base font-extrabold">Passbook</h2></div>
+        {data.ledger.length === 0 && <p className="border-t border-black/5 px-5 py-8 text-center text-sm text-soft">No entries yet. Deposits and interest will show here.</p>}
+        {data.ledger.map((t: any) => {
+          const isIn = t.type === 'Deposit'
+          const label = t.type === 'Interest Payout' ? 'Interest paid' : t.type === 'Principal Withdrawal' ? 'Deposit withdrawn' : 'Deposit'
+          return (
+            <div key={t.txnId} className="flex items-center gap-3 border-t border-black/5 px-5 py-3">
+              <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-lg font-extrabold ${isIn ? 'bg-blue-100 text-blue-900' : 'bg-red-100 text-red-800'}`}>{isIn ? '+' : '−'}</span>
+              <span className="min-w-0 flex-1"><span className="block text-sm font-bold">{label}</span><span className="block text-xs text-soft">{shortDate(t.date)}{t.notes ? ` · ${t.notes}` : ''}</span></span>
+              <span className={`text-base font-extrabold ${isIn ? 'text-blue-900' : 'text-red-800'}`}>{currency(t.amount)}</span>
+            </div>
+          )
+        })}
+      </section>
     </div>
   )
 }

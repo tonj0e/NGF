@@ -346,9 +346,9 @@ export default function Dashboard({ session }: { session: Session }) {
       color: 'from-indigo-500 to-indigo-600',
     },
     {
-      label: 'Commission Earned',
+      label: 'Commission, this cycle',
       value: currency(m.commissionEarned || 0),
-      subtitle: 'Total to date',
+      subtitle: data.commissionCycle ? `Payout ${new Date(`${data.commissionCycle.payoutDate}T00:00:00`).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}` : 'Your first cycle starts on a Monday',
       trend: m.prevCommission ? { value: Math.round(((m.commissionEarned - m.prevCommission) / (m.prevCommission || 1)) * 100), label: 'vs last period' } : undefined,
       icon: (
         <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -406,12 +406,28 @@ export default function Dashboard({ session }: { session: Session }) {
 
   const metricCards = isAdmin ? adminMetricCards : isGuarantor ? guarantorMetricCards : agentMetricCards
 
+  const recollectionCard = (
+              <motion.div className="rounded-[1.75rem] border border-white/70 bg-white p-5 shadow-panel" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.1 }}>
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <p className="text-sm font-semibold">Recollection Rate</p>
+                    <p className="text-xs text-gray-500">Collected vs due this period</p>
+                  </div>
+                </div>
+                <RecollectionGauge
+                  value={m.recollectionRate ?? 0}
+                  collected={m.collectedCount ?? 0}
+                  pending={m.pendingCount ?? 0}
+                />
+              </motion.div>
+  )
+
   return (
     <ReducedMotionProvider>
       <PageTransition>
         <div className="space-y-4">
-          {/* Header with quick stats */}
-          <motion.div
+          {/* Header with quick stats (a guarantor starts straight at their numbers) */}
+          {!isGuarantor && <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3 }}
@@ -429,15 +445,17 @@ export default function Dashboard({ session }: { session: Session }) {
                 Live
               </span>
             </div>
-          </motion.div>
+          </motion.div>}
 
           {isAdmin && <SaturdayCard session={session} />}
 
           {/* Top Metric Cards - directly below header */}
           <TopMetricsRow metrics={metricCards} className="grid-cols-2 lg:grid-cols-4 xl:grid-cols-5" />
 
+          {isGuarantor && <div className="min-w-0">{recollectionCard}</div>}
+
           {/* Main Charts Grid */}
-          <motion.div
+          {!isGuarantor && <motion.div
             className="grid gap-4 sm:grid-cols-1 lg:grid-cols-12 min-w-0"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -484,22 +502,9 @@ export default function Dashboard({ session }: { session: Session }) {
                 />
               </motion.div>
 
-              {/* Recollection Rate Gauge */}
-              <motion.div className="rounded-[1.75rem] border border-white/70 bg-white p-5 shadow-panel" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.1 }}>
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <p className="text-sm font-semibold">Recollection Rate</p>
-                    <p className="text-xs text-gray-500">Collected vs due this period</p>
-                  </div>
-                </div>
-                <RecollectionGauge
-                  value={m.recollectionRate ?? 0}
-                  collected={m.collectedCount ?? 0}
-                  pending={m.pendingCount ?? 0}
-                />
-              </motion.div>
+              {recollectionCard}
             </motion.div>
-          </motion.div>
+          </motion.div>}
 
           {/* Second Row - Weekly Pattern & Lead Funnel */}
           <motion.div

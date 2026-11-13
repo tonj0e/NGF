@@ -45,7 +45,7 @@ export const APP_CONFIG = {
 
 export const SHEETS = {
   Users: ['User ID', 'Username', 'Password Hash', 'Salt', 'Role', 'Status', 'Name', 'Email', 'Guarantor Code', 'Created At', 'Updated At'],
-  Guarantors: ['Guarantor ID', 'User ID', 'Name', 'Code', 'Phone', 'Address', 'Commission Earned', 'Status', 'Created At', 'Updated At'],
+  Guarantors: ['Guarantor ID', 'User ID', 'Name', 'Code', 'Phone', 'Address', 'Commission Earned', 'Status', 'Created At', 'Updated At', 'Commission Start'],
   Agents: ['Agent ID', 'User ID', 'Name', 'Phone', 'Agent Type', 'Status', 'Created At', 'Updated At', 'Latitude', 'Longitude', 'Location Accuracy', 'Location Updated At', 'Is Tracking'],
   Notifications: ['Notification ID', 'User ID', 'Role', 'Title', 'Message', 'Entity Type', 'Entity ID', 'Is Read', 'Created At'],
   Logs: ['Log ID', 'User ID', 'Username', 'Role', 'Action', 'Entity Type', 'Entity ID', 'Metadata JSON', 'Created At'],
@@ -56,7 +56,7 @@ export const SHEETS = {
   Settlements: ['Settlement ID', 'Entity Type', 'Entity ID', 'Entity Name', 'Settlement Date', 'Saturday Date', 'Total Cash Due', 'Total UPI Due', 'Amount Submitted', 'Balance', 'Status', 'Notes', 'Recorded By', 'Created At'],
   ReviewOptions: ['Option ID', 'Label', 'Category', 'Created At'],
   Capital: ['Capital ID', 'Type', 'Contributor', 'Amount', 'Date', 'Notes', 'Created At'],
-  PayoutRequests: ['Payout ID', 'Guarantor ID', 'Amount', 'Status', 'Requested At', 'Processed At', 'Notes'],
+  PayoutRequests: ['Payout ID', 'Guarantor ID', 'Amount', 'Status', 'Requested At', 'Processed At', 'Notes', 'Cycle Start', 'Cycle End', 'Receipt No'],
   Branches: ['Branch ID', 'Name', 'Status', 'Created At'],
   StaffAccess: ['User ID', 'Branch ID', 'Permissions', 'Updated At'],
   Profiles: ['User ID', 'Photo', 'Blood Group', 'Emergency Contact', 'Place', 'Card Number', 'Updated At'],

@@ -3,13 +3,26 @@ import { apiHandler, getSession, requireRole, ok, err } from '@/lib/api'
 import { needFeature } from '@/lib/access'
 import { selectRows, selectAll, getRowById, appendRow, updateById, invalidateCache, deleteById, makeId, nowIso } from '@/lib/supabase-db'
 import { byIds, scopeOf } from '@/lib/db'
-import { computeSummary, guarantorCanSeeCommissions, manualCommissionPaid } from '@/lib/commissions'
+import { buildOverview, guarantorCanSeeCommissions, receiptNumber, type CommissionOverview } from '@/lib/commissions'
 import { getTodayIST } from '@/lib/dateUtils'
 import { randomInt } from 'crypto'
 import { getBranchAccess, canSeeGuarantor, canApproveIn, guarantorBranchMap } from '@/lib/branchAccess'
 
 const PAY_MODES = ['Cash', 'UPI', 'Bank Transfer']
-const commissionSettlements = (gid: string) => selectAll('Settlements', qb => qb.eq('entity_id', gid).eq('entity_type', 'GuarantorCommission'))
+
+const overviewOf = (g: Record<string, string>, loans: Record<string, string>[], payouts: Record<string, string>[]) =>
+  buildOverview(loans.filter(l => l['Guarantor ID'] === g['Guarantor ID']), payouts.filter(p => p['Guarantor ID'] === g['Guarantor ID']), g['Commission Start'] || null)
+
+// What the older Commissions page still reads, derived from the cycles
+const legacySummary = (o: CommissionOverview) => {
+  const ended = o.cycles.filter(c => c.status !== 'running')
+  const eligible = Math.round(ended.reduce((t, c) => t + c.amount, 0) * 100) / 100
+  return {
+    earned: o.earned, eligible, locked: Math.round((o.earned - eligible) * 100) / 100, paid: o.paid, pending: o.pending, available: o.available,
+    todayIST: o.today, nextPayoutDate: o.ready?.payoutDate || o.current?.payoutDate || null,
+    cycles: [...o.cycles].reverse().map(c => ({ start: c.start, end: c.end, amount: c.amount, past: c.status !== 'running' })),
+  }
+}
 
 // One cash-book line for a commission payment, so the Settlements page and the guarantor's own page agree
 async function recordCommissionSettlement(gid: string, name: string, amount: number, note: string, userId: string) {
@@ -41,8 +54,9 @@ export const GET = apiHandler(async (req: NextRequest) => {
     mine = await selectAll('PayoutRequests', qb => qb.eq('guarantor_id', g['Guarantor ID']))
 
     if (searchParams.get('summary') === '1') {
-      const [gl, gs] = await Promise.all([selectAll('Loans', qb => qb.eq('guarantor_id', g['Guarantor ID'])), commissionSettlements(g['Guarantor ID'])])
-      return ok(computeSummary(gl, mine, undefined, manualCommissionPaid(gs)))
+      const gl = await selectAll('Loans', qb => qb.eq('guarantor_id', g['Guarantor ID']))
+      const overview = overviewOf(g, gl, mine)
+      return ok({ ...legacySummary(overview), overview, guarantor: { name: String(g['Name'] || '').trim(), code: g['Code'] || '' } })
     }
   } else if (session.role === 'Staff') {
     // Staff see only payout requests of guarantors in their own branches
@@ -58,15 +72,22 @@ export const GET = apiHandler(async (req: NextRequest) => {
   if (session.role === 'Staff') { const sc = await scopeOf(session); scopeIds = sc.kind === 'guarantors' ? sc.ids : [] }
   const gRows = scopeIds ? await byIds('Guarantors', 'guarantor_id', scopeIds) : await selectAll('Guarantors', qb => qb)
   const gIds = gRows.map((g: any) => g['Guarantor ID'])
-  const [allLoans, allPayouts, allSettle] = gIds.length ? await Promise.all([
-    byIds('Loans', 'guarantor_id', gIds), byIds('PayoutRequests', 'guarantor_id', gIds), byIds('Settlements', 'entity_id', gIds),
-  ]) : [[], [], []]
+  const [allLoans, allPayouts] = gIds.length ? await Promise.all([byIds('Loans', 'guarantor_id', gIds), byIds('PayoutRequests', 'guarantor_id', gIds)]) : [[], []]
   const commissions = gRows.map((g: any) => {
     const gid = g['Guarantor ID']
-    const sm = computeSummary(allLoans.filter((l: any) => l['Guarantor ID'] === gid), allPayouts.filter((p: any) => p['Guarantor ID'] === gid), undefined, manualCommissionPaid(allSettle.filter((s: any) => s['Entity ID'] === gid)))
+    const o = overviewOf(g, allLoans, allPayouts)
     const pending = allPayouts.find((p: any) => p['Guarantor ID'] === gid && p['Status'] === 'Pending')
-    return { guarantorId: gid, name: String(g['Name'] || '').trim(), code: g['Code'] || '', earned: sm.earned, unlocked: sm.eligible, locked: sm.locked, paid: sm.paid, aheadPaid: Math.max(0, Math.round((sm.paid - sm.eligible) * 100) / 100), pending: sm.pending, available: sm.available, nextPayoutDate: sm.nextPayoutDate, pendingPayoutId: pending?.['Payout ID'] || '' }
-  }).filter((c: any) => c.earned > 0 || c.paid > 0 || c.pending > 0).sort((a: any, b: any) => b.available - a.available || b.earned - a.earned)
+    const cur = o.current
+    return {
+      guarantorId: gid, name: String(g['Name'] || '').trim(), code: g['Code'] || '', startMonday: o.startMonday,
+      earned: o.earned, unlocked: Math.round((o.available + o.pending + o.paid) * 100) / 100, locked: cur && cur.status === 'running' ? cur.amount : 0,
+      paid: o.paid, aheadPaid: 0, pending: o.pending, available: o.available,
+      cycleStart: cur?.start || '', cycleEnd: cur?.end || '', cycleDay: cur?.dayOfCycle || 0, cycleLoans: cur?.loans || 0, cycleAmount: cur?.amount || 0,
+      nextPayoutDate: o.ready?.payoutDate || cur?.payoutDate || null,
+      readyStart: o.ready?.start || '', readyAmount: o.ready?.amount || 0, readyPayoutDate: o.ready?.payoutDate || '',
+      pendingPayoutId: pending?.['Payout ID'] || '',
+    }
+  }).filter((c: any) => c.startMonday).sort((a: any, b: any) => b.available - a.available || b.earned - a.earned)
 
   const enriched = mine
     .sort((a: any, b: any) => b['Requested At'].localeCompare(a['Requested At']))
@@ -81,6 +102,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
         requestedAt: p['Requested At'],
         processedAt: p['Processed At'] || null,
         notes: p['Notes'] || '',
+        cycleStart: String(p['Cycle Start'] || '').slice(0, 10), cycleEnd: String(p['Cycle End'] || '').slice(0, 10), receiptNo: p['Receipt No'] || '',
         rejectionReason: p['Status'] === 'Rejected' ? (p['Notes'] || '') : '',
       }
     })
@@ -97,25 +119,26 @@ export const POST = apiHandler(async (req: NextRequest) => {
       await needFeature(session, ['payoutRequests'])
       const b = await req.json().catch(() => ({}))
       if (b?.action !== 'payNow') return err('Guarantors only', 403)
-      const gid = String(b.guarantorId || ''), mode = String(b.mode || ''), reference = String(b.reference || '').trim().slice(0, 60)
-      const amount = Math.round(Number(b.amount) * 100) / 100
+      const gid = String(b.guarantorId || ''), mode = String(b.mode || ''), reference = String(b.reference || '').trim().slice(0, 60), cycleStart = String(b.cycleStart || '')
       if (!gid) return err('Choose a guarantor')
       if (!PAY_MODES.includes(mode)) return err('Choose how it was paid: Cash, UPI or Bank Transfer')
-      if (!Number.isFinite(amount) || amount <= 0) return err('Invalid amount')
       const g = await getRowById('Guarantors', gid)
       if (!g) return err('Guarantor not found', 404)
       if (session.role === 'Staff') {
         const [access, gMap] = await Promise.all([getBranchAccess(session), guarantorBranchMap()])
         if (!canApproveIn(access, gMap.get(gid) || '')) return err('This guarantor belongs to another branch', 403)
       }
-      const [loans, payouts, settle] = await Promise.all([selectAll('Loans', qb => qb.eq('guarantor_id', gid)), selectAll('PayoutRequests', qb => qb.eq('guarantor_id', gid)), commissionSettlements(gid)])
-      if (payouts.some((p: any) => p['Status'] === 'Pending')) return err('This guarantor has a pending request. Approve or reject it first.')
-      const sm = computeSummary(loans, payouts, undefined, manualCommissionPaid(settle))
-      if (sm.eligible <= 0) return err('No completed 35-day cycle yet, so nothing is unlocked to pay.')
-      if (amount > sm.available + 0.005) return err(`Only ${sm.available.toFixed(2)} is unlocked and unpaid for this guarantor`)
+      const [loans, payouts] = await Promise.all([selectAll('Loans', qb => qb.eq('guarantor_id', gid)), selectAll('PayoutRequests', qb => qb.eq('guarantor_id', gid))])
+      const cycle = overviewOf(g, loans, payouts).cycles.find(c => c.start === cycleStart)
+      if (!cycle) return err('That cycle was not found')
+      if (cycle.status === 'running') return err(`This cycle ends on ${cycle.end}. It can be paid after that.`)
+      if (cycle.status === 'requested') return err('This cycle has a pending request. Approve or reject it first.')
+      if (cycle.status === 'paid') return err('This cycle is already paid')
+      if (cycle.amount <= 0) return err('No commission was earned in this cycle')
+      const amount = cycle.amount
       const payoutId = `PYOUT${Date.now()}${String(randomInt(0, 10000)).padStart(4, '0')}`
       const now = new Date().toISOString()
-      await appendRow('PayoutRequests', { 'Payout ID': payoutId, 'Guarantor ID': gid, 'Amount': amount.toFixed(2), 'Status': 'Paid', 'Requested At': now, 'Processed At': now, 'Notes': `Paid by ${session.userId} (${mode}${reference ? `, ref ${reference}` : ''})` })
+      await appendRow('PayoutRequests', { 'Payout ID': payoutId, 'Guarantor ID': gid, 'Amount': amount.toFixed(2), 'Status': 'Paid', 'Requested At': now, 'Processed At': now, 'Cycle Start': cycle.start, 'Cycle End': cycle.end, 'Receipt No': receiptNumber(g['Code'], cycle.start), 'Notes': `Paid by ${session.userId} (${mode}${reference ? `, ref ${reference}` : ''})` })
       invalidateCache('PayoutRequests')
       await recordCommissionSettlement(gid, String(g['Name'] || ''), amount, `${mode} payment ${payoutId}${reference ? ` ref ${reference}` : ''}`, session.userId)
       return ok({ payoutId, message: 'Commission payment recorded' })
@@ -125,23 +148,25 @@ export const POST = apiHandler(async (req: NextRequest) => {
     if (!(await guarantorCanSeeCommissions(session))) return err('You do not have access to commissions', 403)
 
     const body = await req.json().catch(() => ({}))
-    const amount = Math.round(Number(body?.amount) * 100) / 100
-    if (!Number.isFinite(amount) || amount <= 0) return err('Invalid amount')
 
     const g = (await selectRows('Guarantors', qb => qb.eq('user_id', session.userId).limit(1))).rows[0]
     if (!g) return err('Guarantor not found', 404)
     const gid = g['Guarantor ID']
-    const [payouts, loans, settle] = await Promise.all([
-      selectAll('PayoutRequests', qb => qb.eq('guarantor_id', gid)), selectAll('Loans', qb => qb.eq('guarantor_id', gid)), commissionSettlements(gid),
+    const [payouts, loans] = await Promise.all([
+      selectAll('PayoutRequests', qb => qb.eq('guarantor_id', gid)), selectAll('Loans', qb => qb.eq('guarantor_id', gid)),
     ])
 
     const isPending = (p: any) => p['Guarantor ID'] === gid && p['Status'] === 'Pending'
     if (payouts.some(isPending)) return err('You already have a pending payout request')
 
-    // Only commission from finished 35-day cycles, minus Paid and Pending, can be requested
-    const summary = computeSummary(loans.filter(l => l['Guarantor ID'] === gid), payouts.filter((p: any) => p['Guarantor ID'] === gid), undefined, manualCommissionPaid(settle))
-    if (summary.eligible <= 0) return err('No completed payout cycles yet. Payout unlocks after 35 days.')
-    if (amount > summary.available + 0.005) return err(`Amount is more than your available commission (${summary.available.toFixed(2)})`)
+    // Only a finished cycle can be requested, once, for its full commission
+    const ov = overviewOf(g, loans, payouts)
+    const cycle = body?.cycleStart ? ov.cycles.find(c => c.start === String(body.cycleStart)) : ov.ready
+    if (!cycle) return err('No finished cycle to request yet. Your cycle runs Monday to Sunday for 5 weeks.')
+    if (cycle.status === 'running') return err(`Your cycle ends on ${cycle.end}. You can request after that.`)
+    if (cycle.status !== 'ready') return err('This cycle already has a payout')
+    if (cycle.amount <= 0) return err('No commission was earned in this cycle')
+    const amount = cycle.amount
 
     // PYOUT + digits (settlements matches /PYOUT\d+/): millisecond timestamp + 4 random digits
     const payoutId = `PYOUT${Date.now()}${String(randomInt(0, 10000)).padStart(4, '0')}`
@@ -151,7 +176,9 @@ export const POST = apiHandler(async (req: NextRequest) => {
       'Amount': amount.toFixed(2),
       'Status': 'Pending',
       'Requested At': new Date().toISOString(),
-      'Notes': '',
+      'Cycle Start': cycle.start,
+      'Cycle End': cycle.end,
+      'Notes': `Payout on ${cycle.payoutDate}`,
     })
     invalidateCache('PayoutRequests')
 
@@ -202,15 +229,16 @@ export const PATCH = apiHandler(async (req: NextRequest) => {
     ? `Rejected by admin ${session.userId}: ${body.notes || 'No reason provided'}`
     : `Recorded by ${session.userId}${mode ? ` (${mode}${reference ? `, ref ${reference}` : ''})` : ''}`
 
+  const gRow = await getRowById('Guarantors', payout['Guarantor ID'])
   await updateById('PayoutRequests', payoutId, {
     'Status': newStatus,
     'Processed At': new Date().toISOString(),
     'Notes': notes,
+    ...(action === 'approve' && payout['Cycle Start'] && !payout['Receipt No'] ? { 'Receipt No': receiptNumber(String(gRow?.['Code'] || ''), String(payout['Cycle Start']).slice(0, 10)) } : {}),
   })
   invalidateCache('PayoutRequests')
   if (action === 'approve' && mode) {
-    const g = await getRowById('Guarantors', payout['Guarantor ID'])
-    await recordCommissionSettlement(payout['Guarantor ID'], String(g?.['Name'] || ''), Number(payout['Amount'] || 0), `${mode} payment ${payoutId}${reference ? ` ref ${reference}` : ''}`, session.userId)
+    await recordCommissionSettlement(payout['Guarantor ID'], String(gRow?.['Name'] || ''), Number(payout['Amount'] || 0), `${mode} payment ${payoutId}${reference ? ` ref ${reference}` : ''}`, session.userId)
   }
 
   return ok({ message: `Payout marked as ${newStatus}` })

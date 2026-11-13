@@ -1,542 +1,252 @@
 'use client'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Session } from '@/types'
 import QRCode from 'qrcode'
+import { formatINR, formatDateIN } from '@/lib/format'
+import type { CommissionOverview, CommissionCycle } from '@/lib/commissionCycles'
 
-import { formatINR, formatINRShort, formatDateIN } from '@/lib/format'
-
+// The guarantor's commission page. A cycle is 5 whole weeks, Monday to Sunday; each loan earns its commission in the week it was paid out.
+// When a cycle ends the guarantor requests it once, and it is paid on the next working day (always a Monday). A paid cycle has a receipt.
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-function monthLabel(ym: string) {
-  const [y, m] = ym.split('-')
-  return `${MONTHS[Number(m) - 1] ?? m} ${y}`
-}
-function dayDiff(from: string, to: string) {
-  return Math.round((new Date(to + 'T00:00:00Z').getTime() - new Date(from + 'T00:00:00Z').getTime()) / 86400000)
+const FULL_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+const parts = (d: string) => ({ y: +d.slice(0, 4), m: +d.slice(5, 7) - 1, day: +d.slice(8, 10), w: new Date(`${d}T00:00:00Z`).getUTCDay() })
+const range = (a: string, b: string) => { const x = parts(a), y = parts(b); return x.m === y.m ? `${x.day} – ${y.day} ${MONTHS[y.m]}` : `${x.day} ${MONTHS[x.m]} – ${y.day} ${MONTHS[y.m]}` }
+const longDate = (d: string) => { const p = parts(d); return `${DAYS[p.w]}, ${p.day} ${FULL_MONTHS[p.m]}` }
+const esc = (v: unknown) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string))
+const payInfo = (note: string) => { const m = /\((Cash|UPI|Bank Transfer)(?:, ref ([^)]+))?\)/.exec(note || ''); return { mode: m?.[1] || '', ref: m?.[2] || '' } }
+
+type Data = { overview: CommissionOverview; guarantor: { name: string; code: string } }
+type Payout = { payoutId: string; amount: number; status: string; notes?: string; rejectionReason?: string; requestedAt?: string }
+type Qr = { payoutId: string; amount: number; dataUrl: string; from: string; to: string }
+
+const CHIP: Record<string, string> = { running: 'bg-blue-100 text-blue-900', ready: 'bg-emerald-100 text-emerald-800', requested: 'bg-amber-100 text-amber-900', paid: 'bg-emerald-100 text-emerald-800' }
+const CHIP_TEXT: Record<string, string> = { running: 'Running', ready: 'Finished', requested: 'Requested', paid: 'Paid' }
+
+function Segments({ cycle, today }: { cycle: CommissionCycle; today: string }) {
+  return (
+    <div className="flex gap-1.5" role="img" aria-label={`${cycle.weeks.filter(w => w.end < today).length} of 5 weeks done`}>
+      {cycle.weeks.map(w => <div key={w.start} className={`h-2.5 flex-1 rounded-full ${w.end < today ? 'bg-brand' : w.start <= today ? 'bg-brand/50' : 'bg-black/10'}`} />)}
+    </div>
+  )
 }
 
-type Loan = { loanId: string; customerName?: string; guarantorCommission?: string | number; status?: string; startDate?: string }
-type Payout = { payoutId: string; amount: number; status: string; requestedAt?: string; processedAt?: string; notes?: string; rejectionReason?: string }
-type SummaryCycle = { start: string; end: string; amount: number; past: boolean }
-type Summary = { earned: number; eligible: number; locked: number; paid: number; pending: number; available: number; todayIST: string; nextPayoutDate: string | null; cycles: SummaryCycle[] }
-type Row = Loan & { inCurrentCycle: boolean; cycleIdx: number }
-type ReceiptData = { payoutId: string; qrDataUrl: string; amount: number; periodFrom: string; periodTo: string; loans: Row[] }
+function Weeks({ cycle, today }: { cycle: CommissionCycle; today: string }) {
+  const max = Math.max(1, ...cycle.weeks.map(w => w.loans))
+  return (
+    <div>
+      {cycle.weeks.map((w, i) => {
+        const done = w.end < today, now = !done && w.start <= today
+        return (
+          <div key={w.start} className={`border-t border-black/5 px-4 py-3 ${now ? 'bg-brand/5' : ''}`}>
+            <div className="flex items-baseline justify-between gap-3">
+              <p className="text-sm"><span className="font-bold">Week {i + 1}</span><span className="ml-2 text-xs text-soft">{range(w.start, w.end)}</span>{now && <span className="ml-2 rounded-full bg-brand px-2 py-0.5 text-[11px] font-bold text-white">This week</span>}</p>
+              {(done || now) ? <p className="text-base font-extrabold">{formatINR(w.amount)}</p> : <p className="text-xs text-soft">Not started</p>}
+            </div>
+            <div className="mt-2 flex items-center gap-3">
+              <div className="h-2 flex-1 overflow-hidden rounded-full bg-black/10"><div className="h-full rounded-full bg-brand transition-all" style={{ width: `${(done || now) && w.loans ? Math.max(6, (w.loans / max) * 100) : 0}%` }} /></div>
+              <span className="w-24 text-right text-xs text-soft">{done || now ? `${w.loans} ${w.loans === 1 ? 'loan' : 'loans'}${now ? ' so far' : ''}` : ''}</span>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
 
 export default function CommissionsPage({ session }: { session: Session }) {
-  const [loans, setLoans] = useState<Loan[]>([])
+  const [data, setData] = useState<Data | null>(null)
   const [payouts, setPayouts] = useState<Payout[]>([])
-  const [summary, setSummary] = useState<Summary | null>(null)
   const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
-  const [requesting, setRequesting] = useState(false)
+  const [busy, setBusy] = useState(false)
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
-  const [receipt, setReceipt] = useState<ReceiptData | null>(null)
-  const [dismissedRejected, setDismissedRejected] = useState(false)
-  const [monthFilter, setMonthFilter] = useState('all')
-  const [statusFilter, setStatusFilter] = useState('all')
-  const loadedOnce = useRef(false)
+  const [qr, setQr] = useState<Qr | null>(null)
+  const [receipt, setReceipt] = useState<CommissionCycle | null>(null)
 
-  const load = async () => {
-    if (loadedOnce.current) setRefreshing(true)
-    else setLoading(true)
+  const showToast = (msg: string, ok: boolean) => { setToast({ msg, ok }); setTimeout(() => setToast(null), 3500) }
+  const load = useCallback(async () => {
     try {
       const headers = { Authorization: `Bearer ${session.token}` }
-      const [loansRes, payoutsRes, sumRes] = await Promise.all([
-        fetch('/api/loans?filter=all', { headers }).then(r => r.json()),
-        fetch('/api/commissions/payout', { headers }).then(r => r.json()),
-        fetch('/api/commissions/payout?summary=1', { headers }).then(r => r.json()),
-      ])
-      const failed = [loansRes, payoutsRes, sumRes].find(r => !r || r.success === false)
-      if (failed) throw new Error(failed?.error || 'Could not load commissions')
-      const pl: Payout[] = payoutsRes.data?.payouts || []
-      setLoans(loansRes.data?.loans || [])
-      setPayouts(pl)
-      setSummary(sumRes.data as Summary)
-      setLoadError(null)
-      loadedOnce.current = true
-      const latestId = pl[0]?.payoutId
-      if (latestId) {
-        try { setDismissedRejected(localStorage.getItem(`payout_dismissed_${latestId}`) === 'true') } catch { setDismissedRejected(false) }
-      }
-    } catch (e) {
-      setLoadError(e instanceof Error && e.message ? e.message : 'Could not load commissions')
-    } finally {
-      setLoading(false)
-      setRefreshing(false)
-    }
-  }
-
+      const [s, p] = await Promise.all([fetch('/api/commissions/payout?summary=1', { headers }).then(r => r.json()), fetch('/api/commissions/payout', { headers }).then(r => r.json())])
+      const failed = [s, p].find(r => !r || r.success === false)
+      if (failed) throw new Error(failed?.error || 'Could not load commission')
+      setData({ overview: s.data.overview, guarantor: s.data.guarantor }); setPayouts(p.data?.payouts || []); setLoadError(null)
+    } catch (e) { setLoadError(e instanceof Error && e.message ? e.message : 'Could not load commission') }
+    setLoading(false)
+  }, [session.token])
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load()
     const onVisible = () => { if (document.visibilityState === 'visible') load() }
     document.addEventListener('visibilitychange', onVisible)
     return () => document.removeEventListener('visibilitychange', onVisible)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [load])
 
-  const showToast = (msg: string, ok: boolean) => {
-    setToast({ msg, ok })
-    setTimeout(() => setToast(null), 3500)
+  // The slip the office scans to record the payment
+  async function openQr(c: CommissionCycle, payoutId: string) {
+    const payload = JSON.stringify({ t: 'NGF_PAYOUT', pid: payoutId, gn: session.name, uid: session.userId, amt: c.amount, pf: c.start, pt: c.end, rd: data?.overview.today })
+    const dataUrl = await QRCode.toDataURL(payload, { width: 220, margin: 2, color: { dark: '#1a1a2e', light: '#ffffff' } })
+    setQr({ payoutId, amount: c.amount, dataUrl, from: c.start, to: c.end })
+  }
+  async function request(c: CommissionCycle) {
+    setBusy(true)
+    try {
+      const res = await fetch('/api/commissions/payout', { method: 'POST', headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ cycleStart: c.start }) }).then(r => r.json())
+      if (res?.success && res.data?.payoutId) { showToast('Payout requested', true); try { await openQr(c, res.data.payoutId) } catch { /* the slip can be opened again later */ } }
+      else showToast(res?.error || 'Request failed', false)
+      load()
+    } catch (e) { showToast(e instanceof Error && e.message ? e.message : 'Request failed', false) }
+    setBusy(false)
   }
 
-  // ── Derived from server summary ──
-  const todayStr = summary?.todayIST ?? ''
-  const cycles = summary?.cycles ?? []
-  const pastCycles = cycles.filter(c => c.past)
-  const currentCycle = cycles.find(c => !c.past) ?? null
-  const currentCycleIdx = currentCycle ? cycles.indexOf(currentCycle) : -1
-  const nextPayout = summary?.nextPayoutDate ?? currentCycle?.end ?? null
-  const daysUntilPayout = nextPayout && todayStr ? Math.max(0, dayDiff(todayStr, nextPayout)) : 0
-  const totalEarned = summary?.earned ?? 0
-  const lockedCommission = summary?.locked ?? 0
-  const availableAmount = summary?.available ?? 0
-  const pendingAmount = summary?.pending ?? 0
-
-  const pendingPayout = payouts.find(p => p.status === 'Pending')
-  const hasPending = !!pendingPayout
-  const latestPayout = payouts.length > 0 ? payouts[0] : null
-  const hasRejected = latestPayout?.status === 'Rejected'
-  const canRequestPayout = pastCycles.length > 0 && availableAmount > 0 && !hasPending
-
-  const enriched: Row[] = loans.map(l => {
-    const idx = l.startDate ? cycles.findIndex(c => l.startDate! >= c.start && l.startDate! < c.end) : -1
-    const past = idx >= 0 ? cycles[idx].past : false
-    return { ...l, inCurrentCycle: !past, cycleIdx: idx >= 0 ? idx : 0 }
-  })
-  const eligibleRows = enriched.filter(l => !l.inCurrentCycle)
-
-  const months = Array.from(new Set(enriched.map(l => (l.startDate || '').slice(0, 7)).filter(Boolean))).sort().reverse()
-  const visibleRows = enriched.filter(l =>
-    (monthFilter === 'all' || (l.startDate || '').startsWith(monthFilter)) &&
-    (statusFilter === 'all' || (statusFilter === 'eligible' ? !l.inCurrentCycle : l.inCurrentCycle))
-  )
-  const visibleTotal = visibleRows.reduce((s, l) => s + Number(l.guarantorCommission || 0), 0)
-
-  // ── Receipt generator ──
-  const esc = (v: unknown) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string))
-  const buildReceiptHtml = (payoutId: string, qrDataUrl: string, amount: number, periodFrom: string, periodTo: string, eligibleLoans: Row[]) => {
-    const loanRows = eligibleLoans.map(l =>
-      `<tr><td>${esc(l.customerName)}</td><td class="mono">${esc(String(l.loanId).slice(-9))}</td><td class="amt">+${esc(formatINR(Number(l.guarantorCommission || 0)))}</td></tr>`
-    ).join('')
-    return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Payout Receipt – ${esc(payoutId)}</title>
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Segoe UI',sans-serif;background:#f5f5f5;display:flex;justify-content:center;padding:24px}
-.card{background:#fff;border-radius:16px;padding:28px;width:400px;box-shadow:0 2px 12px rgba(0,0,0,.1)}
-.header{text-align:center;border-bottom:2px solid #1a1a2e;padding-bottom:14px;margin-bottom:16px}
-.header h1{font-size:22px;font-weight:800;color:#1a1a2e;letter-spacing:1px}
-.header .sub{font-size:11px;color:#697586;margin-top:2px}
-.header .pid{display:inline-block;background:#f4f5f7;border-radius:20px;padding:3px 12px;font-size:10px;font-weight:700;color:#1a1a2e;margin-top:8px;font-family:monospace}
-.meta{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
-.mi label{font-size:9.5px;color:#697586;font-weight:700;text-transform:uppercase;letter-spacing:.5px;display:block}
-.mi span{font-size:12px;font-weight:700;display:block;margin-top:2px}
-table{width:100%;border-collapse:collapse;font-size:11px;margin-bottom:8px}
-thead tr{background:#f4f5f7}
-th{padding:6px 8px;text-align:left;font-size:9.5px;color:#697586;font-weight:700;text-transform:uppercase;letter-spacing:.4px}
-td{padding:7px 8px;border-bottom:1px solid #f0f0f0}
-td.amt{text-align:right;font-weight:700;color:#15803d}
-td.mono{font-family:monospace;font-size:10px;color:#697586}
-.total{display:flex;justify-content:space-between;align-items:center;background:#f0fdf4;border-radius:10px;padding:12px 14px;font-weight:800;font-size:15px;color:#15803d;margin:10px 0 18px}
-.qr{text-align:center;padding:10px 0}
-.qr img{border-radius:10px;border:1px solid #e5e7eb}
-.qr-label{font-size:10px;color:#697586;margin-top:6px}
-.footer{text-align:center;font-size:10px;color:#9ca3af;border-top:1px solid #f0f0f0;padding-top:12px;margin-top:12px;line-height:1.6}
-@media print{body{background:#fff;padding:0}.card{box-shadow:none;border-radius:0;width:100%}}
-</style></head><body>
-<div class="card">
-  <div class="header">
-    <h1>NGF FINCORP</h1>
-    <p class="sub">Commission Payout Receipt</p>
-    <div class="pid">${esc(payoutId)}</div>
-  </div>
-  <div class="meta">
-    <div class="mi"><label>Guarantor</label><span>${esc(session.name)}</span></div>
-    <div class="mi"><label>Requested On</label><span>${esc(formatDateIN(todayStr))}</span></div>
-    <div class="mi"><label>Period From</label><span>${esc(formatDateIN(periodFrom))}</span></div>
-    <div class="mi"><label>Payout date</label><span>${esc(formatDateIN(periodTo))}</span></div>
-  </div>
-  <table>
-    <thead><tr><th>Customer</th><th>Loan</th><th style="text-align:right">Commission</th></tr></thead>
-    <tbody>${loanRows || '<tr><td colspan="3" style="text-align:center;color:#697586;padding:12px">No eligible loans</td></tr>'}</tbody>
-  </table>
-  <div class="total"><span>Total Payout Amount</span><span>${esc(formatINR(amount))}</span></div>
-  <div class="qr">
-    <img src="${qrDataUrl}" width="190" height="190" alt="Payout QR" />
-    <p class="qr-label">Admin scans this QR to record payment</p>
-  </div>
-  <div class="footer">NGF FINCORP · Status: Pending Admin Approval<br/>Generated on ${esc(formatDateIN(todayStr))}</div>
-</div>
-</body></html>`
-  }
-
-  const generateReceipt = async (payoutId: string) => {
-    const eligibleLoans = eligibleRows
-    const periodFrom = pastCycles[0]?.start ?? todayStr
-    const periodTo = pastCycles[pastCycles.length - 1]?.end ?? todayStr
-    const qrPayload = JSON.stringify({ t: 'NGF_PAYOUT', pid: payoutId, gn: session.name, uid: session.userId, amt: availableAmount, pf: periodFrom, pt: periodTo, rd: todayStr })
-    const qrDataUrl = await QRCode.toDataURL(qrPayload, { width: 220, margin: 2, color: { dark: '#1a1a2e', light: '#ffffff' } })
-    setReceipt({ payoutId, qrDataUrl, amount: availableAmount, periodFrom, periodTo, loans: eligibleLoans })
-  }
-
-  const showPendingReceipt = async () => {
-   try {
-    const pending = pendingPayout
-    if (!pending) return
-    const eligibleLoans = eligibleRows
-    const periodFrom = pastCycles[0]?.start ?? todayStr
-    const periodTo = pastCycles[pastCycles.length - 1]?.end ?? todayStr
-    const qrPayload = JSON.stringify({ t: 'NGF_PAYOUT', pid: pending.payoutId, gn: session.name, uid: session.userId, amt: pending.amount, pf: periodFrom, pt: periodTo, rd: pending.requestedAt?.slice(0, 10) ?? todayStr })
-    const qrDataUrl = await QRCode.toDataURL(qrPayload, { width: 220, margin: 2, color: { dark: '#1a1a2e', light: '#ffffff' } })
-    setReceipt({ payoutId: pending.payoutId, qrDataUrl, amount: pending.amount, periodFrom, periodTo, loans: eligibleLoans })
-   } catch { showToast('Could not generate receipt', false) }
-  }
-
-  const downloadReceipt = () => {
-    if (!receipt) return
-    const html = buildReceiptHtml(receipt.payoutId, receipt.qrDataUrl, receipt.amount, receipt.periodFrom, receipt.periodTo, receipt.loans)
-    const w = window.open('', '_blank', 'width=500,height=760')
+  function printReceipt(c: CommissionCycle) {
+    const info = payInfo(c.paidNote)
+    const rows = c.weeks.map((w, i) => `<tr><td>Week ${i + 1} · ${esc(range(w.start, w.end))}</td><td class="r">${w.loans} loans · ${esc(formatINR(w.amount))}</td></tr>`).join('')
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Commission receipt ${esc(c.receiptNo)}</title><style>
+*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Segoe UI',sans-serif;background:#f5f7fb;display:flex;justify-content:center;padding:24px;color:#14213d}
+.card{background:#fff;border-radius:18px;padding:28px;width:420px;box-shadow:0 2px 14px rgba(0,0,0,.1)}
+h1{font-size:20px;font-weight:800;letter-spacing:1px}.sub{font-size:12px;color:#5b6b82;margin-top:2px}
+.amt{font-size:34px;font-weight:800;margin:16px 0 4px}.paid{display:inline-block;background:#d9f2e6;color:#0b5c3b;border-radius:99px;padding:3px 12px;font-size:12px;font-weight:700}
+dl{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0;padding-top:14px;border-top:1px dashed #cbd5e1}dt{font-size:11px;color:#5b6b82}dd{font-size:13px;font-weight:700;margin-top:2px}
+table{width:100%;border-collapse:collapse;font-size:12px}td{padding:8px 0;border-top:1px solid #eef1f6}td.r{text-align:right;font-weight:700}
+.foot{margin-top:18px;text-align:center;font-size:11px;color:#8a97ad}@media print{body{background:#fff;padding:0}.card{box-shadow:none;width:100%}}
+</style></head><body><div class="card"><h1>NGF FINCORP</h1><p class="sub">Commission payout receipt</p><p class="amt">${esc(formatINR(c.amount))}</p><span class="paid">Paid</span>
+<dl><div><dt>Receipt number</dt><dd>${esc(c.receiptNo || '—')}</dd></div><div><dt>Paid on</dt><dd>${esc(c.paidAt ? formatDateIN(c.paidAt.slice(0, 10)) : '—')}</dd></div>
+<div><dt>Guarantor</dt><dd>${esc(data?.guarantor.name)}${data?.guarantor.code ? ` (${esc(data.guarantor.code)})` : ''}</dd></div><div><dt>Paid by</dt><dd>${esc(info.mode || '—')}</dd></div>
+<div><dt>Cycle</dt><dd>${esc(range(c.start, c.end))}</dd></div><div><dt>Reference</dt><dd>${esc(info.ref || '—')}</dd></div></dl>
+<table>${rows}</table><p class="foot">${c.loans} loans in 5 weeks · NGF FINCORP</p></div></body></html>`
+    const w = window.open('', '_blank', 'width=520,height=780')
     if (w) { w.document.write(html); w.document.close(); setTimeout(() => w.print(), 600) }
   }
-
-  // ── Handlers ──
-  const handleRequest = async () => {
-    setRequesting(true)
-    try {
-      const resp = await fetch('/api/commissions/payout', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: availableAmount }),
-      })
-      let res: { success?: boolean; error?: string; data?: { payoutId: string } } | null = null
-      try { res = await resp.json() } catch { res = null }
-      if (res?.success && res.data?.payoutId) {
-        showToast('Payout request submitted!', true)
-        try { await generateReceipt(res.data.payoutId) } catch { showToast('Request submitted, but the receipt could not be generated', false) }
-        load()
-      } else {
-        showToast(res?.error || `Request failed (${resp.status})`, false)
-        load()
-      }
-    } catch (e) {
-      showToast(e instanceof Error && e.message ? e.message : 'Request failed', false)
-    } finally {
-      setRequesting(false)
-    }
+  async function share(c: CommissionCycle) {
+    const text = `NGF FINCORP commission receipt ${c.receiptNo}: ${formatINR(c.amount)} for ${range(c.start, c.end)}`
+    try { if (navigator.share) await navigator.share({ title: 'Commission receipt', text }); else { await navigator.clipboard.writeText(text); showToast('Receipt details copied', true) } } catch { /* cancelled */ }
   }
 
-  if (loading && !summary && !loadError) return (
-    <div className="flex h-40 items-center justify-center">
-      <div className="h-6 w-6 animate-spin rounded-full border-2 border-ink border-t-transparent" />
+  if (loading && !data && !loadError) return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-ink border-t-transparent" /></div>
+  if (!data) return (
+    <div className="flex items-center justify-between gap-3 rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">
+      <span>{loadError || 'Could not load commission'}</span>
+      <button onClick={load} className="rounded-2xl bg-red-600 px-4 py-1.5 text-xs font-semibold text-white">Retry</button>
     </div>
   )
 
-  if (!summary) return (
-    <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700 flex items-center justify-between gap-3">
-      <span>{loadError || 'Could not load commissions'}</span>
-      <button onClick={load} className="rounded-2xl bg-red-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-red-700 transition">Retry</button>
-    </div>
+  const o = data.overview, today = o.today
+  const ready = o.ready
+  const current = o.current
+  const latest = payouts[0]
+  const past = o.cycles.filter(c => c !== current)
+  const pendingCycle = o.cycles.find(c => c.status === 'requested')
+  const payoutOf = (c: CommissionCycle) => payouts.find(p => p.payoutId === c.payoutId)
+
+  const payoutCard = (c: CommissionCycle) => (
+    <section className="rounded-[1.75rem] bg-brand p-5 text-white shadow-[0_16px_36px_rgba(36,86,200,0.35)]">
+      <div className="flex items-center gap-4">
+        <div className="flex h-14 w-14 shrink-0 flex-col items-center justify-center rounded-2xl bg-white/20 leading-tight"><span className="text-[11px] font-semibold uppercase">{MONTHS[parts(c.payoutDate).m]}</span><span className="text-2xl font-extrabold">{parts(c.payoutDate).day}</span></div>
+        <div className="min-w-0">
+          <p className="text-sm text-white/85">{c.status === 'paid' ? 'Paid on' : c.status === 'running' ? 'Your payout date' : 'You will be paid'}</p>
+          <p className="text-lg font-extrabold leading-snug">{c.status === 'paid' && c.paidAt ? longDate(c.paidAt.slice(0, 10)) : longDate(c.payoutDate)}</p>
+          {c.status === 'running' && <p className="text-xs text-white/85">The day after your cycle ends</p>}
+        </div>
+      </div>
+      {c.status === 'ready' && c.amount > 0 && <button onClick={() => request(c)} disabled={busy} className="mt-4 min-h-12 w-full rounded-2xl bg-white text-base font-extrabold text-brand disabled:opacity-60">{busy ? 'Requesting…' : `Request ${formatINR(c.amount)}`}</button>}
+      {c.status === 'requested' && <button onClick={() => openQr(c, c.payoutId)} className="mt-4 min-h-12 w-full rounded-2xl bg-white/95 text-sm font-extrabold text-brand">Show my payout slip</button>}
+      {c.status === 'paid' && <button onClick={() => setReceipt(c)} className="mt-4 min-h-12 w-full rounded-2xl bg-white text-sm font-extrabold text-brand">Open receipt</button>}
+    </section>
+  )
+
+  const cycleHead = (c: CommissionCycle, label: string) => (
+    <section className="rounded-[1.75rem] border border-white/70 bg-white p-5 shadow-panel">
+      <div className="flex items-center justify-between">
+        <span className={`rounded-full px-3 py-1 text-xs font-bold ${CHIP[c.status]}`}>{label} · {CHIP_TEXT[c.status].toLowerCase()}</span>
+        <span className="text-sm text-soft">{c.status === 'running' ? `Day ${c.dayOfCycle} of 35` : range(c.start, c.end)}</span>
+      </div>
+      <p className="mt-3 text-sm text-soft">{c.status === 'running' ? 'Earned so far' : 'You earned'}</p>
+      <p className="text-5xl font-extrabold leading-tight tracking-tight">{formatINR(c.amount)}</p>
+      <div className="mt-4"><Segments cycle={c} today={today} /></div>
+      <p className="mt-2 text-sm text-soft">{c.status === 'running' ? `${range(c.start, c.end)} · ${c.daysLeft} ${c.daysLeft === 1 ? 'day' : 'days'} to go` : `${c.loans} loans in 5 weeks`}</p>
+    </section>
   )
 
   return (
-    <div className="space-y-5">
-      {loadError && (
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 flex items-center justify-between gap-3">
-          <span>{loadError}</span>
-          <button onClick={load} className="shrink-0 rounded-2xl bg-red-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-red-700 transition">Retry</button>
-        </div>
+    <div className="mx-auto max-w-2xl space-y-4">
+      {toast && <div className={`fixed left-4 right-4 top-4 z-50 rounded-2xl px-5 py-3 text-center text-sm font-medium text-white shadow-lg sm:left-auto sm:right-5 ${toast.ok ? 'bg-emerald-600' : 'bg-red-600'}`}>{toast.msg}</div>}
+      {loadError && <div className="flex items-center justify-between gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"><span>{loadError}</span><button onClick={load} className="rounded-2xl bg-red-600 px-4 py-1.5 text-xs font-semibold text-white">Retry</button></div>}
+      {latest?.status === 'Rejected' && !pendingCycle && <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"><b>Your last request was not accepted.</b> {latest.rejectionReason?.replace(/^Rejected by admin \S+:\s*/, '') || ''}</div>}
+
+      {o.cycles.length === 0 ? (
+        <section className="rounded-[1.75rem] border border-white/70 bg-white p-6 shadow-panel">
+          <p className="text-lg font-extrabold">{o.startMonday ? `Your first cycle starts on ${longDate(o.startMonday)}` : 'Your first cycle starts with your first loan'}</p>
+          <p className="mt-2 text-sm text-soft">A cycle is 5 weeks, Monday to Sunday. Every loan paid out in a week earns its commission in that week. When the cycle ends you request it, and you are paid the next working day.</p>
+        </section>
+      ) : (
+        <>
+          {ready && (<>{cycleHead(ready, `Cycle ${ready.index}`)}{payoutCard(ready)}<section className="overflow-hidden rounded-[1.75rem] border border-white/70 bg-white shadow-panel"><div className="px-4 pb-2 pt-4"><h2 className="text-base font-extrabold">Loans each week</h2></div><Weeks cycle={ready} today={today} /></section></>)}
+          {current && (<>
+            {ready && <h2 className="px-1 pt-2 text-sm font-semibold text-soft">Your next cycle</h2>}
+            {cycleHead(current, `Cycle ${current.index}`)}
+            {payoutCard(current)}
+            <section className="overflow-hidden rounded-[1.75rem] border border-white/70 bg-white shadow-panel">
+              <div className="px-4 pb-2 pt-4"><h2 className="text-base font-extrabold">Loans each week</h2><p className="text-xs text-soft">₹500 for every loan, counted in the week it was paid out</p></div>
+              <Weeks cycle={current} today={today} />
+            </section>
+          </>)}
+          {past.filter(c => c !== ready).length > 0 && (
+            <section className="overflow-hidden rounded-[1.75rem] border border-white/70 bg-white shadow-panel">
+              <div className="px-4 pb-2 pt-4"><h2 className="text-base font-extrabold">Past cycles</h2></div>
+              {past.filter(c => c !== ready).map(c => (
+                <div key={c.start} className="flex items-center gap-3 border-t border-black/5 px-4 py-3">
+                  <div className="min-w-0 flex-1"><p className="text-sm font-bold">Cycle {c.index} · {range(c.start, c.end)}</p><p className="text-xs text-soft">{c.loans} loans · <span className={`rounded-full px-2 py-0.5 font-semibold ${CHIP[c.status]}`}>{CHIP_TEXT[c.status]}</span>{payoutOf(c)?.status === 'Pending' ? '' : ''}</p></div>
+                  <p className="text-base font-extrabold">{formatINR(c.amount)}</p>
+                  {c.status === 'paid' && <button onClick={() => setReceipt(c)} className="min-h-10 rounded-xl border border-brand/40 px-3 text-sm font-bold text-brand">Receipt</button>}
+                  {c.status === 'requested' && <button onClick={() => openQr(c, c.payoutId)} className="min-h-10 rounded-xl border border-line px-3 text-sm font-bold">Slip</button>}
+                </div>
+              ))}
+            </section>
+          )}
+        </>
       )}
-      {toast && (
-        <div className={`fixed top-4 left-4 right-4 sm:left-auto sm:right-5 sm:top-5 z-50 rounded-2xl px-5 py-3 text-center sm:text-left text-sm font-medium text-white shadow-lg ${toast.ok ? 'bg-green-600' : 'bg-red-600'}`}>
-          {toast.msg}
+
+      {/* Payout slip: the office scans this QR to record the payment */}
+      {qr && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setQr(null)}>
+          <div className="w-full max-w-sm overflow-hidden rounded-[1.75rem] bg-white shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-black/5 px-5 py-4"><div><p className="font-semibold">Payout slip</p><p className="mt-0.5 font-mono text-xs text-soft">{qr.payoutId}</p></div><button onClick={() => setQr(null)} aria-label="Close" className="rounded-full p-2 hover:bg-mist">✕</button></div>
+            <div className="space-y-3 px-5 py-4 text-center">
+              <p className="text-xs uppercase tracking-wide text-soft">Cycle {range(qr.from, qr.to)}</p>
+              <p className="text-3xl font-extrabold text-brand">{formatINR(qr.amount)}</p>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={qr.dataUrl} width={170} height={170} alt="Payout QR" className="mx-auto rounded-xl border border-line" />
+              <p className="text-xs text-soft">Show this QR to the office to receive your payout.</p>
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Receipt modal */}
+      {/* Paid receipt */}
       {receipt && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setReceipt(null)}>
-          <div className="w-full max-w-sm rounded-[1.75rem] bg-white shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
-            {/* Modal header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-black/5">
-              <div>
-                <p className="font-semibold">Payout Receipt</p>
-                <p className="text-xs font-mono text-soft mt-0.5">{receipt.payoutId}</p>
-              </div>
-              <button onClick={() => setReceipt(null)} className="rounded-full p-1.5 hover:bg-mist transition">
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
+          <div className="max-h-[92vh] w-full max-w-sm overflow-y-auto rounded-[1.75rem] bg-white p-5 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between"><p className="text-base font-extrabold">NGF FINCORP</p><span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800">Paid</span></div>
+            <p className="mt-4 text-sm text-soft">Commission paid</p>
+            <p className="text-4xl font-extrabold tracking-tight">{formatINR(receipt.amount)}</p>
+            <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-dashed border-black/15 pt-4 text-sm">
+              <div><dt className="text-xs text-soft">Receipt number</dt><dd className="font-bold">{receipt.receiptNo || '—'}</dd></div>
+              <div><dt className="text-xs text-soft">Paid on</dt><dd className="font-bold">{receipt.paidAt ? formatDateIN(receipt.paidAt.slice(0, 10)) : '—'}</dd></div>
+              <div><dt className="text-xs text-soft">Guarantor</dt><dd className="font-bold">{data.guarantor.name}{data.guarantor.code ? ` (${data.guarantor.code})` : ''}</dd></div>
+              <div><dt className="text-xs text-soft">Paid by</dt><dd className="font-bold">{payInfo(receipt.paidNote).mode || '—'}</dd></div>
+              <div><dt className="text-xs text-soft">Cycle</dt><dd className="font-bold">{range(receipt.start, receipt.end)}</dd></div>
+              <div><dt className="text-xs text-soft">Reference</dt><dd className="break-all font-bold">{payInfo(receipt.paidNote).ref || '—'}</dd></div>
+            </dl>
+            <div className="mt-4 rounded-2xl bg-mist px-3 py-1">
+              {receipt.weeks.map((w, i) => <div key={w.start} className={`flex justify-between py-2 text-xs ${i ? 'border-t border-black/5' : ''}`}><span>Week {i + 1} · {range(w.start, w.end)}</span><span className="font-bold">{w.loans} loans · {formatINR(w.amount)}</span></div>)}
             </div>
-
-            {/* Receipt body */}
-            <div className="px-5 py-4 space-y-3">
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div><p className="text-soft font-medium uppercase tracking-wide text-[9px]">Guarantor</p><p className="font-semibold mt-0.5">{session.name}</p></div>
-                <div><p className="text-soft font-medium uppercase tracking-wide text-[9px]">Amount</p><p className="font-bold text-green-700 mt-0.5 text-base">{formatINR(receipt.amount)}</p></div>
-                <div><p className="text-soft font-medium uppercase tracking-wide text-[9px]">Period From</p><p className="font-semibold mt-0.5">{formatDateIN(receipt.periodFrom)}</p></div>
-                <div><p className="text-soft font-medium uppercase tracking-wide text-[9px]">Payout date</p><p className="font-semibold mt-0.5">{formatDateIN(receipt.periodTo)}</p></div>
-              </div>
-
-              {/* Loan breakdown */}
-              <div className="rounded-2xl bg-mist divide-y divide-black/5 overflow-hidden">
-                {receipt.loans.map(l => (
-                  <div key={l.loanId} className="flex justify-between items-center px-3 py-2 text-xs">
-                    <span className="font-medium">{l.customerName}</span>
-                    <span className="font-semibold text-green-700">+{formatINR(Number(l.guarantorCommission || 0))}</span>
-                  </div>
-                ))}
-                <div className="flex justify-between items-center px-3 py-2 text-xs font-bold bg-green-50">
-                  <span>Total</span>
-                  <span className="text-green-700">{formatINR(receipt.amount)}</span>
-                </div>
-              </div>
-
-              {/* QR code */}
-              <div className="flex flex-col items-center py-2">
-                <img src={receipt.qrDataUrl} width={160} height={160} alt="Payout QR" className="rounded-xl border border-line" />
-                <p className="text-[10px] text-soft mt-2 text-center">Admin scans this QR to record payment</p>
-              </div>
-
-              <p className="text-center text-[10px] text-soft">Status: Pending Admin Approval</p>
+            <div className="mt-4 flex gap-2">
+              <button onClick={() => printReceipt(receipt)} className="min-h-12 flex-1 rounded-2xl bg-brand text-sm font-bold text-white">Download PDF</button>
+              <button onClick={() => share(receipt)} className="min-h-12 flex-1 rounded-2xl border border-brand/40 bg-white text-sm font-bold text-brand">Share</button>
             </div>
-
-            {/* Modal footer */}
-            <div className="flex gap-3 px-5 py-4 border-t border-black/5">
-              <button onClick={downloadReceipt}
-                className="flex-1 rounded-2xl bg-ink py-2.5 text-sm font-semibold text-white hover:bg-[#2d2d4e] transition">
-                Download / Print
-              </button>
-              <button onClick={() => setReceipt(null)}
-                className="rounded-2xl border border-line px-5 py-2.5 text-sm font-semibold hover:bg-mist transition">
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Header row */}
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold text-soft">Commission Overview</p>
-        <button onClick={load} disabled={refreshing} className="flex items-center disabled:opacity-60 gap-1.5 rounded-2xl border border-line bg-white px-4 py-1.5 text-xs font-semibold text-soft hover:bg-mist transition">
-          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-          {refreshing ? 'Refreshing…' : 'Refresh'}
-        </button>
-      </div>
-
-      {/* Summary cards */}
-      <div className="grid gap-4 sm:grid-cols-3">
-        <div className="rounded-[1.5rem] border border-white/70 bg-white p-5 shadow-panel">
-          <p className="text-xs text-soft">Total Earned</p>
-          <p className="mt-2 text-3xl font-semibold">{formatINRShort(totalEarned)}</p>
-          <p className="mt-1 text-xs text-soft">Across {loans.length} loan{loans.length !== 1 ? 's' : ''}</p>
-        </div>
-        <div className="rounded-[1.5rem] border border-white/70 bg-white p-5 shadow-panel">
-          <p className="text-xs text-soft">Available for Payout</p>
-          <p className={`mt-2 text-3xl font-semibold ${availableAmount > 0 ? 'text-green-700' : ''}`}>{formatINR(availableAmount)}</p>
-          <p className="mt-1 text-xs text-soft">{pastCycles.length} completed cycle{pastCycles.length !== 1 ? 's' : ''}</p>
-          {pendingAmount > 0 && <p className="mt-0.5 text-xs font-medium text-amber-700">Pending request: {formatINR(pendingAmount)}</p>}
-        </div>
-        <div className="rounded-[1.5rem] border border-white/70 bg-white p-5 shadow-panel">
-          <p className="text-xs text-soft">Locked until payout date</p>
-          <p className="mt-2 text-3xl font-semibold text-amber-600">{formatINR(lockedCommission)}</p>
-          <p className="mt-1 text-xs text-soft">
-            {currentCycle ? `Payout date ${nextPayout ? formatDateIN(nextPayout) : ''} · ${daysUntilPayout} day${daysUntilPayout !== 1 ? 's' : ''}` : 'No active cycle'}
-          </p>
-        </div>
-      </div>
-
-      {/* Payout Hero */}
-      <div className="rounded-[1.75rem] border border-white/70 bg-white p-6 shadow-panel">
-        {hasPending ? (
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-amber-100">
-              <svg className="h-6 w-6 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <div className="flex-1">
-              <p className="font-semibold text-amber-700">Payout Request Pending</p>
-              <p className="text-sm text-soft mt-0.5">
-                Your request of {formatINR(pendingPayout?.amount || 0)} is under review. You will be notified once processed.
-              </p>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <button onClick={showPendingReceipt}
-                className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100 transition">
-                Show Receipt
-              </button>
-              <span className="rounded-full bg-amber-100 px-4 py-1.5 text-xs font-semibold text-amber-700">Under Review</span>
-            </div>
-          </div>
-        ) : (hasRejected && !dismissedRejected) ? (
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-red-100">
-              <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <div className="flex-1">
-              <p className="font-semibold text-red-700">Payout Request Rejected</p>
-              <p className="text-sm text-soft mt-0.5">
-                {latestPayout?.rejectionReason || latestPayout?.notes || 'Your payout request was rejected.'}
-              </p>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                onClick={() => {
-                  setDismissedRejected(true)
-                  if (latestPayout?.payoutId) {
-                    try { localStorage.setItem(`payout_dismissed_${latestPayout.payoutId}`, 'true') } catch { /* ignore */ }
-                  }
-                }}
-                className="rounded-2xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition"
-              >
-                Dismiss
-              </button>
-            </div>
-          </div>
-        ) : canRequestPayout ? (
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-            <div className="flex-1">
-              <p className="text-xs text-soft mb-1">Withdraw Amount</p>
-              <p className="text-3xl font-bold text-green-700">{formatINR(availableAmount)}</p>
-              <p className="text-sm text-soft mt-1">
-                From {eligibleRows.length} loan{eligibleRows.length !== 1 ? 's' : ''} · {pastCycles.length} completed cycle{pastCycles.length !== 1 ? 's' : ''}
-              </p>
-            </div>
-            <button
-              onClick={handleRequest}
-              disabled={requesting}
-              className="rounded-2xl bg-green-700 px-7 py-3 text-sm font-semibold text-white hover:bg-green-800 disabled:opacity-60 transition-colors shrink-0"
-            >
-              {requesting ? 'Submitting…' : '↓ Request Payout'}
-            </button>
-          </div>
-        ) : (
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-            <div>
-              <p className="font-semibold">No payout available yet</p>
-              <p className="text-sm text-soft mt-0.5">
-                {currentCycle
-                  ? `Next payout date ${nextPayout ? formatDateIN(nextPayout) : ''} (${daysUntilPayout} day${daysUntilPayout !== 1 ? 's' : ''})`
-                  : loans.length === 0
-                    ? 'No commissions recorded yet'
-                    : 'All eligible commissions already paid out'}
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Commission Ledger */}
-      <div className="overflow-hidden rounded-[1.75rem] border border-white/70 bg-white shadow-panel">
-        <div className="flex flex-col gap-3 border-b border-black/5 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm font-semibold">Commission Ledger</p>
-            <p className="text-xs text-soft mt-0.5">
-              {currentCycle
-                ? `Cycle ${currentCycleIdx + 1} · started ${formatDateIN(currentCycle.start)} · payout date ${formatDateIN(currentCycle.end)}`
-                : 'Commission pay cycles'}
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <select value={monthFilter} onChange={e => setMonthFilter(e.target.value)} aria-label="Filter by month"
-              className="rounded-2xl border border-line bg-white px-3 py-1.5 text-xs font-semibold text-soft">
-              <option value="all">All months</option>
-              {months.map(m => <option key={m} value={m}>{monthLabel(m)}</option>)}
-            </select>
-            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} aria-label="Filter by status"
-              className="rounded-2xl border border-line bg-white px-3 py-1.5 text-xs font-semibold text-soft">
-              <option value="all">All status</option>
-              <option value="eligible">Eligible</option>
-              <option value="locked">Locked</option>
-            </select>
-          </div>
-        </div>
-        <div className="overflow-x-auto">
-        <table className="w-full min-w-[640px] text-left text-sm">
-          <thead className="border-b border-black/5 bg-panel text-soft">
-            <tr>
-              {['Customer', 'Loan ID', 'Commission', 'Loan Status', 'Start Date', 'Cycle'].map(h => (
-                <th key={h} className="px-5 py-3 font-medium text-xs">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-black/5">
-            {visibleRows.length === 0 && (
-              <tr><td colSpan={6} className="px-5 py-8 text-center text-sm text-soft">{enriched.length === 0 ? 'No commissions recorded yet.' : 'No loans match the filters.'}</td></tr>
-            )}
-            {visibleRows.map(l => (
-              <tr key={l.loanId} className="hover:bg-panel">
-                <td className="px-5 py-3 font-medium">{l.customerName}</td>
-                <td className="px-5 py-3 font-mono text-xs text-soft">{l.loanId?.slice(-9)}</td>
-                <td className="px-5 py-3 font-semibold text-green-700">{formatINR(Number(l.guarantorCommission || 0))}</td>
-                <td className="px-5 py-3">
-                  <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${l.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-mist text-soft'}`}>
-                    {l.status}
-                  </span>
-                </td>
-                <td className="px-5 py-3 text-soft text-xs">{l.startDate ? formatDateIN(l.startDate) : '—'}</td>
-                <td className="px-5 py-3">
-                  {l.inCurrentCycle ? (
-                    <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-700">Locked</span>
-                  ) : (
-                    <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-700">Eligible</span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-          {visibleRows.length > 0 && (
-            <tfoot className="border-t border-black/10 bg-panel">
-              <tr>
-                <td className="px-5 py-3 text-xs font-semibold text-soft" colSpan={2}>Total ({visibleRows.length} loan{visibleRows.length !== 1 ? 's' : ''})</td>
-                <td className="px-5 py-3 font-bold text-green-700">{formatINR(visibleTotal)}</td>
-                <td colSpan={3} />
-              </tr>
-            </tfoot>
-          )}
-        </table>
-        </div>
-      </div>
-
-      {/* Payout History */}
-      {payouts.length > 0 && (
-        <div className="overflow-hidden rounded-[1.75rem] border border-white/70 bg-white shadow-panel">
-          <div className="border-b border-black/5 px-5 py-4">
-            <p className="text-sm font-semibold">Payout History</p>
-          </div>
-          <div className="overflow-x-auto">
-          <table className="w-full min-w-[640px] text-left text-sm">
-            <thead className="border-b border-black/5 bg-panel text-soft">
-              <tr>
-                {['Request ID', 'Amount', 'Status', 'Requested On', 'Processed On'].map(h => (
-                  <th key={h} className="px-5 py-3 font-medium text-xs">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-black/5">
-              {payouts.map(p => (
-                <tr key={p.payoutId} className="hover:bg-panel">
-                  <td className="px-5 py-3 font-mono text-xs text-soft">{p.payoutId}</td>
-                  <td className="px-5 py-3 font-semibold">{formatINR(p.amount)}</td>
-                  <td className="px-5 py-3">
-                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                      p.status === 'Paid' ? 'bg-green-100 text-green-700'
-                      : p.status === 'Pending' ? 'bg-amber-100 text-amber-700'
-                      : 'bg-red-100 text-red-700'
-                    }`}>{p.status}</span>
-                  </td>
-                  <td className="px-5 py-3 text-soft">{p.requestedAt ? formatDateIN(p.requestedAt) : '—'}</td>
-                  <td className="px-5 py-3 text-soft">
-                    {p.processedAt ? formatDateIN(p.processedAt) : '—'}
-                    {p.status === 'Rejected' && (p.rejectionReason || p.notes) && (
-                      <p className="mt-1 text-xs text-red-600">Reason: {p.rejectionReason || p.notes}</p>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+            <button onClick={() => setReceipt(null)} className="mt-2 min-h-11 w-full rounded-2xl text-sm font-semibold text-soft">Close</button>
           </div>
         </div>
       )}
