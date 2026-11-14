@@ -307,7 +307,7 @@ function WaBubble({ m, session, onFix }: { m: Msg; session: Session; onFix: (m: 
   )
 }
 
-export default function PaymentChatPage({ session, onOpenHistory, preselect, onPreselectUsed }: { session: Session; onOpenHistory?: () => void; preselect?: { repaymentId: string; customerId: string } | null; onPreselectUsed?: () => void }) {
+export default function PaymentChatPage({ session, onOpenHistory, preselect, onPreselectUsed }: { session: Session; onOpenHistory?: () => void; preselect?: { repaymentId: string; customerId: string; mode?: 'single' | 'multi' | 'cash' } | null; onPreselectUsed?: () => void }) {
   const [me, setMe] = useState<Me | null>(null)
   const [gid, setGid] = useState('')
   const [msgs, setMsgs] = useState<Msg[]>([])
@@ -382,9 +382,10 @@ export default function PaymentChatPage({ session, onOpenHistory, preselect, onP
   // "Record payment" in Collection lands here: open the screenshot form with that customer already chosen
   const usedPre = useRef('')
   useEffect(() => {
-    if (!preselect || !me || !activeGid || usedPre.current === preselect.repaymentId) return
+    if (!preselect) { usedPre.current = ''; return }
+    if (!me || !activeGid || usedPre.current === preselect.repaymentId) return
     usedPre.current = preselect.repaymentId
-    setMode('single'); setConfirmCash(false); setFixId(''); setFixKind(''); setPicked([]); setImg(null); setQ(''); setManualUtr(''); setOpen(true)
+    setMode(preselect.mode || 'single'); setConfirmCash(false); setFixId(''); setFixKind(''); setPicked([]); setImg(null); setQ(''); setManualUtr(''); setOpen(true)
     api(session, `/api/payments?view=collect&guarantorId=${encodeURIComponent(activeGid)}`).then(d => {
       setSheet(d.rows)
       const row = (d.rows as SheetRow[]).find(r => r.repaymentId === preselect.repaymentId) || (d.rows as SheetRow[]).find(r => r.customerId === preselect.customerId && r.status !== 'Paid')
@@ -455,7 +456,7 @@ export default function PaymentChatPage({ session, onOpenHistory, preselect, onP
     <>
       {open && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center" onClick={() => !sending && setOpen(false)}>
-          <div className="max-h-[92dvh] w-full max-w-lg space-y-3 overflow-y-auto rounded-t-[1.75rem] bg-white p-5 shadow-panel sm:rounded-[1.75rem]" onClick={e => e.stopPropagation()}>
+          <div className="pay-composer max-h-[92dvh] w-full max-w-lg space-y-3 overflow-y-auto rounded-t-[1.75rem] bg-white p-5 shadow-panel sm:rounded-[1.75rem]" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <p className="text-lg font-bold text-[#111b21]">{fixId ? 'Fix this payment' : isCash ? 'Cash payment' : mode === 'multi' ? 'Multi payment' : 'Single payment'}</p>
               <button disabled={sending} onClick={() => setOpen(false)} className="rounded-full bg-mist px-3.5 py-1.5 text-sm font-semibold text-soft">Close</button>

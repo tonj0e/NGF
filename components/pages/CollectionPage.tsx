@@ -9,6 +9,9 @@ import PaymentsPage from './PaymentsPage'
 const RecordAllowed = createContext(true)
 // A guarantor records a payment by sending its screenshot: the button hands the customer to the Payments tab
 const RecordViaPayments = createContext<((r: Repayment) => void) | null>(null)
+// The Paid / Not paid list asks for one of the three payment kinds for the customer chosen
+type PayKind = 'single' | 'multi' | 'cash'
+const RecordFromStatus = createContext<((repaymentId: string, mode: PayKind) => void) | null>(null)
 
 function currency(n: number) {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n)
@@ -666,6 +669,8 @@ type StatusData = {
 }
 
 function CollectionStatusTab({ session }: { session: Session }) {
+  const recordFrom = useContext(RecordFromStatus)
+  const [chooseFor, setChooseFor] = useState<StatusRow | null>(null)
   const picker = session.role === 'Admin' || session.role === 'Staff'   // only Admin and Staff choose a guarantor
   const [date, setDate] = useState(thisSaturday())
   const [guarantorId, setGuarantorId] = useState('')
@@ -783,7 +788,8 @@ function CollectionStatusTab({ session }: { session: Session }) {
                 <div className="mt-1.5 flex items-center gap-2 text-sm">
                   <a href={`tel:${r.phone}`} className="font-mono text-soft hover:text-green-700">{r.phone}</a>
                   {r.phone && <CallButton phone={r.phone} />}
-                  {r.weekNo > 0 && <span className="ml-auto text-xs text-soft">Week {r.weekNo}</span>}
+                  {recordFrom && <button onClick={() => setChooseFor(r)} className="mx-auto rounded-full bg-brand px-5 py-1.5 text-xs font-extrabold text-white shadow-sm">Record</button>}
+                  {r.weekNo > 0 && <span className={`${recordFrom ? '' : 'ml-auto '}text-xs text-soft`}>Week {r.weekNo}</span>}
                 </div>
               )}
             </div>
@@ -791,6 +797,21 @@ function CollectionStatusTab({ session }: { session: Session }) {
         </div>
       )}
       <Pager page={data?.page || 1} totalPages={data?.totalPages || 1} total={data?.total || 0} noun="customers" pageSize={PAGE} onPage={setPage} />
+      {chooseFor && recordFrom && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-3 sm:items-center" onClick={() => setChooseFor(null)}>
+          <div className="w-full max-w-sm space-y-3 rounded-[1.75rem] bg-white p-5 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div>
+              <p className="text-xs uppercase tracking-wide text-soft">Record payment for</p>
+              <p className="text-lg font-extrabold leading-tight"><span className="font-mono">{chooseFor.code}</span> · {chooseFor.name}</p>
+              <p className="text-sm text-soft">{currency(chooseFor.amount)}</p>
+            </div>
+            <button onClick={() => { recordFrom(chooseFor.repaymentId, 'single'); setChooseFor(null) }} className="min-h-12 w-full rounded-2xl bg-[#00a884] px-4 text-left text-sm font-bold text-white">Single payment<span className="block text-xs font-medium text-white/85">One customer, send the screenshot</span></button>
+            <button onClick={() => { recordFrom(chooseFor.repaymentId, 'multi'); setChooseFor(null) }} className="min-h-12 w-full rounded-2xl bg-[#f97316] px-4 text-left text-sm font-bold text-white">Multi payment<span className="block text-xs font-medium text-white/85">One screenshot for several customers, add the others next</span></button>
+            <button onClick={() => { recordFrom(chooseFor.repaymentId, 'cash'); setChooseFor(null) }} className="min-h-12 w-full rounded-2xl bg-[#2563eb] px-4 text-left text-sm font-bold text-white">Cash payment<span className="block text-xs font-medium text-white/85">Cash received, no screenshot needed</span></button>
+            <button onClick={() => setChooseFor(null)} className="w-full py-2 text-sm font-semibold text-soft">Cancel</button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -810,7 +831,7 @@ const hasPart = (perms: string[] | undefined, part: string) => !perms || perms.i
 export default function CollectionPage({ session, perms, showPayments, startOnPayments }: { session: Session; perms?: string[]; showPayments?: boolean; startOnPayments?: boolean }) {
   const can = (part: string) => session.role !== 'Staff' || hasPart(perms, part)
   const [tab, setTab] = useState<CollectionTab>(startOnPayments && showPayments ? 'payments' : session.role === 'Guarantor' ? 'status' : 'all')
-  const [payTarget, setPayTarget] = useState<{ repaymentId: string; customerId: string } | null>(null)
+  const [payTarget, setPayTarget] = useState<{ repaymentId: string; customerId: string; mode?: PayKind } | null>(null)
   const [reviewOptions, setReviewOptions] = useState<ReviewOption[]>([])
   const [downloading, setDownloading] = useState(false)
   const [sheetNote, setSheetNote] = useState(false)   // pop-up: sheet is not available yet
@@ -868,6 +889,7 @@ export default function CollectionPage({ session, perms, showPayments, startOnPa
   return (
     <RecordAllowed.Provider value={can('collectionRecord')}>
     <RecordViaPayments.Provider value={session.role === 'Guarantor' && showPayments ? (r => { setPayTarget({ repaymentId: r['Repayment ID'], customerId: r['Customer ID'] }); setTab('payments') }) : null}>
+    <RecordFromStatus.Provider value={session.role === 'Guarantor' && showPayments ? ((id, mode) => { setPayTarget({ repaymentId: id, customerId: '', mode }); setTab('payments') }) : null}>
     <div className="space-y-4">
       <div className="flex items-center gap-3">
         <div className="flex flex-1 items-center gap-1.5 flex-wrap sm:gap-2">
@@ -919,6 +941,7 @@ export default function CollectionPage({ session, perms, showPayments, startOnPa
       {tab === 'history'   && <HistoryTab session={session} />}
       {tab === 'payments'  && <PaymentsPage session={session} preselect={payTarget} onPreselectUsed={() => setPayTarget(null)} />}
     </div>
+    </RecordFromStatus.Provider>
     </RecordViaPayments.Provider>
     </RecordAllowed.Provider>
   )

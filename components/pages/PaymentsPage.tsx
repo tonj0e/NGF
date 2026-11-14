@@ -9,7 +9,7 @@ type Access = { canMark: boolean; canChat: boolean; canHistory: boolean; canBank
 
 // The Payments module: one menu item, several parts. Which parts a person sees is decided by the permissions an Admin
 // ticks for them (guarantor or staff). The server checks every request again.
-export default function PaymentsPage({ session, preselect, onPreselectUsed }: { session: Session; preselect?: { repaymentId: string; customerId: string } | null; onPreselectUsed?: () => void }) {
+export default function PaymentsPage({ session, preselect, onPreselectUsed }: { session: Session; preselect?: { repaymentId: string; customerId: string; mode?: 'single' | 'multi' | 'cash' } | null; onPreselectUsed?: () => void }) {
   const [access, setAccess] = useState<Access | null>(null)
   const [tab, setTab] = useState<Tab>('chat')
   const [error, setError] = useState('')
