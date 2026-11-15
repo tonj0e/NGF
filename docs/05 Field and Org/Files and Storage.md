@@ -11,7 +11,7 @@ tags: [ngf, field-and-org, storage, drive, supabase]
 ## Key facts
 | Store | What goes there today | Written by |
 |---|---|---|
-| Google Drive (root folder from `PHOTO_ROOT_FOLDER_ID`) | Lead and customer photos: customer, aadhaar front/back, house, landmark, cheque | `uploadLeadPhoto` in leads, customers and import-customer routes |
+| Google Drive (root folder from `PHOTO_ROOT_FOLDER_ID`, now the "Next Gen Finance" folder in the ngfcfncorp account) | Lead and customer photos: customer, aadhaar front/back, house, landmark, cheque | `uploadLeadPhoto` in leads, customers and import-customer routes |
 | Supabase bucket `payment-proofs` | Repayment payment proofs | `app/api/repayments/route.ts:127` |
 | Supabase bucket `customer-docs` | Only Drive-to-Supabase migrations | `app/api/dev/migrate-images` |
 | Supabase bucket `profiles` | Nothing in normal use | `app/api/profile/route.ts:77` (unused path) |

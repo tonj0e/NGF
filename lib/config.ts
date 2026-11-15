@@ -5,7 +5,7 @@ export const APP_CONFIG = {
   COMPANY_PREFIX: 'NGF',
   SPREADSHEET_ID: '1cENpumuwL0tp0xwz1c9zVwKQmHHyweFsn5ZXm8PME6o',
   LEADS_SPREADSHEET_ID: '1ck04r3rt_IeO0jJfRFbC-4s33tSHUe7J1xTzj5jAR68',
-  PHOTO_ROOT_FOLDER_ID: '1vZ9Xv_40zu2N5FRCvomF2kvxb-Y6VwaJ',
+  PHOTO_ROOT_FOLDER_ID: '1fx1ot64xRoSixQOz3LwmbAA7jjOPgaMp', // "Next Gen Finance" folder in the ngfcfncorp Drive (was the old Gmail's NGF Photos folder until 2026-11-16)
   SESSION_TTL_SECONDS: 21600,
   TRIP_RATE_PER_KM: 3,   // what an agent is paid per kilometre of travel (Trip Details page)
   LOAN_PRODUCTS: [
