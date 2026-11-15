@@ -232,6 +232,19 @@ html.ngf-dark input, html.ngf-dark textarea, html.ngf-dark select { color: var(-
 html.ngf-dark input::placeholder, html.ngf-dark textarea::placeholder { color: var(--soft); opacity: .8; }
 html.ngf-dark .focus\:bg-white:focus { background-color: var(--card); }
 html.ngf-dark input.bg-mist, html.ngf-dark textarea.bg-mist { background-color: #0b1220; }
+/* Chrome paints a saved or autofilled box white (or pale blue) with its own text colour, whatever the page says. Repaint it dark. */
+html.ngf-dark input:-webkit-autofill,
+html.ngf-dark input:-webkit-autofill:hover,
+html.ngf-dark input:-webkit-autofill:focus,
+html.ngf-dark input:-webkit-autofill:active,
+html.ngf-dark textarea:-webkit-autofill,
+html.ngf-dark select:-webkit-autofill {
+  -webkit-text-fill-color: var(--ink);
+  caret-color: var(--ink);
+  -webkit-box-shadow: 0 0 0 1000px #0b1220 inset;
+  box-shadow: 0 0 0 1000px #0b1220 inset;
+  transition: background-color 9999s ease-in-out 0s;
+}
 /* the payment form uses fixed dark greens and greys for its text; in dark mode they must turn light */
 html.ngf-dark .pay-composer [class*="text-[#111b21]"] { color: var(--ink); }
 html.ngf-dark .pay-composer [class*="text-[#54656f]"], html.ngf-dark .pay-composer [class*="text-[#667781]"] { color: var(--soft); }
