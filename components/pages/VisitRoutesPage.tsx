@@ -1,7 +1,7 @@
 'use client'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Session } from '@/types'
-import { Phone, MapPin, GripVertical, ChevronUp, ChevronDown, Route as RouteIcon, Wand2, X, Navigation } from 'lucide-react'
+import { Phone, MapPin, GripVertical, ChevronUp, ChevronDown, Route as RouteIcon, Wand2, X, Navigation, Crosshair } from 'lucide-react'
 import RouteMap from '@/components/routes/RouteMap'
 import { fetchRoads } from '@/lib/clientRoads'
 import { ALT_PHONE_LABELS } from '@/lib/phone'
@@ -376,6 +376,36 @@ function RouteCard({ r, board, date, busy, session, act, startOpen }: {
   const [open, setOpen] = useState(startOpen)
   const [seen, setSeen] = useState(startOpen) // once opened, the body (and its map) stays in the page, hidden, so reopening costs no new map load
   const [roads, setRoads] = useState<(string | null)[] | null>(null)
+  // "Track agent": while on, the agent's live position is fetched every 10 s and shown on this map
+  const trackKey = `ngf-track-${r.agentId}`
+  const [tracking, setTrackingRaw] = useState(() => { try { return typeof window !== 'undefined' && sessionStorage.getItem(trackKey) === '1' } catch { return false } }) // stays on when you come back from another page
+  const setTracking = (v: boolean) => { setTrackingRaw(v); try { v ? sessionStorage.setItem(trackKey, '1') : sessionStorage.removeItem(trackKey) } catch {} }
+  const [trackTick, setTrackTick] = useState(() => (tracking ? 1 : 0))
+  const [liveLoc, setLiveLoc] = useState<{ lat: number; lng: number; at: string | null; online: boolean; ageMin: number | null } | null>(null)
+  const [liveState, setLiveState] = useState<'idle' | 'loading' | 'none' | 'error'>('idle')
+  useEffect(() => {
+    if (!tracking || !open) return
+    let dead = false
+    let busyNow = false
+    const load = async () => {
+      if (busyNow || document.hidden) return
+      busyNow = true
+      try {
+        const res = await fetch('/api/agent/location?activeOnly=false', { headers: { Authorization: `Bearer ${session.token}` } })
+        const json = await res.json()
+        if (dead) return
+        const me = json.success ? (json.data.locations || []).find((l: { agentId: string }) => l.agentId === r.agentId) : null
+        if (!json.success) setLiveState('error')
+        else if (!me || me.latitude == null || me.longitude == null) { setLiveLoc(null); setLiveState('none') }
+        else { setLiveLoc({ lat: me.latitude, lng: me.longitude, at: me.locationUpdatedAt, online: !!me.isOnline, ageMin: me.ageMinutes }); setLiveState('idle') }
+      } catch { if (!dead) setLiveState('error') } finally { busyNow = false }
+    }
+    setLiveState('loading')
+    load()
+    const t = setInterval(load, 10000)
+    return () => { dead = true; clearInterval(t) }
+  }, [tracking, open, r.agentId, session.token])
+  const liveProp = useMemo(() => tracking && liveLoc ? { lat: liveLoc.lat, lng: liveLoc.lng, label: r.name.split(' ')[0] } : null, [tracking, liveLoc?.lat, liveLoc?.lng, r.name]) // eslint-disable-line react-hooks/exhaustive-deps
   const savedIds = r.stops.map(s => s.leadId)
   const dirty = order.length === savedIds.length && order.join() !== savedIds.join()
   const dirtyRef = useRef(false)
@@ -394,11 +424,16 @@ function RouteCard({ r, board, date, busy, session, act, startOpen }: {
   const url = mapsRouteUrl(r)
 
   // the map follows the order on screen at once (also while dragging); road shapes are fetched a moment after the order settles
-  const mapStops = list.flatMap((s, i) => s.hasLocation && s.visitLat != null && s.visitLng != null
-    ? [{ id: s.leadId, n: i + 1, label: s.visitPlace || s.place || s.customerName, lat: s.visitLat, lng: s.visitLng, done: s.done, absent: s.visitStatus === 'Absent', waypoint: s.kind === 'waypoint', legKm: s.legKm }]
-    : [])
-  const startPt = r.plan?.startLat != null && r.plan?.startLng != null ? { lat: r.plan.startLat, lng: r.plan.startLng } : null
-  const nextStop = mapStops.find(s => !s.done)
+  // new arrays only when something the map shows really changed, so a position update or refresh does not redraw the map or reset its zoom
+  const sig = JSON.stringify([r.plan?.startLat, r.plan?.startLng, list.map(s => [s.leadId, s.hasLocation, s.visitLat, s.visitLng, s.visitPlace, s.place, s.customerName, s.done, s.visitStatus, s.kind, s.legKm])])
+  const { mapStops, startPt, nextStop } = useMemo(() => {
+    const ms = list.flatMap((s, i) => s.hasLocation && s.visitLat != null && s.visitLng != null
+      ? [{ id: s.leadId, n: i + 1, label: s.visitPlace || s.place || s.customerName, lat: s.visitLat, lng: s.visitLng, done: s.done, absent: s.visitStatus === 'Absent', waypoint: s.kind === 'waypoint', legKm: s.legKm }]
+      : [])
+    const sp = r.plan?.startLat != null && r.plan?.startLng != null ? { lat: r.plan.startLat, lng: r.plan.startLng } : null
+    return { mapStops: ms, startPt: sp, nextStop: ms.find(x => !x.done) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sig])
   const roadPts = [...(startPt ? [startPt] : []), ...mapStops.map(s => ({ lat: s.lat, lng: s.lng }))]
   const roadKey = roadPts.map(p => `${p.lat.toFixed(4)},${p.lng.toFixed(4)}`).join('|')
   useEffect(() => {
@@ -470,6 +505,10 @@ function RouteCard({ r, board, date, busy, session, act, startOpen }: {
           {r.plan?.source && <> · {r.plan.source}</>}
         </p>
         <div className="flex flex-wrap gap-2">
+          <button onClick={() => { if (tracking) { setTracking(false); setLiveLoc(null) } else { setTracking(true); setTrackTick(n => n + 1) } }}
+            className={`${btn} inline-flex items-center gap-1 ${tracking ? 'bg-blue-600 text-white' : 'border border-blue-300 bg-blue-50 text-blue-700'}`}>
+            <Crosshair className="h-4 w-4" />{tracking ? 'Stop tracking' : 'Track agent'}
+          </button>
           <button disabled={!r.stops.length || busy === `opt${r.agentId}`} onClick={() => act(`opt${r.agentId}`, { action: 'optimize', agentId: r.agentId, date }, 'Best order applied')} className={`${btn} inline-flex items-center gap-1 bg-ink text-white`}>
             <Wand2 className="h-4 w-4" />{busy === `opt${r.agentId}` ? 'Working…' : 'Best order'}
           </button>
@@ -479,6 +518,17 @@ function RouteCard({ r, board, date, busy, session, act, startOpen }: {
           {url && <a href={url} target="_blank" rel="noreferrer" className={`${btn} inline-flex items-center gap-1 border border-line bg-white`}><RouteIcon className="h-4 w-4" />Google Maps</a>}
         </div>
       </div>
+
+      {tracking && (
+        <p className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+          {liveState === 'loading' && !liveLoc && <span className="text-soft">Finding {r.name}…</span>}
+          {liveState === 'error' && <span className="font-semibold text-red-600">Could not load the location. Trying again…</span>}
+          {liveState === 'none' && <span className="font-semibold text-amber-700">No location yet for {r.name}. The agent has not marked attendance or shared a position.</span>}
+          {liveLoc && (liveLoc.online
+            ? <span className="inline-flex items-center gap-1 font-semibold text-green-700"><span className="h-2 w-2 animate-pulse rounded-full bg-green-500" />Live · {r.name} · updated {liveLoc.ageMin != null && liveLoc.ageMin > 0 ? `${liveLoc.ageMin} min ago` : 'just now'}</span>
+            : <span className="font-semibold text-amber-700">{r.name} is offline. Last seen {liveLoc.ageMin != null ? (liveLoc.ageMin >= 60 ? `${Math.floor(liveLoc.ageMin / 60)}h ${liveLoc.ageMin % 60}m` : `${liveLoc.ageMin} min`) : 'a while'} ago at this spot.</span>)}
+        </p>
+      )}
 
       {wpFor !== null && (
         <WaypointForm key={wpFor} forId={wpFor} busy={busy === `wp${r.agentId}`}
@@ -550,7 +600,7 @@ function RouteCard({ r, board, date, busy, session, act, startOpen }: {
       </div>
       {mapStops.length > 0 && (
         <div className="overflow-hidden rounded-2xl border border-line lg:h-full">
-          <RouteMap bare heightClass="h-[480px] lg:h-[calc(100vh-12rem-2.5rem)] lg:min-h-[420px]" start={startPt} startLabel="START" stops={mapStops} nextId={nextStop?.id} roads={roads} />
+          <RouteMap bare heightClass="h-[480px] lg:h-[calc(100vh-12rem-2.5rem)] lg:min-h-[420px]" start={startPt} startLabel="START" stops={mapStops} nextId={nextStop?.id} roads={roads} live={liveProp} centerOnLive={trackTick} />
         </div>
       )}
       </div>

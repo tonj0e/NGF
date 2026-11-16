@@ -393,11 +393,11 @@ export default function AgentTrackingPage({ session }: { session: Session }) {
     })
   }, [createMarker, fitBoundsToOnlineAgents])
 
-  // Poll every 5 seconds while the tab is visible. One timer only; it is cleared when the page closes.
+  // Poll every 10 seconds while the tab is visible. One timer only; it is cleared when the page closes.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadLocations()
-    const timer = setInterval(() => { if (!document.hidden) loadLocations() }, 5000)
+    const timer = setInterval(() => { if (!document.hidden) loadLocations() }, 10000)
     const onVisible = () => { if (!document.hidden) loadLocations() }
     document.addEventListener('visibilitychange', onVisible)
     return () => { clearInterval(timer); document.removeEventListener('visibilitychange', onVisible) }
@@ -500,7 +500,7 @@ export default function AgentTrackingPage({ session }: { session: Session }) {
           <div>
             <p className="text-sm font-semibold">Agent Live Tracking <span className="ml-2 text-xs text-green-600 font-normal animate-pulse">LIVE</span></p>
             <p className="mt-1 text-xs text-soft">
-              {Array.from(locations.values()).filter(l => l.isOnline).length} of {locations.size} agents online · Updates every 5s
+              {Array.from(locations.values()).filter(l => l.isOnline).length} of {locations.size} agents online · Updates every 10s
             </p>
           </div>
           <div className="flex items-center gap-2">

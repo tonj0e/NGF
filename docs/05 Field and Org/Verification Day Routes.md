@@ -67,3 +67,7 @@ Under the two main buttons (**To plan**, **Agent routes**), the To plan page has
 
 ## Return to guarantor (2026-11-09)
 On every card in To plan and Not answered, a red **Return** button (right of *Not answered*) opens a reason box. The planner types why (for example "no cheque yet, will collect it from the bank and call back") and presses **Return to guarantor**. Server action `returnLead` (`lib/routes.ts`, `POST /api/routes`): reason of at least 3 characters is required; not allowed once verification has started or finished; sets lead status `Returned` and `return_reason`, `returned_at`, `returned_by`, clears any agent / visit planning (the agent's route is recalculated), notifies the guarantor ("Customer returned") and writes audit entry `LEAD_RETURNED`. The lead leaves the planner's lists.
+
+
+## Track agent (Agent routes)
+Each agent card has a **Track agent** button (left of Best order). It shows the agent's live position on that card's map by polling `/api/agent/location?activeOnly=false` every 10 s and feeding the `live` marker of `RouteMap`; the map pans to the agent once when switched on. The choice is kept per agent in sessionStorage. Needs the Agent Tracking or Verification Planning feature (same as the location API). Shows "offline, last seen" when the position is older than 5 minutes or tracking stopped.

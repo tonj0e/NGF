@@ -63,7 +63,7 @@ function decodePath(enc: string): Pt[] {
   return out
 }
 
-export default function RouteMap({ start, startLabel, stops, nextId, onPick, roads, bare, heightClass, live }: {
+export default function RouteMap({ start, startLabel, stops, nextId, onPick, roads, bare, heightClass, live, centerOnLive }: {
   start: Pt | null
   startLabel: string
   stops: SketchStop[]
@@ -72,6 +72,7 @@ export default function RouteMap({ start, startLabel, stops, nextId, onPick, roa
   bare?: boolean // map and legend only; the page supplies its own header card
   heightClass?: string // map height (default 420px)
   live?: { lat: number; lng: number; label: string } | null // the agent's current position (moves on its own, no redraw of the route)
+  centerOnLive?: number // optional: when this number changes, the map pans to the live marker once
   roads?: (string | null)[] | null // road shape for each leg (start -> stop 1 -> stop 2 ...), straight line where missing
 }) {
   const box = useRef<HTMLDivElement>(null)
@@ -130,6 +131,14 @@ export default function RouteMap({ start, startLabel, stops, nextId, onPick, roa
         label: { text: live.label, fontSize: '12px', fontWeight: '800', color: '#1d4ed8', className: 'rm-label' } })
     } else liveMarker.current.setPosition(live)
   }, [ready, live])
+  const lastCenter = useRef<number | undefined>(undefined)
+  useEffect(() => {
+    const map = mapRef.current
+    if (!ready || !map || !live || centerOnLive == null || centerOnLive === lastCenter.current) return
+    lastCenter.current = centerOnLive
+    map.panTo({ lat: live.lat, lng: live.lng })
+    if ((map.getZoom() ?? 0) < 15) map.setZoom(15)
+  }, [ready, live, centerOnLive])
   useEffect(() => () => { liveMarker.current?.setMap(null); liveMarker.current = null }, [])
 
   // (re)draw pins and lines when the stops change
