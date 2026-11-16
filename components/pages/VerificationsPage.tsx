@@ -240,7 +240,7 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
     if (!currentLocation || !lastLocation) return
     setSavingTrip(true)
     try {
-      const distanceKm = manualDistance > 0 ? manualDistance : (calculatedDistance || 0)
+      const distanceKm = manualDistance
       const res = await fetch('/api/agent/trips', {
         method: 'POST',
         headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' },
@@ -591,20 +591,16 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
                 <p className="text-xs font-semibold uppercase tracking-wider text-soft">Current Location</p>
                 <p className="text-sm font-medium">{currentLocation ? `${currentLocation.lat.toFixed(6)}, ${currentLocation.lng.toFixed(6)}` : 'Getting location...'}</p>
               </div>
-              {calculatedDistance !== null && (
+              {currentLocation && lastLocation && (
                 <div className="rounded-xl bg-green-50 border border-green-200 p-3">
                   {roadState === 'done' && roadKm != null ? (<>
                     <p className="text-xs font-semibold uppercase tracking-wider text-green-700">Road Distance (Google Maps)</p>
                     <p className="text-xl font-bold text-green-700">{roadKm.toFixed(1)} km</p>
-                    <p className="text-xs text-green-700/80">Straight line: {calculatedDistance.toFixed(2)} km</p>
-                  </>) : roadState === 'loading' ? (<>
+                  </>) : roadState === 'loading' ? (
                     <p className="text-xs font-semibold uppercase tracking-wider text-green-700">Finding the road distance…</p>
-                    <p className="text-xs text-green-700/80">Straight line: {calculatedDistance.toFixed(2)} km</p>
-                  </>) : (<>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-green-700">Straight-line only (road distance not available)</p>
-                    <p className="text-xl font-bold text-green-700">{calculatedDistance.toFixed(2)} km</p>
-                    <p className="text-xs text-amber-700">The road is longer. Open the route in Google Maps and type the road distance below.</p>
-                  </>)}
+                  ) : (
+                    <p className="text-xs font-semibold text-amber-700">Road distance not available. Open the route in Google Maps and type the road distance below.</p>
+                  )}
                 </div>
               )}
             </div>
@@ -638,7 +634,7 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
                   min="0"
                   value={manualDistance}
                   onChange={e => setManualDistance(Number(e.target.value) || 0)}
-                  placeholder={calculatedDistance ? `Auto: ${calculatedDistance.toFixed(2)} km` : 'Enter distance from Google Maps'}
+                  placeholder="Enter distance from Google Maps"
                   className="w-full rounded-2xl border border-line bg-mist px-4 py-3 text-sm outline-none focus:border-ink focus:bg-white"
                 />
               </label>

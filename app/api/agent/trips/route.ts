@@ -6,17 +6,7 @@ import { validateBody, tripSchema } from '@/lib/validation'
 import { createAuditLogger, AUDIT_ACTIONS } from '@/lib/audit'
 import { csrfProtection } from '@/lib/csrf'
 import { APP_CONFIG } from '@/lib/config'
-
-function getDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371
-  const dLat = (lat2 - lat1) * Math.PI / 180
-  const dLon = (lon2 - lon1) * Math.PI / 180
-  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2)
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-  return R * c
-}
+import { agentRouteDays } from '@/lib/routes'
 
 function getWeekStart(date: Date): Date {
   const d = new Date(date)
@@ -42,8 +32,9 @@ export const POST = apiHandler(async (req: NextRequest) => {
   const agent = agents.find(a => a['User ID'] === session.userId)
   if (!agent) return err('Agent not found')
 
-  const autoDistanceKm = getDistanceKm(startLatitude, startLongitude, endLatitude, endLongitude)
-  const distanceKm = typeof manualDistance === 'number' && manualDistance > 0 ? manualDistance : autoDistanceKm
+  // the agent's road distance is required; a straight line is never used as a distance
+  if (!(typeof manualDistance === 'number' && manualDistance > 0)) return err('Enter the road distance in km')
+  const distanceKm = manualDistance
   const tripDate = new Date()
   const weekStart = getWeekStart(tripDate)
 
@@ -70,7 +61,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
     { agentId: agent['Agent ID'], leadId, distanceKm, manualDistance: !!manualDistance, startLatitude, startLongitude, endLatitude, endLongitude }
   )
 
-  return ok({ tripId, distanceKm: distanceKm.toFixed(2), autoDistanceKm: autoDistanceKm.toFixed(2) })
+  return ok({ tripId, distanceKm: distanceKm.toFixed(2) })
 })
 
 export const GET = apiHandler(async (req: NextRequest) => {
@@ -102,8 +93,12 @@ export const GET = apiHandler(async (req: NextRequest) => {
     rows.forEach(r => { who[r['Lead ID']] = { name: r['Customer Name'] || '', place: r['Place'] || '' } })
   }
 
+  // Real road kilometres of the last 8 weeks, from the finished stops of each day's route (what the allowance is paid on)
+  const from = formatDateYmd(new Date(Date.now() - 56 * 86400_000))
+  const routeDays = await agentRouteDays(targetAgentId, from)
+
   // The Trip Details page expects camelCase fields (it crashed on the raw column names)
-  return ok({ ratePerKm: APP_CONFIG.TRIP_RATE_PER_KM, trips: trips.map(t => ({
+  return ok({ ratePerKm: APP_CONFIG.TRIP_RATE_PER_KM, routeDays, trips: trips.map(t => ({
     tripId: t['Trip ID'], agentId: t['Agent ID'], leadId: t['Lead ID'] || '',
     customerName: who[t['Lead ID']]?.name || '', place: who[t['Lead ID']]?.place || '',
     startLatitude: Number(t['Start Latitude']), startLongitude: Number(t['Start Longitude']),

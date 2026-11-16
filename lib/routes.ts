@@ -364,6 +364,33 @@ export async function board(session: Session, q: { branchId?: string; date?: str
   }
 }
 
+// ─── Travelled kilometres (travel allowance) ──────────────────────────────────
+// The road kilometres the agent really rode: every finished stop of a day (customers, "not at home" visits and subroutes) with its
+// road leg from the stop before it (the first leg starts at the day's start point). The same numbers the Verification Routes plan shows.
+export async function agentRouteDays(agentId: string, fromDate: string) {
+  const sb = getSupabase()
+  const [leads, wps] = await Promise.all([
+    sb.from('leads').select(LEAD_COLS).eq('assigned_agent_id', agentId).gte('visit_date', fromDate).not('route_seq', 'is', null),
+    sb.from('route_waypoints').select('*').eq('agent_id', agentId).gte('plan_date', fromDate),
+  ])
+  if (leads.error) throw new Error(leads.error.message)
+  type Leg = { id: string; name: string; place: string; subroute: boolean; seq: number; km: number }
+  const days = new Map<string, Leg[]>()
+  const push = (d: string, leg: Leg) => days.set(d, [...(days.get(d) || []), leg])
+  for (const l of (leads.data || []) as LeadRow[]) {
+    if (!l.visit_date || !isDone(l)) continue
+    push(l.visit_date, { id: l.lead_id, name: l.customer_name, place: l.visit_place || l.place || '', subroute: false, seq: l.route_seq ?? 0, km: num(l.leg_km) ?? 0 })
+  }
+  for (const w of (wps.data || []) as WpRow[]) {
+    if (!w.done) continue
+    push(w.plan_date, { id: w.waypoint_id, name: w.name, place: '', subroute: true, seq: w.route_seq ?? 0, km: num(w.leg_km) ?? 0 })
+  }
+  return Array.from(days.entries()).map(([date, legs]) => {
+    legs.sort((a, b) => a.seq - b.seq)
+    return { date, legs, km: Math.round(legs.reduce((t, x) => t + x.km, 0) * 10) / 10 }
+  }).sort((a, b) => b.date.localeCompare(a.date))
+}
+
 // ─── Planner actions ──────────────────────────────────────────────────────────
 
 export async function setVisit(session: Session, b: {

@@ -24,17 +24,14 @@ function weekRangeLabel(weekIso: string): string {
   return `${fmt(start)} – ${fmt(end)} ${end.getFullYear()}`
 }
 
-function straightKm(a: AgentTrip): number {
-  const R = 6371, rad = (x: number) => x * Math.PI / 180
-  const dLat = rad(a.endLatitude - a.startLatitude), dLon = rad(a.endLongitude - a.startLongitude)
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.startLatitude)) * Math.cos(rad(a.endLatitude)) * Math.sin(dLon / 2) ** 2
-  return 2 * R * Math.asin(Math.sqrt(h))
-}
-
 const dayLabel = (ymd: string) => new Date(ymd.slice(0, 10) + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'long', day: '2-digit', month: 'short', year: 'numeric' })
+
+type RouteLeg = { id: string; name: string; place: string; subroute: boolean; seq: number; km: number }
+type RouteDay = { date: string; legs: RouteLeg[]; km: number }
 
 export default function TripDetailsPage({ session }: { session: Session }) {
   const [trips, setTrips] = useState<AgentTrip[]>([])
+  const [routeDays, setRouteDays] = useState<RouteDay[]>([])
   const [rate, setRate] = useState(3)
   const [loading, setLoading] = useState(true)
   const loadedOnce = useRef(false)
@@ -49,8 +46,10 @@ export default function TripDetailsPage({ session }: { session: Session }) {
       if (json.success) {
         const data = (json.data.trips || []) as AgentTrip[]
         if (typeof json.data.ratePerKm === 'number') setRate(json.data.ratePerKm)
+        const rd = (json.data.routeDays || []) as RouteDay[]
         setTrips(data)
-        const weekSet = new Set(data.map(t => t.weekStart).filter((w): w is string => Boolean(w)))
+        setRouteDays(rd)
+        const weekSet = new Set([...data.map(t => t.weekStart), ...rd.map(d => weekStartIso(d.date))].filter((w): w is string => Boolean(w)))
         const sortedWeeks = Array.from(weekSet).sort((a, b) => new Date(b).getTime() - new Date(a).getTime())
         setWeeks(sortedWeeks)
         if (sortedWeeks.length > 0 && !selectedWeek) setSelectedWeek(sortedWeeks[0])
@@ -64,25 +63,36 @@ export default function TripDetailsPage({ session }: { session: Session }) {
   useEffect(() => { load() }, [session.token])
 
   const weekTrips = useMemo(() => selectedWeek ? trips.filter(t => t.weekStart === selectedWeek) : trips, [trips, selectedWeek])
+  const weekRoute = useMemo(() => selectedWeek ? routeDays.filter(d => weekStartIso(d.date) === selectedWeek) : routeDays, [routeDays, selectedWeek])
 
+  // Paid on the real road kilometres of the finished stops. What the agent typed is shown next to it for comparison.
   const stats = useMemo(() => {
-    const totalKm = weekTrips.reduce((sum, t) => sum + t.distanceKm, 0)
-    const days = new Set(weekTrips.map(t => t.tripDate)).size
-    return { totalKm, totalTrips: weekTrips.length, totalAmount: totalKm * rate, days, avg: weekTrips.length ? totalKm / weekTrips.length : 0 }
-  }, [weekTrips, rate])
+    const routeKm = weekRoute.reduce((s, d) => s + d.km, 0)
+    const enteredKm = weekTrips.reduce((s, t) => s + t.distanceKm, 0)
+    const stopCount = weekRoute.reduce((s, d) => s + d.legs.length, 0)
+    return { routeKm, enteredKm, stopCount, amount: routeKm * rate, days: weekRoute.length }
+  }, [weekRoute, weekTrips, rate])
 
-  // newest day first; inside a day, the first trip of the morning first
-  const byDay = useMemo(() => {
-    const m = new Map<string, AgentTrip[]>()
-    weekTrips.forEach(t => { const k = t.tripDate.slice(0, 10); m.set(k, [...(m.get(k) || []), t]) })
-    return Array.from(m.entries()).sort((a, b) => b[0].localeCompare(a[0])).map(([day, list]) => ({ day, list: list.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()) }))
-  }, [weekTrips])
+  // newest day first
+  const days = useMemo(() => {
+    const keys = new Set([...weekRoute.map(d => d.date), ...weekTrips.map(t => t.tripDate.slice(0, 10))])
+    return Array.from(keys).sort((a, b) => b.localeCompare(a)).map(day => ({
+      day,
+      route: weekRoute.find(d => d.date === day) || null,
+      entries: weekTrips.filter(t => t.tripDate.slice(0, 10) === day).sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()),
+    }))
+  }, [weekRoute, weekTrips])
+
+  const diffNote = (route: number, entered: number) => {
+    const d = Math.round((route - entered) * 10) / 10
+    if (Math.abs(d) < 0.5) return { text: 'Matches what the agent entered', cls: 'text-green-700' }
+    return d > 0 ? { text: `Agent entered ${d} km less than the route`, cls: 'text-amber-700' } : { text: `Agent entered ${-d} km more than the route`, cls: 'text-red-600' }
+  }
 
   if (loading && !loadedOnce.current) return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-ink border-t-transparent" /></div>
 
   return (
     <div className="space-y-4">
-      {/* the summary comes first */}
       <div className="rounded-[1.75rem] border border-white/70 bg-white p-5 shadow-panel">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -94,69 +104,75 @@ export default function TripDetailsPage({ session }: { session: Session }) {
             </select>
           </div>
           <div className="text-right">
-            <p className="text-3xl font-bold text-green-700">{currencyInr(stats.totalAmount)}</p>
-            <p className="text-xs text-soft">travel allowance @ ₹{rate}/km</p>
+            <p className="text-3xl font-bold text-green-700">{currencyInr(stats.amount)}</p>
+            <p className="text-xs text-soft">travel allowance @ ₹{rate}/km on the road km</p>
           </div>
         </div>
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {[['Trips', String(stats.totalTrips)], ['Distance', `${stats.totalKm.toFixed(1)} km`], ['Days worked', String(stats.days)], ['Average trip', `${stats.avg.toFixed(1)} km`]].map(([l, v]) => (
+          {[['Road distance', `${stats.routeKm.toFixed(1)} km`], ['Stops done', String(stats.stopCount)], ['Days worked', String(stats.days)], ['Agent entered', `${stats.enteredKm.toFixed(1)} km`]].map(([l, v]) => (
             <div key={l} className="rounded-2xl bg-mist px-4 py-3">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-soft">{l}</p>
               <p className="mt-0.5 text-lg font-semibold">{v}</p>
             </div>
           ))}
         </div>
-        {byDay.length > 1 && (
-          <div className="mt-4 divide-y divide-black/5 rounded-2xl border border-line">
-            {byDay.map(({ day, list }) => {
-              const km = list.reduce((a, t) => a + t.distanceKm, 0)
-              return (
-                <div key={day} className="flex items-center justify-between px-4 py-2.5 text-sm">
-                  <span className="font-medium">{dayLabel(day)}</span>
-                  <span className="text-soft">{list.length} trips · {km.toFixed(1)} km · <span className="font-semibold text-green-700">{currencyInr(km * rate)}</span></span>
-                </div>
-              )
-            })}
-          </div>
-        )}
+        {stats.routeKm > 0 && <p className={`mt-3 text-xs font-semibold ${diffNote(stats.routeKm, stats.enteredKm).cls}`}>{diffNote(stats.routeKm, stats.enteredKm).text}</p>}
       </div>
 
-      {byDay.length === 0 && <p className="rounded-[1.75rem] border border-white/70 bg-white p-8 text-center text-sm text-soft shadow-panel">No trips recorded for this week.</p>}
+      {days.length === 0 && <p className="rounded-[1.75rem] border border-white/70 bg-white p-8 text-center text-sm text-soft shadow-panel">No trips recorded for this week.</p>}
 
-      {byDay.map(({ day, list }) => (
-        <div key={day} className="overflow-hidden rounded-[1.75rem] border border-white/70 bg-white shadow-panel">
-          <div className="flex items-center justify-between border-b border-black/5 bg-panel px-5 py-3">
-            <p className="text-sm font-semibold">{dayLabel(day)}</p>
-            <p className="text-xs text-soft">{list.length} trips · {list.reduce((a, t) => a + t.distanceKm, 0).toFixed(1)} km</p>
-          </div>
-          <div className="divide-y divide-black/5">
-            {list.map((t, i) => {
-              const crow = straightKm(t)
-              return (
-                <div key={t.tripId || i} className="px-5 py-3.5">
-                  <div className="flex items-start justify-between gap-3">
+      {days.map(({ day, route, entries }) => {
+        const entered = entries.reduce((a, t) => a + t.distanceKm, 0)
+        const routeKm = route?.km || 0
+        const note = diffNote(routeKm, entered)
+        return (
+          <div key={day} className="overflow-hidden rounded-[1.75rem] border border-white/70 bg-white shadow-panel">
+            <div className="border-b border-black/5 bg-panel px-5 py-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-semibold">{dayLabel(day)}</p>
+                <p className="text-right text-sm font-bold text-green-700">{routeKm.toFixed(1)} km · {currencyInr(routeKm * rate)}</p>
+              </div>
+              <p className="mt-0.5 flex flex-wrap items-center justify-between gap-x-3 text-xs text-soft">
+                <span>Agent entered {entered.toFixed(1)} km in {entries.length} {entries.length === 1 ? 'entry' : 'entries'}</span>
+                {routeKm > 0 && <span className={`font-semibold ${note.cls}`}>{note.text}</span>}
+              </p>
+            </div>
+            {route && route.legs.length > 0 && (
+              <div className="divide-y divide-black/5">
+                {route.legs.map((l, i) => (
+                  <div key={l.id} className="flex items-start justify-between gap-3 px-5 py-3">
                     <div className="min-w-0">
-                      <p className="truncate font-semibold">{t.customerName || (t.leadId ? t.leadId : 'Manual entry')}</p>
-                      <p className="truncate text-xs text-soft">
-                        {[t.place, t.leadId && t.customerName ? t.leadId : '', new Date(t.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })].filter(Boolean).join(' · ')}
-                      </p>
+                      <p className="truncate text-sm font-semibold">{i + 1}. {l.name}{l.subroute && <span className="ml-2 rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold uppercase text-violet-700">Subroute</span>}</p>
+                      <p className="truncate text-xs text-soft">{i === 0 ? 'From the start point' : 'From the stop before'}{l.place ? ` · ${l.place}` : ''}</p>
                     </div>
                     <div className="shrink-0 text-right">
-                      <p className="font-semibold">{t.distanceKm.toFixed(2)} km</p>
-                      <p className="text-sm font-semibold text-green-700">{currencyInr(t.distanceKm * rate)}</p>
+                      <p className="font-semibold">{l.km.toFixed(1)} km</p>
+                      <p className="text-xs font-semibold text-green-700">{currencyInr(l.km * rate)}</p>
                     </div>
                   </div>
-                  <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-soft">
-                    <span>Straight line {crow.toFixed(2)} km</span>
-                    <a className="font-semibold text-blue-600" target="_blank" rel="noopener noreferrer"
-                      href={`https://www.google.com/maps/dir/${t.startLatitude},${t.startLongitude}/${t.endLatitude},${t.endLongitude}`}>View route on map</a>
-                  </div>
+                ))}
+              </div>
+            )}
+            {entries.length > 0 && (
+              <div className="border-t border-black/5 bg-mist/60 px-5 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-soft">What the agent entered</p>
+                <div className="mt-1 divide-y divide-black/5">
+                  {entries.map((t, i) => (
+                    <div key={t.tripId || i} className="flex items-center justify-between gap-3 py-1.5 text-xs">
+                      <span className="min-w-0 truncate">{new Date(t.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })} · {t.customerName || t.leadId || 'Manual entry'}</span>
+                      <span className="flex shrink-0 items-center gap-3">
+                        <a className="font-semibold text-blue-600" target="_blank" rel="noopener noreferrer"
+                          href={`https://www.google.com/maps/dir/${t.startLatitude},${t.startLongitude}/${t.endLatitude},${t.endLongitude}`}>Map</a>
+                        <span className="font-semibold">{t.distanceKm.toFixed(1)} km</span>
+                      </span>
+                    </div>
+                  ))}
                 </div>
-              )
-            })}
+              </div>
+            )}
           </div>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
