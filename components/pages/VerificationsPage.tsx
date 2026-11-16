@@ -131,6 +131,8 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
   const [photoFiles, setPhotoFiles] = useState<Partial<Record<PhotoKey, File>>>({})
   const [showLocationModal, setShowLocationModal] = useState(false)
   const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null)
+  const [roadKm, setRoadKm] = useState<number | null>(null)
+  const [roadState, setRoadState] = useState<'idle' | 'loading' | 'done' | 'failed'>('idle')
   const [lastLocation, setLastLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [calculatedDistance, setCalculatedDistance] = useState<number | null>(null)
   const [manualDistance, setManualDistance] = useState<number>(0)
@@ -265,6 +267,7 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
       setCurrentLocation(null)
       setCalculatedDistance(null)
       setManualDistance(0)
+      setRoadKm(null); setRoadState('idle')
     }
   }
 
@@ -276,6 +279,13 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
         if (lastLocation) {
           const dist = getDistanceKm(lastLocation.lat, lastLocation.lng, loc.lat, loc.lng)
           setCalculatedDistance(dist)
+          // the real road distance replaces the straight line (and fills the box, which the agent can still change)
+          setRoadKm(null); setRoadState('loading')
+          fetch('/api/routes/distance', { method: 'POST', headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ from: lastLocation, to: loc }) })
+            .then(r => r.json()).then(j => {
+              const km = j?.success ? j.data.km : null
+              if (typeof km === 'number') { setRoadKm(km); setRoadState('done'); setManualDistance(km) } else setRoadState('failed')
+            }).catch(() => setRoadState('failed'))
         }
       },
       () => { alert('Location access denied.') },
@@ -583,8 +593,18 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
               </div>
               {calculatedDistance !== null && (
                 <div className="rounded-xl bg-green-50 border border-green-200 p-3">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-green-700">Auto Distance (Straight-line)</p>
-                  <p className="text-xl font-bold text-green-700">{calculatedDistance.toFixed(2)} km</p>
+                  {roadState === 'done' && roadKm != null ? (<>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-green-700">Road Distance (Google Maps)</p>
+                    <p className="text-xl font-bold text-green-700">{roadKm.toFixed(1)} km</p>
+                    <p className="text-xs text-green-700/80">Straight line: {calculatedDistance.toFixed(2)} km</p>
+                  </>) : roadState === 'loading' ? (<>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-green-700">Finding the road distance…</p>
+                    <p className="text-xs text-green-700/80">Straight line: {calculatedDistance.toFixed(2)} km</p>
+                  </>) : (<>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-green-700">Straight-line only (road distance not available)</p>
+                    <p className="text-xl font-bold text-green-700">{calculatedDistance.toFixed(2)} km</p>
+                    <p className="text-xs text-amber-700">The road is longer. Open the route in Google Maps and type the road distance below.</p>
+                  </>)}
                 </div>
               )}
             </div>
@@ -604,7 +624,7 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
                   </svg>
                   Open Route in Google Maps
                 </a>
-                <p className="mt-1 text-xs text-soft text-center">Opens Google Maps with route — check road distance, then enter below</p>
+                <p className="mt-1 text-xs text-soft text-center">Opens Google Maps with the route. The box below is filled with the road distance; change it if Google Maps shows a different one</p>
               </div>
             )}
 
@@ -633,7 +653,7 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
                 Refresh Location
               </button>
               <button
-                onClick={() => { setShowLocationModal(false); setCurrentLocation(null); setCalculatedDistance(null); setManualDistance(0); }}
+                onClick={() => { setShowLocationModal(false); setCurrentLocation(null); setCalculatedDistance(null); setManualDistance(0); setRoadKm(null); setRoadState('idle'); }}
                 className="flex-1 rounded-2xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-600"
               >
                 Skip
