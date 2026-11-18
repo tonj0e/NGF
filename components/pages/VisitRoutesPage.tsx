@@ -166,6 +166,7 @@ function WaypointForm({ forId, customers, busy, onSave, onCancel }: { forId: str
   const [name, setName] = useState(forId ? 'Workplace' : '')
   const [link, setLink] = useState('')
   const [note, setNote] = useState('')
+  const [phone, setPhone] = useState('')
   const lab = 'text-xs font-semibold uppercase tracking-wider text-soft'
   return (
     <div className="mt-3 space-y-3 rounded-2xl border border-violet-200 bg-violet-50/50 p-3">
@@ -180,10 +181,11 @@ function WaypointForm({ forId, customers, busy, onSave, onCancel }: { forId: str
       <label className={`${lab} block`}>Location (Google Maps link or lat,lng)<input value={link} onChange={e => setLink(e.target.value)} placeholder="Paste the link" data-no-upper className={`${input} mt-1`} /></label>
       <div className="grid gap-3 sm:grid-cols-2">
         <label className={lab}>Name<input value={name} onChange={e => setName(e.target.value)} placeholder="Petrol pump" className={`${input} mt-1`} /></label>
-        <label className={lab}>Note for the agent (optional)<input value={note} onChange={e => setNote(e.target.value)} placeholder="Free after 5 pm" className={`${input} mt-1`} /></label>
+        <label className={lab}>Phone number (optional)<input value={phone} onChange={e => setPhone(e.target.value)} type="tel" inputMode="tel" placeholder="Person to call there" data-no-upper className={`${input} mt-1`} /></label>
       </div>
+      <label className={`${lab} block`}>Note for the agent (optional)<input value={note} onChange={e => setNote(e.target.value)} placeholder="Free after 5 pm" className={`${input} mt-1`} /></label>
       <div className="flex gap-2">
-        <button disabled={busy || !link.trim()} onClick={() => onSave({ mapsLink: link, name, note, forLeadId: forLead || undefined })} className={`${btn} flex-1 bg-violet-600 text-white`}>{busy ? 'Saving…' : 'Add subroute'}</button>
+        <button disabled={busy || !link.trim()} onClick={() => onSave({ mapsLink: link, name, note, phone, forLeadId: forLead || undefined })} className={`${btn} flex-1 bg-violet-600 text-white`}>{busy ? 'Saving…' : 'Add subroute'}</button>
         <button onClick={onCancel} className={`${btn} border border-line bg-white`}>Cancel</button>
       </div>
     </div>
@@ -575,6 +577,7 @@ function RouteCard({ r, board, date, busy, session, act, startOpen }: {
             {s.kind === 'waypoint' && (
               <div className="mt-2 flex flex-wrap items-center gap-2 pl-9 text-xs">
                 <a href={`https://www.google.com/maps?q=${s.visitLat},${s.visitLng}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-semibold text-blue-700"><Navigation className="h-3 w-3" />Map</a>
+                {s.phone && <a href={`tel:${s.phone}`} className="inline-flex items-center gap-1 font-semibold text-green-700"><Phone className="h-3 w-3" />{s.phone}</a>}
                 <button onClick={() => act(`wpx${s.leadId}`, { action: 'removeWaypoint', waypointId: s.leadId }, 'Subroute removed')} className="ml-auto inline-flex items-center gap-1 font-semibold text-red-600"><X className="h-3 w-3" />Remove</button>
               </div>
             )}

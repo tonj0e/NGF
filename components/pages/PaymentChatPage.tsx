@@ -53,7 +53,7 @@ const TONE: Record<string, string> = {
   'Needs Retake': 'bg-red-50 text-red-700 ring-red-200', Duplicate: 'bg-red-50 text-red-700 ring-red-200', 'Amount Mismatch': 'bg-red-50 text-red-700 ring-red-200',
   'Wrong Payee': 'bg-red-50 text-red-700 ring-red-200', 'Not Successful': 'bg-red-50 text-red-700 ring-red-200', Resubmit: 'bg-red-50 text-red-700 ring-red-200',
 }
-const LABEL: Record<string, string> = { Recorded: 'Recorded ✓', 'Pending Staff': 'With the office', 'Needs Retake': 'Send a clearer screenshot', Duplicate: 'Already used', 'Amount Mismatch': 'Amount does not match', 'Wrong Payee': 'Wrong receiver', 'Not Successful': 'Payment not successful', Resubmit: 'Send again (office asked)', Cancelled: 'Cancelled by the office' }
+const LABEL: Record<string, string> = { Processing: 'Reading the screenshot…', Recorded: 'Recorded ✓', 'Pending Staff': 'With the office', 'Needs Retake': 'Send a clearer screenshot', Duplicate: 'Already used', 'Amount Mismatch': 'Amount does not match', 'Wrong Payee': 'Wrong receiver', 'Not Successful': 'Payment not successful', Resubmit: 'Send again (office asked)', Cancelled: 'Cancelled by the office' }
 
 function StatsStrip({ stats, onOpenHistory }: { stats: Stats; onOpenHistory?: () => void }) {
   const pct = stats.due ? Math.round(stats.recorded / stats.due * 100) : 0
@@ -359,10 +359,11 @@ export default function PaymentChatPage({ session, onOpenHistory, preselect, onP
     inFlight.current = false
   }, [session, me, gid, weekStart])
   useEffect(() => { load() }, [load])
+  const reading = msgs.some(m => m.status === 'Processing')   // checked on the server: look again quickly until it is done
   useEffect(() => {
-    const t = setInterval(() => { if (!document.hidden) load() }, 8000)
+    const t = setInterval(() => { if (!document.hidden) load() }, reading ? 2500 : 8000)
     return () => clearInterval(t)
-  }, [load])
+  }, [load, reading])
   // New messages scroll to the bottom; while the office has asked for something to be sent again, the top (the important card) is shown first
   useEffect(() => { if (resubmits.length) endRef.current?.parentElement?.scrollTo({ top: 0 }); else endRef.current?.scrollIntoView({ block: 'end' }) }, [msgs.length, resubmits.length])
 
@@ -427,10 +428,10 @@ export default function PaymentChatPage({ session, onOpenHistory, preselect, onP
     try {
       const d = await api(session, '/api/payment-chat', {
         action: 'submit', guarantorId: activeGid, mode, repaymentIds: picked.map(p => p.repaymentId), messageId: fixId || undefined,
-        image: img ? { mimeType: img.mimeType, base64Data: img.base64Data } : undefined, manualUtr: stats?.manualMode ? manualUtr : undefined,
+        image: img ? { mimeType: img.mimeType, base64Data: img.base64Data } : undefined, manualUtr: stats?.manualMode ? manualUtr : undefined, background: !fixId && !!img ? true : undefined,
       })
       setOpen(false); setWeekStart(curMonday); await load()
-      flash(d.message.status === 'Recorded' ? 'Payment recorded ✓' : d.message.problem || 'Sent'); setManualUtr('')
+      flash(d.message.status === 'Recorded' ? 'Payment recorded ✓' : d.message.status === 'Processing' ? 'Sent. It is being checked, you can send the next one.' : d.message.problem || 'Sent'); setManualUtr('')
     } catch (e) { flash(e instanceof Error ? e.message : 'Failed to send') }
     setSending(false)
   }
@@ -568,7 +569,7 @@ export default function PaymentChatPage({ session, onOpenHistory, preselect, onP
     const weekName = (w: string, i: number) => `${i === 0 ? 'This week' : i === 1 ? 'Last week' : 'Week'} · ${weekRange(w)}`
     let lastDay = ''
     return (
-      <div className="relative -mx-4 -mb-8 -mt-4 flex h-[calc(100dvh-3.75rem-env(safe-area-inset-top))] min-h-[28rem] flex-col overflow-hidden bg-[#efeae2] sm:-mx-6 md:-mb-4 lg:mx-auto lg:mb-0 lg:mt-0 lg:h-[calc(100dvh-7rem)] lg:max-w-2xl lg:rounded-2xl lg:shadow-panel lg:ring-1 lg:ring-black/10">
+      <div className="relative -mx-4 -mb-8 -mt-4 flex h-[calc(100dvh-3.75rem-env(safe-area-inset-top))] min-h-[28rem] flex-col overflow-hidden bg-[#efeae2] sm:-mx-6 md:-mb-4 lg:mx-0 lg:mb-0 lg:mt-0 lg:h-[calc(100dvh-7rem)] lg:rounded-2xl lg:shadow-panel lg:ring-1 lg:ring-black/10">
         <div className="bg-[#075e54] text-white">
           <div className="flex items-center gap-2 px-3 py-2.5">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -690,7 +691,7 @@ export default function PaymentChatPage({ session, onOpenHistory, preselect, onP
   }
 
   return (
-    <div className="mx-auto flex h-[calc(100dvh-10rem)] min-h-[30rem] max-w-3xl flex-col gap-3">
+    <div className="mx-auto flex h-[calc(100dvh-10rem)] min-h-[30rem] w-full max-w-3xl flex-col gap-3 lg:max-w-none">
       {stats && <StatsStrip stats={stats} onOpenHistory={onOpenHistory} />}
       {!stats && onOpenHistory && (
         <div className="flex justify-end"><button onClick={onOpenHistory} className="rounded-full bg-white px-4 py-2 text-xs font-semibold ring-1 ring-black/10">Payment history →</button></div>

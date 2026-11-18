@@ -181,6 +181,7 @@ export default function MyRoutePage({ session, active = true }: { session: Sessi
               {s.kind === 'waypoint' && !s.done && (
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   {nav && <a href={nav} target="_blank" rel="noreferrer" onClick={openMapsClick(s.visitLat, s.visitLng)} className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-ink px-3 py-3 text-sm font-semibold text-white"><Navigation className="h-4 w-4" />Navigate</a>}
+                  {s.phone && <a href={`tel:${s.phone}`} className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-green-600 px-3 py-3 text-sm font-semibold text-white"><Phone className="h-4 w-4" />Call</a>}
                   <button onClick={() => markWaypointDone(s.leadId)} disabled={!!busy} className="rounded-2xl bg-violet-600 px-3 py-3 text-sm font-bold text-white disabled:opacity-40">Mark done</button>
                 </div>
               )}

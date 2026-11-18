@@ -107,3 +107,8 @@ The pop-up has a View screenshot button next to the customer line; it shows the 
 
 ## Reader answer limit (2026-11-09)
 The OpenRouter (Claude Haiku) read now allows `max_tokens: 1200` (was 600) in `lib/slipReader.ts`; one read had been cut off while thinking. Typical cost stays about $0.0003 per read (see memory note on cost watch).
+
+## Speed and queue (2026-11-18)
+- **Layout:** on a laptop the chat now fills the page width (it was capped at `max-w-2xl`, like a phone). Phones are unchanged.
+- **Queue (on the server):** a new screenshot is sent with `background: true`. `submitSlip` checks it, saves the message as status `Processing` ("Reading the screenshot…") and answers at once; the form closes and the next customer can be chosen. The Drive upload, the AI reading and the recording then run on the server (`rest()` inside `submitSlip`), one guarantor's screenshots in order (`runSerial`), so closing or minimising the app does not lose anything; the result appears in the chat when the app is opened again (the chat refreshes every 2.5 s while something is being read, otherwise 8 s). A job that died with a server restart is marked `Needs Retake` ("send it again", no wrong-try counted) after 4 minutes by `sweepStale`. Fixes (Send a new screenshot / Change customer) and Cash are still done in one step.
+- **Server (`submitSlip`):** the Drive folder ids and the guarantor code are remembered in memory (they were looked up again on every upload: 4 to 6 slow Google calls), folders are created in parallel for a multi payment, and the access check, the wrong-screenshot count, the provider choice and the two daily-limit counts now run together instead of one after another. The reading itself (the AI call) is unchanged.

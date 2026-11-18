@@ -125,13 +125,13 @@ const MAX_WAYPOINTS = 10
 const WP_PREFIX = 'WPT'
 const isWpId = (id: string) => id.startsWith(WP_PREFIX)
 type WpRow = {
-  waypoint_id: string; agent_id: string; plan_date: string; name: string; note: string | null; for_lead_id: string | null
+  waypoint_id: string; agent_id: string; plan_date: string; name: string; note: string | null; phone?: string | null; for_lead_id: string | null
   lat: number | string; lng: number | string; route_seq: number | null; leg_km: number | string | null; leg_min: number | null; done: boolean
 }
 
 function wpAsLead(w: WpRow): LeadRow {
   return {
-    lead_id: w.waypoint_id, customer_name: w.name, phone: null, alt_phone: null, alt_phone_label: null, place: null, address: null, landmark: null,
+    lead_id: w.waypoint_id, customer_name: w.name, phone: w.phone || null, alt_phone: null, alt_phone_label: null, place: null, address: null, landmark: null,
     house_name: null, pinned_location: null, status: w.done ? 'Verification Submitted' : 'Agent Assigned', guarantor_id: null, assigned_agent_id: w.agent_id,
     submitted_date: null, visit_lat: w.lat, visit_lng: w.lng, visit_place: null, visit_date: w.plan_date, visit_window: null, visit_note: w.note,
     call_outcome: null, visit_status: null, route_seq: w.route_seq, route_pin: null, leg_km: w.leg_km, leg_min: w.leg_min,
@@ -522,7 +522,7 @@ export async function pin(session: Session, b: { leadId: string; pin: string }) 
 }
 
 // Planner adds a waypoint to one agent's day. It goes to the end of the list; the planner then drags it where it belongs.
-export async function addWaypoint(session: Session, b: { agentId: string; date: string; name?: string; note?: string; forLeadId?: string; mapsLink?: string; lat?: number; lng?: number }) {
+export async function addWaypoint(session: Session, b: { agentId: string; date: string; name?: string; note?: string; forLeadId?: string; mapsLink?: string; lat?: number; lng?: number; phone?: string }) {
   const a = await getRouteAccess(session); needPlanner(a); const cfg = await requireEnabled()
   if (!isDate(b.date)) throw new RouteError('Pick the day')
   const agent = await agentInScope(a, String(b.agentId || ''))
@@ -535,6 +535,8 @@ export async function addWaypoint(session: Session, b: { agentId: string; date: 
     point = { lat: b.lat, lng: b.lng }
   }
   if (!point) throw new RouteError('Paste the location (Google Maps link or lat,lng)')
+  const phone = String(b.phone || '').replace(/[^\d+]/g, '').slice(0, 15)
+  if (phone && phone.replace(/\D/g, '').length < 7) throw new RouteError('Enter a valid phone number or leave it empty')
   if (b.forLeadId) { const l = await loadLead(String(b.forLeadId)); await assertLeadAccess(a, l) }
   const sb = getSupabase()
   const { count } = await sb.from('route_waypoints').select('waypoint_id', { count: 'exact', head: true }).eq('agent_id', agent.agent_id).eq('plan_date', b.date)
@@ -542,7 +544,7 @@ export async function addWaypoint(session: Session, b: { agentId: string; date: 
   const id = `${WP_PREFIX}${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).slice(2, 5).toUpperCase()}`
   const { error } = await sb.from('route_waypoints').insert({
     waypoint_id: id, agent_id: agent.agent_id, plan_date: b.date, name: String(b.name || '').trim().slice(0, 80) || 'Waypoint',
-    note: String(b.note || '').trim().slice(0, 300) || null, for_lead_id: b.forLeadId || null, lat: point.lat, lng: point.lng, route_seq: 9999, created_by: session.userId,
+    note: String(b.note || '').trim().slice(0, 300) || null, phone: phone || null, for_lead_id: b.forLeadId || null, lat: point.lat, lng: point.lng, route_seq: 9999, created_by: session.userId,
   })
   if (error) throw new Error(error.message)
   const res = await recalcRoute(agent.agent_id, b.date, { optimize: false, actorId: session.userId, useWindows: cfg.windows })

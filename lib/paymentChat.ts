@@ -160,6 +160,7 @@ export async function listMessages(session: Session, access: Access, guarantorId
   // One Monday-to-Sunday week when asked for (the guarantor chat); otherwise the latest messages as before
   const monday = isoDay(weekStart) ? mondayOfIso(weekStart) : ''
   if (monday) q = q.gte('created_at', `${monday}T00:00:00+05:30`).lt('created_at', `${addDaysIso(monday, 7)}T00:00:00+05:30`)
+  await sweepStale(gid).catch(() => {})
   const { data, error } = await q
   if (error) throw new Error(error.message)
   const msgs = (data || []).reverse().map(publicMsg)
@@ -200,6 +201,7 @@ export type SubmitInput = {
   guarantorId?: string; mode?: string; repaymentIds?: string[]; messageId?: string
   image?: { mimeType: string; base64Data: string } | null
   manualUtr?: string   // only used once the guarantor has used up the wrong-screenshot allowance
+  background?: boolean   // new screenshot: save it, answer at once and read it on the server (the app can be closed meanwhile)
 }
 
 async function lineDetails(guarantorId: string, repaymentIds: string[]): Promise<ChatLine[]> {
@@ -219,34 +221,71 @@ async function lineDetails(guarantorId: string, repaymentIds: string[]): Promise
 }
 
 // Google Drive: Payment Screenshots / <date> / <guarantor code> / <customer 4-digit code>. A multi payment keeps a copy in each customer's folder.
-async function storeProof(guarantorId: string, lines: ChatLine[], media: string, b64: string, hash: string): Promise<string> {
+// Folder ids and guarantor codes do not change, so they are remembered: each upload used to make 4 to 6 slow Drive/Sheets calls before the file itself.
+const folderCache = new Map<string, string>()
+const codeCache = new Map<string, { code: string; ts: number }>()
+async function cachedFolder(parentId: string, name: string): Promise<string> {
+  const k = `${parentId}|${name}`
+  const hit = folderCache.get(k)
+  if (hit) return hit
+  const id = await getOrCreateFolder(parentId, name)
+  folderCache.set(k, id)
+  return id
+}
+async function guarantorCode(guarantorId: string): Promise<string> {
+  const hit = codeCache.get(guarantorId)
+  if (hit && Date.now() - hit.ts < 3600_000) return hit.code
   const g = (await readTable('Guarantors')).find(x => x['Guarantor ID'] === guarantorId)
+  const code = String(g?.['Code'] || guarantorId)
+  codeCache.set(guarantorId, { code, ts: Date.now() })
+  return code
+}
+async function storeProof(guarantorId: string, lines: ChatLine[], media: string, b64: string, hash: string): Promise<string> {
+  try { return await storeProofOnce(guarantorId, lines, media, b64, hash) }
+  catch { folderCache.clear(); return await storeProofOnce(guarantorId, lines, media, b64, hash) }   // a folder may have been deleted or moved: look them up again once
+}
+async function storeProofOnce(guarantorId: string, lines: ChatLine[], media: string, b64: string, hash: string): Promise<string> {
   const day = getTodayIST()
-  const top = await getOrCreateFolder(APP_CONFIG.PHOTO_ROOT_FOLDER_ID, 'Payment Screenshots')
-  const dayF = await getOrCreateFolder(top, day)
-  const gF = await getOrCreateFolder(dayF, String(g?.['Code'] || guarantorId).replace(/[\\/:*?"<>|]/g, ' ').trim())
+  const [gcode, top] = await Promise.all([guarantorCode(guarantorId), cachedFolder(APP_CONFIG.PHOTO_ROOT_FOLDER_ID, 'Payment Screenshots')])
+  const dayF = await cachedFolder(top, day)
+  const gF = await cachedFolder(dayF, gcode.replace(/[\\/:*?"<>|]/g, ' ').trim())
   const codes = Array.from(new Set(lines.map(l => l.payCode).filter(Boolean)))
   const ext = media === 'image/png' ? 'png' : media === 'image/webp' ? 'webp' : 'jpg'
-  let first = ''
-  for (const code of codes.length ? codes : ['unknown']) {
-    const folder = await getOrCreateFolder(gF, code)
-    const id = await saveFile(folder, `${day}_${codes.join('+') || 'unknown'}_${hash.slice(0, 8)}.${ext}`, media, b64)
-    first ||= id
-  }
-  return driveUrl(first)
+  const name = `${day}_${codes.join('+') || 'unknown'}_${hash.slice(0, 8)}.${ext}`
+  const ids = await Promise.all((codes.length ? codes : ['unknown']).map(async code => saveFile(await cachedFolder(gF, code), name, media, b64)))
+  return driveUrl(ids[0])
 }
 
 const money = (n: number) => `₹${Number(n).toLocaleString('en-IN')}`
+
+// Background reading: one guarantor's screenshots are processed one after another (so the wrong-screenshot count and the
+// "fix first" rule behave as before), different guarantors run side by side.
+const chains = new Map<string, Promise<unknown>>()
+const liveJobs = new Set<string>()
+function runSerial(key: string, fn: () => Promise<unknown>) {
+  const next = (chains.get(key) || Promise.resolve()).catch(() => {}).then(fn)
+  chains.set(key, next)
+  next.catch(() => {}).finally(() => { if (chains.get(key) === next) chains.delete(key) })
+}
+const STALE_MS = 4 * 60_000
+// A job that died with the server (restart) must not stay "reading" for ever: tell the guarantor to send it again.
+async function sweepStale(guarantorId: string) {
+  const sb = getSupabase()
+  const { data } = await sb.from('payment_chat').select('message_id').eq('kind', 'slip').eq('status', 'Processing').lt('created_at', new Date(Date.now() - STALE_MS).toISOString()).limit(50)
+  const ids = (data || []).map(r => r.message_id as string).filter(id => !liveJobs.has(id))
+  if (!ids.length) return
+  await sb.from('payment_chat').update({ status: 'Needs Retake', problem: 'This screenshot could not be finished (the connection broke). Please send it again.', updated_at: new Date().toISOString() }).in('message_id', ids).eq('status', 'Processing')
+  void guarantorId
+}
 
 export async function submitSlip(session: Session, access: Access, input: SubmitInput) {
   if (!access.canChat) throw new PaymentError('The chat is not switched on for you. Ask an Admin.')
   const act: Access = { ...access, canMark: true }   // chat payments are recorded through markPayment, which needs this
   const guarantorId = access.isGuarantor ? access.guarantorId : String(input.guarantorId || '')
   if (!guarantorId) throw new PaymentError('Choose a guarantor')
-  await needGuarantor(access, guarantorId)
   const sb = getSupabase()
   // A guarantor has a limited number of wrong screenshots per collection Saturday; after that they type the ID themselves
-  const stats = access.isGuarantor ? await chatStats(guarantorId) : null
+  const [, stats] = await Promise.all([needGuarantor(access, guarantorId), access.isGuarantor ? chatStats(guarantorId) : Promise.resolve(null)])
   const manualMode = !!stats?.manualMode
   const typedUtr = manualMode ? normalizeUtr(input.manualUtr) : ''
   if (manualMode && !validUtr(typedUtr)) {
@@ -300,130 +339,153 @@ export async function submitSlip(session: Session, access: Access, input: Submit
     message_id: messageId, guarantor_id: guarantorId, kind: 'slip', mode, lines, image_url: imageUrl, image_hash: imageHash || null,
     created_by: session.userId, created_by_name: session.name, updated_at: new Date().toISOString(),
   }
-  const settleProof = async () => { if (proofP) { const p = proofP; proofP = null; imageUrl = await p; base.image_url = imageUrl } }
-  const finish = async (status: string, problem: string, extra: Row = {}) => {
-    await settleProof()
-    const wrong = access.isGuarantor && FIX_STATUSES.includes(status) ? 1 : 0
-    // Keep the previous try as its own (hidden) row so the screenshot, transaction ID and reader of every try can be compared later.
-    // Its reading cost moves with it, so the current row starts again at zero.
-    if (existing) {
-      const { message_id: _id, ...old } = existing
-      const { error: aerr } = await sb.from('payment_chat').insert({
-        ...old, message_id: makeId('CHT'), parent_id: existing.message_id, status: EARLIER, wrong_count: 0,
-        problem: `${existing.status}${existing.problem ? `: ${existing.problem}` : ''}`, created_at: existing.updated_at || existing.created_at,
-      })
-      if (aerr) reportError('Could not keep the earlier try', aerr)
+  let placeholder = false
+  const rest = async () => {
+    const settleProof = async () => { if (proofP) { const p = proofP; proofP = null; imageUrl = await p; base.image_url = imageUrl } }
+    const finish = async (status: string, problem: string, extra: Row = {}) => {
+      await settleProof()
+      const wrong = access.isGuarantor && FIX_STATUSES.includes(status) ? 1 : 0
+      // Keep the previous try as its own (hidden) row so the screenshot, transaction ID and reader of every try can be compared later.
+      // Its reading cost moves with it, so the current row starts again at zero.
+      if (existing) {
+        const { message_id: _id, ...old } = existing
+        const { error: aerr } = await sb.from('payment_chat').insert({
+          ...old, message_id: makeId('CHT'), parent_id: existing.message_id, status: EARLIER, wrong_count: 0,
+          problem: `${existing.status}${existing.problem ? `: ${existing.problem}` : ''}`, created_at: existing.updated_at || existing.created_at,
+        })
+        if (aerr) reportError('Could not keep the earlier try', aerr)
+      }
+      const row = {
+        ...base, status, problem: problem || null,
+        ...(existing ? { in_tokens: 0, out_tokens: 0, cost_usd: 0, reader: null } : {}), ...extra,
+        collection_day: existing?.collection_day || collectionDay(), wrong_count: Number(existing?.wrong_count || 0) + wrong, manual: manualMode,
+      }
+      const { error } = existing || placeholder
+        ? await sb.from('payment_chat').update(row).eq('message_id', messageId)
+        : await sb.from('payment_chat').insert(row)
+      if (error) throw new Error(error.message)
+      const { data } = await sb.from('payment_chat').select('*').eq('message_id', messageId).single()
+      return publicMsg(data as Row)
     }
-    const row = {
-      ...base, status, problem: problem || null,
-      ...(existing ? { in_tokens: 0, out_tokens: 0, cost_usd: 0, reader: null } : {}), ...extra,
-      collection_day: existing?.collection_day || collectionDay(), wrong_count: Number(existing?.wrong_count || 0) + wrong, manual: manualMode,
-    }
-    const { error } = existing
-      ? await sb.from('payment_chat').update(row).eq('message_id', messageId)
-      : await sb.from('payment_chat').insert(row)
-    if (error) throw new Error(error.message)
-    const { data } = await sb.from('payment_chat').select('*').eq('message_id', messageId).single()
-    return publicMsg(data as Row)
-  }
-  const reset = { utr: null, amount_read: null, txn_date: null, txn_time: null, payee: null, pay_app: null, confidence: null, group_id: null, duplicate_group_id: null }
+    const reset = { utr: null, amount_read: null, txn_date: null, txn_time: null, payee: null, pay_app: null, confidence: null, group_id: null, duplicate_group_id: null }
 
-  // The same picture was already used for a recorded payment: no need to read it again
-  if (imageHash) {
-    const { data: same } = await sb.from('payment_chat').select('message_id, group_id, lines').eq('image_hash', imageHash).eq('status', 'Recorded').neq('message_id', messageId).limit(1)
-    if (same && same.length) {
-      const who = ((same[0].lines || []) as ChatLine[]).map(l => `${l.name} (${l.payCode})`).join(', ')
-      return finish('Duplicate', `This exact screenshot was already used for ${who || 'another payment'}. Send the correct screenshot for this customer.`, { ...reset, duplicate_group_id: same[0].group_id })
+    // The same picture was already used for a recorded payment: no need to read it again
+    if (imageHash) {
+      const { data: same } = await sb.from('payment_chat').select('message_id, group_id, lines').eq('image_hash', imageHash).eq('status', 'Recorded').neq('message_id', messageId).limit(1)
+      if (same && same.length) {
+        const who = ((same[0].lines || []) as ChatLine[]).map(l => `${l.name} (${l.payCode})`).join(', ')
+        return finish('Duplicate', `This exact screenshot was already used for ${who || 'another payment'}. Send the correct screenshot for this customer.`, { ...reset, duplicate_group_id: same[0].group_id })
+      }
     }
-  }
 
-  // Allowance used up: no reading. The guarantor typed the transaction ID, so check it is unused and record it.
-  if (manualMode) {
-    const found = await lookupUtr(typedUtr, access)
+    // Allowance used up: no reading. The guarantor typed the transaction ID, so check it is unused and record it.
+    if (manualMode) {
+      const found = await lookupUtr(typedUtr, access)
+      const holder = found.groups.find(g => g.status === 'Verified' || g.status === 'Overridden')
+      if (holder) {
+        const who = holder.lines.map(l => (l.hidden ? 'a customer of another guarantor' : `${l.name} (${l.payCode})`)).join(', ')
+        return finish('Duplicate', `This transaction ID is already recorded for ${who}. Check the ID you typed.`, { ...reset, utr: typedUtr, duplicate_group_id: holder.groupId })
+      }
+      try {
+        const res = await markPayment(session, act, { guarantorId, mode: 'UPI', utr: typedUtr, repaymentIds, screenshotUrl: (await settleProof(), imageUrl), notes: 'Payment Chat. Transaction ID typed by the guarantor (not read from the screenshot).' })
+        if (res.flagged) return finish('Duplicate', 'This transaction ID was just recorded by someone else. Check the ID you typed.', { ...reset, utr: typedUtr, duplicate_group_id: res.group.conflicts?.[0]?.groupId || null })
+        return finish('Recorded', '', { ...reset, utr: typedUtr, group_id: res.group.groupId })
+      } catch (e) {
+        if (e instanceof PaymentError) return finish('Needs Retake', e.message, { ...reset, utr: typedUtr })
+        throw e
+      }
+    }
+
+    // Switches and limits: when reading is not possible the screenshot goes to the office instead of being lost
+    const cfg = await slipSettings()
+    const toOffice = (why: string) => finish('Pending Staff', `${why} Sent to the office to check.`, reset)
+    if (!imageHash || !media) return toOffice('A new picture is needed to read it.')
+    const dayStart = istStart(0)
+    const [prov, { count: today }, { count: mine }] = await Promise.all([
+      pickProvider(cfg.provider),
+      sb.from('payment_chat').select('message_id', { count: 'exact', head: true }).gt('in_tokens', 0).gte('created_at', dayStart),
+      sb.from('payment_chat').select('message_id', { count: 'exact', head: true }).eq('guarantor_id', guarantorId).gt('in_tokens', 0).gte('created_at', dayStart),
+    ])
+    if (!prov || !cfg.enabled) return toOffice('Automatic reading is switched off.')
+    if ((today || 0) >= cfg.dailyCap) return toOffice('Automatic reading has reached its limit for today.')
+    if ((mine || 0) >= cfg.guarantorCap) return toOffice('You have sent many screenshots today.')
+
+    // Read it
+    let reading: SlipReading, inT = 0, outT = 0, cost = 0, readerName = ''
+    const t0 = Date.now()
+    try { const r = await readSlip(b64, media, prov, undefined, { purpose: 'slip', guarantorId, messageId, userId: session.userId }); ({ reading, inTokens: inT, outTokens: outT, costUsd: cost } = r); readerName = `${r.provider}:${r.model}@${Date.now() - t0}` }
+    catch (e) { reportError('Slip read failed', e); return toOffice('The screenshot could not be read just now.') }
+    const utr = normalizeUtr(reading.utr)
+    const usage = { in_tokens: Math.max(1, inT), out_tokens: outT, cost_usd: cost, reader: readerName }
+    const read = { utr: utr || null, amount_read: reading.amount, txn_date: reading.date, txn_time: reading.time, payee: reading.payee, pay_app: reading.app, confidence: reading.confidence, group_id: null, duplicate_group_id: null, ...usage }
+
+    if (!reading.isPaymentScreenshot) return finish('Needs Retake', 'This does not look like a payment confirmation screenshot. Send the payment success screen.', read)
+    if (!reading.readable || reading.confidence === 'low' || !validUtr(utr) || reading.amount == null) {
+      return finish('Needs Retake', `The screenshot is not clear enough${reading.problem ? ` (${reading.problem})` : ''}. Take a clear screenshot of the payment success screen showing the transaction ID and amount.`, read)
+    }
+    if (reading.paymentStatus !== 'success') return finish('Not Successful', `The screenshot shows the payment as ${reading.paymentStatus}. Send it again after the payment succeeds.`, read)
+    if (Math.abs(Number(reading.amount) - expected) > 0.001) {
+      return finish('Amount Mismatch', `The screenshot shows ${money(reading.amount)} but the customers you chose add up to ${money(expected)}. Choose the right customers or send the right screenshot.`, read)
+    }
+    // Receiver check: always on. The Dev setting can list more names; with none set, "ngf" is used.
+    const want = (cfg.payee || 'ngf').toLowerCase().split(',').map(s => s.trim()).filter(Boolean)
+    const gotPayee = String(reading.payee || '').trim()
+    if (!gotPayee) {
+      return finish('Pending Staff', 'The screenshot does not show who the money was paid to. Sent to the office to check.', read)
+    }
+    if (!want.some(w => gotPayee.toLowerCase().includes(w))) {
+      return finish('Wrong Payee', `The payment went to "${gotPayee}", not to NGF. Send the screenshot of the payment made to NGF.`, read)
+    }
+    if (!String(reading.payer || '').trim()) {
+      return finish('Pending Staff', 'The screenshot does not show who sent the money. Sent to the office to check.', read)
+    }
+
+    // Duplicate UTR: show who already holds it
+    const found = await lookupUtr(utr, access)
     const holder = found.groups.find(g => g.status === 'Verified' || g.status === 'Overridden')
     if (holder) {
-      const who = holder.lines.map(l => (l.hidden ? 'a customer of another guarantor' : `${l.name} (${l.payCode})`)).join(', ')
-      return finish('Duplicate', `This transaction ID is already recorded for ${who}. Check the ID you typed.`, { ...reset, utr: typedUtr, duplicate_group_id: holder.groupId })
+      const who = holder.lines.map(l => (l.hidden ? "a customer of another guarantor" : `${l.name} (${l.payCode})`)).join(', ')
+      return finish('Duplicate', `This transaction ID is already recorded for ${who}. Send the correct screenshot, or choose the right customer.`, { ...read, duplicate_group_id: holder.groupId })
     }
+
+    // Dates that look wrong go to the office instead of being recorded
+    const today0 = getTodayIST()
+    const ageDays = reading.date ? Math.round((Date.parse(today0) - Date.parse(reading.date)) / 86400000) : null
+    if (reading.confidence !== 'high' || ageDays == null || ageDays < -1 || ageDays > 14) {
+      return finish('Pending Staff', `Read as ${utr} for ${money(reading.amount)}, but the ${reading.confidence !== 'high' ? 'reading is not certain' : 'date looks unusual'}. Sent to the office to check.`, read)
+    }
+
+    // All good: record it exactly like a staff-marked UPI payment
     try {
-      const res = await markPayment(session, act, { guarantorId, mode: 'UPI', utr: typedUtr, repaymentIds, screenshotUrl: (await settleProof(), imageUrl), notes: 'Payment Chat. Transaction ID typed by the guarantor (not read from the screenshot).' })
-      if (res.flagged) return finish('Duplicate', 'This transaction ID was just recorded by someone else. Check the ID you typed.', { ...reset, utr: typedUtr, duplicate_group_id: res.group.conflicts?.[0]?.groupId || null })
-      return finish('Recorded', '', { ...reset, utr: typedUtr, group_id: res.group.groupId })
+      const res = await markPayment(session, act, {
+        guarantorId, mode: 'UPI', utr, repaymentIds, screenshotUrl: (await settleProof(), imageUrl),
+        notes: `Payment Chat. Read from screenshot: ${reading.date || ''} ${reading.time || ''} ${reading.app || ''}`.trim().slice(0, 480),
+      })
+      if (res.flagged) return finish('Duplicate', 'This transaction ID was just recorded by someone else. Send the correct screenshot.', { ...read, duplicate_group_id: res.group.conflicts?.[0]?.groupId || null })
+      return finish('Recorded', '', { ...read, group_id: res.group.groupId })
     } catch (e) {
-      if (e instanceof PaymentError) return finish('Needs Retake', e.message, { ...reset, utr: typedUtr })
+      if (e instanceof PaymentError) return finish('Needs Retake', e.message, read)
       throw e
     }
   }
 
-  // Switches and limits: when reading is not possible the screenshot goes to the office instead of being lost
-  const cfg = await slipSettings()
-  const toOffice = (why: string) => finish('Pending Staff', `${why} Sent to the office to check.`, reset)
-  if (!imageHash || !media) return toOffice('A new picture is needed to read it.')
-  const prov: Provider | null = await pickProvider(cfg.provider)
-  if (!prov || !cfg.enabled) return toOffice('Automatic reading is switched off.')
-  const dayStart = istStart(0)
-  const { count: today } = await sb.from('payment_chat').select('message_id', { count: 'exact', head: true }).gt('in_tokens', 0).gte('created_at', dayStart)
-  if ((today || 0) >= cfg.dailyCap) return toOffice('Automatic reading has reached its limit for today.')
-  const { count: mine } = await sb.from('payment_chat').select('message_id', { count: 'exact', head: true }).eq('guarantor_id', guarantorId).gt('in_tokens', 0).gte('created_at', dayStart)
-  if ((mine || 0) >= cfg.guarantorCap) return toOffice('You have sent many screenshots today.')
-
-  // Read it
-  let reading: SlipReading, inT = 0, outT = 0, cost = 0, readerName = ''
-  const t0 = Date.now()
-  try { const r = await readSlip(b64, media, prov, undefined, { purpose: 'slip', guarantorId, messageId, userId: session.userId }); ({ reading, inTokens: inT, outTokens: outT, costUsd: cost } = r); readerName = `${r.provider}:${r.model}@${Date.now() - t0}` }
-  catch (e) { reportError('Slip read failed', e); return toOffice('The screenshot could not be read just now.') }
-  const utr = normalizeUtr(reading.utr)
-  const usage = { in_tokens: Math.max(1, inT), out_tokens: outT, cost_usd: cost, reader: readerName }
-  const read = { utr: utr || null, amount_read: reading.amount, txn_date: reading.date, txn_time: reading.time, payee: reading.payee, pay_app: reading.app, confidence: reading.confidence, group_id: null, duplicate_group_id: null, ...usage }
-
-  if (!reading.isPaymentScreenshot) return finish('Needs Retake', 'This does not look like a payment confirmation screenshot. Send the payment success screen.', read)
-  if (!reading.readable || reading.confidence === 'low' || !validUtr(utr) || reading.amount == null) {
-    return finish('Needs Retake', `The screenshot is not clear enough${reading.problem ? ` (${reading.problem})` : ''}. Take a clear screenshot of the payment success screen showing the transaction ID and amount.`, read)
-  }
-  if (reading.paymentStatus !== 'success') return finish('Not Successful', `The screenshot shows the payment as ${reading.paymentStatus}. Send it again after the payment succeeds.`, read)
-  if (Math.abs(Number(reading.amount) - expected) > 0.001) {
-    return finish('Amount Mismatch', `The screenshot shows ${money(reading.amount)} but the customers you chose add up to ${money(expected)}. Choose the right customers or send the right screenshot.`, read)
-  }
-  // Receiver check: always on. The Dev setting can list more names; with none set, "ngf" is used.
-  const want = (cfg.payee || 'ngf').toLowerCase().split(',').map(s => s.trim()).filter(Boolean)
-  const gotPayee = String(reading.payee || '').trim()
-  if (!gotPayee) {
-    return finish('Pending Staff', 'The screenshot does not show who the money was paid to. Sent to the office to check.', read)
-  }
-  if (!want.some(w => gotPayee.toLowerCase().includes(w))) {
-    return finish('Wrong Payee', `The payment went to "${gotPayee}", not to NGF. Send the screenshot of the payment made to NGF.`, read)
-  }
-  if (!String(reading.payer || '').trim()) {
-    return finish('Pending Staff', 'The screenshot does not show who sent the money. Sent to the office to check.', read)
-  }
-
-  // Duplicate UTR: show who already holds it
-  const found = await lookupUtr(utr, access)
-  const holder = found.groups.find(g => g.status === 'Verified' || g.status === 'Overridden')
-  if (holder) {
-    const who = holder.lines.map(l => (l.hidden ? "a customer of another guarantor" : `${l.name} (${l.payCode})`)).join(', ')
-    return finish('Duplicate', `This transaction ID is already recorded for ${who}. Send the correct screenshot, or choose the right customer.`, { ...read, duplicate_group_id: holder.groupId })
-  }
-
-  // Dates that look wrong go to the office instead of being recorded
-  const today0 = getTodayIST()
-  const ageDays = reading.date ? Math.round((Date.parse(today0) - Date.parse(reading.date)) / 86400000) : null
-  if (reading.confidence !== 'high' || ageDays == null || ageDays < -1 || ageDays > 14) {
-    return finish('Pending Staff', `Read as ${utr} for ${money(reading.amount)}, but the ${reading.confidence !== 'high' ? 'reading is not certain' : 'date looks unusual'}. Sent to the office to check.`, read)
-  }
-
-  // All good: record it exactly like a staff-marked UPI payment
-  try {
-    const res = await markPayment(session, act, {
-      guarantorId, mode: 'UPI', utr, repaymentIds, screenshotUrl: (await settleProof(), imageUrl),
-      notes: `Payment Chat. Read from screenshot: ${reading.date || ''} ${reading.time || ''} ${reading.app || ''}`.trim().slice(0, 480),
+  if (input.background && !existing && imageHash) {
+    // Save the message as "reading" and answer at once. The rest runs on the server, whatever the guarantor's phone does next.
+    const { error: perr } = await sb.from('payment_chat').insert({ ...base, status: 'Processing', problem: null, collection_day: collectionDay(), wrong_count: 0, manual: manualMode })
+    if (perr) throw new Error(perr.message)
+    placeholder = true
+    liveJobs.add(messageId)
+    runSerial(guarantorId, async () => {
+      try { await rest() }
+      catch (e) {
+        reportError('Background payment read failed', e)
+        await sb.from('payment_chat').update({ status: 'Needs Retake', problem: 'Something went wrong while checking this screenshot. Please send it again.', updated_at: new Date().toISOString() }).eq('message_id', messageId).eq('status', 'Processing')
+      } finally { liveJobs.delete(messageId) }
     })
-    if (res.flagged) return finish('Duplicate', 'This transaction ID was just recorded by someone else. Send the correct screenshot.', { ...read, duplicate_group_id: res.group.conflicts?.[0]?.groupId || null })
-    return finish('Recorded', '', { ...read, group_id: res.group.groupId })
-  } catch (e) {
-    if (e instanceof PaymentError) return finish('Needs Retake', e.message, read)
-    throw e
+    const { data: row } = await sb.from('payment_chat').select('*').eq('message_id', messageId).single()
+    return publicMsg(row as Row)
   }
+  return rest()
 }
 
 // ─── Office actions ──────────────────────────────────────────────────────────

@@ -71,3 +71,6 @@ On every card in To plan and Not answered, a red **Return** button (right of *No
 
 ## Track agent (Agent routes)
 Each agent card has a **Track agent** button (left of Best order). It shows the agent's live position on that card's map by polling `/api/agent/location?activeOnly=false` every 10 s and feeding the `live` marker of `RouteMap`; the map pans to the agent once when switched on. The choice is kept per agent in sessionStorage. Needs the Agent Tracking or Verification Planning feature (same as the location API). Shows "offline, last seen" when the position is older than 5 minutes or tracking stopped.
+
+## Phone number on subroutes (2026-11-17)
+The *Add subroute* form has an optional **Phone number** (stored in `route_waypoints.phone`, migration `20261117100000_route_waypoint_phone.sql`; digits and `+` only, at least 7 digits). When set, the subroute row on the staff Agent routes page shows the number as a tap-to-call link, and the agent's My Route page shows a green **Call** button beside Navigate / Mark done. Existing subroutes have no number (field added only when a subroute is created). Code: `addWaypoint` / `wpAsLead` in `lib/routes.ts`.
