@@ -34,7 +34,7 @@ tags: [ngf, money, commissions, payouts]
 - A loan earns its `Guarantor Commission` in the week it was disbursed (`Loans."Created At"`, IST). Weekly loan counts and amounts are shown per cycle.
 - A cycle ends on a Sunday. Status: `running`, `ready` (ended, not requested), `requested` (Pending payout), `paid`. The payout date is the first working day (Mon-Fri) after the end, so always the Monday after.
 - `PayoutRequests` has `cycle_start`, `cycle_end`, `receipt_no` (migration `20261113120000_commission_cycles.sql`). The guarantor requests a whole finished cycle once (`POST {cycleStart}`); Admin or Staff pay it with Approve (mode and reference) or Pay now (`payNow` with `cycleStart`). Receipt number `NGFR-<code>-<cycle start yyyymmdd>`, shown and printable on `CommissionsPage`.
-- The guarantor dashboard's commission box shows the running cycle (`/api/dashboard` `commissionCycle`).
+- The guarantor dashboard's commission box shows the running cycle (`/api/dashboard` `commissionCycle`). Since 2026-11-19 it is read in the same `Promise.all` as the dashboard figures (the guarantor row comes from the cached Guarantors list that `scopeOf` used; loans read only `created_at, guarantor_commission`, payouts only `status, cycle_start`) and kept in the dashboard's 45 s cache, so it can lag a new loan or payout by up to 45 s.
 - Test guarantors Revathy and Bindhu were settled on 2026-11-13 and start Monday 2026-11-16 (first payout Monday 2026-12-21).
 
 ## One ledger (2026-11-13)

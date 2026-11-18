@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, getSession, ok, err } from '@/lib/api'
-import { readTable, selectRows, selectAll, getSupabase } from '@/lib/supabase-db'
+import { readTable, selectRows, getSupabase } from '@/lib/supabase-db'
 import { buildOverview } from '@/lib/commissions'
+import { fetchAllPages } from '@/lib/paginate'
 import { scopeOf } from '@/lib/db'
 import { getTodayIST, getNextSaturday, addDaysIST } from '@/lib/dateUtils'
 
@@ -12,6 +13,26 @@ export const maxDuration = 30
 const CACHE_MS = 45_000
 const figures = new Map<string, { at: number; data: any }>()
 
+type CycleCard = { start: string; end: string; payoutDate: string; amount: number; loans: number; ready: number }
+// Every row of one guarantor's table, only the given columns, keyed the way buildOverview reads them
+const guarantorRows = (table: string, columns: Record<string, string>, guarantorId: string, pk: string) =>
+  fetchAllPages(async (from, to) => {
+    const { data, error } = await getSupabase().from(table).select(Object.keys(columns).join(', ')).eq('guarantor_id', guarantorId).order(pk, { ascending: true }).range(from, to)
+    if (error) throw new Error(`Query failed on ${table}: ${error.message}`)
+    return (data || []) as unknown as Record<string, string>[]
+  }).then(rows => rows.map(r => Object.fromEntries(Object.entries(columns).map(([col, key]) => [key, r[col]])) as Record<string, string>))
+
+// A guarantor's commission by cycle: what the running 5-week cycle has earned so far, and when it is paid.
+// Only the columns buildOverview uses are read (loans: date and commission; payouts: status and cycle start).
+async function guarantorCycle(g: Record<string, string>, today: string): Promise<CycleCard | null> {
+  const [loans, payouts] = await Promise.all([
+    guarantorRows('loans', { created_at: 'Created At', guarantor_commission: 'Guarantor Commission' }, g['Guarantor ID'], 'loan_id'),
+    guarantorRows('payout_requests', { status: 'Status', cycle_start: 'Cycle Start' }, g['Guarantor ID'], 'payout_id'),
+  ])
+  const o = buildOverview(loans, payouts, g['Commission Start'] || null, today)
+  return o.current ? { start: o.current.start, end: o.current.end, payoutDate: o.ready?.payoutDate || o.current.payoutDate, amount: o.current.amount, loans: o.current.loans, ready: o.available } : null
+}
+
 // Every figure is computed by the database (function dashboard_metrics) for the viewer's own scope:
 // Admin all, Guarantor own, agent assigned, Staff their branches. The app only shapes the answer.
 export const GET = apiHandler(async (req: NextRequest) => {
@@ -21,18 +42,22 @@ export const GET = apiHandler(async (req: NextRequest) => {
 
   let guarantors: string[] | null = null
   let agentId: string | null = null
+  let guarantorRow: Record<string, string> | undefined
   if (session.role === 'NGF AGENT') {
     const a = (await readTable('Agents')).find(x => x['User ID'] === session.userId)
     agentId = a?.['Agent ID'] || '__none__'
   } else {
     const scope = await scopeOf(session)
     guarantors = scope.kind === 'guarantors' ? scope.ids : scope.kind === 'none' ? ['__none__'] : null
+    // scopeOf found this guarantor through the same cached Guarantors list: take the row from there (no extra read)
+    if (session.role === 'Guarantor' && scope.kind === 'guarantors') guarantorRow = (await readTable('Guarantors')).find(x => x['User ID'] === session.userId)
   }
 
   const cacheKey = `${session.role}:${session.role === 'Admin' ? 'all' : session.userId}:${today}`
-  const hit = figures.get(cacheKey)
-  const [metricsRes, capital, unread] = await Promise.all([
-    hit && Date.now() - hit.at < CACHE_MS
+  const hit0 = figures.get(cacheKey)
+  const hit = hit0 && Date.now() - hit0.at < CACHE_MS && (session.role !== 'Guarantor' || 'cycleCard' in hit0.data) ? hit0 : undefined
+  const [metricsRes, capital, unread, cycleCard] = await Promise.all([
+    hit
       ? Promise.resolve({ data: hit.data.metrics, error: null })
       : getSupabase().rpc('dashboard_metrics', {
           p_today: today, p_saturday: comingSaturday, p_guarantors: guarantors, p_agent: agentId, p_own_customers: session.role === 'Guarantor',
@@ -41,10 +66,14 @@ export const GET = apiHandler(async (req: NextRequest) => {
     selectRows('Notifications', qb => qb.eq('is_read', false)
       .or(`user_id.eq.${session.userId},and(user_id.is.null,role.eq.${session.role})`)
       .order('created_at', { ascending: false }).limit(5)),
+    // The guarantor's commission cycle is read with the rest (not after it) and kept in the same 45 s cache
+    session.role !== 'Guarantor' ? Promise.resolve(null)
+      : hit ? Promise.resolve(hit.data.cycleCard as CycleCard | null)
+      : guarantorRow ? guarantorCycle(guarantorRow, today) : Promise.resolve(null),
   ])
   if (metricsRes.error) return err('Dashboard data unavailable. Please try again.')
-  if (!hit || Date.now() - hit.at >= CACHE_MS) {
-    figures.set(cacheKey, { at: Date.now(), data: { metrics: metricsRes.data } })
+  if (!hit) {
+    figures.set(cacheKey, { at: Date.now(), data: { metrics: metricsRes.data, ...(session.role === 'Guarantor' ? { cycleCard } : {}) } })
     if (figures.size > 500) for (const k of figures.keys()) { figures.delete(k); if (figures.size <= 250) break }   // keep the cache small
   }
   const m = metricsRes.data as any
@@ -64,17 +93,6 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const investorMoney = capital.filter(c => c['Type'] === 'Investor').reduce((s, c) => s + Number(c['Amount'] || 0), 0)
   const totalInterest = Number(lo.total_interest)
   const availableCapital = totalCapital - Number(lo.total_principal) + Number(rep.total_collected)
-
-  // A guarantor's commission is shown by cycle: what this 5-week cycle has earned so far, and when it is paid
-  let cycleCard: { start: string; end: string; payoutDate: string; amount: number; loans: number; ready: number } | null = null
-  if (session.role === 'Guarantor') {
-    const g = (await selectRows('Guarantors', qb => qb.eq('user_id', session.userId).limit(1))).rows[0]
-    if (g) {
-      const [loans, payouts] = await Promise.all([selectAll('Loans', qb => qb.eq('guarantor_id', g['Guarantor ID'])), selectAll('PayoutRequests', qb => qb.eq('guarantor_id', g['Guarantor ID']))])
-      const o = buildOverview(loans, payouts, g['Commission Start'] || null, today)
-      if (o.current) cycleCard = { start: o.current.start, end: o.current.end, payoutDate: o.ready?.payoutDate || o.current.payoutDate, amount: o.current.amount, loans: o.current.loans, ready: o.available }
-    }
-  }
 
   return ok({
     commissionCycle: cycleCard,

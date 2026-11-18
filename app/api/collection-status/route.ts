@@ -3,10 +3,11 @@ import { apiHandler, getSession, ok, err } from '@/lib/api'
 import { needFeature } from '@/lib/access'
 import { coll } from '@/lib/features'
 import { readTable, getSupabase, selectAll } from '@/lib/supabase-db'
+import { fetchAllPages } from '@/lib/paginate'
 import { getThisSaturday, getTodayIST } from '@/lib/dateUtils'
 import { pageQuery, cleanSearch, scopeOf, withScope } from '@/lib/db'
 
-// GET /api/collection-status?date=YYYY-MM-DD&status=paid|unpaid|cash&guarantorId=&q=&page=&pageSize=
+// GET /api/collection-status?date=YYYY-MM-DD&status=paid|unpaid|cash&guarantorId=&q=&page=&pageSize=&lite=1
 // Paid and not paid customers for one collection Saturday, with totals. Read only: it changes nothing.
 // Admin and Staff may pick a guarantor (Staff only among their branches' guarantors). A guarantor always gets
 // their own customers: the guarantorId they send is ignored and no guarantor list is returned to them.
@@ -55,7 +56,6 @@ export const GET = apiHandler(async (req: NextRequest) => {
     }
     return q
   }
-  const isCash = (x: Record<string, string>) => String(x['Payment Mode'] || '').trim().toLowerCase() === 'cash'
   // Totals for the whole day (not just this page): everyone due, and who is still unpaid; paid is the difference
   const sb = getSupabase()
   const sum = async (unpaidOnly: boolean) => {
@@ -63,20 +63,31 @@ export const GET = apiHandler(async (req: NextRequest) => {
     const s = (data && data[0]) || {}
     return { count: Number(s.customer_count || 0), total: Number(s.total_amount || 0) }
   }
-  // Cash collected for the day: the paid customers whose payment mode is Cash
-  const cashRows = selectAll('RepaymentsEnriched', qb => {
+  // Cash collected for the day: the paid customers whose payment mode is Cash. payment_mode is a database enum
+  // ('Cash', 'UPI', 'Bank', 'Cheque', 'Other'): eq() with the exact label works (ilike would not), so the database
+  // picks the cash rows instead of the app reading every paid row of the day.
+  const cashOnly: Parameters<typeof selectAll>[1] = qb => {
     let c = withScope(qb, scope)
     if (agentId) c = c.eq('assigned_agent_id', agentId)
     if (guarantorFilter) c = c.eq('guarantor_id', guarantorFilter)
-    return c.eq('due_date', date).eq('status', 'Paid')
-  }).then(rows => rows.filter(isCash))
+    return c.eq('due_date', date).eq('status', 'Paid').eq('payment_mode', 'Cash')
+  }
+  // The cash list (status=cash) needs whole rows; without a search they are the same rows as the cash total
+  const cashList = status === 'cash' ? selectAll('RepaymentsEnriched', text ? qb => filters(qb).eq('payment_mode', 'Cash') : cashOnly) : null
+  const cashTotals: Promise<{ count: number; total: number }> = (cashList && !text
+    ? cashList.then(rows => rows.map(x => Number(x['Amount']) || 0))
+    : fetchAllPages<{ amount: number | string | null }>(async (from, to) => {   // only the amount column, usually one page
+        const { data, error } = await cashOnly(sb.from('repayments_enriched').select('amount')).order('repayment_id', { ascending: true }).range(from, to)
+        if (error) throw new Error(`Query failed on RepaymentsEnriched: ${error.message}`)
+        return data || []
+      }).then(rows => rows.map(x => Number(x.amount) || 0))
+  ).then(a => ({ count: a.length, total: a.reduce((t, n) => t + n, 0) }))
   const allP = sum(false), unpaidP = sum(true)   // start at once, awaited below with the page
-  for (const p of [allP, unpaidP, cashRows]) p.catch(() => {})   // a failure is reported where they are awaited
+  for (const p of [allP, unpaidP, cashTotals, cashList]) p?.catch(() => {})   // a failure is reported where they are awaited
 
-  // payment_mode is not plain text in the database, so "cash" is picked here in code (one day's paid rows only)
   let r: { rows: Record<string, string>[]; page: number; pageSize: number; total: number; totalPages: number }
-  if (status === 'cash') {
-    const cashAll = (text ? (await selectAll('RepaymentsEnriched', filters)).filter(isCash) : await cashRows)
+  if (cashList) {
+    const cashAll = (await cashList)
       .sort((a, b) => String(a['Guarantor Name'] || '').localeCompare(String(b['Guarantor Name'] || '')) || String(a['Customer Name'] || '').localeCompare(String(b['Customer Name'] || '')))
     const totalPages = Math.max(1, Math.ceil(cashAll.length / pageSize))
     r = { rows: cashAll.slice((page - 1) * pageSize, page * pageSize), page, pageSize, total: cashAll.length, totalPages }
@@ -94,17 +105,18 @@ export const GET = apiHandler(async (req: NextRequest) => {
     overdue: x['Status'] !== 'Paid' && date < getTodayIST(),
   }))
 
-  const [all, unpaid, cash] = await Promise.all([allP, unpaidP, cashRows])
+  const [all, unpaid, cash] = await Promise.all([allP, unpaidP, cashTotals])
   const summary = {
     dueCount: all.count, dueTotal: all.total,
     paidCount: Math.max(0, all.count - unpaid.count), paidTotal: Math.max(0, all.total - unpaid.total),
     unpaidCount: unpaid.count, unpaidTotal: unpaid.total,
-    cashCount: cash.length, cashTotal: cash.reduce((t, x) => t + (Number(x['Amount']) || 0), 0),
+    cashCount: cash.count, cashTotal: cash.total,
   }
 
-  // The guarantor list for the dropdown: Admin and Staff only
+  // The guarantor list for the dropdown: Admin and Staff only. lite=1 (the page's repeat polls, once it has the
+  // list) skips it: the list does not change with the date, status or search, so it is sent on the first load only.
   let guarantors: { guarantorId: string; name: string; code: string }[] = []
-  if (picker) {
+  if (picker && sp.get('lite') !== '1') {
     guarantors = (await readTable('Guarantors')).filter(g => g['Status'] !== 'Inactive' && (scope.kind !== 'guarantors' || scope.ids.includes(g['Guarantor ID'])))
       .map(g => ({ guarantorId: g['Guarantor ID'], name: g['Name'], code: g['Code'] || '' })).sort((a, b) => a.name.localeCompare(b.name))
   }
