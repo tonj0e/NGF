@@ -12,6 +12,7 @@ import {
 import type { Session } from '../types'
 import { reportError } from './monitor'
 import { normalizeIndianMobile } from './phone'
+import { agentIdOfUser } from './agentOfUser'
 
 export const PERM_PLAN = 'verificationPlanning'
 const PLANNER_ROLES = ['manager', 'assistant_manager', 'accountant']
@@ -411,9 +412,10 @@ export async function agentDay(session: Session, q: { agentId?: string; branchId
 // road leg from the stop before it (the first leg starts at the day's start point). The same numbers the Verification Routes plan shows.
 export async function agentRouteDays(agentId: string, fromDate: string) {
   const sb = getSupabase()
-  const [leads, wps] = await Promise.all([
-    sb.from('leads').select(LEAD_COLS).eq('assigned_agent_id', agentId).gte('visit_date', fromDate).not('route_seq', 'is', null),
-    sb.from('route_waypoints').select('*').eq('agent_id', agentId).gte('plan_date', fromDate),
+  const [leads, wps] = await Promise.all([   // only the columns used below (isDone needs status and visit_status)
+    sb.from('leads').select('lead_id, customer_name, place, visit_place, visit_date, status, visit_status, route_seq, leg_km')
+      .eq('assigned_agent_id', agentId).gte('visit_date', fromDate).not('route_seq', 'is', null),
+    sb.from('route_waypoints').select('waypoint_id, name, plan_date, route_seq, leg_km, done').eq('agent_id', agentId).gte('plan_date', fromDate),
   ])
   if (leads.error) throw new Error(leads.error.message)
   type Leg = { id: string; name: string; place: string; subroute: boolean; seq: number; km: number }
@@ -678,23 +680,27 @@ export async function returnLead(session: Session, b: { leadId: string; reason?:
 
 // ─── Agent side ───────────────────────────────────────────────────────────────
 
+// Read only (never re-orders or saves). Database waits: the agent id (kept 30 s, usually known) with the settings, then the day's
+// leads (guarantor name joined in, not the whole Guarantors table), plan and waypoints together. With a known id it is one wait.
 export async function mine(session: Session, q: { date?: string }) {
-  const a = await getRouteAccess(session)
-  if (!a.isAgent || !a.agentId) throw new Error('No permission')
-  const cfg = await requireEnabled()
+  if (session.role !== 'NGF AGENT') throw new Error('No permission')   // getRouteAccess gives every other role isAgent = false
+  const cfgP = routeConfig()
+  cfgP.catch(() => {})   // awaited below; this only keeps an early "No permission" from leaving it unhandled
+  const agentId = await agentIdOfUser(session.userId).catch(() => '')   // a failed read was "no agent" before too
+  if (!agentId) throw new Error('No permission')
   const date = isDate(q.date) ? q.date : getTodayIST()
   const sb = getSupabase()
-  const [leads, guarantors, plan, wps] = await Promise.all([
-    sb.from('leads').select(LEAD_COLS).eq('assigned_agent_id', a.agentId).eq('visit_date', date),
-    readTable('Guarantors'),
-    sb.from('route_plans').select('*').eq('agent_id', a.agentId).eq('plan_date', date).maybeSingle(),
-    sb.from('route_waypoints').select('*').eq('agent_id', a.agentId).eq('plan_date', date),
+  const [cfg, leads, plan, wps] = await Promise.all([
+    cfgP,
+    sb.from('leads').select(`${LEAD_COLS}, guarantors(name)`).eq('assigned_agent_id', agentId).eq('visit_date', date),
+    sb.from('route_plans').select('*').eq('agent_id', agentId).eq('plan_date', date).maybeSingle(),
+    sb.from('route_waypoints').select('*').eq('agent_id', agentId).eq('plan_date', date),
   ])
+  if (!cfg.enabled) throw new RouteError('Route planning is switched off in Dev settings')
   if (leads.error) throw new Error(leads.error.message)
-  const gName = new Map(guarantors.map(g => [g['Guarantor ID'], g['Name']]))
-  const leadRows = (leads.data || []) as LeadRow[]
+  const leadRows = (leads.data || []) as unknown as (LeadRow & { guarantors: { name: string | null } | null })[]
   const stops = [
-    ...leadRows.map(l => stopOf(l, gName.get(l.guarantor_id || '') || '', '', '')),
+    ...leadRows.map(l => stopOf(l, l.guarantors?.name || '', '', '')),
     ...((wps.data || []) as WpRow[]).map(w => wpStop(w, leadRows.find(l => l.lead_id === w.for_lead_id)?.customer_name || '')),
   ].sort((x, y) => (x.seq ?? 1e9) - (y.seq ?? 1e9))
   const p = plan.data

@@ -1,12 +1,22 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, requireRole, ok, err, getSession } from '@/lib/api'
 import { requireFeature } from '@/lib/access'
-import { readTable, appendRow, makeId, nowIso, formatDateYmd, addDays, getNextSaturday, invalidateCache, queryTable } from '@/lib/supabase-db'
+import { readTable, appendRow, makeId, nowIso, formatDateYmd, addDays, getNextSaturday, invalidateCache, getSupabase } from '@/lib/supabase-db'
+import { fetchAllPages } from '@/lib/paginate'
+import { agentIdOfUser } from '@/lib/agentOfUser'
 import { validateBody, tripSchema } from '@/lib/validation'
 import { createAuditLogger, AUDIT_ACTIONS } from '@/lib/audit'
 import { csrfProtection } from '@/lib/csrf'
 import { APP_CONFIG } from '@/lib/config'
 import { agentRouteDays } from '@/lib/routes'
+
+// GET reads only these columns of agent_trips, plus the trip lead's name and place (lead_id references leads)
+const TRIP_COLS = 'trip_id, agent_id, lead_id, start_latitude, start_longitude, end_latitude, end_longitude, distance_km, trip_date, week_start, created_at, leads(customer_name, place)'
+type TripRow = {
+  trip_id: string; agent_id: string; lead_id: string | null; start_latitude: string | number; start_longitude: string | number
+  end_latitude: string | number; end_longitude: string | number; distance_km: string | number | null; trip_date: string; week_start: string; created_at: string
+  leads: { customer_name: string | null; place: string | null } | null
+}
 
 function getWeekStart(date: Date): Date {
   const d = new Date(date)
@@ -70,39 +80,36 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const weekStart = searchParams.get('weekStart') || ''
   const agentId = searchParams.get('agentId') || ''
 
-  const agents = await readTable('Agents')
-  const agent = agents.find(a => a['User ID'] === session.userId)
-  if (!agent && session.role === 'NGF AGENT') return err('Agent not found')
+  // The caller's own agent id: one row, not the whole Agents table (Admin/Staff asking for a named agent do not need it)
+  const ownAgentId = session.role === 'NGF AGENT' || !agentId ? await agentIdOfUser(session.userId) : ''
+  if (!ownAgentId && session.role === 'NGF AGENT') return err('Agent not found')
 
   // An agent sees only their own trips; Admin and Staff may ask for any agent
-  const targetAgentId = session.role === 'NGF AGENT' ? agent?.['Agent ID'] : (agentId || agent?.['Agent ID'])
+  const targetAgentId = session.role === 'NGF AGENT' ? ownAgentId : (agentId || ownAgentId)
   if (!targetAgentId) return err('Agent ID required')
 
-  let trips = await readTable('AgentTrips')
-  trips = trips.filter(t => t['Agent ID'] === targetAgentId)
-  if (weekStart) {
-    trips = trips.filter(t => t['Week Start'] === weekStart)
-  }
-  trips.sort((a, b) => new Date(b['Created At']).getTime() - new Date(a['Created At']).getTime())
-
-  // customer name and place for each trip's lead (only the leads that appear, not the whole table)
-  const leadIds = Array.from(new Set(trips.map(t => t['Lead ID']).filter(Boolean)))
-  const who: Record<string, { name: string; place: string }> = {}
-  if (leadIds.length) {
-    const rows = await queryTable('Leads', qb => qb.in('lead_id', leadIds))
-    rows.forEach(r => { who[r['Lead ID']] = { name: r['Customer Name'] || '', place: r['Place'] || '' } })
-  }
-
+  // That agent's trips only (index idx_agent_trips_agent_id), with each trip lead's customer name and place joined in,
+  // read at the same time as the route kilometres: one database wait instead of three.
   // Real road kilometres of the last 8 weeks, from the finished stops of each day's route (what the allowance is paid on)
   const from = formatDateYmd(new Date(Date.now() - 56 * 86400_000))
-  const routeDays = await agentRouteDays(targetAgentId, from)
+  const sb = getSupabase()
+  const [rows, routeDays] = await Promise.all([
+    fetchAllPages<TripRow>(async (lo, hi) => {
+      const { data, error } = await sb.from('agent_trips').select(TRIP_COLS).eq('agent_id', targetAgentId).order('trip_id', { ascending: true }).range(lo, hi)
+      if (error) throw new Error(`Failed to read AgentTrips: ${error.message}`)
+      return (data || []) as unknown as TripRow[]
+    }),
+    agentRouteDays(targetAgentId, from),
+  ])
+  const trips = weekStart ? rows.filter(t => t.week_start === weekStart) : rows
+  trips.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
   // The Trip Details page expects camelCase fields (it crashed on the raw column names)
   return ok({ ratePerKm: APP_CONFIG.TRIP_RATE_PER_KM, routeDays, trips: trips.map(t => ({
-    tripId: t['Trip ID'], agentId: t['Agent ID'], leadId: t['Lead ID'] || '',
-    customerName: who[t['Lead ID']]?.name || '', place: who[t['Lead ID']]?.place || '',
-    startLatitude: Number(t['Start Latitude']), startLongitude: Number(t['Start Longitude']),
-    endLatitude: Number(t['End Latitude']), endLongitude: Number(t['End Longitude']),
-    distanceKm: Number(t['Distance Km']) || 0, tripDate: t['Trip Date'], weekStart: t['Week Start'], createdAt: t['Created At'],
+    tripId: t.trip_id, agentId: t.agent_id, leadId: t.lead_id || '',
+    customerName: (t.lead_id && t.leads?.customer_name) || '', place: (t.lead_id && t.leads?.place) || '',
+    startLatitude: Number(t.start_latitude), startLongitude: Number(t.start_longitude),
+    endLatitude: Number(t.end_latitude), endLongitude: Number(t.end_longitude),
+    distanceKm: Number(t.distance_km) || 0, tripDate: t.trip_date, weekStart: t.week_start, createdAt: t.created_at,
   })) })
 })
