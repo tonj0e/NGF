@@ -232,6 +232,7 @@ function Bubble({ m, session, me, onFix, onApprove, onResubmit, busy }: { m: Msg
 // Weeks run Monday to Sunday (India time)
 const addDays = (d: string, n: number) => { const t = new Date(`${d}T00:00:00Z`); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10) }
 const mondayOf = (d: string) => addDays(d, -((new Date(`${d}T00:00:00Z`).getUTCDay() + 6) % 7))
+const msgUrl = (g: string, wk: string) => `/api/payment-chat?view=messages&guarantorId=${encodeURIComponent(g)}${wk ? `&weekStart=${wk}` : ''}`   // staff can also choose 'All recent' (empty week)
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 // "2026-10-31" + "09:05" -> "31 Oct 2026 · 9:05 am"
 function txnWhen(date: string, time: string) {
@@ -346,15 +347,41 @@ export default function PaymentChatPage({ session, onOpenHistory, preselect, onP
   const isG = !!me?.access.isGuarantor
   const activeGid = isG ? me!.access.guarantorId : gid
 
-  useEffect(() => { api(session, '/api/payments?view=me').then(setMe).catch(e => setError(e.message)) }, [session])
+  // The first message list is asked for at the same time as "who am I" instead of after it. It does not depend on the answer:
+  // a guarantor's own id is taken from the session on the server, and staff start with no guarantor and this week, the same
+  // request load() would make. Its answer is only used by load(), which still waits for "who am I" (so a failed
+  // "who am I" shows its error exactly as before), and only when load() asks for that same address.
+  const prefetch = useRef<{ url: string; p: Promise<unknown> } | null>(null)
+  const prefetched = useRef(false)
+  useEffect(() => {
+    if (!prefetched.current) {
+      prefetched.current = true
+      const url = msgUrl('', mondayOf(new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10)))
+      const p = api(session, url)
+      p.catch(() => {})   // the error, if any, is shown by load()
+      prefetch.current = { url, p }
+    }
+    api(session, '/api/payments?view=me').then(setMe).catch(e => setError(e.message))
+  }, [session])
 
+  // Each poll returns the whole list again; when nothing changed the page is not re-rendered (it is large).
+  const lastData = useRef('')
   const load = useCallback(async () => {
     if (!me || inFlight.current) return
     inFlight.current = true
     try {
-      const wk = weekStart ? `&weekStart=${weekStart}` : ''   // staff can also choose 'All recent' (empty)
-      const d = await api(session, `/api/payment-chat?view=messages&guarantorId=${encodeURIComponent(gid)}${wk}`)
-      setMsgs(d.messages); setResubmits(d.resubmits || []); setIssues(d.issues || []); setOpenIssue(d.openIssue); setOpenIssueWeek(d.openIssueWeek || ''); setStats(d.stats || null); setWeekStats(d.weekStats || null); setError('')
+      const url = msgUrl(gid, weekStart)
+      const pf = prefetch.current
+      prefetch.current = null
+      const d = await (pf && pf.url === url ? pf.p : api(session, url)) as {
+        messages: Msg[]; resubmits?: Msg[]; issues?: Msg[]; openIssue: boolean; openIssueWeek?: string; stats?: Stats | null; weekStats?: Stats | null
+      }
+      const sig = JSON.stringify(d)
+      if (sig !== lastData.current) {
+        lastData.current = sig
+        setMsgs(d.messages); setResubmits(d.resubmits || []); setIssues(d.issues || []); setOpenIssue(d.openIssue); setOpenIssueWeek(d.openIssueWeek || ''); setStats(d.stats || null); setWeekStats(d.weekStats || null)
+      }
+      setError('')
     } catch (e) { setError(e instanceof Error ? e.message : 'Failed to load') }
     inFlight.current = false
   }, [session, me, gid, weekStart])
