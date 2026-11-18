@@ -45,11 +45,12 @@ function AgentRoutePanel({ session, agentId, name, live, onClose }: { session: S
     setState('loading')
     const load = async () => {
       try {
-        const res = await fetch(`/api/routes?view=board&date=${date}`, { headers: { Authorization: `Bearer ${session.token}` } })
+        // light view: only this agent's day, not the whole route board
+        const res = await fetch(`/api/routes?view=agentDay&agentId=${encodeURIComponent(agentId)}&date=${date}`, { headers: { Authorization: `Bearer ${session.token}` } })
         const j = await res.json()
         if (dead) return
         if (!j.success) { setMessage(j.error || 'Could not load the route'); setState('error'); return }
-        setRoute((j.data.routes as DayRoute[]).find(r => r.agentId === agentId) || { agentId, name, plan: null, stops: [] })
+        setRoute((j.data.route as DayRoute | null) || { agentId, name, plan: null, stops: [] })
         setState('ready')
       } catch { if (!dead) { setMessage('Network error loading the route'); setState('error') } }
     }

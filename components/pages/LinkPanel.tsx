@@ -22,6 +22,7 @@ export default function LinkPanel({ session, link, onPaid }: { session: Session;
   useEffect(() => {
     if (cur.status !== 'Created') return
     const t = setInterval(async () => {
+      if (document.hidden) return   // no polling from a background tab; the next tick after it is shown catches up
       const r = await apiGet<LinkView>(session.token, `/api/payment-links/${cur.linkId}`)
       if (r.ok && r.data) { setCur(r.data); if (r.data.status === 'Paid' && !paidFired.current) { paidFired.current = true; onPaid?.() } }
     }, 4000)

@@ -310,9 +310,9 @@ export async function recalcRoute(agentId: string, date: string, o: Recalc) {
 // ─── Planner board ────────────────────────────────────────────────────────────
 
 export async function board(session: Session, q: { branchId?: string; date?: string }) {
-  const a = await getRouteAccess(session)
+  const [a, cfg] = await Promise.all([getRouteAccess(session), routeConfig()])   // two independent reads, one wait
   needPlanner(a)
-  const cfg = await requireEnabled()
+  if (!cfg.enabled) throw new RouteError('Route planning is switched off in Dev settings')
   const date = isDate(q.date) ? q.date : getTodayIST()
   const wantBranch = a.isAdmin ? (q.branchId || '') : (a.branchId || q.branchId || '')
   if (wantBranch && !branchAllowed(a, wantBranch)) throw new Error('No permission')
@@ -361,6 +361,48 @@ export async function board(session: Session, q: { branchId?: string; date?: str
     date, branchId: wantBranch,
     branches: branches.filter(b => a.isAdmin || !a.branchId || b['Branch ID'] === a.branchId).map(b => ({ branchId: b['Branch ID'], name: b['Name'] })),
     config: cfg, maxStops: MAX_STOPS, windows: cfg.windows ? WINDOWS : [], toPlan, routes,
+  }
+}
+
+// One agent's route on one day, for the Agent Tracking map panel (polled every 15 s). Same access, branch scope and stop rules as
+// board(), but it reads only that agent's leads (index idx_leads_agent_visit_date), waypoints and plan instead of the whole board.
+// Returns null when board() would not list the agent. guarantorName / branchName / forCustomer are left empty (the panel does not show them).
+export async function agentDay(session: Session, q: { agentId?: string; branchId?: string; date?: string }) {
+  const agentId = String(q.agentId || '')
+  if (!agentId) throw new RouteError('Agent ID required')
+  const date = isDate(q.date) ? q.date : getTodayIST()
+  const sb = getSupabase()
+  // Everything in one wait; nothing is returned before the access checks below
+  const [a, cfg, agentRes, leadsRes, wpsRes, planRes, gbMap] = await Promise.all([
+    getRouteAccess(session), routeConfig(),
+    sb.from('agents').select('agent_id, name, status, branch_id').eq('agent_id', agentId).maybeSingle(),
+    sb.from('leads').select(LEAD_COLS).eq('assigned_agent_id', agentId).eq('visit_date', date)
+      .in('status', ['Pending', 'Under Review', 'Agent Assigned', 'Verification In Progress', 'Verification Submitted']),
+    sb.from('route_waypoints').select('*').eq('agent_id', agentId).eq('plan_date', date),
+    sb.from('route_plans').select('*').eq('agent_id', agentId).eq('plan_date', date).maybeSingle(),
+    session.role === 'Admin' && !q.branchId ? Promise.resolve(new Map<string, string>()) : guarantorBranchMap(),
+  ])
+  needPlanner(a)
+  if (!cfg.enabled) throw new RouteError('Route planning is switched off in Dev settings')
+  const wantBranch = a.isAdmin ? (q.branchId || '') : (a.branchId || q.branchId || '')
+  if (wantBranch && !branchAllowed(a, wantBranch)) throw new Error('No permission')
+  if (leadsRes.error) throw new Error(leadsRes.error.message)
+
+  const ag = agentRes.data
+  if (!ag || (ag.status || 'Active') !== 'Active' || (wantBranch && ag.branch_id && ag.branch_id !== wantBranch)) return { date, route: null }
+  const inScope = (l: LeadRow) => !wantBranch || (gbMap.get(l.guarantor_id || '') || '') === wantBranch
+  const leadStops = ((leadsRes.data || []) as LeadRow[]).filter(inScope)
+    .sort((x, y) => (x.route_seq ?? 1e9) - (y.route_seq ?? 1e9)).map(l => stopOf(l, '', '', ''))
+  const wpStops = ((wpsRes.data || []) as WpRow[]).map(w => wpStop(w, ''))
+  const stops = [...leadStops, ...wpStops].sort((x, y) => (x.seq ?? 1e9) - (y.seq ?? 1e9))
+  const p = planRes.data
+  return {
+    date,
+    route: {
+      agentId: ag.agent_id, name: ag.name, branchId: ag.branch_id || '',
+      plan: p ? { startLat: num(p.start_lat), startLng: num(p.start_lng), startSource: p.start_source || '', totalKm: num(p.total_km), totalMin: p.total_min, source: p.distance_src || '', manual: !!p.manual } : null,
+      stops,
+    },
   }
 }
 
