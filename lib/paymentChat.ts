@@ -89,21 +89,28 @@ export function collectionDay(): string {
 const WRONG_SHARE = 0.25   // wrong screenshots allowed, as a share of that Saturday's collections
 const WRONG_MIN = 5        // but never fewer than this
 
-export async function chatStats(guarantorId: string, dayOverride = '') {
+const guarantorLoanIds = async (guarantorId: string): Promise<string[]> => {
+  const { data: loans } = await getSupabase().from('loans').select('loan_id').eq('guarantor_id', guarantorId)
+  return (loans || []).map(l => l.loan_id)
+}
+// The wrong-try count does not need the loans, so it is read at the same time as them (Sydney database: every trip counts).
+// loanIdsP can be shared when the stats of two Saturdays are needed for the same guarantor.
+async function statsFor(guarantorId: string, day: string, loanIdsP: Promise<string[]>) {
   const sb = getSupabase()
-  const day = dayOverride || collectionDay()
-  const { data: loans } = await sb.from('loans').select('loan_id').eq('guarantor_id', guarantorId)
-  const ids = (loans || []).map(l => l.loan_id)
-  let due = 0, recorded = 0
-  if (ids.length) {
-    const { data: reps } = await sb.from('repayments').select('status').in('loan_id', ids).eq('due_date', day)
-    due = (reps || []).length
-    recorded = (reps || []).filter(r => r.status === 'Paid').length
-  }
-  const { data: tries } = await sb.from('payment_chat').select('wrong_count').eq('guarantor_id', guarantorId).eq('collection_day', day)
-  const wrongUsed = (tries || []).reduce((n, r) => n + Number(r.wrong_count || 0), 0)
+  const [[due, recorded], wrongUsed] = await Promise.all([
+    loanIdsP.then(async ids => {
+      if (!ids.length) return [0, 0]
+      const { data: reps } = await sb.from('repayments').select('status').in('loan_id', ids).eq('due_date', day)
+      return [(reps || []).length, (reps || []).filter(r => r.status === 'Paid').length]
+    }),
+    sb.from('payment_chat').select('wrong_count').eq('guarantor_id', guarantorId).eq('collection_day', day)
+      .then(({ data: tries }) => (tries || []).reduce((n, r) => n + Number(r.wrong_count || 0), 0)),
+  ])
   const wrongAllowed = Math.max(WRONG_MIN, Math.ceil(due * WRONG_SHARE))
   return { collectionDay: day, due, recorded, remaining: Math.max(0, due - recorded), wrongUsed, wrongAllowed, wrongLeft: Math.max(0, wrongAllowed - wrongUsed), manualMode: wrongUsed >= wrongAllowed }
+}
+export async function chatStats(guarantorId: string, dayOverride = '') {
+  return statsFor(guarantorId, dayOverride || collectionDay(), guarantorLoanIds(guarantorId))
 }
 
 // ─── Messages ────────────────────────────────────────────────────────────────
@@ -142,11 +149,14 @@ const addDaysIso = (d: string, n: number) => { const t = new Date(`${d}T00:00:00
 const mondayOfIso = (d: string) => { const t = new Date(`${d}T00:00:00Z`); return addDaysIso(d, -((t.getUTCDay() + 6) % 7)) }
 const istDayOf = (iso: string) => new Date(new Date(iso).getTime() + 5.5 * 3600_000).toISOString().slice(0, 10)
 
-async function attachEarlier(msgs: ChatMessage[]) {
-  const slips = msgs.filter(m => m.kind === 'slip')
-  if (!slips.length) return
-  const { data } = await getSupabase().from('payment_chat').select('*').eq('status', EARLIER).in('parent_id', slips.map(m => m.messageId)).order('created_at', { ascending: true })
-  for (const r of (data || []) as Row[]) { const m = slips.find(x => x.messageId === r.parent_id); if (m) m.earlier.push(toEarlier(r)) }
+// One query for the earlier tries of every slip in all the given lists. The same message can be in more than one list
+// (for example the week's messages and the "needs fixing" list), and each copy gets its own earlier tries.
+async function attachEarlier(...lists: ChatMessage[][]) {
+  const byId = new Map<string, ChatMessage[]>()
+  for (const list of lists) for (const m of list) if (m.kind === 'slip') { const a = byId.get(m.messageId); if (a) a.push(m); else byId.set(m.messageId, [m]) }
+  if (!byId.size) return
+  const { data } = await getSupabase().from('payment_chat').select('*').eq('status', EARLIER).in('parent_id', Array.from(byId.keys())).order('created_at', { ascending: true })
+  for (const r of (data || []) as Row[]) for (const m of byId.get(r.parent_id) || []) m.earlier.push(toEarlier(r))
 }
 
 export async function listMessages(session: Session, access: Access, guarantorId: string, weekStart = '') {
@@ -160,39 +170,38 @@ export async function listMessages(session: Session, access: Access, guarantorId
   // One Monday-to-Sunday week when asked for (the guarantor chat); otherwise the latest messages as before
   const monday = isoDay(weekStart) ? mondayOfIso(weekStart) : ''
   if (monday) q = q.gte('created_at', `${monday}T00:00:00+05:30`).lt('created_at', `${addDaysIso(monday, 7)}T00:00:00+05:30`)
-  await sweepStale(gid).catch(() => {})
-  const { data, error } = await q
-  if (error) throw new Error(error.message)
-  const msgs = (data || []).reverse().map(publicMsg)
-  await attachEarlier(msgs)
-  if (!access.isAdmin) for (const m of msgs) { m.reader = ''; m.readMs = 0; m.costUsd = 0; for (const e of m.earlier) { e.reader = ''; e.readMs = 0; e.costUsd = 0 } }
+  sweepStaleSoon()   // not awaited: at most once a minute, off the poll's critical path
+  // Every query below is independent, so they all go to the database at the same time (each trip to Sydney is ~0.3 s).
+  //  - resubmits: payments the office asked to be sent again, from any week (shown at the top as important)
+  //  - issues: everything of this guarantor that still needs fixing, any week (the guarantor app shows it as a pop-up).
+  //    Its oldest row is also the "open issue in another week" (same filters and order as the old separate limit-1 query).
+  //  - stats for the current collection Saturday, and for the Saturday of the chosen week (or the current one while that
+  //    Saturday has not come yet); when both are the same day it is read once.
+  const cur = collectionDay()
+  const sat = monday && gid ? addDaysIso(monday, 5) : ''
+  const weekDay = sat ? (sat <= cur ? sat : cur) : ''
+  const loanIdsP = gid ? guarantorLoanIds(gid) : null
+  const statsP = gid && loanIdsP ? statsFor(gid, cur, loanIdsP) : Promise.resolve(null)
+  const weekStatsP = weekDay && gid && loanIdsP ? (weekDay === cur ? statsP : statsFor(gid, weekDay, loanIdsP)) : Promise.resolve(null)
+  const listsP = Promise.all([
+    q,
+    gid ? sb.from('payment_chat').select('*').eq('guarantor_id', gid).eq('kind', 'slip').eq('status', 'Resubmit').order('created_at', { ascending: true }).limit(50) : null,
+    gid ? sb.from('payment_chat').select('*').eq('guarantor_id', gid).eq('kind', 'slip').in('status', FIX_STATUSES).order('created_at', { ascending: true }).limit(20) : null,
+  ]).then(async ([main, rs, iss]) => {
+    if (main.error) throw new Error(main.error.message)
+    const msgs = (main.data || []).reverse().map(publicMsg)
+    const resubmits = ((rs?.data || []) as Row[]).map(publicMsg)
+    const issues = ((iss?.data || []) as Row[]).map(publicMsg)
+    await attachEarlier(msgs, resubmits, issues)
+    return { msgs, resubmits, issues }
+  })
+  const [{ msgs, resubmits, issues }, stats, weekStats] = await Promise.all([listsP, statsP, weekStatsP])
+  if (!access.isAdmin) for (const m of [...msgs, ...resubmits, ...issues]) { m.reader = ''; m.readMs = 0; m.costUsd = 0; for (const e of m.earlier) { e.reader = ''; e.readMs = 0; e.costUsd = 0 } }
   let openIssue = msgs.some(m => m.needsFix)
   let openIssueWeek = ''
-  if (monday && gid && !openIssue) {
-    // A message that still needs fixing in another week still blocks the next screenshot, so say where it is
-    const { data: old } = await sb.from('payment_chat').select('created_at').eq('guarantor_id', gid).eq('kind', 'slip').in('status', FIX_STATUSES).order('created_at', { ascending: true }).limit(1)
-    if (old && old.length) { openIssue = true; openIssueWeek = mondayOfIso(istDayOf(old[0].created_at)) }
-  }
-  // Progress for the Saturday of that week (or the latest collection Saturday while that Saturday has not come yet)
-  let weekStats = null
-  if (monday && gid) { const sat = addDaysIso(monday, 5), cur = collectionDay(); weekStats = await chatStats(gid, sat <= cur ? sat : cur) }
-  // Payments the office asked to be sent again, from any week: shown at the top as important
-  let resubmits: ChatMessage[] = []
-  if (gid) {
-    const { data: rs } = await sb.from('payment_chat').select('*').eq('guarantor_id', gid).eq('kind', 'slip').eq('status', 'Resubmit').order('created_at', { ascending: true }).limit(50)
-    resubmits = (rs || []).map(publicMsg)
-    await attachEarlier(resubmits)
-    if (!access.isAdmin) for (const m of resubmits) { m.reader = ''; m.readMs = 0; m.costUsd = 0; for (const e of m.earlier) { e.reader = ''; e.readMs = 0; e.costUsd = 0 } }
-  }
-  // Everything of this guarantor that still needs fixing (any week): the guarantor app shows it as a pop-up until it is fixed
-  let issues: ChatMessage[] = []
-  if (gid) {
-    const { data: iss } = await sb.from('payment_chat').select('*').eq('guarantor_id', gid).eq('kind', 'slip').in('status', FIX_STATUSES).order('created_at', { ascending: true }).limit(20)
-    issues = (iss || []).map(publicMsg)
-    await attachEarlier(issues)
-    if (!access.isAdmin) for (const m of issues) { m.reader = ''; m.readMs = 0; m.costUsd = 0; for (const e of m.earlier) { e.reader = ''; e.readMs = 0; e.costUsd = 0 } }
-  }
-  return { messages: msgs, resubmits, issues, openIssue, openIssueWeek, stats: gid ? await chatStats(gid) : null, weekStats, weekStart: monday }
+  // A message that still needs fixing in another week still blocks the next screenshot, so say where it is
+  if (monday && gid && !openIssue && issues.length) { openIssue = true; openIssueWeek = mondayOfIso(istDayOf(issues[0].createdAt)) }
+  return { messages: msgs, resubmits, issues, openIssue, openIssueWeek, stats, weekStats, weekStart: monday }
 }
 
 // ─── Submit a screenshot ─────────────────────────────────────────────────────
@@ -269,13 +278,22 @@ function runSerial(key: string, fn: () => Promise<unknown>) {
 }
 const STALE_MS = 4 * 60_000
 // A job that died with the server (restart) must not stay "reading" for ever: tell the guarantor to send it again.
-async function sweepStale(guarantorId: string) {
+async function sweepStale() {
   const sb = getSupabase()
   const { data } = await sb.from('payment_chat').select('message_id').eq('kind', 'slip').eq('status', 'Processing').lt('created_at', new Date(Date.now() - STALE_MS).toISOString()).limit(50)
   const ids = (data || []).map(r => r.message_id as string).filter(id => !liveJobs.has(id))
   if (!ids.length) return
   await sb.from('payment_chat').update({ status: 'Needs Retake', problem: 'This screenshot could not be finished (the connection broke). Please send it again.', updated_at: new Date().toISOString() }).in('message_id', ids).eq('status', 'Processing')
-  void guarantorId
+}
+// The sweep covers every guarantor, so once a minute per server process is plenty. It runs in the background:
+// the message list no longer waits for it (a stale row shows as Needs Retake on the next poll instead of this one).
+const SWEEP_EVERY_MS = 60_000
+let lastSweep = 0
+function sweepStaleSoon() {
+  const now = Date.now()
+  if (now - lastSweep < SWEEP_EVERY_MS) return
+  lastSweep = now
+  sweepStale().catch(() => {})
 }
 
 export async function submitSlip(session: Session, access: Access, input: SubmitInput) {
