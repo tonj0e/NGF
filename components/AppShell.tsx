@@ -14,6 +14,7 @@ import InstallAppButton from './InstallAppButton'
 import { HeaderNetworkLight } from './agent/NetworkLight'
 import AppDownloadBanner, { APK_URL, useCanDownloadApp } from './agent/AppDownload'
 import { hasAnyLead, hasAnyCustomer, hasAnyCollection } from '@/lib/features'
+import { bootAccessFor, type SelfAccess } from '@/lib/boot-access'
 const StaffPage = dynamic(() => import('./pages/StaffPage'), { loading: () => <PageLoading /> })
 const RepayPage = dynamic(() => import('./pages/RepayPage'), { loading: () => <PageLoading /> })
 const NotificationsPage = dynamic(() => import('./pages/NotificationsPage'), { loading: () => <PageLoading /> })
@@ -169,6 +170,28 @@ function saveLanding(storageKey: string, key: string) {
   try { localStorage.setItem(storageKey, key) } catch { /* not kept on this device */ }
 }
 
+// From the person's own access (GET /api/branches?self=1, or the same object in the sign-in answer): the permissions the
+// menu is built from, the first page to open, and (Staff) the pages they may stay on. `landing` is '' when the role's
+// first page does not depend on it.
+function accessView(role: string, data: Partial<SelfAccess>, defaultView: string): { perms: string[]; landing: string; allowed: string[] | null } {
+  // Staff and agents: what they can really use (role defaults + extras - removals). Guarantors keep their own page list.
+  const perms = role === 'Guarantor' ? [...(data.effective || []), 'pages:custom'] : (data.effective || data.permissions || [])
+  if (role === 'Guarantor') {
+    // pages an Admin switched off for this guarantor; the first allowed page opens
+    let landing = defaultView
+    if (perms.includes('pages:custom')) {
+      const first = (MENUS.Guarantor || []).find(m => m.key === 'notifications' || perms.includes(`gp:${m.key}`) || (m.key === 'payments' && (perms.includes('payChat') || perms.includes('payHistory'))))
+      if (first && !(MENUS.Guarantor || []).some(m => m.key === 'dashboard' && perms.includes('gp:dashboard'))) landing = first.key
+    }
+    return { perms, landing, allowed: null }
+  }
+  if (role !== 'Staff') return { perms, landing: '', allowed: null }
+  const opens = (f: { key: string; view?: string }) => !!f.view && (perms.includes(f.key) || (f.key === 'leads' && hasAnyLead(perms)) || (f.key === 'customers' && hasAnyCustomer(perms)) || (f.key === 'collection' && hasAnyCollection(perms)))
+  const allowed = ['notifications', ...APP_CONFIG.STAFF_FEATURES.filter(opens).map(f => f.view as string), ...(['payChat', 'payHistory', 'payMark', 'payBank', 'payOverride'].some(k => perms.includes(k)) ? ['payments'] : [])]
+  const first = APP_CONFIG.STAFF_FEATURES.find(opens)
+  return { perms, landing: first?.view || 'notifications', allowed }
+}
+
 export default function AppShell({ session, onLogout }: { session: Session; onLogout: () => void }) {
   const defaultView = session.role === 'Staff' ? 'notifications' : (MENUS[session.role]?.[0]?.key || 'dashboard')
   // Staff and guarantors with their own page list land on a page chosen from their permissions. The last answer is
@@ -177,11 +200,18 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
   const landingKey = `ngf_landing_${session.userId}`
   const [start] = useState(() => {
     const fromHash = viewFromHash(session.role)
-    return { fromHash, guessed: fromHash ? '' : storedLanding(landingKey, session.role) }
+    // just signed in: the sign-in answer already says which pages this person has, so the right first page opens at once
+    const boot = session.role === 'Staff' || session.role === 'NGF AGENT' || session.role === 'Guarantor' ? bootAccessFor(session.token) : null
+    const access = boot ? accessView(session.role, boot, defaultView) : null
+    const guessed = fromHash ? '' : storedLanding(landingKey, session.role)
+    let first = fromHash || guessed || defaultView
+    if (access && session.role === 'Staff') first = fromHash && access.allowed?.includes(fromHash) ? fromHash : access.landing
+    if (access && session.role === 'Guarantor') first = fromHash || access.landing
+    return { fromHash, guessed, access, first }
   })
   const restoredView = useRef(start.fromHash)
   const guessedView = start.guessed
-  const [view, setViewState] = useState(start.fromHash || guessedView || defaultView)
+  const [view, setViewState] = useState(start.first)
   // Coming back to the app after a while (phones freeze it in the background; Android especially): look at the server again.
   // The current screen is reloaded so it shows fresh data, unless the person is in the middle of filling a form (window.__ngfKeepPage).
   const [refreshKey, setRefreshKey] = useState(0)
@@ -222,7 +252,7 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true)
   const [sidebarPinned, setSidebarPinned] = useState(false)
   const [sidebarHovered, setSidebarHovered] = useState(false)
-  const [staffPerms, setStaffPerms] = useState<string[]>([])
+  const [staffPerms, setStaffPerms] = useState<string[]>(() => start.access?.perms || [])
 
   // Dark mode: every person can switch it from their own menu (kept on this device)
   const [dark, setDark] = useState(false)
@@ -242,31 +272,26 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
   // Staff menu is built from the features granted in Dev → Branches
   useEffect(() => {
     if (session.role !== 'Staff' && session.role !== 'NGF AGENT' && session.role !== 'Guarantor') return
+    // just signed in: the first page and menu were already chosen from the sign-in answer
+    if (start.access) {
+      if (start.access.landing) saveLanding(landingKey, start.access.landing)
+      return
+    }
     fetch('/api/branches?self=1', { headers: { Authorization: `Bearer ${session.token}` } })
       .then(r => r.json())
       .then(j => {
         if (!j.success) return
-        // Staff and agents: what they can really use (role defaults + extras - removals). Guarantors keep their own page list.
-        const perms = session.role === 'Guarantor' ? [...(j.data.effective || []), 'pages:custom'] : (j.data.effective || j.data.permissions || [])
+        const { perms, landing, allowed } = accessView(session.role, j.data || {}, defaultView)
         setStaffPerms(perms)
         if (session.role === 'Guarantor') {
-          // pages an Admin switched off for this guarantor; the first allowed page opens
-          let landing = defaultView
-          if (perms.includes('pages:custom')) {
-            const first = (MENUS.Guarantor || []).find(m => m.key === 'notifications' || perms.includes(`gp:${m.key}`) || (m.key === 'payments' && (perms.includes('payChat') || perms.includes('payHistory'))))
-            if (first && !(MENUS.Guarantor || []).some(m => m.key === 'dashboard' && perms.includes('gp:dashboard'))) landing = first.key
-          }
           saveLanding(landingKey, landing)
           // opened on a remembered page that is no longer the right first page: correct it
           if (!restoredView.current && (landing !== defaultView || (guessedView && guessedView !== landing))) setView(landing, true)
           return
         }
         if (session.role !== 'Staff') return
-        const allowed = ['notifications', ...APP_CONFIG.STAFF_FEATURES.filter(f => f.view && (perms.includes(f.key) || (f.key === 'leads' && hasAnyLead(perms)) || (f.key === 'customers' && hasAnyCustomer(perms)) || (f.key === 'collection' && hasAnyCollection(perms)))).map(f => f.view), ...(['payChat', 'payHistory', 'payMark', 'payBank', 'payOverride'].some(k => perms.includes(k)) ? ['payments'] : [])]
-        const first = APP_CONFIG.STAFF_FEATURES.find(f => f.view && (perms.includes(f.key) || (f.key === 'leads' && hasAnyLead(perms)) || (f.key === 'customers' && hasAnyCustomer(perms)) || (f.key === 'collection' && hasAnyCollection(perms))))
-        const landing = first?.view || 'notifications'
         saveLanding(landingKey, landing)
-        if (restoredView.current && allowed.includes(restoredView.current)) return
+        if (restoredView.current && allowed?.includes(restoredView.current)) return
         setView(landing, true)
       })
       .catch(() => {})

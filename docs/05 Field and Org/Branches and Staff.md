@@ -14,7 +14,7 @@ tags: [ngf, field-and-org, branches, staff]
 - Tables: `branches`, `branch_staff_roles`, `staff_access`, `guarantor_branches`, `agents.branch_id`. See [[Tables]].
 - Branch roles (only these four): `manager`, `accountant`, `cashier`, `collection_agent` (`app/api/branches/route.ts:92`).
 - Feature permissions are a list in `staff_access.permissions`: customers, leads, collection, settlements, guarantors, reports, agentTracking (`lib/config.ts:16-24`). Role "suggested" lists in `lib/config.ts:26-31` are only pre-ticked boxes, not auto-granted.
-- Only the `Staff` global role uses permissions. They build the Staff sidebar in the browser via `GET /api/branches?self=1` (`AppShell.tsx:127`). See [[Roles and Permissions]].
+- Only the `Staff` global role uses permissions. They build the Staff sidebar in the browser via `GET /api/branches?self=1` (`AppShell.tsx`); right after signing in the same object comes in the login answer (`access`), so that call is skipped then. See [[Roles and Permissions]].
 - No API filters data by branch. Staff see organisation-wide data on every route that allows Staff.
 
 ## How it works

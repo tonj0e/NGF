@@ -25,9 +25,11 @@ tags: [ngf, architecture, auth, jwt, security]
 ## How it works
 **Login** (`POST /api/auth/login`): rate limit 10/min per IP, zod body check, read `Users` fresh. Match by Username, then Name, then Email. Reject if Status is not `Active` or `Blocked Until` is in the future. Verify bcrypt. All failures and successes go to the audit log.
 
+**Login speed (2026-11-19, Aarav):** the login answer waits for one database trip (Users, with Settings read alongside) plus the bcrypt check (~0.2 s at 12 rounds; not lowered). For Staff, agents and guarantors the person's own access (`selfAccess` in `lib/access.ts`, the same object `GET /api/branches?self=1` returns) is read while bcrypt runs and is returned as `access` only after every check passed; the app (`lib/boot-access.ts`, `AppShell`) uses it to open the right first page at once instead of asking `/api/branches?self=1` first. The success audit row (`LOGIN`, `QR_VERIFY`) is written with Next `after()` right after the answer is sent (a failed write is still reported); failure rows are still written before answering. The account row just read is handed to the per-request account check (`primeSessionUser`, `lib/api.ts`) with the time it was read, so the app's first requests skip that trip; it is still reused for at most 5 s after the read, as before.
+
 **QR second step**: only roles `Guarantor`, `NGF AGENT`, `Staff` (`login/route.ts:11,81`). Admin is never asked. It is on only if Settings key `qrlogin:<Role>` is `1` (toggled in Dev page). If on and no valid trust token for this user, the API returns `{ needQr, preAuth }`. The browser scans the ID-card QR (jsQR, downloaded only when the QR step opens) and posts `POST /api/auth/verify-qr` with `preAuth` and the scanned `uid`. It must equal the pre-auth user. With `remember`, the reply includes a trust token so this device skips QR next time. Logout clears it (`app/page.tsx:186`).
 
-**Every API call** (`getSession`, `lib/api.ts:6-37`): verify JWT, then load the user row from the DB and check:
+**Every API call** (`getSession`, `lib/api.ts`): verify JWT, then load the user row from the DB (kept up to 5 s per person) and check:
 - user still exists;
 - `pv` claim equals the keyed fingerprint of the current `password_hash` (so a password change revokes all older tokens);
 - legacy tokens without `pv` are rejected if `updated_at` is after `iat`;

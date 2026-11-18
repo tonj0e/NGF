@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 import { Session } from '@/types'
+import { setBootAccess } from '@/lib/boot-access'
 
 export default function Login({ onLogin }: { onLogin: (s: Session) => void }) {
   const [loading, setLoading] = useState(false)
@@ -30,6 +31,7 @@ export default function Login({ onLogin }: { onLogin: (s: Session) => void }) {
         setName(json.data.name || '')
         setStep('qr')
       } else {
+        setBootAccess(json.data.token, json.data.access)
         onLogin({ ...json.data.user, token: json.data.token })
       }
     } catch { setError('Network error') } finally { setLoading(false) }
@@ -37,6 +39,7 @@ export default function Login({ onLogin }: { onLogin: (s: Session) => void }) {
 
   function finishLogin(json: any) {
     if (json.data.trust) localStorage.setItem('ngf_qrtrust', json.data.trust)
+    setBootAccess(json.data.token, json.data.access)
     onLogin({ ...json.data.user, token: json.data.token })
   }
 

@@ -34,6 +34,16 @@ async function loadSessionUser(userId: string): Promise<any> {
   return pending
 }
 
+/** Sign-in has just read this person's account row: keep it for the account check so the app's first requests after
+ *  signing in skip that round trip. `readAt` is when the row came from the database, so it is still reused for at most
+ *  USER_CHECK_MS after that read: a block, demotion or password change takes effect exactly as quickly as before. */
+export function primeSessionUser(userId: string, row: { blocked_until: string | null; block_reason: string | null; password_hash: string; updated_at: string; role: string; status: string }, readAt: number): void {
+  if (!userId || !(Date.now() - readAt < USER_CHECK_MS)) return
+  const hit = userChecks.get(userId)
+  if (hit && hit.at >= readAt) return
+  userChecks.set(userId, { at: readAt, row })
+}
+
 export async function getSession(req: NextRequest): Promise<Session> {
   const auth = req.headers.get('authorization') || ''
   const token = auth.replace('Bearer ', '').trim()

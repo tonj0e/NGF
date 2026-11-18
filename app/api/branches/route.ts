@@ -4,7 +4,7 @@ import { readTable, appendRow, updateById, findRecord, makeId, nowIso, deleteByI
 import { randomUUID } from 'crypto'
 import { APP_CONFIG } from '@/lib/config'
 import { FEATURES, FEATURE_KEYS, DEFAULT_ROLE_PERMISSIONS } from '@/lib/features'
-import { loadPermissions, savedRoleDefaults, ROLE_DEFAULTS_KEY } from '@/lib/access'
+import { savedRoleDefaults, selfAccess, ROLE_DEFAULTS_KEY } from '@/lib/access'
 
 // GET ?self=1  → the caller's own branch + granted permissions (used to build the
 //                Staff menu).
@@ -14,18 +14,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const { searchParams } = new URL(req.url)
 
   if (searchParams.get('self') === '1') {
-    const [access, branches, effective] = await Promise.all([readTable('StaffAccess'), readTable('Branches'), loadPermissions(session)])
-    const mine = access.find(a => a['User ID'] === session.userId)
-    const branch = mine ? branches.find(b => b['Branch ID'] === mine['Branch ID']) : null
-    const perms = mine?.['Permissions']
-    const permissions = Array.isArray(perms) ? perms : (perms || '').split(',').map(s => s.trim()).filter(Boolean)
-    return ok({
-      branchId: mine?.['Branch ID'] || '',
-      branchName: branch?.['Name'] || '',
-      permissions,
-      // what this person can really use: role defaults + their own extras - their removals (menus are built from it)
-      effective,
-    })
+    return ok(await selfAccess(session))
   }
 
   await requireRole(req, ['Admin'])

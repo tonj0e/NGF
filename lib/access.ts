@@ -53,3 +53,20 @@ export async function needFeature(session: Session, keys: string[]): Promise<voi
   if (session.role !== 'Staff') return
   if (!canUse(await loadPermissions(session), keys, false)) throw new Error('No permission')
 }
+
+/** The caller's own branch and permissions, as GET /api/branches?self=1 answers it (menus and the first page are built
+ *  from it). The sign-in answer carries the same object so the app does not have to ask again right after signing in. */
+export async function selfAccess(session: Pick<Session, 'userId' | 'role'>): Promise<{ branchId: string; branchName: string; permissions: string[]; effective: string[] }> {
+  const [access, branches, effective] = await Promise.all([readTable('StaffAccess'), readTable('Branches'), loadPermissions(session)])
+  const mine = access.find(a => a['User ID'] === session.userId)
+  const branch = mine ? branches.find(b => b['Branch ID'] === mine['Branch ID']) : null
+  const perms: unknown = mine?.['Permissions']
+  const permissions = Array.isArray(perms) ? perms as string[] : String(perms || '').split(',').map(s => s.trim()).filter(Boolean)
+  return {
+    branchId: mine?.['Branch ID'] || '',
+    branchName: branch?.['Name'] || '',
+    permissions,
+    // what this person can really use: role defaults + their own extras - their removals (menus are built from it)
+    effective,
+  }
+}

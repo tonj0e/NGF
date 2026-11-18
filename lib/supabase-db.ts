@@ -240,6 +240,9 @@ function cacheKey(table: TableName) { return table }
 
 export function invalidateCache(table: TableName) { cache.delete(cacheKey(table)) }
 
+/** When the cached copy of a table was read from the database (undefined when there is none). */
+export function cachedAt(table: TableName): number | undefined { return cache.get(cacheKey(table))?.ts }
+
 // Reads of the same table that are already in flight share one database call
 const inflight = new Map<string, Promise<Record<string, string>[]>>()
 
