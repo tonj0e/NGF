@@ -1,16 +1,21 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, getSession, requireRole, ok, err } from '@/lib/api'
 import { needFeature } from '@/lib/access'
-import { readTable, selectRows, selectAll, getRowById, updateById, findRecord, formatDateYmd, addDays, nowIso, invalidateCache } from '@/lib/supabase-db'
+import { readTable, selectRows, selectAll, getRowById, updateById, findRecord, formatDateYmd, addDays, nowIso, invalidateCache, getSupabase } from '@/lib/supabase-db'
+import { readAllPages } from '@/lib/pageAll'
 import { getTodayIST, addDaysIST } from '@/lib/dateUtils'
 import { guarantorCanSeeCommissions } from '@/lib/commissions'
 import { getBranchAccess, canSeeGuarantor, guarantorBranchMap } from '@/lib/branchAccess'
 import { pageQuery, byIds, chunk, cleanSearch, scopeOf, withScope } from '@/lib/db'
 import type { TableName } from '@/lib/supabase-db'
 
+const LIGHT_SOURCE: Record<string, string> = { Loans: 'loans', LoansOverdue: 'loans_overdue', LoansRenewalEligible: 'loans_renewal_eligible' }
+
 // GET /api/loans?filter=all|active|completed|overdue|renewal
 //   &page=1&pageSize=50&q=text   one page, filtered and searched in the database (newest first), with `total`
 //   (no page)                    every loan in the caller's scope: a guarantor's or agent's own few hundred
+//                                (count once, then the 200-row pages in parallel)
+//   (no page) &light=1           the same loans with only id, customer, guarantor, status, start date and commission
 // Only the rows on the page are enriched with customer, guarantor, agent, lead and payment counts.
 export const GET = apiHandler(async (req: NextRequest) => {
   const session = await getSession(req)
@@ -18,6 +23,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const sp = new URL(req.url).searchParams
   const filter = sp.get('filter') || 'all'
   const paged = sp.has('page')
+  const light = !paged && sp.get('light') === '1'
 
   let scope = await scopeOf(session)
   let agentId = ''
@@ -64,12 +70,39 @@ export const GET = apiHandler(async (req: NextRequest) => {
   if (paged) {
     const r = await pageQuery(source, { filters, order, page: sp.get('page'), pageSize: sp.get('pageSize') })
     loans = r.rows; total = r.total; page = r.page; pageSize = r.pageSize; totalPages = r.totalPages
+  } else if (light) {
+    // ?light=1 (no page): the same loans, only the fields the Guarantors page adds up per guarantor
+    // (status, start date, commission, guarantor code/name), with no customer, lead or repayment reads.
+    const sb = getSupabase()
+    type LightRow = { loan_id: string; customer_id: string; guarantor_id: string | null; status: string; start_date: string | null; guarantor_commission: number | string | null }
+    const raw = await readAllPages<LightRow>(async (from, to, withCount) => {
+      let q = filters(sb.from(LIGHT_SOURCE[source]).select('loan_id, customer_id, guarantor_id, status, start_date, guarantor_commission', withCount ? { count: 'exact' } : undefined))
+      for (const o of order) q = q.order(o.column, { ascending: o.ascending !== false })
+      const { data, error, count } = await q.range(from, to)
+      if (error) throw new Error(`Query failed on ${source}: ${error.message}`)
+      return { rows: (data || []) as unknown as LightRow[], total: count ?? undefined }
+    })
+    const [guarantors, showCommission] = await Promise.all([
+      byIds('Guarantors', 'guarantor_id', raw.map(l => l.guarantor_id || '')),
+      guarantorCanSeeCommissions(session),
+    ])
+    const gById = new Map(guarantors.map(g => [g['Guarantor ID'], g]))
+    return ok({ loans: raw.map(l => {
+      const g = gById.get(l.guarantor_id || '')
+      return {
+        loanId: l.loan_id, customerId: l.customer_id, guarantorId: l.guarantor_id || '',
+        guarantorName: g?.['Name'] || '', guarantorCode: g?.['Code'] || '',
+        guarantorCommission: showCommission ? l.guarantor_commission : '',
+        status: l.status, startDate: l.start_date,
+      }
+    }) })
   } else {
-    for (let pg = 1; ; pg++) {
-      const r = await pageQuery(source, { filters, order, page: pg, pageSize: 200 })
-      loans.push(...r.rows)
-      if (pg >= r.totalPages) { total = r.total; break }
-    }
+    // every loan in scope: count once with page 1, then the other 200-row pages in parallel (same rows, same order)
+    loans = await readAllPages((from, to, withCount) => selectRows(source, qb => {
+      let q = filters(qb)
+      for (const o of order) q = q.order(o.column, { ascending: o.ascending !== false })
+      return q.range(from, to)
+    }, { count: withCount }))
   }
 
   const rows = await enrichLoans(loans, session)

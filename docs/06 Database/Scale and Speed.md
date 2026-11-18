@@ -2,7 +2,7 @@
 title: Scale and Speed
 section: Database
 status: current
-last_verified: 2026-10-26
+last_verified: 2026-11-19
 tags: [ngf, database, scale, performance]
 ---
 # Scale and Speed
@@ -13,6 +13,7 @@ Request-time code must **not** call `readTable` on customers, loans, repayments,
 
 ## Helpers (`lib/db.ts`, `lib/db-pure.ts`, `lib/supabase-db.ts`)
 - `pageQuery(table, {filters, search, order, page, pageSize})` -> rows + exact total, one request. Last `order` entry must be the id, so pages never overlap.
+- `readAllPages(fetchPage, 200, 5)` (`lib/pageAll.ts`, 2026-11-19): the "no page" mode of `/api/customers` and `/api/loans` counts once with page 1, then reads the other 200-row pages 5 at a time in parallel (same rows, same order as the old one-page-at-a-time loop).
 - `byIds(table, column, ids)`: chunks of 200 ids in parallel, all pages. `selectAll`, `selectRows`, `countRows`, `getRowById` in `lib/supabase-db.ts`.
 - `scopeOf(session)` + `withScope(qb, scope)`: Admin all, Guarantor own id, Staff their branches' guarantor ids, else none. Agents are scoped by `assigned_agent_id` in the route.
 - `cleanSearch(text)`: removes characters that could add a filter inside `or=(...)`. `companyTotals()`: company-wide sums.
@@ -45,6 +46,12 @@ Run in a temporary schema `scale_test` (dropped afterwards; the live database we
 | Leads counts / page / search | 9 / 3 / 76 ms | 45 / 15 / 380 ms |
 
 Found and fixed by the test: settlements unsettled took 9 s (index not used for the date window, payment mode looked up twice per row, collectors re-added per output row); paid-history took 260 ms (no index matching its sort). Still the heaviest: the Admin dashboard (one pass over every repayment; the 45-second cache hides it) and the exact counts on long lists. If pages feel slow past about 10,000 customers, upgrade the database compute size first (Supabase: Small or Medium), then add summary tables.
+
+## Fewer round trips (2026-11-19)
+The database is in Sydney and the app server in India: every round trip costs about 285 ms, so the count of steps that wait on each other matters more than query time.
+- Customer list enrichment (`enrichCustomers` in `app/api/customers/route.ts`): 3 waiting steps instead of 4. Step 1 loans by customer + active loans + leads (only the 11 lead columns shown); step 2 guarantors, agents and all weekly rows of the customers' loans; step 3 collections (inside `bulkScores`, which now takes the loans and weekly rows already read: `bulkScores(ids, { loans, repayments })`). Overdue is worked out from those weekly rows (Pending, due before today); a shown loan that is not one of the customer's own loans is still asked for separately. `bulkScores` groups rows by customer and loan once instead of filtering every row per customer.
+- Light modes for the Guarantors page: `/api/loans?filter=all&light=1` (no page) sends only loan id, customer id, guarantor id/code/name, status, start date and commission (commission blank when the caller may not see it, as before), with no customer, lead or repayment reads; `/api/customers?light=1` sends only id, name and phone. Same filters, scope and order as the full lists.
+- Verified 2026-11-19 with a read-only script comparing the old and new code on live data (Admin, 2 Staff, 2 Guarantors, 2 Agents): full lists, page 1, loan filters, light fields, every guarantor's detail loans and customers, scores: identical.
 
 ## Not done yet / watch list
 - Reports page: done 2026-10-26. Summary, month list and month totals come from `/api/reports` (functions `reports_summary`, `reports_months`, `reports_month`, view `report_staff_collections`, migration 20261026180000); customer and guarantor tabs are searched pages with stat cards (`reports_customer_cards`, `reports_guarantor_cards`); month lists load 100 at a time with "Show more", and a guarantor's customer lines load only on "Show customers". Totals were compared with the old browser formulas on test data: identical.

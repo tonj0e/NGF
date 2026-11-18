@@ -9,7 +9,7 @@ const currency = (n: number) => formatINR(n)
 type Loan = {
   loanId: string; customerId?: string; customerName?: string; status?: string; startDate?: string
   principal?: number | string; paidWeeks?: number; totalWeeks?: number
-  guarantorCommission?: number | string; guarantorCode?: string; guarantorName?: string
+  guarantorCommission?: number | string; guarantorCode?: string; guarantorName?: string; guarantorId?: string
 }
 type Settlement = {
   'Settlement ID': string; 'Settlement Date'?: string; 'Saturday Date'?: string; 'Entity ID'?: string
@@ -106,7 +106,12 @@ export default function GuarantorPage({ session }: { session: Session }) {
   const [guarantors, setGuarantors] = useState<Guarantor[]>([])
   const [loans, setLoans] = useState<Loan[]>([])
   const [settlements, setSettlements] = useState<Settlement[]>([])
-  const [customers, setCustomers] = useState<any[]>([])
+  // Opened guarantor only: their loans with full details, and the id/name/phone list of customers (loaded on open)
+  // (kept with the guarantor and the loans list they were read for, so a stale answer is never shown)
+  const [detail, setDetail] = useState<{ guarantorId: string; from: Loan[]; rows: Loan[] } | null>(null)
+  // customers are read again after each reload of the page data (as before), so they are kept with that loans list
+  const [custState, setCustState] = useState<{ from: Loan[]; rows: any[] } | null>(null)
+  const customers = custState && custState.from === loans ? custState.rows : null
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<Guarantor | null>(null)
   const [detailTab, setDetailTab] = useState<DetailTab>('overview')
@@ -120,33 +125,65 @@ export default function GuarantorPage({ session }: { session: Session }) {
   function showToast(m: string) { setToast(m); setTimeout(() => setToast(''), 3000) }
 
   const loadedOnce = useRef(false)
+  // The cards need only each loan's guarantor, status, start date and commission: `light=1` sends just those
+  // (same loans, same scope). Customer names, weeks paid and the customer list load when a guarantor is opened.
   function load() {
     if (!loadedOnce.current) setLoading(true)
     Promise.all([
       fetch('/api/staff', { headers: { Authorization: `Bearer ${session.token}` } }).then(r => r.json()),
-      fetch('/api/loans?filter=all', { headers: { Authorization: `Bearer ${session.token}` } }).then(r => r.json()),
+      fetch('/api/loans?filter=all&light=1', { headers: { Authorization: `Bearer ${session.token}` } }).then(r => r.json()),
       fetch('/api/settlements', { headers: { Authorization: `Bearer ${session.token}` } }).then(r => r.json()),
-      fetch('/api/customers', { headers: { Authorization: `Bearer ${session.token}` } }).then(r => r.json()),
-    ]).then(([sR, lR, stR, cR]) => {
-      const bad = [sR, lR, stR, cR].find(r => r && r.success === false)
+    ]).then(([sR, lR, stR]) => {
+      const bad = [sR, lR, stR].find(r => r && r.success === false)
       if (bad) showToast(bad.error || 'Some data failed to load')
       setGuarantors(sR.data?.guarantors || [])
       setLoans(lR.data?.loans || [])
       setSettlements(stR.data?.settlements || [])
-      setCustomers(cR.data?.customers || [])
     }).catch(() => showToast('Could not load guarantor data. Check your connection.')).finally(() => { loadedOnce.current = true; setLoading(false) })
   }
 
   useEffect(() => { load() }, [])
+
+  // Opened guarantor: read the full rows of exactly the loans the card counted (by their guarantor ids, in the
+  // card's order), and the customers list once.
+  useEffect(() => {
+    if (!selected) return
+    let cancelled = false
+    const auth = { headers: { Authorization: `Bearer ${session.token}` } }
+    const gl = loans.filter(l => l.guarantorCode === selected.code || l.guarantorName === selected.name)
+    const gids = Array.from(new Set(gl.map(l => l.guarantorId || '')))
+    const urls = gids.some(id => !id)
+      ? ['/api/loans?filter=all']   // a loan without a guarantor id: read every loan, as before
+      : gids.map(id => `/api/loans?filter=all&guarantorId=${encodeURIComponent(id)}`)
+    Promise.all(urls.map(u => fetch(u, auth).then(r => r.json())))
+      .then(rs => {
+        if (cancelled) return
+        const bad = rs.find(r => r && r.success === false)
+        if (bad) showToast(bad.error || 'Some data failed to load')
+        const full = new Map<string, Loan>(rs.flatMap(r => (r.data?.loans || []) as Loan[]).map(l => [l.loanId, l]))
+        setDetail({ guarantorId: selected.guarantorId, from: loans, rows: gl.map(l => full.get(l.loanId) || l) })
+      })
+      .catch(() => { if (!cancelled) showToast('Could not load guarantor data. Check your connection.') })
+    if (customers === null) {
+      fetch('/api/customers?light=1', auth).then(r => r.json())
+        .then(cR => { if (cancelled) return; if (cR.success === false) showToast(cR.error || 'Some data failed to load'); setCustState({ from: loans, rows: cR.data?.customers || [] }) })
+        .catch(() => { if (!cancelled) showToast('Could not load guarantor data. Check your connection.') })
+    }
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected, loans])
 
   if (loading && !loadedOnce.current) return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-ink border-t-transparent" /></div>
 
   // ── DETAIL VIEW ──
   if (selected) {
     const g = selected
-    const gLoans = loans.filter(l => l.guarantorCode === g.code || l.guarantorName === g.name)
+    // totals are the same from the light rows; the full rows (names, weeks paid) replace them once loaded
+    const detailLoans = detail && detail.guarantorId === g.guarantorId && detail.from === loans ? detail.rows : null
+    const gLoans = detailLoans || loans.filter(l => l.guarantorCode === g.code || l.guarantorName === g.name)
+    const detailsLoading = !detailLoans || customers === null
     const gSettlements = settlements.filter(s => s['Entity ID'] === g.guarantorId && s['Entity Type'] === 'GuarantorCommission')
-    const gCustomers = customers.filter(c => !!gLoans.find(l => l.customerId === c.customerId))
+    const gCustomers = (customers || []).filter(c => !!gLoans.find(l => l.customerId === c.customerId))
     const totalEarned = gLoans.reduce((s, l) => s + Number(l.guarantorCommission || 0), 0)
     const totalPaid = gSettlements.reduce((s, s2) => s + Number(s2['Amount Submitted'] || 0), 0)
     const balance = totalEarned - totalPaid
@@ -177,6 +214,7 @@ export default function GuarantorPage({ session }: { session: Session }) {
             </div>
             {g.phone && <p className="text-xs text-soft">{g.phone}</p>}
           </div>
+          {detailsLoading && <span className="text-xs text-soft">Loading details…</span>}
         </div>
 
         {/* Sub tabs */}
@@ -238,7 +276,7 @@ export default function GuarantorPage({ session }: { session: Session }) {
 
             <div className="rounded-[1.75rem] border border-white/70 bg-white shadow-panel overflow-hidden">
               <div className="border-b border-black/5 px-5 py-4">
-                <p className="text-sm font-semibold">Customers ({gCustomers.length})</p>
+                <p className="text-sm font-semibold">Customers ({customers === null ? '…' : gCustomers.length})</p>
               </div>
               <div className="divide-y divide-black/5">
                 {gCustomers.map(c => {
@@ -255,7 +293,7 @@ export default function GuarantorPage({ session }: { session: Session }) {
                     </div>
                   )
                 })}
-                {gCustomers.length === 0 && <p className="p-5 text-sm text-soft">No customers.</p>}
+                {gCustomers.length === 0 && <p className="p-5 text-sm text-soft">{customers === null ? 'Loading…' : 'No customers.'}</p>}
               </div>
             </div>
           </div>

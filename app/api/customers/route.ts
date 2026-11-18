@@ -3,7 +3,8 @@ import { apiHandler, getSession, requireRole, ok, err } from '@/lib/api'
 import { needFeature } from '@/lib/access'
 import { requireFeature } from '@/lib/access'
 import { customer as customerKeys } from '@/lib/features'
-import { readTable, selectAll, selectRows, getRowById, updateById, deleteById, findRecord, nowIso, invalidateCache } from '@/lib/supabase-db'
+import { readTable, selectAll, selectRows, getRowById, updateById, deleteById, findRecord, nowIso, invalidateCache, getSupabase } from '@/lib/supabase-db'
+import { readAllPages } from '@/lib/pageAll'
 import { getLeadDocFolder, uploadLeadPhoto } from '@/lib/drive'
 import { getTodayIST } from '@/lib/dateUtils'
 import { bulkScores } from '@/lib/customerHistory'
@@ -16,6 +17,8 @@ export const maxDuration = 30
 //   ?page=1&pageSize=50&q=text  one page, searched in the database (newest first), with `total` and `totalPages`
 //   ?id=CUSTOMER_ID             one customer (any role that may see them)
 //   (no page)                   every customer in the caller's scope: for a guarantor or agent that is their own few hundred
+//                               (count once, then the 200-row pages in parallel)
+//   (no page) &light=1          the same customers, only customerId, name and phone, no enrichment (Guarantors page)
 // Only the rows on the page are enriched with loan, guarantor, agent and lead details.
 export const GET = apiHandler(async (req: NextRequest) => {
   const session = await getSession(req)
@@ -23,6 +26,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const sp = new URL(req.url).searchParams
   const id = sp.get('id') || ''
   const paged = sp.has('page')
+  const light = !paged && !id && sp.get('light') === '1'
 
   // who may see which customers
   let agentCustomerIds: string[] | null = null
@@ -47,26 +51,60 @@ export const GET = apiHandler(async (req: NextRequest) => {
   if (paged || id) {
     const r = await pageQuery('Customers', { filters, search: { columns: searchCols, text: sp.get('q') }, order, page: sp.get('page') || 1, pageSize: sp.get('pageSize') })
     customers = r.rows; total = r.total; page = r.page; pageSize = r.pageSize; totalPages = r.totalPages
+  } else if (light) {
+    // ?light=1 (no page): only id, name and phone of every customer in scope, same filters and order, no enrichment.
+    // Used by the Guarantors page, which shows just these three fields.
+    const sb = getSupabase()
+    const raw = await readAllPages<{ customer_id: string; name: string; phone: string }>(async (from, to, withCount) => {
+      let q = filters(sb.from('customers').select('customer_id, name, phone', withCount ? { count: 'exact' } : undefined))
+      for (const o of order) q = q.order(o.column, { ascending: o.ascending !== false })
+      const { data, error, count } = await q.range(from, to)
+      if (error) throw new Error(`Query failed on Customers: ${error.message}`)
+      return { rows: data || [], total: count ?? undefined }
+    })
+    return ok({ customers: raw.map(c => ({ customerId: c.customer_id, name: c.name, phone: c.phone })) })
   } else {
-    for (let pg = 1; ; pg++) {
-      const r = await pageQuery('Customers', { filters, order, page: pg, pageSize: 200 })
-      customers.push(...r.rows)
-      if (pg >= r.totalPages) { total = r.total; break }
-    }
+    // every customer in scope: count once with page 1, then the other 200-row pages in parallel (same rows, same order)
+    customers = await readAllPages((from, to, withCount) => selectRows('Customers', qb => {
+      let q = filters(qb)
+      for (const o of order) q = q.order(o.column, { ascending: o.ascending !== false })
+      return q.range(from, to)
+    }, { count: withCount }))
   }
 
   const rows = await enrichCustomers(customers)
   return ok(paged || id ? { customers: rows, total, page, pageSize, totalPages } : { customers: rows })
 })
 
+// Leads: only the columns the customer list shows (the lead row also carries long notes and many other fields)
+const LEAD_COLUMNS = 'lead_id, nominee_name, nominee_phone, aadhaar_no, customer_photo_url, aadhaar_front_url, aadhaar_back_url, house_photo_url, landmark_photo_url, cheque_photo_url, verification_notes'
+async function leadsByIds(ids: string[]): Promise<Record<string, string>[]> {
+  const unique = Array.from(new Set(ids.filter(Boolean)))
+  if (!unique.length) return []
+  const sb = getSupabase()
+  // lead_id is the key, so a chunk of 200 ids is at most 200 rows: one request per chunk, all chunks in parallel
+  const parts = await Promise.all(chunk(unique).map(async part => {
+    const { data, error } = await sb.from('leads').select(LEAD_COLUMNS).in('lead_id', part)
+    if (error) throw new Error(`Query failed on Leads: ${error.message}`)
+    return ((data || []) as unknown as Record<string, string>[]).map(l => ({
+      'Lead ID': l.lead_id, 'Nominee Name': l.nominee_name, 'Nominee Phone': l.nominee_phone, 'Aadhaar No': l.aadhaar_no,
+      'Customer Photo URL': l.customer_photo_url, 'Aadhaar Front URL': l.aadhaar_front_url, 'Aadhaar Back URL': l.aadhaar_back_url,
+      'House Photo URL': l.house_photo_url, 'Landmark Photo URL': l.landmark_photo_url, 'Cheque Photo URL': l.cheque_photo_url,
+      'Verification Notes': l.verification_notes,
+    }))
+  }))
+  return parts.flat()
+}
+
 async function enrichCustomers(customers: Record<string, string>[]) {
   if (!customers.length) return []
   const today = getTodayIST()
   const cids = customers.map(c => c['Customer ID'])
+  // Round trip 1: the customers' loans, their active loans and their leads, together
   const [loansByCustomer, loansByActive, leads] = await Promise.all([
     byIds('Loans', 'customer_id', cids),
     byIds('Loans', 'loan_id', customers.map(c => c['Active Loan ID'])),
-    byIds('Leads', 'lead_id', customers.map(c => c['Lead ID'])),
+    leadsByIds(customers.map(c => c['Lead ID'])),
   ])
   const loanById = new Map(loansByActive.map(l => [l['Loan ID'], l]))
   const firstLoanOf = new Map<string, Record<string, string>>()
@@ -74,14 +112,23 @@ async function enrichCustomers(customers: Record<string, string>[]) {
   const loanOf = (c: Record<string, string>) => loanById.get(c['Active Loan ID']) || firstLoanOf.get(c['Customer ID'])
   const loans = customers.map(loanOf)
 
-  const [guarantors, agents, overdue, scores] = await Promise.all([
+  // Round trip 2: guarantors, agents and every weekly row of the customers' loans (the score needs them all).
+  // Overdue = the shown loan has a Pending week due before today. The shown loan is almost always one of the
+  // customer's own loans, whose weeks are read here anyway; only a shown loan outside that set (an Active Loan ID
+  // pointing at another customer's loan) is still asked for separately, exactly as before.
+  const ownLoanIds = new Set(loansByCustomer.map(l => l['Loan ID']))
+  const otherShownIds = Array.from(new Set(loans.map(l => l?.['Loan ID']).filter(x => x && !ownLoanIds.has(x)) as string[]))
+  const [guarantors, agents, repayments, otherOverdue] = await Promise.all([
     byIds('Guarantors', 'guarantor_id', customers.map((c, i) => c['Guarantor ID'] || loans[i]?.['Guarantor ID'] || '')),
     byIds('Agents', 'agent_id', loans.map(l => l?.['Assigned Agent ID'] || '')),
-    Promise.all(chunk(loans.map(l => l?.['Loan ID']).filter(Boolean) as string[]).map(part =>
+    byIds('Repayments', 'loan_id', loansByCustomer.map(l => l['Loan ID'])),
+    Promise.all(chunk(otherShownIds).map(part =>
       selectAll('Repayments', qb => qb.in('loan_id', part).eq('status', 'Pending').lt('due_date', today)))),
-    bulkScores(cids),
   ])
-  const overdueSet = new Set(overdue.flat().map(r => r['Loan ID']))
+  // Round trip 3 (inside): the collections of those weeks
+  const scores = await bulkScores(cids, { loans: loansByCustomer, repayments })
+  const overdueSet = new Set(otherOverdue.flat().map(r => r['Loan ID']))
+  for (const r of repayments) if (r['Status'] === 'Pending' && r['Due Date'] && String(r['Due Date']) < today) overdueSet.add(r['Loan ID'])
   const gById = new Map(guarantors.map(g => [g['Guarantor ID'], g]))
   const aById = new Map(agents.map(a => [a['Agent ID'], a]))
   const leadById = new Map(leads.map(l => [l['Lead ID'], l]))

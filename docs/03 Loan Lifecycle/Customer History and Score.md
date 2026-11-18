@@ -8,7 +8,7 @@ tags: [ngf, loans, history, score, repayments]
 # Customer History and Score
 **Every loan a customer has taken, every weekly payment with the time it was recorded, and the **NGF Score** (our own 0-850 score from payments AND staff reviews; it is not a CIBIL score).**
 
-> **2026-10-21:** renamed to NGF Score, now includes the star reviews, and shows on every customer (list cards, detail header, My Customers, renewal search) as a chip (`components/ui/NgfScoreBadge.tsx`). List scores come from `bulkScores()` in `lib/customerHistory.ts` (same rules as the History tab).
+> **2026-10-21:** renamed to NGF Score, now includes the star reviews, and shows on every customer (list cards, detail header, My Customers, renewal search) as a chip (`components/ui/NgfScoreBadge.tsx`). List scores come from `bulkScores()` in `lib/customerHistory.ts` (same rules as the History tab). Since 2026-11-19 the customer list passes the loans and weekly rows it already read (`bulkScores(ids, { loans, repayments })`), so only collections are read inside; other callers pass nothing and get the old behaviour.
 
 Customers → open a customer → **History & Score** tab (next to Customer Details, Transaction, Reviews, Loans & Payments). Guarantors see it for their own customers; agents for customers assigned to them.
 
