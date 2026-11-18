@@ -2,27 +2,16 @@ import { NextRequest } from 'next/server'
 import { apiHandler, getSession, requireRole, ok, err } from '@/lib/api'
 import { needFeature } from '@/lib/access'
 import { selectRows, selectAll, getRowById, appendRow, updateById, invalidateCache, deleteById, makeId, nowIso } from '@/lib/supabase-db'
-import { byIds, scopeOf } from '@/lib/db'
-import { buildOverview, guarantorCanSeeCommissions, receiptNumber, type CommissionOverview } from '@/lib/commissions'
+import { buildOverview, guarantorCanSeeCommissions, receiptNumber } from '@/lib/commissions'
+import { payoutView } from '@/lib/commissionPayouts'
 import { getTodayIST } from '@/lib/dateUtils'
 import { randomInt } from 'crypto'
-import { getBranchAccess, canSeeGuarantor, canApproveIn, guarantorBranchMap } from '@/lib/branchAccess'
+import { getBranchAccess, canApproveIn, guarantorBranchMap } from '@/lib/branchAccess'
 
 const PAY_MODES = ['Cash', 'UPI', 'Bank Transfer']
 
 const overviewOf = (g: Record<string, string>, loans: Record<string, string>[], payouts: Record<string, string>[]) =>
   buildOverview(loans.filter(l => l['Guarantor ID'] === g['Guarantor ID']), payouts.filter(p => p['Guarantor ID'] === g['Guarantor ID']), g['Commission Start'] || null)
-
-// What the older Commissions page still reads, derived from the cycles
-const legacySummary = (o: CommissionOverview) => {
-  const ended = o.cycles.filter(c => c.status !== 'running')
-  const eligible = Math.round(ended.reduce((t, c) => t + c.amount, 0) * 100) / 100
-  return {
-    earned: o.earned, eligible, locked: Math.round((o.earned - eligible) * 100) / 100, paid: o.paid, pending: o.pending, available: o.available,
-    todayIST: o.today, nextPayoutDate: o.ready?.payoutDate || o.current?.payoutDate || null,
-    cycles: [...o.cycles].reverse().map(c => ({ start: c.start, end: c.end, amount: c.amount, past: c.status !== 'running' })),
-  }
-}
 
 // One cash-book line for a commission payment, so the Settlements page and the guarantor's own page agree
 async function recordCommissionSettlement(gid: string, name: string, amount: number, note: string, userId: string) {
@@ -35,79 +24,13 @@ async function recordCommissionSettlement(gid: string, name: string, amount: num
   invalidateCache('Settlements')
 }
 
+// Reads only: the guarantor's own commission (?summary=1), their request list, or the Payout Requests page (?all=1).
+// The work lives in lib/commissionPayouts.ts, which reads everything it needs in as few database steps as possible.
 export const GET = apiHandler(async (req: NextRequest) => {
   const session = await getSession(req)
   const { searchParams } = new URL(req.url)
-  const showAll = searchParams.get('all') === '1'
-
-  if (!showAll && session.role !== 'Guarantor') return err('Guarantors only', 403)
-  if (showAll && session.role !== 'Admin' && session.role !== 'Staff') return err('Admins/Staff only', 403)
-  if (showAll) await needFeature(session, ['payoutRequests'])
-
-  if (!showAll && !(await guarantorCanSeeCommissions(session))) return err('You do not have access to commissions', 403)
-
-  let mine: Record<string, string>[]
-  if (!showAll) {
-    // a guarantor: only their own requests and loans are read
-    const g = (await selectRows('Guarantors', qb => qb.eq('user_id', session.userId).limit(1))).rows[0]
-    if (!g) return err('Guarantor not found', 404)
-    mine = await selectAll('PayoutRequests', qb => qb.eq('guarantor_id', g['Guarantor ID']))
-
-    if (searchParams.get('summary') === '1') {
-      const gl = await selectAll('Loans', qb => qb.eq('guarantor_id', g['Guarantor ID']))
-      const overview = overviewOf(g, gl, mine)
-      return ok({ ...legacySummary(overview), overview, guarantor: { name: String(g['Name'] || '').trim(), code: g['Code'] || '' } })
-    }
-  } else if (session.role === 'Staff') {
-    // Staff see only payout requests of guarantors in their own branches
-    const sc = await scopeOf(session)
-    mine = sc.kind === 'guarantors' ? await byIds('PayoutRequests', 'guarantor_id', sc.ids) : []
-  } else {
-    mine = await selectAll('PayoutRequests', qb => qb)
-  }
-  const guarantors = await byIds('Guarantors', 'guarantor_id', mine.map(p => p['Guarantor ID']))
-
-  // The tracker: every guarantor this person may pay, with what is earned, unlocked, paid, waiting and still available
-  let scopeIds: string[] | null = null
-  if (session.role === 'Staff') { const sc = await scopeOf(session); scopeIds = sc.kind === 'guarantors' ? sc.ids : [] }
-  const gRows = scopeIds ? await byIds('Guarantors', 'guarantor_id', scopeIds) : await selectAll('Guarantors', qb => qb)
-  const gIds = gRows.map((g: any) => g['Guarantor ID'])
-  const [allLoans, allPayouts] = gIds.length ? await Promise.all([byIds('Loans', 'guarantor_id', gIds), byIds('PayoutRequests', 'guarantor_id', gIds)]) : [[], []]
-  const commissions = gRows.map((g: any) => {
-    const gid = g['Guarantor ID']
-    const o = overviewOf(g, allLoans, allPayouts)
-    const pending = allPayouts.find((p: any) => p['Guarantor ID'] === gid && p['Status'] === 'Pending')
-    const cur = o.current
-    return {
-      guarantorId: gid, name: String(g['Name'] || '').trim(), code: g['Code'] || '', startMonday: o.startMonday,
-      earned: o.earned, unlocked: Math.round((o.available + o.pending + o.paid) * 100) / 100, locked: cur && cur.status === 'running' ? cur.amount : 0,
-      paid: o.paid, aheadPaid: 0, pending: o.pending, available: o.available,
-      cycleStart: cur?.start || '', cycleEnd: cur?.end || '', cycleDay: cur?.dayOfCycle || 0, cycleLoans: cur?.loans || 0, cycleAmount: cur?.amount || 0,
-      nextPayoutDate: o.ready?.payoutDate || cur?.payoutDate || null,
-      readyStart: o.ready?.start || '', readyAmount: o.ready?.amount || 0, readyPayoutDate: o.ready?.payoutDate || '',
-      pendingPayoutId: pending?.['Payout ID'] || '',
-    }
-  }).filter((c: any) => c.startMonday).sort((a: any, b: any) => b.available - a.available || b.earned - a.earned)
-
-  const enriched = mine
-    .sort((a: any, b: any) => b['Requested At'].localeCompare(a['Requested At']))
-    .map((p: any) => {
-      const g = guarantors.find((gu: any) => gu['Guarantor ID'] === p['Guarantor ID'])
-      return {
-        payoutId: p['Payout ID'],
-        guarantorId: p['Guarantor ID'],
-        guarantorName: g?.['Name'] || '',
-        amount: Number(p['Amount'] || 0),
-        status: p['Status'],
-        requestedAt: p['Requested At'],
-        processedAt: p['Processed At'] || null,
-        notes: p['Notes'] || '',
-        cycleStart: String(p['Cycle Start'] || '').slice(0, 10), cycleEnd: String(p['Cycle End'] || '').slice(0, 10), receiptNo: p['Receipt No'] || '',
-        rejectionReason: p['Status'] === 'Rejected' ? (p['Notes'] || '') : '',
-      }
-    })
-
-  return ok({ payouts: enriched, commissions })
+  const r = await payoutView(session, { showAll: searchParams.get('all') === '1', summary: searchParams.get('summary') === '1' })
+  return r.ok ? ok(r.data) : err(r.error, r.status)
 })
 
 export const POST = apiHandler(async (req: NextRequest) => {
