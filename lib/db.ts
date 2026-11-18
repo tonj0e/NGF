@@ -75,8 +75,9 @@ export interface CompanyTotals {
 const TOTALS_MS = 45_000
 let totalsHit: { at: number; data: CompanyTotals } | null = null
 let totalsPending: Promise<CompanyTotals> | null = null
-export async function companyTotals(): Promise<CompanyTotals> {
-  if (totalsHit && Date.now() - totalsHit.at < TOTALS_MS) return totalsHit.data
+export async function companyTotals(opts: { fresh?: boolean } = {}): Promise<CompanyTotals> {
+  // fresh: money decisions (Capital) always read the database; the answer still refreshes the shared copy
+  if (!opts.fresh && totalsHit && Date.now() - totalsHit.at < TOTALS_MS) return totalsHit.data
   if (totalsPending) return totalsPending
   const p = companyTotalsFromDb()
   totalsPending = p

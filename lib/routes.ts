@@ -372,9 +372,11 @@ export async function agentDay(session: Session, q: { agentId?: string; branchId
   if (!agentId) throw new RouteError('Agent ID required')
   const date = isDate(q.date) ? q.date : getTodayIST()
   const sb = getSupabase()
-  // Everything in one wait; nothing is returned before the access checks below
-  const [a, cfg, agentRes, leadsRes, wpsRes, planRes, gbMap] = await Promise.all([
-    getRouteAccess(session), routeConfig(),
+  // Access first (cheap, cached): someone without planning rights costs no customer reads. Then everything else in one wait.
+  const [a, cfg] = await Promise.all([getRouteAccess(session), routeConfig()])
+  needPlanner(a)
+  if (!cfg.enabled) throw new RouteError('Route planning is switched off in Dev settings')
+  const [agentRes, leadsRes, wpsRes, planRes, gbMap] = await Promise.all([
     sb.from('agents').select('agent_id, name, status, branch_id').eq('agent_id', agentId).maybeSingle(),
     sb.from('leads').select(LEAD_COLS).eq('assigned_agent_id', agentId).eq('visit_date', date)
       .in('status', ['Pending', 'Under Review', 'Agent Assigned', 'Verification In Progress', 'Verification Submitted']),
@@ -382,8 +384,6 @@ export async function agentDay(session: Session, q: { agentId?: string; branchId
     sb.from('route_plans').select('*').eq('agent_id', agentId).eq('plan_date', date).maybeSingle(),
     session.role === 'Admin' && !q.branchId ? Promise.resolve(new Map<string, string>()) : guarantorBranchMap(),
   ])
-  needPlanner(a)
-  if (!cfg.enabled) throw new RouteError('Route planning is switched off in Dev settings')
   const wantBranch = a.isAdmin ? (q.branchId || '') : (a.branchId || q.branchId || '')
   if (wantBranch && !branchAllowed(a, wantBranch)) throw new Error('No permission')
   if (leadsRes.error) throw new Error(leadsRes.error.message)

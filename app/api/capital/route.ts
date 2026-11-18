@@ -9,7 +9,7 @@ import { companyTotals } from '@/lib/db'
 export const GET = apiHandler(async (req: NextRequest) => {
   await requireRole(req, ['Admin'])
 
-  const [capital, totals] = await Promise.all([readTable('Capital', { forceFresh: true }), companyTotals()])
+  const [capital, totals] = await Promise.all([readTable('Capital', { forceFresh: true }), companyTotals({ fresh: true })])
 
   const totalCapital = capital.reduce((s, c) => s + Number(c['Amount'] || 0), 0)
   const investorMoney = capital.filter(c => c['Type'] === 'Investor').reduce((s, c) => s + Number(c['Amount'] || 0), 0)
