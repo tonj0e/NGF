@@ -18,7 +18,7 @@ export function driveImagePath(url: string): string {
   if (url.startsWith('/api/drive/')) return url
   const id = url.match(/[?&]id=([^&]+)/)?.[1] || url.match(/\/d\/([^/]+)/)?.[1] || ''
   if (id) return `/api/drive/${id}`
-  return url.startsWith('/') && !url.startsWith('//') ? url : ''
+  return url.startsWith('/') && !url.startsWith('//') && !url.startsWith('/\\') ? url : ''
 }
 
 type Item = { src: string; bytes: number }

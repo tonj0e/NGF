@@ -63,17 +63,19 @@ export async function payoutView(session: Session, opts: { showAll: boolean; sum
   // Each list is read once and the narrower lists are cut from it (old code read payouts and guarantors twice, one after the other).
   let gRows: Row[], allLoans: Row[], allPayouts: Row[], mine: Row[]
   if (!showAll) {
-    // A guarantor's list call has always carried the full tracker (every guarantor); kept as is.
-    const [allowed, g, gs, loans, payouts] = await Promise.all([
+    // A guarantor's list call returns only their own row and requests (it used to carry every guarantor's tracker,
+    // which the Commissions page never shows: security review 2026-11-19). Own rows are found through the user id.
+    const viaUser = (qb: { eq: (column: string, value: string) => unknown }) => qb.eq('guarantors.user_id', session.userId)
+    const [allowed, g, loans, payouts] = await Promise.all([
       guarantorCanSeeCommissions(session), ownGuarantor(session.userId),
-      selectAll('Guarantors', qb => qb, G_COLS),
-      selectAll('Loans', qb => qb.not('guarantor_id', 'is', null), LOAN_COLS),
-      selectAll('PayoutRequests', qb => qb),
+      selectAll('Loans', viaUser, `${LOAN_COLS},guarantors!inner(user_id)`),
+      selectAll('PayoutRequests', viaUser, '*,guarantors!inner(user_id)'),
     ])
     if (!allowed) return fail('You do not have access to commissions', 403)
     if (!g) return fail('Guarantor not found', 404)
-    gRows = gs; allLoans = loans; allPayouts = payouts
-    mine = payouts.filter(p => p['Guarantor ID'] === g['Guarantor ID'])
+    const own = (r: Row) => r['Guarantor ID'] === g['Guarantor ID']
+    gRows = [g]; allLoans = loans.filter(own); allPayouts = payouts.filter(own)
+    mine = allPayouts
   } else if (session.role === 'Staff') {
     // Staff see only guarantors (and their requests) in their own branches
     const [, sc] = await Promise.all([needFeature(session, ['payoutRequests']), scopeOf(session)])

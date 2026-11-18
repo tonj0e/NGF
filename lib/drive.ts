@@ -82,7 +82,7 @@ export async function getFileThumbnail(fileId: string, size: number): Promise<{ 
   const url = meta.data.thumbnailLink ? sizedThumbnailUrl(meta.data.thumbnailLink, size) : null
   if (!url) return null
   try {
-    const res = await fetch(url, { headers: { Authorization: `Bearer ${await getOAuthAccessToken()}` }, redirect: 'follow', signal: AbortSignal.timeout(15000) })
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${await getOAuthAccessToken()}` }, redirect: 'error', signal: AbortSignal.timeout(15000) })
     const mime = (res.headers.get('content-type') || '').split(';')[0].trim()
     if (!res.ok || !mime.startsWith('image/')) return null
     return { buf: Buffer.from(await res.arrayBuffer()), mime }

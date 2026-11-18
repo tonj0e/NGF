@@ -40,7 +40,7 @@ export async function GET(req: NextRequest, { params }: any) {
     return new NextResponse(file.buf, {
       headers: {
         'Content-Type': file.mime,
-        'Cache-Control': 'private, max-age=3600',
+        'Cache-Control': 'private, no-store',   // never kept by the browser after logout (security review); the page keeps its own copy per session
       },
     })
   } catch {
