@@ -11,6 +11,7 @@ import { validateBody, createLeadSchema } from '@/lib/validation'
 import { createAuditLogger, AUDIT_ACTIONS } from '@/lib/audit'
 import { csrfProtection } from '@/lib/csrf'
 import { notifyBranchOfLead } from '@/lib/routes'
+import { agentIdOfUser } from '@/lib/agentOfUser'
 import { getBranchAccess, canSeeBranch } from '@/lib/branchAccess'
 import { checkRenewalEligibility, customerForRenewalLead, isPermanentlyBlockedAadhaar } from '@/lib/renewalRules'
 import { getTodayIST, addDaysIST } from '@/lib/dateUtils'
@@ -44,8 +45,8 @@ async function badgeCounts(scope: Scope, agentId: string, returnedIsNew: boolean
 // `counts` (new / history / renewal / approved / stages) feeds the tab badges for the caller's whole scope.
 export const GET = apiHandler(async (req: NextRequest) => {
   const session = await getSession(req)
-  // an agent sees only the leads assigned to them: their Agents row loads together with permission and scope, not after
-  const agentsP = session.role === 'NGF AGENT' ? readTable('Agents') : null
+  // an agent sees only the leads assigned to them: their agent id (one row, kept 30 s) loads together with permission and scope, not after
+  const agentsP = session.role === 'NGF AGENT' ? agentIdOfUser(session.userId) : null
   agentsP?.catch(() => {})   // awaited below; this only keeps an early failure above from leaving it unhandled
   const [, scope0] = await Promise.all([needFeature(session, []), scopeOf(session)])   // permission and scope do not depend on each other
   const { searchParams } = new URL(req.url)
@@ -62,8 +63,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
   let scope = scope0
   let agentId = ''
   if (agentsP) {
-    const agent = (await agentsP).find(a => a['User ID'] === session.userId)
-    agentId = agent?.['Agent ID'] || '__none__'
+    agentId = (await agentsP) || '__none__'
     scope = { kind: 'all' }
   }
   const [branches, guarantorBranches] = await branchesP

@@ -3,7 +3,7 @@ import { apiHandler, getSession, ok, err } from '@/lib/api'
 import { needFeature } from '@/lib/access'
 import { coll } from '@/lib/features'
 import type { TableName } from '@/lib/supabase-db'
-import { readTable, selectRows, countRows, getRowById, updateById, appendRow, makeId, nowIso, invalidateCache, getSupabase } from '@/lib/supabase-db'
+import { selectRows, countRows, getRowById, updateById, appendRow, makeId, nowIso, invalidateCache, getSupabase } from '@/lib/supabase-db'
 import { APP_CONFIG } from '@/lib/config'
 import { saveFileSupabase } from '@/lib/drive'
 import { checkUpload, randomFileId } from '@/lib/uploadGuard'
@@ -11,6 +11,7 @@ import { checkUploadRate } from '@/lib/uploadRate'
 import { getTodayIST, getThisSaturday, getNextSaturday } from '@/lib/dateUtils'
 import { getBranchAccess, canSeeGuarantor, guarantorBranchMap } from '@/lib/branchAccess'
 import { pageQuery, cleanSearch, scopeOf, withScope } from '@/lib/db'
+import { agentIdOfUser } from '@/lib/agentOfUser'
 
 // GET /api/repayments
 //   ?mode=today|nextsaturday|all|history   (default: everything not yet paid)  &search=  &page=  &pageSize=
@@ -37,8 +38,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
   let scope = await scopeOf(session)
   let agentId = ''
   if (session.role === 'NGF AGENT') {
-    const a = (await readTable('Agents')).find(x => x['User ID'] === session.userId)
-    agentId = a?.['Agent ID'] || '__none__'
+    agentId = (await agentIdOfUser(session.userId)) || '__none__'   // one row, not the whole Agents table
     scope = { kind: 'all' }
   }
   const guaranteed = scope.kind === 'guarantors' ? scope.ids : scope.kind === 'none' ? ['__none__'] : null
