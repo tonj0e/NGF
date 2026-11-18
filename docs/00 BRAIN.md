@@ -9,6 +9,9 @@ tags: [ngf, brain,home]
 # 00 BRAIN
 **The one page that explains the NGF FINCORP CRM. Read this first; every section below has its own brain note.**
 
+## How we work
+The agent team is called **[[NGF Office]]** (also called NGF Development) (Tony = owner, Claude = project manager + software architect, Frontend / Backend / Database / QA-Security / DevOps-SRE teams with named members). Current work: [[Speed Project 2026-11-19]].
+
 ## What this project is
 A weekly microfinance CRM. **Guarantors** bring in customers, **field agents** verify them and collect, **Staff and Admin** approve loans, record cash and pay commissions. It is one web app (Next.js 16, React 19, Supabase) used mostly on phones.
 
