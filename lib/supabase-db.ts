@@ -217,14 +217,16 @@ function toSnakeCase(obj: Record<string, any>): Record<string, any> {
   return result
 }
 
+// snake_case column -> display name, built once (it used to be rebuilt for every row read)
+const REVERSE_COLUMN_MAP: Record<string, string> = {}
+for (const [k, v] of Object.entries(COLUMN_MAP)) {
+  REVERSE_COLUMN_MAP[v] = k
+}
+
 function toPascalCase(obj: Record<string, any>): Record<string, any> {
   const result: Record<string, any> = {}
-  const reverseMap: Record<string, string> = {}
-  for (const [k, v] of Object.entries(COLUMN_MAP)) {
-    reverseMap[v] = k
-  }
   for (const [key, value] of Object.entries(obj)) {
-    const pascalKey = reverseMap[key] || key.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+    const pascalKey = REVERSE_COLUMN_MAP[key] || key.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
     result[pascalKey] = value
   }
   return result
