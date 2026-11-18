@@ -113,11 +113,12 @@ export async function customerHistory(session: Session, customerId: string) {
  * `pre` lets a caller that has already read the rows pass them in, saving one database round trip each:
  *   pre.loans      = byIds('Loans', 'customer_id', customerIds)            (every loan of these customers)
  *   pre.repayments = byIds('Repayments', 'loan_id', <ids of pre.loans>)    (only together with pre.loans)
+ *   pre.collections = the collections of those weeks (needs Repayment ID and Created At; only together with both above)
  * Callers that pass nothing get the old behaviour (all rows read here).
  */
 export async function bulkScores(
   customerIds: string[],
-  pre?: { loans?: Record<string, string>[]; repayments?: Record<string, string>[] },
+  pre?: { loans?: Record<string, string>[]; repayments?: Record<string, string>[]; collections?: Record<string, string>[] },
 ): Promise<Map<string, { value: number; band: string; reviews: number; average: number | null }>> {
   const out = new Map<string, { value: number; band: string; reviews: number; average: number | null }>()
   if (!customerIds.length) return out
@@ -127,7 +128,8 @@ export async function bulkScores(
   const loanIds = loans.map(l => l.loan_id)
   const repRows = pre?.loans && pre.repayments ? pre.repayments : await byIds('Repayments', 'loan_id', loanIds)
   const reps = repRows.map(r => ({ repayment_id: r['Repayment ID'], loan_id: r['Loan ID'], due_date: r['Due Date'], week_no: r['Week No'], amount: r['Amount'], status: r['Status'], paid_date: r['Paid Date'], notes: r['Notes'] }))
-  const cols = (await byIds('Collections', 'repayment_id', reps.map(r => r.repayment_id))).map(c => ({ repayment_id: c['Repayment ID'], created_at: c['Created At'] }))
+  const colRows = pre?.loans && pre.repayments && pre.collections ? pre.collections : await byIds('Collections', 'repayment_id', reps.map(r => r.repayment_id))
+  const cols = colRows.map(c => ({ repayment_id: c['Repayment ID'], created_at: c['Created At'] }))
   const first = new Map<string, string>()
   for (const c of cols) { const p = first.get(c.repayment_id); if (!p || c.created_at < p) first.set(c.repayment_id, c.created_at) }
   // grouped once (same order as filtering the arrays) instead of scanning every row per customer and per loan
