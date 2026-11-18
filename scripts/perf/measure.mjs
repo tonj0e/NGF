@@ -35,7 +35,13 @@ const release = () => { try { fs.rmSync(LOCK, { recursive: true, force: true }) 
 process.on('exit', release); process.on('SIGINT', () => { release(); process.exit(130) }); process.on('uncaughtException', e => { release(); console.error(e); process.exit(1) })
 const browser = await chromium.launch({ headless: true, channel: 'chrome' })
 const ctx = await browser.newContext(mobile ? { ...devices['iPhone 13'] } : { viewport: { width: 1440, height: 900 } })
-await ctx.grantPermissions([])   // no location, camera or notifications
+const isAgent = role.startsWith('agent')
+if (isAgent) {
+  // The agent app needs a location. Give a fixed test position (Thrissur) and block every save it would make,
+  // so the test never writes attendance, location or trips into the live database.
+  await ctx.grantPermissions(['geolocation']); await ctx.setGeolocation({ latitude: 10.5276, longitude: 76.2144, accuracy: 20 })
+  await ctx.route(/\/api\/agent\/(attendance|location|trips)/, r => r.request().method() === 'GET' ? r.continue() : r.fulfill({ status: 200, contentType: 'application/json', body: '{"success":true,"data":{}}' }))
+} else await ctx.grantPermissions([])   // no location, camera or notifications
 const page = await ctx.newPage()
 
 // network bookkeeping
@@ -95,10 +101,11 @@ await page.fill('input[name="username"]', creds.username)
 await page.fill('input[name="password"]', creds.password)
 t0 = performance.now()
 await page.click('button[type="submit"]')
+if (isAgent) { await page.getByText('Skip for Now', { exact: true }).click({ timeout: 20000 }).catch(() => {}) }   // never mark attendance in a test
 const outcome = await Promise.race([
-  page.waitForSelector('nav button, nav a', { timeout: 30000 }).then(() => 'in'),
+  page.waitForFunction(() => !!localStorage.getItem('ngf_token'), null, { timeout: 30000 }).then(() => page.waitForTimeout(800)).then(() => 'in'),
   page.waitForSelector('text=/scan|QR/i', { timeout: 30000 }).then(() => 'qr'),
-  page.waitForSelector('.text-red-600', { timeout: 30000 }).then(async () => 'error: ' + (await page.textContent('.text-red-600'))),
+  page.waitForSelector('form .text-red-600', { timeout: 30000 }).then(async () => 'error: ' + (await page.textContent('form .text-red-600'))),
 ]).catch(e => 'timeout ' + e.message.slice(0, 80))
 const loginMs = await settle(t0)
 result.login = { outcome, ms: loginMs, calls: calls.slice() }
