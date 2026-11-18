@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { apiHandler, getSession, ok, err } from '@/lib/api'
 import { createAuditLogger } from '@/lib/audit'
-import { routeConfig, board, mine, setVisit, assign, reopen, addWaypoint, removeWaypoint, waypointDone, optimize, reorder, pin, unplan, returnLead, stopStatus, replan, RouteError } from '@/lib/routes'
+import { routeConfig, board, agentDay, mine, setVisit, assign, reopen, addWaypoint, removeWaypoint, waypointDone, optimize, reorder, pin, unplan, returnLead, stopStatus, replan, RouteError } from '@/lib/routes'
 
 // Verification Day Routes. Access is decided in lib/routes.ts from the session, never from the request body.
 export const GET = apiHandler(async (req: NextRequest) => {
@@ -11,6 +11,8 @@ export const GET = apiHandler(async (req: NextRequest) => {
   try {
     if (view === 'config') return ok(await routeConfig())
     if (view === 'board') return ok(await board(session, { branchId: sp.get('branchId') || '', date: sp.get('date') || '' }))
+    // One agent's day only (Agent Tracking map panel); same access rules as the board
+    if (view === 'agentDay') return ok(await agentDay(session, { agentId: sp.get('agentId') || '', branchId: sp.get('branchId') || '', date: sp.get('date') || '' }))
     if (view === 'mine') return ok(await mine(session, { date: sp.get('date') || '' }))
     return err('Unknown view')
   } catch (e) {

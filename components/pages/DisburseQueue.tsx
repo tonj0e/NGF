@@ -53,8 +53,16 @@ export default function DisburseQueue({ session }: { session: Session }) {
     if (r.ok) { setData(r.data!); setError(''); loaded.current = true } else setError(r.error || 'Could not load the list')
     if (b.ok) setBatches(b.data!.batches)
   }, [session.token])
+  // Load once, then every 20 s. Opening or closing a dialog no longer reloads the list or restarts the timer: the timer reads
+  // whether a dialog is open from a ref and skips that tick (and ticks while the tab is hidden).
+  const dialogOpen = useRef(false)
+  useEffect(() => { dialogOpen.current = !!confirm || !!bankFor || preview }, [confirm, bankFor, preview])
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { load(); const t = setInterval(() => { if (!confirm && !bankFor && !preview) load() }, 20000); return () => clearInterval(t) }, [load, confirm, bankFor, preview])
+  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    const t = setInterval(() => { if (!document.hidden && !dialogOpen.current) load() }, 20000)
+    return () => clearInterval(t)
+  }, [load])
 
   async function disburse(row: Row) {
     setBusy(true)
