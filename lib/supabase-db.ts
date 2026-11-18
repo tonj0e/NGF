@@ -521,14 +521,15 @@ export function pascalRow(row: Record<string, any>): Record<string, string> {
 }
 
 /** One database-side query: `build` adds filters, order and range to the query (columns are database snake_case names).
- *  Returns the rows in the usual Pascal-keyed shape and, when asked, the exact number of matching rows. */
+ *  Returns the rows in the usual Pascal-keyed shape and, when asked, the exact number of matching rows.
+ *  `columns` (PostgREST select, default every column) may add embedded rows or computed columns. */
 export async function selectRows(
   table: TableName,
   build: (qb: any) => any,
-  opts: { count?: boolean } = {},
+  opts: { count?: boolean; columns?: string } = {},
 ): Promise<{ rows: Record<string, string>[]; total: number }> {
   const supabase = getSupabase()
-  const qb = supabase.from(TABLE_MAP[table]).select('*', opts.count ? { count: 'exact' } : undefined)
+  const qb = supabase.from(TABLE_MAP[table]).select(opts.columns || '*', opts.count ? { count: 'exact' } : undefined)
   const { data, error, count } = await build(qb)
   if (error) throw new Error(`Query failed on ${table}: ${error.message}`)
   const rows = (data || []).map((row: any) => toPascalCase(row))
