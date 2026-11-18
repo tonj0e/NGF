@@ -3,6 +3,7 @@ import { useEffect, useState, useMemo, useRef } from 'react'
 import CustomerHistory from '@/components/customers/CustomerHistory'
 import { Session } from '@/types'
 import DriveImage from '@/components/ui/DriveImage'
+import { useDriveImage } from '@/lib/driveImage'
 import LoansPage from './LoansPage'
 import { parseReview } from '@/lib/reviews'
 import StatusPill from '@/components/ui/StatusPill'
@@ -12,19 +13,12 @@ import { apiSend } from '@/lib/clientApi'
 
 type Tab = 'customers' | 'active' | 'renewal' | 'completed'
 
+// 48 px avatar: a small version of the photo, loaded when it scrolls into view (shared cache)
 function CustomerPhoto({ url, token, name }: { url: string; token: string; name: string }) {
-  const [src, setSrc] = useState<string | null>(null)
-  const fid = url?.match(/[?&]id=([^&]+)/)?.[1] || ''
-  useEffect(() => {
-    if (!fid) return
-    fetch(`/api/drive/${fid}`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.ok ? r.blob() : Promise.reject())
-      .then(b => setSrc(URL.createObjectURL(b)))
-      .catch(() => {})
-  }, [fid])
-  if (src) return <img src={src} alt={name} className="h-12 w-12 rounded-full object-cover ring-2 ring-white" />
+  const { src, ref } = useDriveImage(url, token, { w: 160 })
+  if (src) return <img ref={ref} src={src} alt={name} className="h-12 w-12 rounded-full object-cover ring-2 ring-white" />
   return (
-    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-ink text-white text-sm font-bold ring-2 ring-white">
+    <div ref={ref} className="flex h-12 w-12 items-center justify-center rounded-full bg-ink text-white text-sm font-bold ring-2 ring-white">
       {name?.charAt(0) || '?'}
     </div>
   )

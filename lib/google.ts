@@ -56,3 +56,11 @@ function getOAuthClient() {
 export function getOAuthDriveClient() {
   return google.drive({ version: 'v3', auth: getOAuthClient() })
 }
+
+// Access token of the same OAuth client, for the few Google URLs the Drive API hands back
+// (e.g. a file's thumbnailLink) that are fetched directly. Server-only; never sent to a browser.
+export async function getOAuthAccessToken(): Promise<string> {
+  const { token } = await getOAuthClient().getAccessToken()
+  if (!token) throw new Error('No Google access token')
+  return token
+}

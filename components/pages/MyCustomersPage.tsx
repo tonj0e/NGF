@@ -3,21 +3,15 @@ import { useEffect, useState } from 'react'
 import NgfScoreBadge from '@/components/ui/NgfScoreBadge'
 import { Session } from '@/types'
 import LoansPage from './LoansPage'
+import { useDriveImage } from '@/lib/driveImage'
 
 type SubTab = 'customers' | 'approved' | 'overdue'
 
-function DriveImg({ url, token, alt, className }: { url: string; token: string; alt: string; className?: string }) {
-  const [src, setSrc] = useState<string | null>(null)
-  const fid = url?.match(/[?&]id=([^&]+)/)?.[1] || url?.match(/\/d\/([^/]+)/)?.[1] || ''
-  useEffect(() => {
-    if (!fid) return
-    fetch(`/api/drive/${fid}`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => { if (!r.ok) throw new Error(); return r.blob() })
-      .then(b => setSrc(URL.createObjectURL(b)))
-      .catch(() => {})
-  }, [fid, token])
-  if (!src) return <div className={`${className} bg-mist`} />
-  return <img src={src} alt={alt} className={className} />
+// w: small version for avatars (0 = the original picture). Loads when it scrolls into view, shared cache.
+function DriveImg({ url, token, alt, className, w = 0 }: { url: string; token: string; alt: string; className?: string; w?: number }) {
+  const { src, ref } = useDriveImage(url, token, { w })
+  if (!src) return <div ref={ref} className={`${className} bg-mist`} />
+  return <img ref={ref} src={src} alt={alt} className={className} />
 }
 
 function currency(n: number) {
@@ -117,7 +111,7 @@ export default function MyCustomersPage({ session }: { session: Session }) {
         <div className="flex items-center gap-3">
           {detail.customerPhotoUrl && (
             <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full border border-line">
-              <DriveImg url={detail.customerPhotoUrl} token={session.token} alt={detail.name} className="h-full w-full object-cover" />
+              <DriveImg url={detail.customerPhotoUrl} token={session.token} alt={detail.name} className="h-full w-full object-cover" w={160} />
             </div>
           )}
           <div>
@@ -223,7 +217,7 @@ export default function MyCustomersPage({ session }: { session: Session }) {
               <div className="flex items-center gap-3">
                 {c.customerPhotoUrl ? (
                   <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full border border-line">
-                    <DriveImg url={c.customerPhotoUrl} token={session.token} alt={c.name} className="h-full w-full object-cover" />
+                    <DriveImg url={c.customerPhotoUrl} token={session.token} alt={c.name} className="h-full w-full object-cover" w={160} />
                   </div>
                 ) : (
                   <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-mist text-sm font-semibold text-soft">
