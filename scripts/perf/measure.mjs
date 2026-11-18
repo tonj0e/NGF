@@ -47,7 +47,8 @@ const page = await ctx.newPage()
 // network bookkeeping
 const inflight = new Map()
 let calls = [], lastActivity = 0, consoleErrors = [], nonGet = []
-const isApi = u => { try { return new URL(u).pathname.startsWith('/api/') } catch { return false } }
+// Background timers (monitor-config 4 s after load, ping) are not page work: ignore them so they don't stretch the timings
+const isApi = u => { try { const p = new URL(u).pathname; return p.startsWith('/api/') && p !== '/api/monitor-config' && p !== '/api/ping' } catch { return false } }
 page.on('request', r => {
   if (!isApi(r.url())) return
   inflight.set(r, performance.now()); lastActivity = performance.now()
