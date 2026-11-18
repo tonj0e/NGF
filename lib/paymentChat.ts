@@ -479,7 +479,8 @@ export async function submitSlip(session: Session, access: Access, input: Submit
       try { await rest() }
       catch (e) {
         reportError('Background payment read failed', e)
-        await sb.from('payment_chat').update({ status: 'Needs Retake', problem: 'Something went wrong while checking this screenshot. Please send it again.', updated_at: new Date().toISOString() }).eq('message_id', messageId).eq('status', 'Processing')
+        const drive = /invalid_grant|expired or revoked/i.test(e instanceof Error ? e.message : '')
+        await sb.from('payment_chat').update({ status: 'Needs Retake', problem: drive ? 'The office storage (Google Drive) is not connected right now, so the screenshot could not be saved. Tell the office, then send it again.' : 'Something went wrong while checking this screenshot. Please send it again.', updated_at: new Date().toISOString() }).eq('message_id', messageId).eq('status', 'Processing')
       } finally { liveJobs.delete(messageId) }
     })
     const { data: row } = await sb.from('payment_chat').select('*').eq('message_id', messageId).single()
