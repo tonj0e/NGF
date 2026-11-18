@@ -25,7 +25,7 @@ tags: [ngf, architecture, auth, jwt, security]
 ## How it works
 **Login** (`POST /api/auth/login`): rate limit 10/min per IP, zod body check, read `Users` fresh. Match by Username, then Name, then Email. Reject if Status is not `Active` or `Blocked Until` is in the future. Verify bcrypt. All failures and successes go to the audit log.
 
-**QR second step**: only roles `Guarantor`, `NGF AGENT`, `Staff` (`login/route.ts:11,81`). Admin is never asked. It is on only if Settings key `qrlogin:<Role>` is `1` (toggled in Dev page). If on and no valid trust token for this user, the API returns `{ needQr, preAuth }`. The browser scans the ID-card QR (jsQR) and posts `POST /api/auth/verify-qr` with `preAuth` and the scanned `uid`. It must equal the pre-auth user. With `remember`, the reply includes a trust token so this device skips QR next time. Logout clears it (`app/page.tsx:186`).
+**QR second step**: only roles `Guarantor`, `NGF AGENT`, `Staff` (`login/route.ts:11,81`). Admin is never asked. It is on only if Settings key `qrlogin:<Role>` is `1` (toggled in Dev page). If on and no valid trust token for this user, the API returns `{ needQr, preAuth }`. The browser scans the ID-card QR (jsQR, downloaded only when the QR step opens) and posts `POST /api/auth/verify-qr` with `preAuth` and the scanned `uid`. It must equal the pre-auth user. With `remember`, the reply includes a trust token so this device skips QR next time. Logout clears it (`app/page.tsx:186`).
 
 **Every API call** (`getSession`, `lib/api.ts:6-37`): verify JWT, then load the user row from the DB and check:
 - user still exists;

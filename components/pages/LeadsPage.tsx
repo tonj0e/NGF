@@ -155,7 +155,7 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
     sideLoaded.current = true
     try {
       const [sj, pj] = await Promise.all([
-        fetch('/api/staff', { headers: { Authorization: `Bearer ${session.token}` } }).then(r => r.json()),
+        fetch('/api/staff?agents=1', { headers: { Authorization: `Bearer ${session.token}` } }).then(r => r.json()),
         fetch('/api/loan-products', { headers: { Authorization: `Bearer ${session.token}` } }).then(r => r.json()),
       ])
       if (sj.success) setAgents(sj.data.agents)

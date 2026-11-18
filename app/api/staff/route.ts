@@ -10,13 +10,19 @@ import { companyTotals } from '@/lib/db'
 
 export const GET = apiHandler(async (req: NextRequest) => {
   await requireFeature(req, [])
+  const mapAgent = (a: Record<string, string>) => ({ agentId: a['Agent ID'], userId: a['User ID'], name: a['Name'], phone: a['Phone'], agentType: a['Agent Type'], status: a['Status'] })
+  // ?agents=1: only the agent list (the Leads assign-agent pop-up). Same checks as above; skips users, guarantors and the totals.
+  if (req.nextUrl.searchParams.get('agents') === '1') {
+    const agents = await readTable('Agents', { forceFresh: true })
+    return ok({ agents: agents.map(mapAgent) })
+  }
   const [users, agents, guarantors, totals] = await Promise.all([
     readTable('Users', { forceFresh: true }), readTable('Agents', { forceFresh: true }), readTable('Guarantors', { forceFresh: true }), companyTotals(),
   ])
   const earnedMap = new Map(Object.entries(totals.commissionByGuarantor))   // commission per guarantor, added up by the database
   return ok({
     staff: users.map(u => ({ userId: u['User ID'], username: u['Username'], role: u['Role'], name: u['Name'], email: u['Email'], phone: u['Phone'] || '', status: u['Status'], createdAt: u['Created At'] })),
-    agents: agents.map(a => ({ agentId: a['Agent ID'], userId: a['User ID'], name: a['Name'], phone: a['Phone'], agentType: a['Agent Type'], status: a['Status'] })),
+    agents: agents.map(mapAgent),
     guarantors: guarantors.map(g => ({ guarantorId: g['Guarantor ID'], userId: g['User ID'], name: g['Name'], code: g['Code'], number: g['Guarantor Number'] || '', phone: g['Phone'], address: g['Address'] || '', status: g['Status'], commissionEarned: earnedMap.get(g['Guarantor ID']) || 0 })),
   })
 })

@@ -157,10 +157,31 @@ function viewFromHash(role: string): string {
   } catch { return '' }
 }
 
+// the remembered first page (see AppShell); only Staff and Guarantor use it, and only a page the role can open
+function storedLanding(storageKey: string, role: string): string {
+  if (role !== 'Staff' && role !== 'Guarantor') return ''
+  try {
+    const key = localStorage.getItem(storageKey) || ''
+    return key && roleViews(role).has(key) ? key : ''
+  } catch { return '' }
+}
+function saveLanding(storageKey: string, key: string) {
+  try { localStorage.setItem(storageKey, key) } catch { /* not kept on this device */ }
+}
+
 export default function AppShell({ session, onLogout }: { session: Session; onLogout: () => void }) {
   const defaultView = session.role === 'Staff' ? 'notifications' : (MENUS[session.role]?.[0]?.key || 'dashboard')
-  const restoredView = useRef(viewFromHash(session.role))
-  const [view, setViewState] = useState(restoredView.current || defaultView)
+  // Staff and guarantors with their own page list land on a page chosen from their permissions. The last answer is
+  // kept on this device, so the app opens that page straight away instead of Notifications first; the permissions
+  // answer below still decides (and moves to another page if this one is no longer allowed).
+  const landingKey = `ngf_landing_${session.userId}`
+  const [start] = useState(() => {
+    const fromHash = viewFromHash(session.role)
+    return { fromHash, guessed: fromHash ? '' : storedLanding(landingKey, session.role) }
+  })
+  const restoredView = useRef(start.fromHash)
+  const guessedView = start.guessed
+  const [view, setViewState] = useState(start.fromHash || guessedView || defaultView)
   // Coming back to the app after a while (phones freeze it in the background; Android especially): look at the server again.
   // The current screen is reloaded so it shows fresh data, unless the person is in the middle of filling a form (window.__ngfKeepPage).
   const [refreshKey, setRefreshKey] = useState(0)
@@ -230,17 +251,23 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
         setStaffPerms(perms)
         if (session.role === 'Guarantor') {
           // pages an Admin switched off for this guarantor; the first allowed page opens
+          let landing = defaultView
           if (perms.includes('pages:custom')) {
             const first = (MENUS.Guarantor || []).find(m => m.key === 'notifications' || perms.includes(`gp:${m.key}`) || (m.key === 'payments' && (perms.includes('payChat') || perms.includes('payHistory'))))
-            if (first && !restoredView.current && !(MENUS.Guarantor || []).some(m => m.key === 'dashboard' && perms.includes('gp:dashboard'))) setView(first.key, true)
+            if (first && !(MENUS.Guarantor || []).some(m => m.key === 'dashboard' && perms.includes('gp:dashboard'))) landing = first.key
           }
+          saveLanding(landingKey, landing)
+          // opened on a remembered page that is no longer the right first page: correct it
+          if (!restoredView.current && (landing !== defaultView || (guessedView && guessedView !== landing))) setView(landing, true)
           return
         }
         if (session.role !== 'Staff') return
         const allowed = ['notifications', ...APP_CONFIG.STAFF_FEATURES.filter(f => f.view && (perms.includes(f.key) || (f.key === 'leads' && hasAnyLead(perms)) || (f.key === 'customers' && hasAnyCustomer(perms)) || (f.key === 'collection' && hasAnyCollection(perms)))).map(f => f.view), ...(['payChat', 'payHistory', 'payMark', 'payBank', 'payOverride'].some(k => perms.includes(k)) ? ['payments'] : [])]
-        if (restoredView.current && allowed.includes(restoredView.current)) return
         const first = APP_CONFIG.STAFF_FEATURES.find(f => f.view && (perms.includes(f.key) || (f.key === 'leads' && hasAnyLead(perms)) || (f.key === 'customers' && hasAnyCustomer(perms)) || (f.key === 'collection' && hasAnyCollection(perms))))
-        setView(first ? first.view : 'notifications', true)
+        const landing = first?.view || 'notifications'
+        saveLanding(landingKey, landing)
+        if (restoredView.current && allowed.includes(restoredView.current)) return
+        setView(landing, true)
       })
       .catch(() => {})
   }, [])

@@ -1,7 +1,6 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 import { Session } from '@/types'
-import jsQR from 'jsqr'
 
 export default function Login({ onLogin }: { onLogin: (s: Session) => void }) {
   const [loading, setLoading] = useState(false)
@@ -97,6 +96,8 @@ function QrStep({ name, preAuth, remember, setRemember, onVerified, onBack }: {
   // keep latest "remember" without restarting the camera
   const rememberRef = useRef(remember)
   rememberRef.current = remember
+  // the QR reader is downloaded only when this step opens (most sign-ins never need it)
+  const jsQRRef = useRef<typeof import('jsqr').default | null>(null)
 
   function stopCamera() {
     cancelAnimationFrame(rafRef.current)
@@ -121,8 +122,8 @@ function QrStep({ name, preAuth, remember, setRemember, onVerified, onBack }: {
   }
 
   function tick() {
-    const video = videoRef.current, canvas = canvasRef.current
-    if (!video || !canvas || video.readyState < 2 || video.videoWidth === 0) { rafRef.current = requestAnimationFrame(tick); return }
+    const video = videoRef.current, canvas = canvasRef.current, jsQR = jsQRRef.current
+    if (!jsQR || !video || !canvas || video.readyState < 2 || video.videoWidth === 0) { rafRef.current = requestAnimationFrame(tick); return }
     canvas.width = video.videoWidth; canvas.height = video.videoHeight
     const ctx = canvas.getContext('2d')
     if (!ctx) { rafRef.current = requestAnimationFrame(tick); return }
@@ -140,6 +141,7 @@ function QrStep({ name, preAuth, remember, setRemember, onVerified, onBack }: {
 
   useEffect(() => {
     let cancelled = false
+    import('jsqr').then(m => { jsQRRef.current = m.default }).catch(() => setError('Could not load the QR reader. Check your connection.'))
     const start = async () => {
       const constraints = [{ video: { facingMode: { exact: 'environment' } } }, { video: { facingMode: 'environment' } }, { video: true }]
       let stream: MediaStream | null = null

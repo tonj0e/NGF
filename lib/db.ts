@@ -68,7 +68,24 @@ export interface CompanyTotals {
   totalPrincipal: number; totalInterest: number; paidTotal: number; pendingTotal: number; overdueCount: number; overdueAmount: number
   commissionByGuarantor: Record<string, number>
 }
+// The function adds up whole tables (a second or more at full size) and six routes ask for it, so one answer is
+// kept for 45 seconds per server process, and callers that ask while it is being worked out share that one call.
+// Callers only read the result; they must not change it.
+const TOTALS_MS = 45_000
+let totalsHit: { at: number; data: CompanyTotals } | null = null
+let totalsPending: Promise<CompanyTotals> | null = null
 export async function companyTotals(): Promise<CompanyTotals> {
+  if (totalsHit && Date.now() - totalsHit.at < TOTALS_MS) return totalsHit.data
+  if (totalsPending) return totalsPending
+  const p = companyTotalsFromDb()
+  totalsPending = p
+  try {
+    const data = await p
+    totalsHit = { at: Date.now(), data }
+    return data
+  } finally { if (totalsPending === p) totalsPending = null }
+}
+async function companyTotalsFromDb(): Promise<CompanyTotals> {
   const { data, error } = await getSupabase().rpc('company_totals')
   if (error) throw new Error(`Totals failed: ${error.message}`)
   const t = data as any
