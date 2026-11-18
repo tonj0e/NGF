@@ -3,8 +3,8 @@ import { apiHandler, getSession, requireRole, ok, err } from '@/lib/api'
 import { checkUploadRate } from '@/lib/uploadRate'
 import { needFeature } from '@/lib/access'
 import { lead } from '@/lib/features'
-import { readTable, appendRow, findRecord, makeId, nowIso, countRows, selectRows, selectAll, getRowById } from '@/lib/supabase-db'
-import { pageQuery, byIds, cleanSearch, scopeOf, withScope } from '@/lib/db'
+import { readTable, appendRow, findRecord, makeId, nowIso, countRows, selectRows, selectAll, getRowById, getSupabase } from '@/lib/supabase-db'
+import { pageQuery, byIds, cleanSearch, scopeOf, withScope, type Scope } from '@/lib/db'
 import { getLeadDocFolder, uploadLeadPhoto, docLabel } from '@/lib/drive'
 import { notifyRole, notifyUser } from '@/lib/notifications'
 import { validateBody, createLeadSchema } from '@/lib/validation'
@@ -17,13 +17,36 @@ import { getTodayIST, addDaysIST } from '@/lib/dateUtils'
 import { reportError } from '@/lib/monitor'
 import { normalizeIndianMobile } from '@/lib/phone'
 
+// Tab badge counts in one database call (function lead_badge_counts, migration 20261119120000). Until that function
+// exists the seven head counts run as before; after a failed call the function is not tried again for 10 minutes.
+let badgeFnOffUntil = 0
+async function badgeCounts(scope: Scope, agentId: string, returnedIsNew: boolean, fallback: () => Promise<number[]>): Promise<number[]> {
+  if (Date.now() >= badgeFnOffUntil) {
+    const { data, error } = await getSupabase().rpc('lead_badge_counts', {
+      p_guarantors: scope.kind === 'all' ? null : scope.kind === 'guarantors' ? scope.ids : ['__none__'],
+      p_agent: agentId || null,
+      p_returned_is_new: returnedIsNew,
+    })
+    const t = data as Record<string, unknown> | null
+    if (!error && t && typeof t === 'object') {
+      return ['new', 'history', 'renewal', 'approved', 'stage_new', 'stage_assigned', 'stage_completed'].map(k => Number(t[k]) || 0)
+    }
+    badgeFnOffUntil = Date.now() + 10 * 60_000
+  }
+  return fallback()
+}
+
 // GET /api/leads
 //   ?tab=new|history|renewal   which list (new = still in progress, history = Converted or Rejected, renewal = renewal requests)
 //   &status=  &cheque=1  &branch=BRANCH_ID|none  &q=text  &page=  &pageSize=
+//   &counts=0   leave out the tab badge counts (the agent's Verifications list does not show them)
 // Filtering, searching, counting and paging happen in the database; only the rows on the page are enriched.
-// `counts` (new / history / renewal / approved) feeds the tab badges for the caller's whole scope.
+// `counts` (new / history / renewal / approved / stages) feeds the tab badges for the caller's whole scope.
 export const GET = apiHandler(async (req: NextRequest) => {
   const session = await getSession(req)
+  // an agent sees only the leads assigned to them: their Agents row loads together with permission and scope, not after
+  const agentsP = session.role === 'NGF AGENT' ? readTable('Agents') : null
+  agentsP?.catch(() => {})   // awaited below; this only keeps an early failure above from leaving it unhandled
   const [, scope0] = await Promise.all([needFeature(session, []), scopeOf(session)])   // permission and scope do not depend on each other
   const { searchParams } = new URL(req.url)
   const status = searchParams.get('status') || ''
@@ -38,8 +61,8 @@ export const GET = apiHandler(async (req: NextRequest) => {
   // who may see which leads: a guarantor their own, an agent their assigned, Staff their branches' guarantors
   let scope = scope0
   let agentId = ''
-  if (session.role === 'NGF AGENT') {
-    const agent = (await readTable('Agents')).find(a => a['User ID'] === session.userId)
+  if (agentsP) {
+    const agent = (await agentsP).find(a => a['User ID'] === session.userId)
     agentId = agent?.['Agent ID'] || '__none__'
     scope = { kind: 'all' }
   }
@@ -89,24 +112,26 @@ export const GET = apiHandler(async (req: NextRequest) => {
     return ok({ perDay, since })
   }
 
-  // The tab counts do not depend on the page rows, so they are counted while the page loads
+  // The tab counts do not depend on the page rows, so they are counted while the page loads (one call, or none with counts=0)
+  const withCounts = searchParams.get('counts') !== '0'
   const [r, counts] = await Promise.all([
     pageQuery('Leads', {
       filters, order: [{ column: 'submitted_date', ascending: false }, { column: 'lead_id', ascending: false }],
       page: searchParams.get('page') || 1, pageSize: searchParams.get('pageSize') || 20,
     }),
-    Promise.all([
+    withCounts ? badgeCounts(scope, agentId, isG, () => Promise.all([
       countRows('Leads', qb => inTab(scoped(qb), 'new')), countRows('Leads', qb => inTab(scoped(qb), 'history')),
       countRows('Leads', qb => inTab(scoped(qb), 'renewal')), countRows('Leads', qb => scoped(qb).eq('status', 'Approved')),
       countRows('Leads', qb => inStage(inTab(scoped(qb), 'new'), 'new')), countRows('Leads', qb => inStage(inTab(scoped(qb), 'new'), 'assigned')),
       countRows('Leads', qb => inStage(inTab(scoped(qb), 'new'), 'completed')),
-    ]),
+    ])) : null,
   ])
 
+  // names and the same-Aadhaar check need the page rows; only the columns used here are read
   const [guarantors, agents, sameAadhaar] = await Promise.all([
-    byIds('Guarantors', 'guarantor_id', r.rows.map(l => l['Guarantor ID'])),
-    byIds('Agents', 'agent_id', r.rows.map(l => l['Assigned Agent ID'])),
-    byIds('Leads', 'aadhaar_no', r.rows.map(l => l['Aadhaar No'])),
+    byIds('Guarantors', 'guarantor_id', r.rows.map(l => l['Guarantor ID']), 'guarantor_id,name'),
+    byIds('Agents', 'agent_id', r.rows.map(l => l['Assigned Agent ID']), 'agent_id,name'),
+    byIds('Leads', 'aadhaar_no', r.rows.map(l => l['Aadhaar No']), 'aadhaar_no'),
   ])
   const gById = new Map(guarantors.map(g => [g['Guarantor ID'], g]))
   const aById = new Map(agents.map(a => [a['Agent ID'], a]))
@@ -153,7 +178,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
   return ok({
     rows: enriched,
     pagination: { page: r.page, pageSize: r.pageSize, total: r.total, totalPages: Math.ceil(r.total / r.pageSize) },
-    counts: { new: counts[0], history: counts[1], renewal: counts[2], approved: counts[3], stageNew: counts[4], stageAssigned: counts[5], stageCompleted: counts[6] },
+    counts: counts ? { new: counts[0], history: counts[1], renewal: counts[2], approved: counts[3], stageNew: counts[4], stageAssigned: counts[5], stageCompleted: counts[6] } : null,
     branches: visibleBranches,
   })
 })

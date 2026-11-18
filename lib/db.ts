@@ -27,11 +27,12 @@ export async function pageQuery(table: TableName, opts: PageOpts = {}): Promise<
   return { rows, total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) }
 }
 
-/** Rows whose `column` is in `ids`, fetched in parallel chunks so the request address stays short. */
-export async function byIds(table: TableName, column: string, ids: string[]): Promise<Record<string, string>[]> {
+/** Rows whose `column` is in `ids`, fetched in parallel chunks so the request address stays short.
+ *  `columns` (database names, comma separated) limits what comes back; default every column. */
+export async function byIds(table: TableName, column: string, ids: string[], columns = '*'): Promise<Record<string, string>[]> {
   const unique = Array.from(new Set(ids.filter(Boolean)))
   if (!unique.length) return []
-  const parts = await Promise.all(chunk(unique).map(part => selectAll(table, qb => qb.in(column, part))))
+  const parts = await Promise.all(chunk(unique).map(part => selectAll(table, qb => qb.in(column, part), columns)))
   return parts.flat()
 }
 
