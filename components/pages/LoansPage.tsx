@@ -2,24 +2,18 @@
 import { useEffect, useRef, useState } from 'react'
 import EarlyCloseSection from './EarlyCloseSection'
 import { Session } from '@/types'
+import { useDriveImage } from '@/lib/driveImage'
 
 function currency(n: number) {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n)
 }
 
+// 48 px avatar: a small version of the photo, loaded when it scrolls into view (shared cache)
 function DriveImg({ url, token, name }: { url: string; token: string; name: string }) {
-  const [src, setSrc] = useState<string | null>(null)
-  const fid = url?.match(/[?&]id=([^&]+)/)?.[1] || url?.match(/\/d\/([^/]+)/)?.[1] || ''
-  useEffect(() => {
-    if (!fid) return
-    fetch(`/api/drive/${fid}`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => { if (!r.ok) throw new Error(); return r.blob() })
-      .then(b => setSrc(URL.createObjectURL(b)))
-      .catch(() => {})
-  }, [fid, token])
-  if (src) return <img src={src} alt={name} className="h-full w-full object-cover" />
+  const { src, ref } = useDriveImage(url, token, { w: 160 })
+  if (src) return <img ref={ref} src={src} alt={name} className="h-full w-full object-cover" />
   return (
-    <div className="flex h-full w-full items-center justify-center bg-ink text-white text-sm font-bold">
+    <div ref={ref} className="flex h-full w-full items-center justify-center bg-ink text-white text-sm font-bold">
       {name?.charAt(0) || '?'}
     </div>
   )

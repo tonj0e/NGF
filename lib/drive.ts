@@ -1,4 +1,4 @@
-import { getOAuthDriveClient } from './google'
+import { getOAuthDriveClient, getOAuthAccessToken } from './google'
 import { APP_CONFIG } from './config'
 import { Readable } from 'stream'
 import { FilePayload } from '@/types'
@@ -51,6 +51,44 @@ export async function getFileBase64(fileId: string): Promise<{ data: string; mim
   const res = await drive.files.get({ fileId, alt: 'media', supportsAllDrives: true }, { responseType: 'arraybuffer' })
   const data = Buffer.from(res.data as ArrayBuffer).toString('base64')
   return { data, mime }
+}
+
+// The file's bytes and type. The type lookup and the download run side by side (one round trip).
+export async function getFileBuffer(fileId: string): Promise<{ buf: Buffer<ArrayBuffer>; mime: string }> {
+  const drive = getOAuthDriveClient()
+  const [meta, res] = await Promise.all([
+    drive.files.get({ fileId, fields: 'mimeType', supportsAllDrives: true }),
+    drive.files.get({ fileId, alt: 'media', supportsAllDrives: true }, { responseType: 'arraybuffer' }),
+  ])
+  return { buf: Buffer.from(res.data as unknown as ArrayBuffer), mime: meta.data.mimeType || 'image/jpeg' }
+}
+
+// "...=s220" -> "...=s<size>" (Drive thumbnail links end in a size). Only Google image hosts are allowed,
+// because the request carries our Google access token. null when the link does not look as expected.
+export function sizedThumbnailUrl(link: string, size: number): string | null {
+  let u: URL
+  try { u = new URL(link) } catch { return null }
+  if (u.protocol !== 'https:') return null
+  if (!u.hostname.endsWith('.googleusercontent.com') && !u.hostname.endsWith('.google.com')) return null
+  if (!/=s\d+$/.test(link)) return null
+  return link.replace(/=s\d+$/, `=s${size}`)
+}
+
+// A small version of the file from Drive's own thumbnail (longest side about `size` px), or null when
+// Drive has none or it cannot be fetched (the caller then serves the original).
+export async function getFileThumbnail(fileId: string, size: number): Promise<{ buf: Buffer<ArrayBuffer>; mime: string } | null> {
+  const drive = getOAuthDriveClient()
+  const meta = await drive.files.get({ fileId, fields: 'thumbnailLink', supportsAllDrives: true })
+  const url = meta.data.thumbnailLink ? sizedThumbnailUrl(meta.data.thumbnailLink, size) : null
+  if (!url) return null
+  try {
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${await getOAuthAccessToken()}` }, redirect: 'follow', signal: AbortSignal.timeout(15000) })
+    const mime = (res.headers.get('content-type') || '').split(';')[0].trim()
+    if (!res.ok || !mime.startsWith('image/')) return null
+    return { buf: Buffer.from(await res.arrayBuffer()), mime }
+  } catch {
+    return null
+  }
 }
 
 export async function listFolderFiles(folderId: string) {

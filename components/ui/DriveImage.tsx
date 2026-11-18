@@ -1,29 +1,13 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useDriveImage } from '@/lib/driveImage'
 
+// Full picture (detail view keeps the original), loaded when it scrolls into view; shared cache.
+// The link is a Drive link (?id= or /d/) or an /api/drive/... path.
 export default function DriveImage({ url, label, token }: { url: string; label: string; token: string }) {
-  const [src, setSrc] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(false)
-
-  // For Supabase proxy URLs, use the full path after /api/drive/
-  // For Drive URLs, extract the fileId from ?id= or /d/
-  const identifier = url?.startsWith('/api/drive/')
-    ? url.slice('/api/drive/'.length)
-    : (url?.match(/[?&]id=([^&]+)/)?.[1] || url?.match(/\/d\/([^/]+)/)?.[1] || '')
-
-  useEffect(() => {
-    if (!identifier) return
-    setLoading(true)
-    fetch(`/api/drive/${identifier}`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(res => { if (!res.ok) throw new Error(); return res.blob() })
-      .then(blob => setSrc(URL.createObjectURL(blob)))
-      .catch(() => setError(true))
-      .finally(() => setLoading(false))
-  }, [identifier, token])
+  const { src, loading, error, ref } = useDriveImage(url, token)
 
   return (
-    <div className="flex flex-col gap-2">
+    <div ref={ref} className="flex flex-col gap-2">
       <p className="text-[0.7rem] font-semibold uppercase tracking-wider text-soft">{label}</p>
       {!url ? (
         <div className="flex h-64 w-full items-center justify-center rounded-2xl border border-dashed border-line bg-panel text-xs text-soft">Not uploaded</div>

@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Session } from '@/types'
+import { useDriveImage } from '@/lib/driveImage'
 import PaymentDiagram from '@/components/payments/PaymentDiagram'
 import { parseBankCsv, BankRow } from '@/components/payments/bankCsv'
 
@@ -63,15 +64,10 @@ function BankPill({ g }: { g: Group }) {
 }
 
 function Proof({ session, url }: { session: Session; url: string }) {
-  const [src, setSrc] = useState('')
   const [open, setOpen] = useState(false)
-  const fid = url.match(/[?&]id=([^&]+)/)?.[1] || url.match(/\/d\/([^/]+)/)?.[1] || ''
-  useEffect(() => {
-    if (!open || !fid || src) return
-    fetch(`/api/drive/${fid}`, { headers: { Authorization: `Bearer ${session.token}` } })
-      .then(r => { if (!r.ok) throw new Error(); return r.blob() })
-      .then(b => setSrc(URL.createObjectURL(b))).catch(() => setSrc('error'))
-  }, [open, fid, src, session.token])
+  // full screenshot, loaded the first time it is opened (shared cache: opening again does not download)
+  const { src: loaded, error } = useDriveImage(url, session.token, { lazy: false, enabled: open })
+  const src = error ? 'error' : loaded
   if (!url) return null
   return (
     <div>

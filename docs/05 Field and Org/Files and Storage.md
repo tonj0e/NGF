@@ -2,7 +2,7 @@
 title: Files and Storage
 section: Field and Org
 status: current
-last_verified: 2026-10-17
+last_verified: 2026-11-19
 tags: [ngf, field-and-org, storage, drive, supabase]
 ---
 # Files and Storage
@@ -22,19 +22,21 @@ tags: [ngf, field-and-org, storage, drive, supabase]
 
 ## How it works
 Serving: `GET /api/drive/[fileId]` (`app/api/drive/[fileId]/route.ts`):
-1. Requires any valid session (`getSession`), no role or ownership check.
-2. If the id starts with `supabase:` and names a known bucket, downloads from Supabase and returns bytes with the stored MIME type.
-3. Otherwise treats the id as a Drive file id and fetches via the OAuth Drive client (`lib/google.ts`).
-4. Returns `Cache-Control: private, max-age=3600`. Any failure is a bare 404.
+1. Requires a valid session (`getSession`) and `canReadFile` (`lib/fileAccess.ts`) on **every** request; a refusal is a 404. Nothing below is reached before both pass.
+2. `?w=<px>` asks for a small version (snapped to 160/320/480/640/1024, longest side). For a Drive file the route reads the file's `thumbnailLink`, swaps its `=s220` for `=s<w>` and fetches it with the same OAuth client's access token (`getFileThumbnail` in `lib/drive.ts`; only `https` Google hosts, the token never reaches the browser). No thumbnail = the original (that file is then not asked again for 30 min). Supabase files always return the original.
+3. Without `w`: Supabase ids (`supabase:<bucket>/...`) download from Supabase, anything else is a Drive id fetched via the OAuth Drive client (`getFileBuffer`: type lookup and download in parallel).
+4. Server cache (`lib/fileCache.ts`, added 2026-11-19): per-process LRU of served files, keyed by file id (thumbnails `<id>@<w>`), 60 MB total, files over 8 MB not kept, entries expire after 30 min; requests arriving together share one download. Only consulted after step 1 passed.
+5. Returns `Cache-Control: private, max-age=3600`. Any failure is a bare 404.
 
-`DriveImage` extracts the identifier from a `?id=` or `/d/` Drive URL or from `/api/drive/...`, fetches it with the bearer token, and shows a blob URL. Loading failure shows "Failed - click to open in Drive".
+Browser side: one shared loader `lib/driveImage.ts` (`useDriveImage(url, token, { w, lazy, enabled })`). It turns a stored link (`?id=`, `/d/`, or `/api/drive/...`) into `/api/drive/<id>`, keeps object URLs in a module cache (300 items / 120 MB, emptied when the signed-in token changes), loads a picture only when it scrolls within 300 px of the screen, and runs at most 4 downloads at once. Used by `DriveImage` (detail photos, original), the avatars in Customers, My Customers and Loans (`w=160`), Payment Chat thumbnails (`w=640`, original when tapped open) and Payment Matching "View screenshot" (original, on open). Loading failure in `DriveImage` shows "Failed - click to open in Drive". Cheques Pledged only links to `/api/drive/...` (opens in a new tab without the bearer token).
 
 Drive OAuth helper: Dev, "Refresh token" tab opens `/api/drive/auth` (redirect to Google), and `/api/drive/callback` returns an HTML page that posts the refresh token to the opener. Used to get a new value for `GOOGLE_OAUTH_REFRESH_TOKEN`. See [[Dev and Admin Tools]].
 
 ## Rules and gotchas
 - Known issue: Supabase-stored files cannot be fetched with a slash in the path. The route is a single segment `[fileId]`, but identifiers look like `supabase:payment-proofs/<loan>/<file>`. Next will not match that URL, so it returns 404 (static route analysis; payment-proof and migrated customer-docs URLs are affected).
 - Known issue: `/api/drive/auth` and `/api/drive/callback` need no login (`auth/route.ts:4`, `callback/route.ts:4`). The callback sends the refresh token to the opener with target origin `*` (`callback/route.ts:41`). Needs a valid Google code, but the token reaches whoever opened the window.
-- Any signed-in user, including a Guarantor, can fetch any Drive id or bucket path they know. See [[Open Security Leads]].
+- Who may read which file is decided by `canReadFile` (Admin/Staff all; Guarantor/Agent only files named in their own records; profiles bucket all). See [[Open Security Leads]].
+- Locally the Google refresh token in `.env.local` is expired, so Drive pictures 404 on localhost; the cache and thumbnails can only be seen working on the live site.
 - Supabase customer-docs paths (`getOrCreateFolderSupabase`) still use the customer name only, so same-name customers could overwrite each other there. Drive folders no longer have this problem. Nothing in the app currently writes customer photos to that bucket.
 - `getOrCreateFolder` builds a Drive query by string concatenation of the customer name (`lib/drive.ts:16`). A quote in a name breaks the query.
 - Dev migration routes copy old Drive files into Supabase; they currently fail to update the row. See [[Dev and Admin Tools]].

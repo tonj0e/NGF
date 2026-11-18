@@ -1,6 +1,7 @@
 'use client'
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Session } from '@/types'
+import { useDriveImage } from '@/lib/driveImage'
 
 type Stats = { collectionDay: string; due: number; recorded: number; remaining: number; wrongUsed: number; wrongAllowed: number; wrongLeft: number; manualMode: boolean }
 type Me = {
@@ -78,27 +79,23 @@ function StatsStrip({ stats, onOpenHistory }: { stats: Stats; onOpenHistory?: ()
 }
 
 function Thumb({ session, url, compact }: { session: Session; url: string; compact?: boolean }) {
-  const [src, setSrc] = useState('')
   const [big, setBig] = useState(false)
-  useEffect(() => {
-    if (!url) return
-    let dead = false, obj = ''
-    const fid = url.match(/[?&]id=([^&]+)/)?.[1]
-    fetch(fid ? `/api/drive/${fid}` : url, { headers: { Authorization: `Bearer ${session.token}` } }).then(r => { if (!r.ok) throw new Error(); return r.blob() })
-      .then(b => { obj = URL.createObjectURL(b); if (!dead) setSrc(obj) }).catch(() => { if (!dead) setSrc('error') })
-    return () => { dead = true; if (obj) URL.revokeObjectURL(obj) }
-  }, [url, session.token])
+  // A small version in the chat (loaded when it scrolls into view); the original only when tapped open.
+  // Shared cache: polls and re-renders do not download again.
+  const { src: thumbSrc, error: thumbError, ref } = useDriveImage(url, session.token, { w: 640 })
+  const { src: fullSrc } = useDriveImage(url, session.token, { lazy: false, enabled: big })
+  const src = thumbError ? 'error' : thumbSrc
   if (!url) return null
   if (src === 'error') return <p className="text-xs text-red-600">Could not load the picture</p>
-  if (!src) return <div className={`h-40 animate-pulse rounded-xl bg-black/10 ${compact ? 'w-full' : 'w-28'}`} />
+  if (!src) return <div ref={ref} className={`h-40 animate-pulse rounded-xl bg-black/10 ${compact ? 'w-full' : 'w-28'}`} />
   return (
     <>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={src} alt="Payment screenshot" onClick={() => setBig(true)} className={compact ? 'max-h-48 w-full cursor-zoom-in rounded-lg border border-black/10 bg-white object-contain' : 'max-h-56 w-auto cursor-zoom-in rounded-xl border border-line object-contain'} />
+      <img ref={ref} src={src} alt="Payment screenshot" onClick={() => setBig(true)} className={compact ? 'max-h-48 w-full cursor-zoom-in rounded-lg border border-black/10 bg-white object-contain' : 'max-h-56 w-auto cursor-zoom-in rounded-xl border border-line object-contain'} />
       {big && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4" onClick={() => setBig(false)}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={src} alt="Payment screenshot" className="max-h-full max-w-full rounded-xl" />
+          <img src={fullSrc || src} alt="Payment screenshot" className="max-h-full max-w-full rounded-xl" />
         </div>
       )}
     </>
