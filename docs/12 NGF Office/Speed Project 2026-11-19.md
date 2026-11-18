@@ -1,7 +1,7 @@
 ---
 title: Speed Project 2026-11-19
 section: NGF Office
-status: in progress
+status: round 2 done, waiting for owner review
 tags: [ngf, speed, performance]
 ---
 # Speed Project 2026-11-19
@@ -36,3 +36,9 @@ Migrations written, not applied: `20261119100000_payment_chat_perf_indexes.sql`,
 1. Measure every portal (Anjali, Manoj, Priya, Sanjay, Lakshmi) on the baseline build.
 2. Finish Vivek's branch; review and merge all branches; apply the two migrations; rebuild; measure again.
 3. Before/after report to the owner; owner says "push".
+
+## Progress 19 Nov 06:30
+- Round 1 and round 2 merged on branch `perf/round2` (main untouched, nothing pushed). Reports: [[2026-11-19 Speed Round 1]], [[2026-11-19 Speed Round 2]].
+- Reviews: Rohan (code) approved both rounds; Rahul (security) approved round 2, 4 hardening fixes applied.
+- Migrations applied (additive): payment_chat perf indexes, lead_badge_counts, customers_page.
+- To release: owner reviews, then merge `perf/round2` into main and say "push".
