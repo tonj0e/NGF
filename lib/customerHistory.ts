@@ -108,21 +108,37 @@ export async function customerHistory(session: Session, customerId: string) {
   }
 }
 
-/** NGF Score for many customers at once (customer lists). Same rules as the History tab. */
-export async function bulkScores(customerIds: string[]): Promise<Map<string, { value: number; band: string; reviews: number; average: number | null }>> {
+/**
+ * NGF Score for many customers at once (customer lists). Same rules as the History tab.
+ * `pre` lets a caller that has already read the rows pass them in, saving one database round trip each:
+ *   pre.loans      = byIds('Loans', 'customer_id', customerIds)            (every loan of these customers)
+ *   pre.repayments = byIds('Repayments', 'loan_id', <ids of pre.loans>)    (only together with pre.loans)
+ * Callers that pass nothing get the old behaviour (all rows read here).
+ */
+export async function bulkScores(
+  customerIds: string[],
+  pre?: { loans?: Record<string, string>[]; repayments?: Record<string, string>[] },
+): Promise<Map<string, { value: number; band: string; reviews: number; average: number | null }>> {
   const out = new Map<string, { value: number; band: string; reviews: number; average: number | null }>()
   if (!customerIds.length) return out
   // chunked and paged reads: a page of customers can have thousands of weekly rows, and the server stops at 1000 per request
-  const loans = (await byIds('Loans', 'customer_id', customerIds)).map(l => ({ loan_id: l['Loan ID'], customer_id: l['Customer ID'], status: l['Status'], start_date: l['Start Date'], duration_weeks: l['Duration Weeks'] }))
+  const loanRows = pre?.loans ?? await byIds('Loans', 'customer_id', customerIds)
+  const loans = loanRows.map(l => ({ loan_id: l['Loan ID'], customer_id: l['Customer ID'], status: l['Status'], start_date: l['Start Date'], duration_weeks: l['Duration Weeks'] }))
   const loanIds = loans.map(l => l.loan_id)
-  const reps = (await byIds('Repayments', 'loan_id', loanIds)).map(r => ({ repayment_id: r['Repayment ID'], loan_id: r['Loan ID'], due_date: r['Due Date'], week_no: r['Week No'], amount: r['Amount'], status: r['Status'], paid_date: r['Paid Date'], notes: r['Notes'] }))
+  const repRows = pre?.loans && pre.repayments ? pre.repayments : await byIds('Repayments', 'loan_id', loanIds)
+  const reps = repRows.map(r => ({ repayment_id: r['Repayment ID'], loan_id: r['Loan ID'], due_date: r['Due Date'], week_no: r['Week No'], amount: r['Amount'], status: r['Status'], paid_date: r['Paid Date'], notes: r['Notes'] }))
   const cols = (await byIds('Collections', 'repayment_id', reps.map(r => r.repayment_id))).map(c => ({ repayment_id: c['Repayment ID'], created_at: c['Created At'] }))
   const first = new Map<string, string>()
   for (const c of cols) { const p = first.get(c.repayment_id); if (!p || c.created_at < p) first.set(c.repayment_id, c.created_at) }
+  // grouped once (same order as filtering the arrays) instead of scanning every row per customer and per loan
+  const loansOf = new Map<string, typeof loans>()
+  for (const l of loans) { const a = loansOf.get(l.customer_id); if (a) a.push(l); else loansOf.set(l.customer_id, [l]) }
+  const repsOf = new Map<string, typeof reps>()
+  for (const r of reps) { const a = repsOf.get(r.loan_id); if (a) a.push(r); else repsOf.set(r.loan_id, [r]) }
   for (const id of customerIds) {
-    const inputs: LoanInput[] = loans.filter(l => l.customer_id === id).map(l => ({
+    const inputs: LoanInput[] = (loansOf.get(id) || []).map(l => ({
       loanId: l.loan_id, status: l.status, startDate: l.start_date || '', durationWeeks: Number(l.duration_weeks) || 0,
-      weeks: reps.filter(r => r.loan_id === l.loan_id).map(r => ({
+      weeks: (repsOf.get(l.loan_id) || []).map(r => ({
         weekNo: Number(r.week_no) || 0, dueDate: r.due_date, amount: Number(r.amount) || 0, status: r.status,
         paidDate: r.paid_date || null, recordedAt: first.get(r.repayment_id) || null, rating: parseReview(r.notes || '')?.rating || 0,
       })),

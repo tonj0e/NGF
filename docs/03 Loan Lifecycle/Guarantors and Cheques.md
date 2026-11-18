@@ -12,6 +12,7 @@ tags: [ngf, loan-lifecycle, guarantors, cheques]
 - A guarantor is two rows: a `Users` row (role `Guarantor`, username, password hash, `Guarantor Code`) and a `Guarantors` row (id `GRT...`, `Code`, phone, address, `Commission Earned`, status).
 - `Code` is UNIQUE (`supabase_schema.sql:55`). It prefixes loan ids (`<code>-1234`) and names the Drive folder `NGF-<code>`.
 - Pages: `GuarantorPage.tsx` (Admin and Staff with `guarantors` feature: list, loans, settlements, payout QR scan, deposits); branch-level management in `StaffPage.tsx` (NGF Branches).
+- `GuarantorPage.tsx` loading (2026-11-19): the cards read `/api/staff`, `/api/settlements` and the light loan list `/api/loans?filter=all&light=1` (status, start date, commission, guarantor code/name per loan) and add up loans, active, earned, due and the 35-day cycle in the browser, exactly as before. Opening a guarantor reads the full rows of the loans that card counted (`/api/loans?filter=all&guarantorId=...` per guarantor id they carry, all loans if one has none) and `/api/customers?light=1` (id, name, phone) for the Customers list; totals show at once from the light rows.
 - Guarantors see Leads, Collection, Commissions, Deposits, My Customers and My ID Card ([[Screens Map]]).
 
 ## How it works
