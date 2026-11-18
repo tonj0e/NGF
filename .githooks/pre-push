@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
-# Runs before every `git push`: stops a push that does not type-check (a broken push deploys to the live site).
+# Runs before every `git push`: stops a push that does not type-check or fails a unit test (a broken push deploys to the live site).
 # Turn on once per clone with: npm run hooks   Skip once with: git push --no-verify
 set -e
 echo "pre-push: type-check…"
 npm run --silent typecheck
+echo "pre-push: unit tests…"
+npm run --silent typecheck:tests
+npm run --silent test:unit

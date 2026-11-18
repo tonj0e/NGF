@@ -1,0 +1,12 @@
+{
+  // Type-checks the plain-Node unit tests (tests/unit). They import lib files with a ".ts" extension because
+  // Node runs them directly (node --experimental-strip-types), so this config allows that. Run: npm run typecheck:tests
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "incremental": false,
+    "types": ["node"]
+  },
+  "include": ["unit/**/*.ts"],
+  "exclude": []
+}
