@@ -297,7 +297,7 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
     const headers = { Authorization: `Bearer ${session.token}` }
     const today = new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10)
     const [res, routeRes] = await Promise.all([
-      fetch('/api/leads?status=Agent+Assigned&pageSize=200', { headers }),
+      fetch('/api/leads?status=Agent+Assigned&pageSize=200&counts=0', { headers }),   // only the rows are used here: no badge counts
       fetch(`/api/routes?view=mine&date=${today}`, { headers }).catch(() => null),
     ])
     const json = await res.json()

@@ -71,5 +71,11 @@ Statuses in the order the code uses them (enum `lead_status`, `supabase_schema.s
 ## Leads page speed (2026-11-07)
 `GET /api/leads` now counts the tab badges at the same time as it loads the page rows (before, counting waited for the rows), and reads the branch tables while the scope is worked out. The Leads screen loads the agent and loan-product lists once, in parallel, in the background (before: two more calls in a row after the leads, and again every 15 seconds). Database is Supabase ap-southeast-2 (Sydney): every sequential round trip costs time, so fewer sequential steps = faster.
 
+## Leads list speed, part 2 (2026-11-19)
+- Tab badges: one call to the database function `lead_badge_counts` (migration `20261119120000_lead_badge_counts.sql`, same scope and rules as the seven head counts) instead of seven requests. Until that migration is applied the route gets "function not found", falls back to the seven head counts and does not try the function again for 10 minutes.
+- `&counts=0` skips the badge counts (`counts: null` in the reply). The agent's Verifications list (`VerificationsPage.tsx`) uses it: it reads only the rows.
+- After the page rows: guarantor and agent names read only `guarantor_id,name` / `agent_id,name`, and the same-Aadhaar check reads only `aadhaar_no` (it used to download every column of every lead with that Aadhaar just to count them). `byIds` / `selectAll` take an optional column list.
+- An agent's own Agents row is read together with permission and scope, not after them.
+
 ## Returned leads (2026-11-09)
 New lead status **Returned** (database enum `lead_status`, columns `leads.return_reason`, `returned_at`, `returned_by`; migration `20261109130000_lead_returned.sql`). It is set by the planner's Return button on Verification Routes (see [[Verification Day Routes]]) when a customer cannot or does not want to continue yet. Guarantor: the Leads page, In Progress tab, has a third part **Returned** next to Not completed and Completed, each card showing "Returned by the office" and the reason. Office: Returned leads are left out of New leads (all three parts) and appear in History. Returned leads cannot be assigned an agent (`/api/leads/[leadId]` assign guard). A returned lead is not re-opened automatically: the guarantor sends a new lead when the customer is ready.

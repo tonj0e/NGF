@@ -530,12 +530,13 @@ export async function selectRows(
   return { rows, total: count ?? rows.length }
 }
 
-/** Every row matching the filters in `build`, read page by page in primary-key order (the server stops at 1000 rows per request). */
-export async function selectAll(table: TableName, build: (qb: any) => any): Promise<Record<string, string>[]> {
+/** Every row matching the filters in `build`, read page by page in primary-key order (the server stops at 1000 rows per request).
+ *  `columns` (database names, comma separated) limits what comes back; default every column. */
+export async function selectAll(table: TableName, build: (qb: any) => any, columns = '*'): Promise<Record<string, string>[]> {
   const supabase = getSupabase()
   const pk = getPrimaryKeyColumn(table)
   const data = await fetchAllPages<any>(async (from, to) => {
-    let q = build(supabase.from(TABLE_MAP[table]).select('*'))
+    let q = build(supabase.from(TABLE_MAP[table]).select(columns))
     if (pk) q = q.order(pk, { ascending: true })
     const { data: page, error } = await q.range(from, to)
     if (error) throw new Error(`Query failed on ${table}: ${error.message}`)
