@@ -32,6 +32,23 @@ const sum = (rows: { amount?: number | string | null }[] | null) => (rows || [])
 const saturdayOnOrAfter = (d: string) => { const dow = new Date(`${d}T00:00:00Z`).getUTCDay(); return addDaysIST(d, (6 - dow + 7) % 7) }
 const istStartUtc = (ymd: string) => new Date(`${ymd}T00:00:00+05:30`).toISOString()
 
+/** Every row a query matches. Supabase returns at most 1000 rows per request (lib/paginate.ts), so a plain
+ *  `.limit(5000)` silently stops at 1000. The first page also brings the exact total; any further pages are
+ *  read in parallel (one round trip up to 1000 rows, two above). `orderBy` must be unique (the primary key)
+ *  so pages do not overlap. A failed read gives the rows read so far (as before, a failure counted as nothing). */
+export async function readAll<T = any>(table: string, columns: string, orderBy: string, filter: (q: any) => any): Promise<T[]> {
+  const PAGE = 1000
+  const page = (from: number, withCount: boolean) =>
+    filter(sb().from(table).select(columns, withCount ? { count: 'exact' } : undefined)).order(orderBy, { ascending: true }).range(from, from + PAGE - 1)
+  const { data, count } = await page(0, true)
+  const rows: T[] = data || []
+  if (!count || count <= rows.length || rows.length < PAGE) return rows
+  const starts: number[] = []
+  for (let from = PAGE; from < count; from += PAGE) starts.push(from)
+  const rest = await Promise.all(starts.map(from => page(from, false).then((r: { data: T[] | null }) => r.data || [])))
+  return rows.concat(...rest)
+}
+
 async function guarantorNames(ids: string[]) {
   const u = [...new Set(ids.filter(Boolean))]
   if (!u.length) return new Map<string, { name: string; code: string }>()
@@ -57,37 +74,45 @@ export async function businessCounts() {
     cnt(sb().from('leads').select('lead_id', { count: 'exact', head: true }).eq('status', 'Verification Submitted')),
     cnt(sb().from('leads').select('lead_id', { count: 'exact', head: true }).eq('status', 'Approved').is('disbursed_at', null)),
     cnt(sb().from('leads').select('lead_id', { count: 'exact', head: true }).eq('status', 'Returned')),
-    sb().from('repayments').select('amount').eq('status', 'Pending').eq('due_date', sat).limit(5000),
-    sb().from('repayments').select('amount').eq('status', 'Paid').eq('due_date', sat).limit(5000),   // already paid for the coming Saturday
-    sb().from('repayments').select('amount').eq('status', 'Pending').lt('due_date', today).limit(5000),
-    sb().from('repayments').select('amount').eq('status', 'Paid').gte('paid_date', monday).lte('paid_date', today).limit(5000),
+    // Amounts are added up here, so every row is read (readAll pages past Supabase's 1000-row cap)
+    readAll<{ amount: number }>('repayments', 'amount', 'repayment_id', q => q.eq('status', 'Pending').eq('due_date', sat)),
+    readAll<{ amount: number }>('repayments', 'amount', 'repayment_id', q => q.eq('status', 'Paid').eq('due_date', sat)),   // already paid for the coming Saturday
+    readAll<{ amount: number }>('repayments', 'amount', 'repayment_id', q => q.eq('status', 'Pending').lt('due_date', today)),
+    readAll<{ amount: number }>('repayments', 'amount', 'repayment_id', q => q.eq('status', 'Paid').gte('paid_date', monday).lte('paid_date', today)),
     cnt(sb().from('payment_chat').select('message_id', { count: 'exact', head: true }).eq('status', 'Pending Staff').gte('created_at', istStartUtc(addDaysIST(today, -7)))),   // still fresh: staff should act now
     cnt(sb().from('payment_chat').select('message_id', { count: 'exact', head: true }).eq('status', 'Pending Staff').lt('created_at', istStartUtc(addDaysIST(today, -7)))),   // older than a week, never closed: usually re-sent and recorded since
     cnt(sb().from('bank_payout_batches').select('batch_id', { count: 'exact', head: true }).eq('status', 'created')),
     cnt(sb().from('ai_usage').select('id', { count: 'exact', head: true }).eq('status', 'error').gte('created_at', istStartUtc(today))),
-    sb().from('ai_usage').select('cost_usd').gte('created_at', istStartUtc(today)).limit(5000),
+    readAll<{ cost_usd: number }>('ai_usage', 'cost_usd', 'id', q => q.gte('created_at', istStartUtc(today))),
     cnt(sb().from('bank_payout_lines').select('line_id', { count: 'exact', head: true }).is('disbursed_at', null)),
   ])
   return {
     today, nextSaturday: sat, customers, loansActive,
     leads: { pending, verificationInProgress: assigned, awaitingApproval: submitted, approvedWaitingDisbursement: approved, returned },
-    collection: { dueSaturdayCount: (dueSat.data || []).length, dueSaturdayAmount: sum(dueSat.data), paidForSaturdayCount: (paidSat.data || []).length, paidForSaturdayAmount: sum(paidSat.data), overdueCount: (overdue.data || []).length, overdueAmount: sum(overdue.data), paidThisWeekCount: (paidWeek.data || []).length, paidThisWeekAmount: sum(paidWeek.data) },
+    collection: { dueSaturdayCount: dueSat.length, dueSaturdayAmount: sum(dueSat), paidForSaturdayCount: paidSat.length, paidForSaturdayAmount: sum(paidSat), overdueCount: overdue.length, overdueAmount: sum(overdue), paidThisWeekCount: paidWeek.length, paidThisWeekAmount: sum(paidWeek) },
     paymentScreenshotsNeedingStaff: chatPending, oldScreenshotsNeverClosed: chatStale, bankFilesLive: batchesLive, bankFileLinesNotDisbursed: linesOpen,
-    aiCallsFailedToday: failedAi, aiSpendTodayUsd: Number((aiToday.data || []).reduce((t, r) => t + Number(r.cost_usd || 0), 0).toFixed(5)),
+    aiCallsFailedToday: failedAi, aiSpendTodayUsd: Number(aiToday.reduce((t, r) => t + Number(r.cost_usd || 0), 0).toFixed(5)),
   }
 }
 
 // ───────────────────────── per guarantor numbers (the tool and the live map both use this)
 export async function guarantorStats(code?: string) {
   const today = getTodayIST()
-  const [{ data: gs }, { data: loans }, { data: reps }] = await Promise.all([
-    sb().from('guarantors').select('guarantor_id, name, code, status, guarantor_number'), sb().from('loans').select('loan_id, guarantor_id').eq('status', 'Active').limit(5000),
-    sb().from('repayments').select('loan_id, amount').eq('status', 'Pending').lt('due_date', today).limit(5000),
+  // All three read every row (readAll pages past Supabase's 1000-row cap) and run at the same time
+  const [gs, loans, reps] = await Promise.all([
+    readAll<any>('guarantors', 'guarantor_id, name, code, status, guarantor_number', 'guarantor_id', q => q),
+    readAll<{ loan_id: string; guarantor_id: string }>('loans', 'loan_id, guarantor_id', 'loan_id', q => q.eq('status', 'Active')),
+    readAll<{ loan_id: string; amount: number }>('repayments', 'loan_id, amount', 'repayment_id', q => q.eq('status', 'Pending').lt('due_date', today)),
   ])
-  const lg = new Map((loans || []).map(l => [l.loan_id, l.guarantor_id as string]))
-  return (gs || []).filter(g => !code || String(g.code).toLowerCase() === code.toLowerCase()).map(g => {
-    const mine = (loans || []).filter(l => l.guarantor_id === g.guarantor_id); const od = (reps || []).filter(r => lg.get(r.loan_id) === g.guarantor_id)
-    return { name: String(g.name).trim(), code: g.code as string, number: g.guarantor_number, status: g.status, activeLoans: mine.length, overdueWeeks: od.length, overdueAmount: sum(od) }
+  // Group once (a map per guarantor) instead of filtering every loan and repayment for every guarantor
+  const lg = new Map(loans.map(l => [l.loan_id, l.guarantor_id]))
+  const loanCount = new Map<string, number>()
+  for (const l of loans) loanCount.set(l.guarantor_id, (loanCount.get(l.guarantor_id) || 0) + 1)
+  const odBy = new Map<string, { amount: number }[]>()
+  for (const r of reps) { const g = lg.get(r.loan_id); if (g === undefined) continue; const a = odBy.get(g); if (a) a.push(r); else odBy.set(g, [r]) }
+  return gs.filter(g => !code || String(g.code).toLowerCase() === code.toLowerCase()).map(g => {
+    const od = odBy.get(g.guarantor_id) || []
+    return { name: String(g.name).trim(), code: g.code as string, number: g.guarantor_number, status: g.status, activeLoans: loanCount.get(g.guarantor_id) || 0, overdueWeeks: od.length, overdueAmount: sum(od) }
   })
 }
 

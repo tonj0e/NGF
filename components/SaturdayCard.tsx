@@ -17,7 +17,8 @@ export default function SaturdayCard({ session }: { session: Session }) {
   const [d, setD] = useState<Data | null>(null)
   useEffect(() => {
     let off = false
-    const load = async () => { const r = await apiGet<Data>(session.token, '/api/oreo/overview?range=today'); if (!off && r.ok) setD(r.data!) }
+    // card=1: the light answer with only what this card shows (needs + map.collection)
+    const load = async () => { const r = await apiGet<Data>(session.token, '/api/oreo/overview?card=1'); if (!off && r.ok) setD(r.data!) }
     load()
     const t = setInterval(() => { if (!document.hidden) load() }, 60_000)
     return () => { off = true; clearInterval(t) }

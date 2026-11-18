@@ -679,6 +679,7 @@ function CollectionStatusTab({ session }: { session: Session }) {
   const [page, setPage] = useState(1)
   const [data, setData] = useState<StatusData | null>(null)
   const [guarantors, setGuarantors] = useState<StatusData['guarantors']>([])
+  const haveList = useRef(false)   // once the guarantor dropdown list is here, later loads ask without it (lite=1)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const PAGE = 50
@@ -691,11 +692,12 @@ function CollectionStatusTab({ session }: { session: Session }) {
       const p = new URLSearchParams({ date, status, page: String(page), pageSize: String(PAGE) })
       if (picker && guarantorId) p.set('guarantorId', guarantorId)
       if (q.trim()) p.set('q', q.trim())
+      if (haveList.current) p.set('lite', '1')
       const res = await fetch(`/api/collection-status?${p}`, { headers: { Authorization: `Bearer ${session.token}` } })
       const j = await res.json()
       if (!j.success) throw new Error(j.error || 'Could not load')
       setData(j.data); setError('')
-      if (j.data.guarantors?.length) setGuarantors(j.data.guarantors)
+      if (j.data.guarantors?.length) { setGuarantors(j.data.guarantors); haveList.current = true }
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not load') }
     setLoading(false)
   }, [date, status, page, guarantorId, q, picker, session.token])
