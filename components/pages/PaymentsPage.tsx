@@ -66,13 +66,15 @@ export default function PaymentsPage({ session, preselect, onPreselectUsed }: { 
   return (
     <div className="space-y-4">
       {tabs.length > 1 && (
-        <div className="flex gap-2 overflow-x-auto">
+        // on a phone the row fades at the right edge, so it is clear more tabs (e.g. Bank check) are a swipe away
+        <div className="scroll-row flex gap-2 overflow-x-auto">
           {tabs.map(([k, label]) => (
             <button key={k} onClick={() => setTab(k)} className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold transition ${current === k ? 'bg-ink text-white' : 'bg-white text-gray-600 ring-1 ring-black/5'}`}>{label}</button>
           ))}
         </div>
       )}
-      {current === 'chat' && <PaymentChatPage session={session} onOpenHistory={access.canHistory || access.canMark ? () => setTab('history') : undefined} preselect={preselect} onPreselectUsed={onPreselectUsed} />}
+      {/* the Payment history tab is right above, so the chat does not show its own Payment history button here */}
+      {current === 'chat' && <PaymentChatPage session={session} preselect={preselect} onPreselectUsed={onPreselectUsed} />}
       {current === 'history' && <PaymentMatchingPage session={session} fixedTab="records" />}
       {current === 'mark' && <PaymentMatchingPage session={session} fixedTab="collect" />}
       {current === 'bank' && <PaymentMatchingPage session={session} fixedTab="bank" />}

@@ -12,6 +12,7 @@ tags: [ngf, pwa, mobile, install]
 - **Android / Chrome / Edge (phone or laptop):** an "Install NGF FINCORP" card appears (also a download icon in the top bar). Tap **Install app**. It then opens full screen from the home screen or desktop.
 - **iPhone / iPad:** the card shows the steps: Safari, **Share**, **Add to Home Screen**, **Add** (iOS has no install button for websites). The top-bar download icon opens the same steps.
 - The card can be closed; it comes back after 7 days. It never shows inside the installed app.
+- While the card shows, the page gets extra empty space at the bottom (`--pwa-space`), so the card does not cover the last rows. The close button is 40 px.
 
 ## Files
 - `app/manifest.ts`: name, colours, icons, `display: standalone`, `start_url: /`. Served at `/manifest.webmanifest`.

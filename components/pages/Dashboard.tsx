@@ -2,6 +2,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { Session } from '@/types'
 import SaturdayCard from '@/components/SaturdayCard'
+import { IndianRupee } from 'lucide-react'
 import { formatCurrency as currency } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -269,10 +270,7 @@ export default function Dashboard({ session }: { session: Session }) {
       subtitle: (m.availableCapital || 0) < 0 ? 'Overdrawn' : 'Ready to deploy',
       trend: m.prevAvailableCapital ? { value: Math.round(((m.availableCapital - m.prevAvailableCapital) / Math.abs(m.prevAvailableCapital || 1)) * 100), label: 'vs last period' } : undefined,
       icon: (
-        <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <line x1="12" y1="1" x2="12" y2="23" />
-          <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-        </svg>
+        <IndianRupee className="h-6 w-6" />
       ),
       color: (m.availableCapital || 0) < 0 ? 'from-red-500 to-red-600' : 'from-emerald-500 to-emerald-600',
     },
@@ -297,10 +295,7 @@ export default function Dashboard({ session }: { session: Session }) {
       subtitle: `${monthChange >= 0 ? '+' : ''}${monthChange}% vs last month`,
       trend: { value: monthChange, label: 'vs last month' },
       icon: (
-        <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <line x1="12" y1="1" x2="12" y2="23" />
-          <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-        </svg>
+        <IndianRupee className="h-6 w-6" />
       ),
       color: 'from-green-500 to-green-600',
     },
@@ -310,9 +305,7 @@ export default function Dashboard({ session }: { session: Session }) {
       subtitle: 'Total interest income',
       trend: m.prevInterest ? { value: Math.round(((m.totalInterest - m.prevInterest) / (m.prevInterest || 1)) * 100), label: 'vs last period' } : undefined,
       icon: (
-        <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-        </svg>
+        <IndianRupee className="h-6 w-6" />
       ),
       color: 'from-amber-500 to-orange-600',
     },
@@ -351,10 +344,7 @@ export default function Dashboard({ session }: { session: Session }) {
       subtitle: data.commissionCycle ? `Payout ${new Date(`${data.commissionCycle.payoutDate}T00:00:00`).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}` : 'Your first cycle starts on a Monday',
       trend: m.prevCommission ? { value: Math.round(((m.commissionEarned - m.prevCommission) / (m.prevCommission || 1)) * 100), label: 'vs last period' } : undefined,
       icon: (
-        <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <line x1="12" y1="1" x2="12" y2="23" />
-          <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-        </svg>
+        <IndianRupee className="h-6 w-6" />
       ),
       color: 'from-emerald-500 to-emerald-600',
     },
@@ -395,10 +385,7 @@ export default function Dashboard({ session }: { session: Session }) {
       subtitle: 'Weekly collection total',
       trend: m.prevWeekCollected ? { value: Math.round(((m.weekCollected - m.prevWeekCollected) / (m.prevWeekCollected || 1)) * 100), label: 'vs last week' } : undefined,
       icon: (
-        <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <line x1="12" y1="1" x2="12" y2="23" />
-          <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-        </svg>
+        <IndianRupee className="h-6 w-6" />
       ),
       color: 'from-green-500 to-green-600',
     },

@@ -492,8 +492,8 @@ function CallButton({ phone, className = '' }: { phone: string; className?: stri
   return (
     <a href={`tel:${phone}`} onClick={e => e.stopPropagation()}
       title={`Call ${phone}`}
-      className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-green-100 text-green-700 hover:bg-green-600 hover:text-white transition ${className}`}>
-      <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
+      className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-100 sm:h-7 sm:w-7 text-green-700 hover:bg-green-600 hover:text-white transition ${className}`}>
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-3.5 sm:w-3.5" viewBox="0 0 24 24" fill="currentColor">
         <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>
       </svg>
     </a>
@@ -894,10 +894,11 @@ export default function CollectionPage({ session, perms, showPayments, startOnPa
     <RecordFromStatus.Provider value={session.role === 'Guarantor' && showPayments ? ((id, mode) => { setPayTarget({ repaymentId: id, customerId: '', mode }); setTab('payments') }) : null}>
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <div className="flex flex-1 items-center gap-1.5 flex-wrap sm:gap-2">
+        {/* phone: one row that scrolls sideways; wider screens: the row wraps as before */}
+        <div className="scroll-row flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto sm:flex-wrap sm:overflow-visible sm:gap-2">
           {visibleTabs.map(t => (
             <button key={t.key} onClick={() => setTab(t.key)}
-              className={`rounded-2xl px-2.5 py-2 text-[13px] font-medium transition sm:px-4 sm:text-sm ${tab === t.key ? 'bg-ink text-white' : 'border border-line bg-white text-soft hover:text-ink'}`}>
+              className={`shrink-0 whitespace-nowrap rounded-2xl px-2.5 py-2 text-[13px] font-medium transition sm:px-4 sm:text-sm ${tab === t.key ? 'bg-ink text-white' : 'border border-line bg-white text-soft hover:text-ink'}`}>
               {t.label}
             </button>
           ))}
@@ -907,7 +908,7 @@ export default function CollectionPage({ session, perms, showPayments, startOnPa
           hidden={!sheetAllowed}
           title={canDownload ? 'Download collection sheet as PDF' : 'Available Friday 8am through Saturday'}
           aria-label="Download the collection sheet"
-          className={`${session.role === 'Guarantor' ? 'ml-auto h-11 w-11 justify-center' : 'px-2.5 py-2 sm:px-4'} inline-flex items-center gap-1 rounded-2xl text-[13px] font-semibold transition sm:gap-1.5 sm:text-sm ${
+          className={`${session.role === 'Guarantor' ? 'ml-auto h-11 w-11 justify-center' : 'px-2.5 py-2 sm:px-4'} inline-flex shrink-0 whitespace-nowrap items-center gap-1 rounded-2xl text-[13px] font-semibold transition sm:gap-1.5 sm:text-sm ${
             canDownload
               ? 'bg-green-600 text-white hover:bg-green-700'
               : 'border border-line bg-mist text-gray-500'

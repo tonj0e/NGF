@@ -172,18 +172,18 @@ export default function PayoutRequestsPage({ session }: { session: Session }) {
           <p className="text-xs text-soft">A cycle is 5 weeks, Monday to Sunday. Each loan earns its commission in the week it was disbursed. The payout is the next working day after the cycle ends, always a Monday.</p>
         </div>
         {commissions.length === 0 ? <p className="p-8 text-center text-sm text-soft">No commission earned yet.</p> : (
-          <div className="overflow-x-auto"><table className="w-full text-left text-sm">
-            <thead className="border-b border-black/5 bg-panel text-soft"><tr>{['Guarantor', 'This cycle', 'Earned so far', 'Paid', 'Requested', 'Ready to pay', 'Payout date', ''].map(h => <th key={h} className="px-4 py-3 text-xs font-medium">{h}</th>)}</tr></thead>
+          <div className="overflow-x-auto"><table className="w-full min-w-[860px] text-left text-sm">
+            <thead className="border-b border-black/5 bg-panel text-soft"><tr>{['Guarantor', 'This cycle', 'Earned so far', 'Paid', 'Requested', 'Ready to pay', 'Payout date', ''].map(h => <th key={h} className="whitespace-nowrap px-4 py-3 text-xs font-medium">{h}</th>)}</tr></thead>
             <tbody className="divide-y divide-black/5">
               {commissions.map(c => (
                 <tr key={c.guarantorId}>
                   <td className="px-4 py-3 font-medium">{c.name}{c.code ? <span className="ml-1.5 rounded-full bg-mist px-2 py-0.5 font-mono text-[11px] text-soft">{c.code}</span> : null}</td>
-                  <td className="px-4 py-3 text-xs text-soft">{c.cycleStart ? <>{formatDateIN(c.cycleStart)} to {formatDateIN(c.cycleEnd)}<span className="block">Day {c.cycleDay} of 35 · {c.cycleLoans} loans</span></> : '—'}</td>
-                  <td className="px-4 py-3">{formatINR(c.cycleAmount)}</td>
-                  <td className="px-4 py-3">{formatINR(c.paid)}</td>
-                  <td className="px-4 py-3">{c.pending > 0 ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">{formatINR(c.pending)} requested</span> : '—'}</td>
-                  <td className={`px-4 py-3 font-semibold ${c.readyAmount > 0 ? 'text-emerald-700' : 'text-soft'}`}>{formatINR(c.readyAmount)}</td>
-                  <td className="px-4 py-3 text-soft">{c.readyPayoutDate || c.nextPayoutDate ? formatDateIN(c.readyPayoutDate || c.nextPayoutDate) : '—'}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-xs text-soft">{c.cycleStart ? <>{formatDateIN(c.cycleStart)} to {formatDateIN(c.cycleEnd)}<span className="block">Day {c.cycleDay} of 35 · {c.cycleLoans} loans</span></> : '—'}</td>
+                  <td className="whitespace-nowrap px-4 py-3">{formatINR(c.cycleAmount)}</td>
+                  <td className="whitespace-nowrap px-4 py-3">{formatINR(c.paid)}</td>
+                  <td className="whitespace-nowrap px-4 py-3">{c.pending > 0 ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">{formatINR(c.pending)} requested</span> : '—'}</td>
+                  <td className={`whitespace-nowrap px-4 py-3 font-semibold ${c.readyAmount > 0 ? 'text-emerald-700' : 'text-soft'}`}>{formatINR(c.readyAmount)}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-soft">{c.readyPayoutDate || c.nextPayoutDate ? formatDateIN(c.readyPayoutDate || c.nextPayoutDate) : '—'}</td>
                   <td className="px-4 py-3 text-right">
                     {c.pendingPayoutId ? <span className="text-xs text-soft">Approve the request below</span>
                       : <button disabled={!c.readyStart || c.readyAmount <= 0} onClick={() => { setPayMode('Cash'); setPayRef(''); setPayModal({ kind: 'now', guarantorId: c.guarantorId, name: c.name, max: c.readyAmount, cycleStart: c.readyStart, payoutDate: c.readyPayoutDate }) }}
@@ -229,11 +229,11 @@ export default function PayoutRequestsPage({ session }: { session: Session }) {
               <p className="text-sm font-semibold text-amber-700">Pending Review ({pendingPayouts.length})</p>
             </div>
           </div>
-          <div className="overflow-x-auto"><table className="w-full text-left text-sm">
+          <div className="overflow-x-auto"><table className="w-full min-w-[600px] text-left text-sm">
             <thead className="border-b border-black/5 bg-panel text-soft">
               <tr>
                 {['Guarantor', 'Request ID', 'Amount', 'Requested On', 'Action'].map(h => (
-                  <th key={h} className="px-5 py-3 font-medium text-xs">{h}</th>
+                  <th key={h} className="whitespace-nowrap px-5 py-3 font-medium text-xs">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -242,8 +242,8 @@ export default function PayoutRequestsPage({ session }: { session: Session }) {
                 <tr key={p.payoutId} className="hover:bg-panel">
                   <td className="px-5 py-3 font-medium">{p.guarantorName || p.guarantorId}</td>
                   <td className="px-5 py-3 font-mono text-xs text-soft">{p.payoutId}</td>
-                  <td className="px-5 py-3 font-semibold text-green-700">{formatINR(p.amount)}</td>
-                  <td className="px-5 py-3 text-soft">{p.requestedAt ? formatDateIN(p.requestedAt) : '—'}</td>
+                  <td className="whitespace-nowrap px-5 py-3 font-semibold text-green-700">{formatINR(p.amount)}</td>
+                  <td className="whitespace-nowrap px-5 py-3 text-soft">{p.requestedAt ? formatDateIN(p.requestedAt) : '—'}</td>
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-2">
                       <button
@@ -277,11 +277,11 @@ export default function PayoutRequestsPage({ session }: { session: Session }) {
         {processedPayouts.length === 0 ? (
           <p className="p-8 text-center text-sm text-soft">No processed payouts yet.</p>
         ) : (
-          <div className="overflow-x-auto"><table className="w-full text-left text-sm">
+          <div className="overflow-x-auto"><table className="w-full min-w-[820px] text-left text-sm">
             <thead className="border-b border-black/5 bg-panel text-soft">
               <tr>
                 {['Guarantor', 'Request ID', 'Amount', 'Status', 'Requested On', 'Processed On', 'Notes'].map(h => (
-                  <th key={h} className="px-5 py-3 font-medium text-xs">{h}</th>
+                  <th key={h} className="whitespace-nowrap px-5 py-3 font-medium text-xs">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -290,7 +290,7 @@ export default function PayoutRequestsPage({ session }: { session: Session }) {
                 <tr key={p.payoutId} className="hover:bg-panel">
                   <td className="px-5 py-3 font-medium">{p.guarantorName || p.guarantorId}</td>
                   <td className="px-5 py-3 font-mono text-xs text-soft">{p.payoutId}</td>
-                  <td className="px-5 py-3 font-semibold">{formatINR(p.amount)}</td>
+                  <td className="whitespace-nowrap px-5 py-3 font-semibold">{formatINR(p.amount)}</td>
                   <td className="px-5 py-3">
                     <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
                       p.status === 'Paid' ? 'bg-green-100 text-green-700'
@@ -298,8 +298,8 @@ export default function PayoutRequestsPage({ session }: { session: Session }) {
                       : 'bg-amber-100 text-amber-700'
                     }`}>{p.status}</span>
                   </td>
-                  <td className="px-5 py-3 text-soft">{p.requestedAt ? formatDateIN(p.requestedAt) : '—'}</td>
-                  <td className="px-5 py-3 text-soft">{p.processedAt ? formatDateIN(p.processedAt) : '—'}</td>
+                  <td className="whitespace-nowrap px-5 py-3 text-soft">{p.requestedAt ? formatDateIN(p.requestedAt) : '—'}</td>
+                  <td className="whitespace-nowrap px-5 py-3 text-soft">{p.processedAt ? formatDateIN(p.processedAt) : '—'}</td>
                   <td className={`px-5 py-3 max-w-xs ${p.status === 'Rejected' ? 'text-red-700' : 'text-soft'}`}>
                     {p.status === 'Rejected' ? <span title={p.notes || ''}>Reason: {p.notes || 'Not provided'}</span> : <span className="truncate block">{p.notes || '—'}</span>}
                   </td>

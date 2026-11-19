@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Download, Share, X } from 'lucide-react'
 import { promptInstall, startPwa, useInstall } from '@/lib/pwa'
 
@@ -15,18 +15,34 @@ export default function PwaClient() {
   const { canPrompt, standalone, ios } = useInstall()
   const [hidden, setHidden] = useState(true)
 
+  const box = useRef<HTMLDivElement>(null)
+  const visible = !(hidden || standalone || (!canPrompt && !ios))
+
   useEffect(() => { startPwa(); setHidden(recentlyDismissed()) }, [])
 
-  if (hidden || standalone || (!canPrompt && !ios)) return null
+  // While the card is showing, the app adds this much empty space at the end of the page (--pwa-space, read in
+  // AppShell), so the card never covers the last rows or buttons.
+  useEffect(() => {
+    const root = document.documentElement
+    const el = box.current
+    if (!visible || !el) { root.style.removeProperty('--pwa-space'); return }
+    const set = () => root.style.setProperty('--pwa-space', `${Math.ceil(el.getBoundingClientRect().height) + 24}px`)
+    set()
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(set) : null
+    ro?.observe(el)
+    return () => { ro?.disconnect(); root.style.removeProperty('--pwa-space') }
+  }, [visible, canPrompt])
+
+  if (!visible) return null
 
   const close = () => { try { localStorage.setItem(DISMISS_KEY, String(Date.now())) } catch {} setHidden(true) }
 
   return (
-    <div role="dialog" aria-label="Install NGF app"
+    <div ref={box} role="dialog" aria-label="Install NGF app"
       className="fixed inset-x-3 z-[60] mx-auto max-w-md rounded-2xl border border-line bg-white p-4 shadow-xl sm:left-auto sm:right-4 sm:mx-0"
       style={{ bottom: 'calc(env(safe-area-inset-bottom) + 12px)' }}>
-      <button onClick={close} aria-label="Close" className="absolute right-2.5 top-2.5 rounded-full p-1.5 text-soft hover:bg-mist"><X className="h-4 w-4" /></button>
-      <div className="flex items-start gap-3 pr-6">
+      <button onClick={close} aria-label="Close" className="absolute right-1.5 top-1.5 inline-flex h-10 w-10 items-center justify-center rounded-full text-soft hover:bg-mist"><X className="h-4 w-4" /></button>
+      <div className="flex items-start gap-3 pr-8">
         <img src="/icons/icon-192.png" alt="" className="h-12 w-12 shrink-0 rounded-xl border border-line" />
         <div className="min-w-0">
           <p className="text-sm font-semibold">Install NGF FINCORP</p>

@@ -429,6 +429,9 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
     onLogout()
   }
 
+  // the subtitle under NGF FINCORP: a plain role name ("Agent portal", not "NGF AGENT portal")
+  const portalName = session.role === 'NGF AGENT' ? 'Agent' : session.role
+
   return (
     <div className="app-backdrop flex h-screen w-full">
       {session.role === 'NGF AGENT' && <AgentTracker session={session} />}
@@ -440,7 +443,7 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
             <div className="border-b border-line px-4 py-4 flex items-center justify-between">
               <div>
                 <h1 className="text-xl font-bold leading-tight tracking-wide">NGF FINCORP</h1>
-                <p className="mt-0.5 text-xs text-soft">{session.role} portal</p>
+                <p className="mt-0.5 text-xs text-soft">{portalName} portal</p>
               </div>
               <SheetClose
                 className="inline-flex items-center justify-center rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition"
@@ -485,14 +488,14 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
           onMouseEnter={() => setSidebarHovered(true)}
           onMouseLeave={() => setSidebarHovered(false)}
         >
-          <div className={`border-b border-line px-3 py-4 transition-all duration-250 ${sidebarCollapsed ? 'justify-center' : ''}`}>
+          <div className={`border-b border-line py-4 transition-all duration-250 ${sidebarCollapsed ? 'justify-center px-1' : 'px-3'}`}>
             {!sidebarCollapsed ? (
               <>
                 <h1 className="text-xl font-bold leading-tight tracking-wide">NGF FINCORP</h1>
-                <p className="mt-0.5 text-xs text-soft">{session.role} portal</p>
+                <p className="mt-0.5 text-xs text-soft">{portalName} portal</p>
               </>
             ) : (
-              <h1 className="text-xl font-bold leading-tight tracking-wide text-center">NGF</h1>
+              <h1 className="text-base font-bold leading-tight text-center">NGF</h1>
             )}
           </div>
           <nav className="flex-1 overflow-y-auto px-2 py-2">
@@ -547,7 +550,7 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
                   </Button>
                   <div className="min-w-0">
                     <h1 className="text-lg font-bold leading-tight tracking-wide truncate">NGF FINCORP</h1>
-                    <p className="mt-0.5 text-[10px] text-soft truncate">{session.role} portal</p>
+                    <p className="mt-0.5 text-[10px] text-soft truncate">{portalName} portal</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
@@ -684,6 +687,8 @@ export default function AppShell({ session, onLogout }: { session: Session; onLo
               <Fragment key={refreshKey}>{renderPage()}</Fragment>
               {session.role === 'Admin' && <div hidden={view !== 'ai'}><OreoPage session={session} active={view === 'ai'} /></div>}
               {session.role === 'NGF AGENT' && seenRoute && <div hidden={view !== 'myRoute'}><MyRoutePage key={refreshKey} session={session} active={view === 'myRoute'} /></div>}
+              {/* room at the end of the page while the "Install NGF FINCORP" card is showing (PwaClient sets --pwa-space) */}
+              <div aria-hidden className="shrink-0" style={{ height: 'var(--pwa-space, 0px)' }} />
             </div>
           </main>
         </div>

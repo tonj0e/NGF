@@ -103,7 +103,8 @@ export default function TripDetailsPage({ session }: { session: Session }) {
               {weeks.length === 0 && <option value="">No trips yet</option>}
             </select>
           </div>
-          <div className="text-right">
+          {/* on a phone this block drops under the week picker, so it lines up on the left there */}
+          <div className="text-left sm:text-right">
             <p className="text-3xl font-bold text-green-700">{currencyInr(stats.amount)}</p>
             <p className="text-xs text-soft">travel allowance @ ₹{rate}/km on the road km</p>
           </div>

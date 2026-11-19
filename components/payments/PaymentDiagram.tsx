@@ -1,5 +1,5 @@
 'use client'
-import { Banknote, Smartphone, Landmark, CircleDollarSign } from 'lucide-react'
+import { Banknote, Smartphone, Landmark, IndianRupee } from 'lucide-react'
 
 export type DiagramLine = { name: string; payCode?: string; amount: number; hidden?: boolean }
 
@@ -22,7 +22,7 @@ function ModeIcon({ mode }: { mode: string }) {
   if (mode === 'UPI') return <Smartphone className={cls} />
   if (mode === 'Bank') return <Landmark className={cls} />
   if (mode === 'Cash') return <Banknote className={cls} />
-  return <CircleDollarSign className={cls} />
+  return <IndianRupee className={cls} />
 }
 
 // One payment on the left, the customers it covers on the right, joined by curves.
