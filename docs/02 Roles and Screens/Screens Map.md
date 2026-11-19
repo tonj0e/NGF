@@ -19,7 +19,7 @@ tags: [ngf, roles-screens, screens, appshell]
 | `dashboard` | `Dashboard` | Dashboard | Admin, Guarantor | KPIs, charts, recollection gauge |
 | `financialAnalytics` | `Dashboard` (same component) | Financial Analytics | Admin | Duplicate of dashboard, no extra prop |
 | `customers` | `CustomersPage` | Customers / Assigned Customers | Admin, Agent, Staff* | Customer list and loan info |
-| `leads` | `LeadsPage` | Leads | Admin, Guarantor, Staff* | Submit, review, approve leads; Disbursements tab has **To Disburse** (`DisburseQueue`), renewal approval with customer OTP (`RenewalApproveModal`); agent verification has the OTP step ([[Customer OTP and Disbursement]]) |
+| `leads` | `LeadsPage` | Leads | Admin, Guarantor, Staff* | Submit, review, approve leads; Disbursements tab has **To Disburse** (`DisburseQueue`), renewal approval with customer OTP (`RenewalApproveModal`); agent verification has the OTP step ([[Customer OTP and Disbursement]]); New leads has four parts (New / Assigned / **Partially verified** / Completed) and a **Complete verification** form for partially verified leads (`CompleteVerificationForm`) |
 | `collection` | `CollectionPage` | Collection | all four | Weekly collection, payments, sheet download |
 | `payments` | `PaymentMatchingPage` | Payment Matching / UPI Payments | Admin, Guarantor (view only), Staff and Agent with `upiPayments` | Mark UTR payments, flagged duplicates, diagram records, bank check. See [[Payment Matching]] |
 | `reports` | `ReportsPage` | Reports | Admin, Staff* | Reports |
@@ -38,7 +38,7 @@ tags: [ngf, roles-screens, screens, appshell]
 | `deposits` | `DepositsPage` | Deposits | Guarantor | Deposit ledger and requests |
 | `myCustomers` | `MyCustomersPage` | My Customers | Guarantor | Own customers |
 | `myIdCard` | `MyIdCardPage` | My ID Card | Guarantor | Own ID card with QR |
-| `verifications` | `VerificationsPage` | Assigned Verifications | Agent | Field verification, attendance, trips |
+| `verifications` | `VerificationsPage` | Assigned Verifications | Agent | Field verification, attendance, trips; **Submit partial verification** when the customer is not at home (house + landmark photo + location, no OTP) |
 | `tripDetails` | `TripDetailsPage` | Trip Details | Agent | Trip history |
 | `location` | `AgentLocationPage` | Live Location | Agent | Share GPS on/off |
 \* Staff sees it only if the matching key is granted in `staff_access.permissions` ([[Roles and Permissions]]).

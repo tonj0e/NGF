@@ -15,7 +15,7 @@ tags: [ngf, database, enums, status]
 | user_status | Active, Inactive, Suspended, Deleted | users, agents, customers, guarantors, loan_products (.status) |
 | agent_type | Field, Tele, Both, Verification & Collection | agents.agent_type |
 | branch_status | Active, Inactive | branches.status |
-| lead_status | Pending, Under Review, Agent Assigned, Verification In Progress, Verification Submitted, Approved, Rejected, Converted | leads.status |
+| lead_status | Pending, Under Review, Agent Assigned, Verification In Progress, Verification Submitted, Approved, Rejected, Converted (+ Returned 2026-11-09, + Partially Verified 2026-11-20, migration files) | leads.status |
 | verification_result | Verified, Suspicious, Rejected Recommendation, Submitted | leads.verification_status |
 | loan_status | Active, Completed, Defaulted, Settled, Closed | loans.status |
 | repayment_status | Pending, Paid, Overdue, Delayed, Waived | repayments.status |

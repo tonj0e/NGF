@@ -66,7 +66,7 @@ export async function businessCounts() {
   const today = getTodayIST(), sat = saturdayOnOrAfter(today)
   const monday = addDaysIST(today, -((new Date(`${today}T00:00:00Z`).getUTCDay() + 6) % 7))
   const cnt = async (q: PromiseLike<{ count: number | null }>) => (await q).count || 0
-  const [customers, loansActive, pending, assigned, submitted, approved, returned, dueSat, paidSat, overdue, paidWeek, chatPending, chatStale, batchesLive, failedAi, aiToday, linesOpen] = await Promise.all([
+  const [customers, loansActive, pending, assigned, submitted, approved, returned, partial, dueSat, paidSat, overdue, paidWeek, chatPending, chatStale, batchesLive, failedAi, aiToday, linesOpen] = await Promise.all([
     cnt(sb().from('customers').select('customer_id', { count: 'exact', head: true })),
     cnt(sb().from('loans').select('loan_id', { count: 'exact', head: true }).eq('status', 'Active')),
     cnt(sb().from('leads').select('lead_id', { count: 'exact', head: true }).eq('status', 'Pending')),
@@ -74,6 +74,7 @@ export async function businessCounts() {
     cnt(sb().from('leads').select('lead_id', { count: 'exact', head: true }).eq('status', 'Verification Submitted')),
     cnt(sb().from('leads').select('lead_id', { count: 'exact', head: true }).eq('status', 'Approved').is('disbursed_at', null)),
     cnt(sb().from('leads').select('lead_id', { count: 'exact', head: true }).eq('status', 'Returned')),
+    cnt(sb().from('leads').select('lead_id', { count: 'exact', head: true }).eq('status', 'Partially Verified')),   // customer not at home: office completes it
     // Amounts are added up here, so every row is read (readAll pages past Supabase's 1000-row cap)
     readAll<{ amount: number }>('repayments', 'amount', 'repayment_id', q => q.eq('status', 'Pending').eq('due_date', sat)),
     readAll<{ amount: number }>('repayments', 'amount', 'repayment_id', q => q.eq('status', 'Paid').eq('due_date', sat)),   // already paid for the coming Saturday
@@ -88,7 +89,7 @@ export async function businessCounts() {
   ])
   return {
     today, nextSaturday: sat, customers, loansActive,
-    leads: { pending, verificationInProgress: assigned, awaitingApproval: submitted, approvedWaitingDisbursement: approved, returned },
+    leads: { pending, verificationInProgress: assigned, awaitingApproval: submitted, approvedWaitingDisbursement: approved, returned, partiallyVerifiedOfficeToComplete: partial },
     collection: { dueSaturdayCount: dueSat.length, dueSaturdayAmount: sum(dueSat), paidForSaturdayCount: paidSat.length, paidForSaturdayAmount: sum(paidSat), overdueCount: overdue.length, overdueAmount: sum(overdue), paidThisWeekCount: paidWeek.length, paidThisWeekAmount: sum(paidWeek) },
     paymentScreenshotsNeedingStaff: chatPending, oldScreenshotsNeverClosed: chatStale, bankFilesLive: batchesLive, bankFileLinesNotDisbursed: linesOpen,
     aiCallsFailedToday: failedAi, aiSpendTodayUsd: Number(aiToday.reduce((t, r) => t + Number(r.cost_usd || 0), 0).toFixed(5)),
@@ -150,7 +151,7 @@ const READ: ToolSpec[] = [
       }
     } },
 
-  { risk: 'read', def: { name: 'find_leads', description: 'List leads, optionally by status (Pending, Agent Assigned, Verification Submitted, Approved, Returned, Converted) or name/phone text.', input_schema: obj({ status: str('lead status'), query: str('name or phone text') }) },
+  { risk: 'read', def: { name: 'find_leads', description: 'List leads, optionally by status (Pending, Agent Assigned, Partially Verified, Verification Submitted, Approved, Returned, Converted) or name/phone text.', input_schema: obj({ status: str('lead status'), query: str('name or phone text') }) },
     run: async ({ status, query }) => {
       let qb = sb().from('leads').select('lead_id, customer_name, phone, place, status, loan_product, guarantor_id, submitted_date, disbursed_at, return_reason, bank_verified_at').order('submitted_date', { ascending: false }).limit(15)
       if (status) qb = qb.eq('status', String(status))

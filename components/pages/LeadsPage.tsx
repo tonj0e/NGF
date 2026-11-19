@@ -10,10 +10,13 @@ import RenewalModal from './RenewalModal'
 import LeadsHistoryWeeks from './LeadsHistoryWeeks'
 import RenewalApproveModal from './RenewalApproveModal'
 import DisburseQueue from './DisburseQueue'
+import CompleteVerificationForm from './CompleteVerificationForm'
 import { buildLeadNoteData, buildPromissoryHtml, PROMISSORY_TEMPLATE_KEY, DEFAULT_PROMISSORY_BODY } from '@/lib/promissoryNote'
 
 // a lead is "completed" for the guarantor once the agent has submitted the verification (it then waits for the admin)
 const DONE_STATUSES = ['Verification Submitted', 'Approved']
+// the agent visited but the customer was not at home: the office completes the verification when the customer comes in
+const PARTIAL = 'Partially Verified'
 
 type LeadTab = 'new' | 'history' | 'renewal' | 'disbursements'
 
@@ -63,6 +66,7 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
   const [showRenewal, setShowRenewal] = useState(false)
   const [approving, setApproving] = useState<Lead | null>(null)
   const [detail, setDetail] = useState<Lead | null>(null)
+  const [completing, setCompleting] = useState<Lead | null>(null)   // office "Complete verification" form for a partially verified lead
   const [agents, setAgents] = useState<any[]>([])
   const [toast, setToast] = useState('')
   const [editing, setEditing] = useState(false)
@@ -79,8 +83,8 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
   const [page, setPage] = useState(1)
   const [totalLeads, setTotalLeads] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
-  const [counts, setCounts] = useState({ new: 0, history: 0, renewal: 0, approved: 0, stageNew: 0, stageAssigned: 0, stageCompleted: 0 })
-  const [stage, setStage] = useState<'new' | 'assigned' | 'completed'>('new')
+  const [counts, setCounts] = useState({ new: 0, history: 0, renewal: 0, approved: 0, stageNew: 0, stageAssigned: 0, stageCompleted: 0, stagePartial: 0 })
+  const [stage, setStage] = useState<'new' | 'assigned' | 'partial' | 'completed'>('new')
   const [branchList, setBranchList] = useState<{ branchId: string; name: string }[]>([])
   const [search, setSearch] = useState('')
   const LEADS_PAGE = 20
@@ -100,7 +104,7 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
   }
 
   // leads whose loan product can still be changed (not renewals, not yet approved)
-  const productEditable = (l: Lead) => l.loanProduct !== 'RENEWAL' && ['Pending', 'Under Review', 'Agent Assigned', 'Verification In Progress', 'Verification Submitted'].includes(l.status)
+  const productEditable = (l: Lead) => l.loanProduct !== 'RENEWAL' && ['Pending', 'Under Review', 'Agent Assigned', 'Verification In Progress', PARTIAL, 'Verification Submitted'].includes(l.status)
   async function setLeadProduct(leadId: string, loanProduct: string) {
     const res = await apiSend(session.token, 'PATCH', `/api/leads/${leadId}`, { action: 'update', loanProduct })
     if (!res.ok) { showToast(res.error || 'Could not change the loan product'); return false }
@@ -185,8 +189,8 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
 
   // Memoize idle state to avoid dependency array churn
   const isIdle = useMemo(() => !(
-    showSubmit || showRenewal || approving || detail || editing || deleteMode || productMode || busy || selected.size > 0
-  ), [showSubmit, showRenewal, approving, detail, editing, deleteMode, productMode, busy, selected.size])
+    showSubmit || showRenewal || approving || detail || completing || editing || deleteMode || productMode || busy || selected.size > 0
+  ), [showSubmit, showRenewal, approving, detail, completing, editing, deleteMode, productMode, busy, selected.size])
 
   // Auto-refresh leads every 15 seconds (only when UI is idle)
   const loadRef = useRef(load)
@@ -288,6 +292,13 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
 
   if (loading) return <div className="flex h-40 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-ink border-t-transparent" /></div>
 
+  // Admin, or Staff with the leads edit part (the server also checks the branch)
+  const canComplete = (l: Lead) => isManager && can('leadsEdit') && l.status === PARTIAL && l.loanProduct !== 'RENEWAL'
+  if (completing) return (
+    <CompleteVerificationForm session={session} lead={completing} onClose={() => setCompleting(null)}
+      onDone={m => { setCompleting(null); setDetail(null); showToast(m); load() }} />
+  )
+
   if (detail) return (
     <div className="space-y-5">
       {approving && <RenewalApproveModal session={session} lead={approving} onClose={() => setApproving(null)} onDone={m => { setApproving(null); setDetail(null); showToast(m); load() }} />}
@@ -313,6 +324,7 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
         <div className="space-y-4">
           {/* Top action bar */}
           <div className="flex items-center gap-2 flex-wrap">
+            {canComplete(detail) && <button onClick={() => setCompleting(detail)} className="rounded-2xl bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-600 transition">Complete verification</button>}
             {isManager && <button onClick={() => setEditing(true)} className="rounded-2xl border border-line bg-white px-4 py-2 text-sm font-semibold hover:bg-mist transition">Edit Details</button>}
             <button onClick={() => printNote(detail)} className="inline-flex items-center gap-2 rounded-2xl bg-ink px-4 py-2 text-sm font-semibold text-white hover:bg-[#2d2d4e] transition">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
@@ -378,6 +390,12 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
                 badge={detail.recommendationStatus === 'Verified' ? 'green' : detail.recommendationStatus?.includes('Reject') ? 'red' : 'amber'} />
               <InfoItem label="Verification Status" value={detail.verificationStatus} />
             </InfoRow>
+            {detail.status === PARTIAL && (
+              <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900"><span className="font-bold">Partially verified{detail.partialVerifiedAt ? ` on ${String(detail.partialVerifiedAt).slice(0, 10)}` : ''}:</span> the customer was not at home. The agent saved the house photo, the landmark photo and the location. Complete the verification when the customer comes to the office.</p>
+            )}
+            {detail.officeCompletedAt && detail.status !== PARTIAL && (
+              <p className="rounded-xl bg-panel px-4 py-3 text-sm">Partially verified by the agent{detail.partialVerifiedAt ? ` on ${String(detail.partialVerifiedAt).slice(0, 10)}` : ''}, completed in the office on {String(detail.officeCompletedAt).slice(0, 10)}.</p>
+            )}
             <InfoRow>
               <InfoItem label="Verification Date" value={detail.verificationSubmittedDate} />
               {detail.loanProduct !== 'RENEWAL' && <InfoItem label="Customer OTP at visit" value={detail.otpVerifiedAt ? 'Verified' : detail.otpOverrideReason ? `Not done: ${detail.otpOverrideReason}` : ''} badge={detail.otpVerifiedAt ? 'green' : detail.otpOverrideReason ? 'amber' : undefined} />}
@@ -459,6 +477,16 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
                   {busy === detail.leadId + 'Request Reverification' ? <span><span className="h-3 w-3 animate-spin rounded-full border-2 border-soft border-t-transparent" />...</span> : 'Reverify'}
                 </button>
               </span>}
+              {can('leadsApprove') && detail.status === PARTIAL && <span>
+                <button onClick={() => review(detail.leadId, 'Reject Lead')} disabled={busy !== null}
+                  className="flex items-center justify-center gap-1.5 rounded-2xl border border-red-200 bg-red-50 px-5 py-2.5 text-sm font-semibold text-red-600 disabled:opacity-60">
+                  {busy === detail.leadId + 'Reject Lead' ? <span><span className="h-3 w-3 animate-spin rounded-full border-2 border-red-400 border-t-transparent" />Rejecting...</span> : 'Reject Lead'}
+                </button>
+                <button onClick={() => review(detail.leadId, 'Request Reverification')} disabled={busy !== null}
+                  className="flex items-center justify-center gap-1.5 rounded-2xl border border-line bg-white px-5 py-2.5 text-sm font-semibold disabled:opacity-60">
+                  {busy === detail.leadId + 'Request Reverification' ? <span><span className="h-3 w-3 animate-spin rounded-full border-2 border-soft border-t-transparent" />...</span> : 'Send the agent again'}
+                </button>
+              </span>}
               {can('leadsApprove') && detail.status === 'Pending' && detail.loanProduct === 'RENEWAL' && <span>
                 <button onClick={() => setApproving(detail)} disabled={busy !== null}
                   className="flex items-center justify-center gap-1.5 rounded-2xl bg-green-600 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-60">
@@ -532,6 +560,9 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
                       : <span>Loan: <span className="font-medium text-ink">{l.loanProduct}</span></span>
                   )}
                 </div>
+                {l.status === PARTIAL && (
+                  <p className="mt-1.5 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900"><span className="font-bold">Customer was not at home.</span> {session.role === 'Guarantor' ? 'The agent saved the house and location. Bring the customer to the office to finish the verification.' : 'House, landmark and location saved by the agent. Complete the verification when the customer comes to the office.'}</p>
+                )}
                 {l.status === 'Returned' && (
                   <p className="mt-1.5 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900"><span className="font-bold">Returned by the office:</span> {l.returnReason || 'No reason written.'}</p>
                 )}
@@ -582,6 +613,12 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
                     </select>
                     <button onClick={() => review(l.leadId, 'Reject Lead')} className="rounded-xl border border-line px-3 py-1.5 text-xs font-semibold text-red-600">Reject</button>
                   </span>
+                )}
+                {canComplete(l) && (
+                  <button onClick={() => setCompleting(l)} className="rounded-xl bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white">Complete verification</button>
+                )}
+                {isManager && can('leadsApprove') && l.status === PARTIAL && (
+                  <button onClick={() => review(l.leadId, 'Reject Lead')} disabled={busy !== null} className="rounded-xl border border-line px-3 py-1.5 text-xs font-semibold text-red-600 disabled:opacity-60">Reject</button>
                 )}
                 {isManager && can('leadsApprove') && l.status === 'Verification Submitted' && (
                   <span className="inline-flex flex-wrap items-center gap-2">
@@ -701,9 +738,10 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
         </div>
       )}
       {isManager && tab === 'new' && (
-        <div className="grid grid-cols-3 gap-2 rounded-2xl bg-white p-1.5 shadow-panel">
+        <div className="grid grid-cols-2 gap-2 rounded-2xl bg-white p-1.5 shadow-panel sm:grid-cols-4">
           {([['new', 'New leads', counts.stageNew, 'bg-amber-100 text-amber-700'],
              ['assigned', 'Assigned leads', counts.stageAssigned, 'bg-blue-100 text-blue-700'],
+             ['partial', 'Partially verified', counts.stagePartial ?? 0, 'bg-orange-100 text-orange-700'],
              ['completed', 'Completed leads', counts.stageCompleted, 'bg-green-100 text-green-700']] as const).map(([key, title, n, pill]) => (
             <button key={key} onClick={() => setStage(key)}
               className={`flex flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-xl px-2 py-2.5 text-[13px] font-semibold transition sm:text-sm ${stage === key ? 'bg-ink text-white' : 'text-soft'}`}>
@@ -717,7 +755,7 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
         <LeadsHistoryWeeks session={session} search={search} branch={branchFilter} version={counts.history} renderLead={renderLead} />
       ) : (
       <>
-        {visibleLeads.length === 0 && !(session.role === 'Guarantor' && tab === 'new') && <p className="p-8 text-center text-sm text-soft">{tab === 'new' ? (isManager ? (stage === 'assigned' ? 'No assigned leads.' : stage === 'completed' ? 'No completed leads.' : 'No new leads.') : 'No new leads.') : 'No renewal requests yet.'}</p>}
+        {visibleLeads.length === 0 && !(session.role === 'Guarantor' && tab === 'new') && <p className="p-8 text-center text-sm text-soft">{tab === 'new' ? (isManager ? (stage === 'assigned' ? 'No assigned leads.' : stage === 'partial' ? 'No partially verified leads.' : stage === 'completed' ? 'No completed leads.' : 'No new leads.') : 'No new leads.') : 'No renewal requests yet.'}</p>}
         <div className="px-5 pb-4"><Pager page={page} totalPages={totalPages} total={totalLeads} noun="leads" pageSize={LEADS_PAGE} onPage={setPage} /></div>
         {session.role === 'Guarantor' && tab === 'new' ? (
           // Guarantor: two tabs side by side. "Not completed" = waiting for the agent; "Completed" = the agent has finished the verification

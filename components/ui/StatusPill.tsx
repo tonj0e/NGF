@@ -4,6 +4,7 @@ const COLORS: Record<string, string> = {
   'Agent Assigned': 'bg-indigo-50 text-indigo-700',
   'Verification In Progress': 'bg-purple-50 text-purple-700',
   'Verification Submitted': 'bg-cyan-50 text-cyan-700',
+  'Partially Verified': 'bg-orange-50 text-orange-700',
   Approved: 'bg-green-50 text-green-700',
   Rejected: 'bg-red-50 text-red-700',
   Returned: 'bg-amber-50 text-amber-700',

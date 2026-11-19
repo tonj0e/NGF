@@ -16,7 +16,8 @@ Statuses in the order the code uses them (enum `lead_status`, `supabase_schema.s
 |---|---|---|
 | Pending | Guarantor submits | `POST /api/leads` (`app/api/leads/route.ts:76`) |
 | Agent Assigned | Admin/Staff `assignAgent` (also "Request Reverification") | `app/api/leads/[leadId]/route.ts:60`, `:200` |
-| Verification Submitted | NGF AGENT `submitVerification` | `[leadId]/route.ts:84` |
+| Partially Verified | NGF AGENT `submitPartialVerification` (customer not at home; added 2026-11-20) | `[leadId]/route.ts` |
+| Verification Submitted | NGF AGENT `submitVerification`, or Admin/Staff `completeVerification` of a Partially Verified lead | `[leadId]/route.ts` |
 | Approved | Branch approver or Admin approves. **Now means "waiting to be disbursed"** (OTP checked) | `adminReview` |
 | Converted | **Mark disbursed**: end of `approveLoan` / `approveRenewal` | `[leadId]/route.ts` action `disburse` |
 | Rejected | Admin/Staff reject, or auto-reject at creation | `[leadId]/route.ts:196`, `leads/route.ts:109` |
@@ -28,6 +29,8 @@ Statuses in the order the code uses them (enum `lead_status`, `supabase_schema.s
 | Submit lead | Guarantor | `SubmitLeadPage.tsx` (button "+ New Lead" in `LeadsPage.tsx`) | `POST /api/leads` |
 | Assign agent | Admin, Staff | `LeadsPage.tsx` | `PATCH /api/leads/:id` action `assignAgent` |
 | Verify | NGF AGENT | `VerificationsPage.tsx` | action `submitVerification` |
+| Partial verify (customer not at home) | NGF AGENT | `VerificationsPage.tsx` | action `submitPartialVerification` |
+| Complete a partial verification | Admin, Staff (`leadsEdit`, own branch) | `LeadsPage.tsx` > `CompleteVerificationForm.tsx` | action `completeVerification` |
 | Approve / reject / reverify | Admin, Staff | `LeadsPage.tsx` | action `adminReview` |
 | Delete lead | Admin, Staff | `LeadsPage.tsx` | `DELETE /api/leads/:id` |
 
@@ -83,3 +86,12 @@ Statuses in the order the code uses them (enum `lead_status`, `supabase_schema.s
 
 ## Returned leads (2026-11-09)
 New lead status **Returned** (database enum `lead_status`, columns `leads.return_reason`, `returned_at`, `returned_by`; migration `20261109130000_lead_returned.sql`). It is set by the planner's Return button on Verification Routes (see [[Verification Day Routes]]) when a customer cannot or does not want to continue yet. Guarantor: the Leads page, In Progress tab, has a third part **Returned** next to Not completed and Completed, each card showing "Returned by the office" and the reason. Office: Returned leads are left out of New leads (all three parts) and appear in History. Returned leads cannot be assigned an agent (`/api/leads/[leadId]` assign guard). A returned lead is not re-opened automatically: the guarantor sends a new lead when the customer is ready.
+
+## Partial verification (2026-11-20)
+The agent visits, the customer is not at home, the agent cannot come back. Full design: [[Verification and Documents#Partial verification (2026-11-20)]].
+- New status **Partially Verified** (enum `lead_status`, migration `20261120100000_lead_partially_verified_status.sql`), set by the agent's `submitPartialVerification`. Columns `partial_verified_at/_by`, `office_completed_at/_by` (migration `20261120100100_lead_partial_verification_columns.sql`).
+- Leads page, New leads: a fourth part **Partially verified** between Assigned and Completed (`&stage=partial`; badge `stagePartial` from `lead_badge_counts`, migration `20261120100200_lead_badge_counts_partial.sql`, which also stops counting these leads under "New leads"). Rows show an amber note and a **Complete verification** button (Admin, or Staff with `leadsEdit`), plus Reject (and "Send the agent again" = Request Reverification in the detail view) for `leadsApprove`.
+- Office completion makes the lead **Verification Submitted**, so the normal approval and disbursement follow unchanged.
+- Counted as an open lead for the same-Aadhaar duplicate check at lead creation. Guarantor: stays under "Not completed" with the note "bring the customer to the office".
+- Oreo: `businessCounts().leads.partiallyVerifiedOfficeToComplete`; the leads topics count it as still in progress.
+- `lib/config.ts` `LEAD_STATUSES` lists it (sent to the browser at sign-in).

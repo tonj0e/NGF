@@ -553,7 +553,7 @@ function RouteCard({ r, board, date, busy, session, act, startOpen }: {
               <span className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ${s.kind === 'waypoint' && !s.done ? 'bg-violet-600' : 'bg-ink'}`}>{i + 1}</span>
               <div className="min-w-0 flex-1">
                 {s.kind === 'waypoint' && <p className="text-[10px] font-bold uppercase tracking-wider text-violet-700">Subroute{s.forCustomer ? ` · for ${s.forCustomer}` : ''}</p>}
-                <p className="text-sm font-semibold">{s.customerName} {s.done && <span className="ml-1 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-bold text-green-700">{s.visitStatus === 'Absent' ? 'ABSENT' : 'DONE'}</span>}</p>
+                <p className="text-sm font-semibold">{s.customerName} {s.done && <span className="ml-1 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-bold text-green-700">{s.visitStatus === 'Absent' ? 'ABSENT' : s.status === 'Partially Verified' ? 'PARTIAL' : 'DONE'}</span>}</p>
                 <p className="text-xs text-soft">{s.visitPlace || s.place}{s.visitWindow && <> · <span className="font-semibold text-violet-700">{s.visitWindow}</span></>}</p>
                 {s.legKm != null && <p className="text-xs text-soft">{i === 0 ? 'From start' : 'From previous'}: {s.legKm} km · {hm(s.legMin)}</p>}
                 {s.visitStatus && !s.done && <p className="text-xs font-semibold text-blue-700">{s.visitStatus}</p>}

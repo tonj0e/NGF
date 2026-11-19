@@ -110,6 +110,15 @@ export const submitVerificationSchema = z.object({
   chequePhoto: z.string().optional(),
 })
 
+// Partial verification (customer not at home): the same boxes as the full form, but risk level, recommendation, name and
+// phone may be left empty (the lead keeps what it has). House photo, landmark photo and home location are checked in the route.
+export const partialVerificationSchema = submitVerificationSchema.extend({
+  recommendationStatus: z.enum(['Verified', 'Suspicious', 'Rejected Recommendation']).optional().or(z.literal('')),
+  riskLevel: z.enum(['Low', 'Medium', 'High']).optional().or(z.literal('')),
+  customerName: z.string().optional(),
+  phone: z.string().min(10).optional().or(z.literal('')),
+})
+
 export const adminReviewSchema = z.object({
   action: z.literal('adminReview'),
   decision: z.enum(['Approve Loan', 'Reject Lead', 'Request Reverification']),

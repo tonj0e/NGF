@@ -176,6 +176,7 @@ export default function MyRoutePage({ session, active = true }: { session: Sessi
                   </p>
                   {s.visitNote && <p className="mt-1 rounded-xl bg-amber-50 px-3 py-1.5 text-xs text-amber-900">{s.visitNote}</p>}
                   {s.visitStatus && <p className="mt-1 text-xs font-semibold text-blue-700">{s.visitStatus === 'Absent' ? 'Customer was not at home' : s.visitStatus}</p>}
+                  {s.status === 'Partially Verified' && <p className="mt-1 text-xs font-semibold text-amber-700">Partially verified: the office completes it when the customer comes in</p>}
                 </div>
               </div>
               {s.kind === 'waypoint' && !s.done && (

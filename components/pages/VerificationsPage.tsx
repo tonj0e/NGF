@@ -5,8 +5,8 @@ import { useNetworkLight, NetworkLight } from '@/components/agent/NetworkLight'
 import OtpPanel, { OtpState } from './OtpPanel'
 import { Session, Lead, AgentTrip } from '@/types'
 import { saveDraft, loadDraft, deleteDraft, draftLeadIds } from '@/lib/verificationDraft'
-
-const MAX_BYTES = 1 * 1024 * 1024 // 1 MB
+import { hasHomeLocation, partialMissing } from '@/lib/partialVerification'
+import { fileToPayload } from '@/lib/imageCompress'
 
 function getDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371
@@ -17,56 +17,6 @@ function getDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): 
     Math.sin(dLon / 2) * Math.sin(dLon / 2)
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
   return R * c
-}
-
-async function compressImage(file: File): Promise<File> {
-  if (file.size <= MAX_BYTES) return file
-  return new Promise((resolve) => {
-    const img = new Image()
-    const url = URL.createObjectURL(file)
-    img.onload = () => {
-      URL.revokeObjectURL(url)
-      const canvas = document.createElement('canvas')
-      let { width, height } = img
-      // Scale down if image is very large
-      const MAX_DIM = 1920
-      if (width > MAX_DIM || height > MAX_DIM) {
-        const ratio = Math.min(MAX_DIM / width, MAX_DIM / height)
-        width = Math.round(width * ratio)
-        height = Math.round(height * ratio)
-      }
-      canvas.width = width
-      canvas.height = height
-      canvas.getContext('2d')!.drawImage(img, 0, 0, width, height)
-      // Binary search for highest quality that fits under 1MB
-      let lo = 0.1, hi = 0.92, best = ''
-      for (let i = 0; i < 8; i++) {
-        const mid = (lo + hi) / 2
-        const data = canvas.toDataURL('image/jpeg', mid)
-        const bytes = Math.round((data.length - 22) * 3 / 4)
-        if (bytes <= MAX_BYTES) { best = data; lo = mid } else { hi = mid }
-      }
-      if (!best) best = canvas.toDataURL('image/jpeg', 0.1)
-      // Convert base64 back to File
-      const arr = best.split(','), mime = 'image/jpeg'
-      const bstr = atob(arr[1])
-      const n = bstr.length
-      const u8 = new Uint8Array(n)
-      for (let i = 0; i < n; i++) u8[i] = bstr.charCodeAt(i)
-      const compressed = new File([u8], file.name.replace(/\.[^.]+$/, '.jpg'), { type: mime })
-      resolve(compressed)
-    }
-    img.src = url
-  })
-}
-
-async function fileToPayload(file: File) {
-  const processed = await compressImage(file)
-  return new Promise<string>((resolve) => {
-    const r = new FileReader()
-    r.onload = () => resolve(r.result as string)
-    r.readAsDataURL(processed)
-  })
 }
 
 const PHOTO_FIELDS = [
@@ -151,6 +101,12 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
   const restoring = useRef(false)
   const pendingRef = useRef(false)          // the agent chose "Submit later" for this draft
   const [weakAsk, setWeakAsk] = useState(false)
+  const [locOk, setLocOk] = useState(false)   // a home location is in the form (Locate pressed or a Maps link pasted): needed for a partial verification
+  function checkLoc() {
+    const f = formRef.current
+    const g = (k: string) => (f?.elements.namedItem(k) as HTMLInputElement | null)?.value || ''
+    setLocOk(!!f && hasHomeLocation(g('gpsCoordinates'), g('mapsLink')))
+  }
   useEffect(() => { draftLeadIds(session.userId).then(setDrafts) }, [session.userId, active])
 
   // keep what the agent has typed and chosen on this phone until the server has it
@@ -192,6 +148,7 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
         setDraftSaved(d.updated)
         pendingRef.current = !!d.pending
       }
+      checkLoc()
       restoring.current = false
     })
     return () => { dead = true; restoring.current = false }
@@ -328,12 +285,29 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
 
   async function submit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault()
+    await send('full')
+  }
+
+  // the three things a partial verification needs (customer not at home): house photo, landmark photo, home location
+  const hasHouse = !!photoFiles.housePhoto || !!active?.housePhotoUrl, hasLandmark = !!photoFiles.landmarkPhoto || !!active?.landmarkPhotoUrl
+  const partialReady = !!active && hasHouse && hasLandmark && locOk
+
+  // full: the normal verification (form rules + customer OTP). partial: customer not at home; no OTP, risk / recommendation optional.
+  async function send(kind: 'full' | 'partial') {
+    const f = formRef.current
+    if (!f || !active) return
+    if (kind === 'partial') {
+      checkLoc()
+      const g0 = (k: string) => (f.elements.namedItem(k) as HTMLInputElement)?.value || ''
+      const left = partialMissing({ housePhoto: hasHouse, landmarkPhoto: hasLandmark, gpsCoordinates: g0('gpsCoordinates'), mapsLink: g0('mapsLink') })
+      if (left.length) { showToast(`For a partial verification add the ${left.join(', ')}.`, 6000); return }
+      if (!confirm('Submit a PARTIAL verification? The customer was not at home: the house, landmark and location are sent now, and the office completes the rest when the customer comes in. You will not need to come back.')) return
+    }
     if (net.level === 'poor' || net.level === 'offline') { setWeakAsk(true); return }   // a red light: do not even try, offer "Submit later"
     setSubmitting(true)
-    const f = e.currentTarget
     const g = (k: string) => (f.elements.namedItem(k) as HTMLInputElement)?.value || ''
     const payload: any = {
-      action: 'submitVerification',
+      action: kind === 'partial' ? 'submitPartialVerification' : 'submitVerification',
       recommendationStatus: g('recommendationStatus'),
       riskLevel: g('riskLevel'),
       riskNotes: g('riskNotes'),
@@ -368,7 +342,7 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
       })
       const json = await res.json()
       if (json.success) {
-        showToast('Verification submitted.')
+        showToast(kind === 'partial' ? 'Partial verification submitted. The office completes the rest.' : 'Verification submitted.')
         if (saveTimer.current) { clearTimeout(saveTimer.current); saveTimer.current = null }
         restoring.current = true
         await deleteDraft(session.userId, active!.leadId)
@@ -461,7 +435,7 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
               </div>
             </div>
           </div>
-          <form ref={formRef} onSubmit={submit} onInput={saveSoon} onChange={saveSoon} className="space-y-8 p-6">
+          <form ref={formRef} onSubmit={submit} onInput={() => { saveSoon(); checkLoc() }} onChange={() => { saveSoon(); checkLoc() }} className="space-y-8 p-6">
             <section>
               <p className="mb-4 text-xs font-semibold uppercase tracking-wider text-soft">Borrower Details</p>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -569,6 +543,20 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
               </div>
               <button type="submit" disabled={submitting || !(otpState.verified || otpState.overridden)} title={otpState.verified || otpState.overridden ? '' : 'Verify the customer OTP first'} className="rounded-2xl bg-ink px-6 py-3 text-sm font-semibold text-white disabled:opacity-40">
                 {submitting ? 'Sending… keep this screen open' : otpState.verified || otpState.overridden ? 'Submit Verification' : 'Verify OTP to submit'}
+              </button>
+            </div>
+            {/* Customer not at home: a separate, partial submit (no OTP). The office completes the rest when the customer comes in. */}
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+              <p className="text-sm font-semibold text-amber-900">Customer not at home?</p>
+              <p className="mt-1 text-xs text-amber-900">Take the house photo and the landmark photo and press Locate (or paste the Maps link), then submit a partial verification. No OTP is needed. The office completes the rest when the customer comes in; you do not come back.</p>
+              <ul className="mt-2 space-y-0.5 text-xs">
+                {([['House photo', hasHouse], ['Landmark photo', hasLandmark], ['Home location', locOk]] as const).map(([label, done]) => (
+                  <li key={label} className={done ? 'font-semibold text-green-700' : 'text-amber-800'}>{done ? '✓' : '○'} {label}</li>
+                ))}
+              </ul>
+              <button type="button" onClick={() => send('partial')} disabled={submitting || !partialReady}
+                className="mt-3 w-full rounded-2xl border border-amber-400 bg-white px-4 py-3 text-sm font-semibold text-amber-900 disabled:opacity-40 sm:w-auto">
+                {submitting ? 'Sending… keep this screen open' : 'Submit partial verification'}
               </button>
             </div>
           </form>

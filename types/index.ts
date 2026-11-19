@@ -75,6 +75,10 @@ export interface Lead {
   otpOverrideReason?: string
   approvedAt?: string | null
   disbursedAt?: string | null
+  accountHolder?: string
+  passbookPhotoUrl?: string
+  partialVerifiedAt?: string | null   // the agent submitted a partial verification (customer not at home)
+  officeCompletedAt?: string | null   // the office completed that partial verification
 }
 
 export interface Customer {

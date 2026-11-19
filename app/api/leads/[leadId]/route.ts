@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { makePayNumber, freeLoanId, payNumberOfCustomer } from '@/lib/payNumber'
 import { apiHandler, requireRole, ok, err, getSession } from '@/lib/api'
 import { checkUploadRate } from '@/lib/uploadRate'
@@ -7,7 +7,7 @@ import { lead as leadKeys } from '@/lib/features'
 import { readTable, selectRows, selectAll, countRows, getRowById, updateById, appendRow, deleteRow, findRecord, makeId, nowIso, formatDateYmd, addDays, deleteById, invalidateCache, getSupabase } from '@/lib/supabase-db'
 import { uploadLeadPhoto, listFolderFiles, driveUrl, getLeadDocFolder, docLabel, renameLeadDocs } from '@/lib/drive'
 import { notifyUser, notifyRole } from '@/lib/notifications'
-import { validateBody, submitVerificationSchema, adminReviewSchema, assignAgentSchema, updateLeadSchema, tripSchema } from '@/lib/validation'
+import { validateBody, submitVerificationSchema, partialVerificationSchema, adminReviewSchema, assignAgentSchema, updateLeadSchema, tripSchema } from '@/lib/validation'
 import { FilePayload } from '@/types'
 import { payCodeFromLoanId } from '@/lib/payCode'
 import { bankIssues, normAccount, normIfsc, normName } from '@/lib/bankFile'
@@ -19,14 +19,94 @@ import { checkRenewalEligibility, customerForRenewalLead } from '@/lib/renewalRu
 import { normalizeIndianMobile } from '@/lib/phone'
 import { notifyBranchOfLead } from '@/lib/routes'
 import { reportError } from '@/lib/monitor'
+import { PARTIAL_STATUS, agentVisitBlock, officeCompleteBlock, partialMissing, visitOtpBlock, parseVisitNotes } from '@/lib/partialVerification'
 
 const OTP_FRESH_MS = 60 * 60 * 1000          // a renewal OTP stays valid for approval for 1 hour
-const OTP_VISIT_FRESH_MS = 12 * 60 * 60 * 1000  // an agent's visit OTP stays valid for submitting for 12 hours
+// (an agent's visit OTP stays valid for submitting for 12 hours: visitOtpBlock in lib/partialVerification.ts)
 
 function toPayload(b64: string, filename: string): FilePayload {
   const [header, data] = b64.split(',')
   const mimeType = header.match(/:(.*?);/)?.[1] || 'image/jpeg'
   return { fileName: filename, mimeType, base64Data: data }
+}
+
+// ─── Shared by the agent's full and partial verification and the office completion ──────────────────────────────
+type VisitBody = { [k: string]: string | undefined }
+
+// Bank details are what the loan money is paid into: a verified lead must have a valid account and name; anything typed must be valid.
+// The IFSC code is optional here and any value is accepted (owner, 2026-11-20): staff correct it before the bank file, which still checks it.
+function visitBankBlock(body: VisitBody, lead: Record<string, string>): string | null {
+  const acc = body.accountNumber || lead['Account Number'] || '', ifsc = body.ifscCode || lead['IFSC Code'] || '', holder = body.accountHolder || lead['Account Holder'] || ''
+  const provided = !!(body.accountNumber || body.accountHolder)
+  if (body.recommendationStatus === 'Verified' || provided) {
+    const issues = bankIssues({ ifsc, account: acc, name: holder }, { checkIfsc: false })
+    if (issues.length) return `Bank details: ${issues.join('. ')}`
+  }
+  return null
+}
+
+// If the Drive folder doesn't exist yet (lead submitted without photos), create it now
+async function ensureDocFolder(lead: Record<string, string>, leadId: string): Promise<string> {
+  let folderId = lead['Document Folder ID']
+  if (!folderId) {
+    const g = await getRowById('Guarantors', lead['Guarantor ID'])
+    const guarantorCode = g?.['Code'] || 'NGF'
+    folderId = await getLeadDocFolder(guarantorCode, lead['Customer Name'], leadId)
+    await updateById('Leads', leadId, { 'Document Folder ID': folderId, 'Updated At': nowIso() })
+    invalidateCache('Leads')
+  }
+  return folderId
+}
+
+// body key, Drive file prefix, upload file name, lead column (upload order as before)
+const VISIT_PHOTOS = [
+  ['customerPhoto', 'customer', 'customer_lead.jpg', 'Customer Photo URL'],
+  ['housePhoto', 'house', 'house_lead.jpg', 'House Photo URL'],
+  ['landmarkPhoto', 'landmark', 'landmark_lead.jpg', 'Landmark Photo URL'],
+  ['chequePhoto', 'cheque', 'cheque_lead.jpg', 'Cheque Photo URL'],
+  ['passbookPhoto', 'passbook', 'passbook_lead.jpg', 'Passbook Photo URL'],
+  ['aadhaarFront', 'aadhaar_front', 'aadhaar_front_lead.jpg', 'Aadhaar Front URL'],
+  ['aadhaarBack', 'aadhaar_back', 'aadhaar_back_lead.jpg', 'Aadhaar Back URL'],
+] as const
+
+// Uploads the photos that were sent; returns every photo column (new link, or the one the lead already has), or an error response.
+async function uploadVisitPhotos(userId: string, lead: Record<string, string>, leadId: string, folderId: string, body: VisitBody, label: string): Promise<Record<string, string> | NextResponse> {
+  const urls: Record<string, string> = {}
+  for (const [, , , col] of VISIT_PHOTOS) urls[col] = lead[col]
+  if (VISIT_PHOTOS.some(([k]) => body[k])) {
+    try { checkUploadRate(userId) } catch (e) { return err(e instanceof Error ? e.message : 'Too many uploads') }
+  }
+  try {
+    for (const [k, prefix, file, col] of VISIT_PHOTOS) {
+      const b64 = body[k]
+      if (b64) urls[col] = await uploadLeadPhoto(folderId, prefix, toPayload(b64, file), docLabel(lead['Customer Name'], leadId))
+    }
+  } catch (uploadError) {
+    reportError(`${label}: Photo upload failed`, uploadError)
+    return err(`Photo upload failed: ${uploadError instanceof Error ? uploadError.message : 'Unknown error'}`)
+  }
+  return urls
+}
+
+// The customer boxes of the verification form: a box left empty keeps what the lead has
+function visitFields(body: VisitBody, lead: Record<string, string>) {
+  return {
+    'Customer Name': body.customerName || lead['Customer Name'],
+    'Phone': body.phone || lead['Phone'],
+    'Aadhaar No': body.aadhaarNo || lead['Aadhaar No'],
+    'Address': body.address || lead['Address'],
+    'Place': body.place || lead['Place'],
+    'House Name': body.houseName || lead['House Name'],
+    'Landmark': body.landmark || lead['Landmark'],
+    'Nominee Name': body.nomineeName || lead['Nominee Name'],
+    'Nominee Phone': body.nomineePhone || lead['Nominee Phone'],
+    'Occupation': body.occupation || lead['Occupation'],
+    'PAN No': body.panNo || lead['PAN No'],
+    'Cheque Number': body.chequeNumber || lead['Cheque Number'],
+    'Account Number': body.accountNumber ? normAccount(body.accountNumber) : lead['Account Number'],
+    'IFSC Code': body.ifscCode ? normIfsc(body.ifscCode) : lead['IFSC Code'],
+    'Account Holder': body.accountHolder ? normName(body.accountHolder) : lead['Account Holder'],
+  }
 }
 
 // Staff may only touch leads of their own branch(es); Admin any
@@ -138,61 +218,20 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
     if (!lead) return err('Lead not found')
     // Only the agent the lead is assigned to may verify it, and only while it is waiting for verification
     const myAgent = (await selectRows('Agents', qb => qb.eq('user_id', session.userId).limit(1))).rows[0]
-    if (!myAgent || lead['Assigned Agent ID'] !== myAgent['Agent ID']) return err('No permission', 403)
-    if (lead['Status'] !== 'Agent Assigned') return err('This lead is not waiting for verification')
+    const blocked = agentVisitBlock({ status: lead['Status'], assignedAgentId: lead['Assigned Agent ID'], myAgentId: myAgent?.['Agent ID'] })
+    if (blocked) return err(blocked.error, blocked.status)
     // The customer's OTP (sent to their phone while the agent is at the house) must be verified first, or overridden with a reason.
-    const visitPhone = normalizeIndianMobile(body.phone || lead['Phone'])
-    const otpFresh = !!lead['Otp Verified At'] && Date.now() - Date.parse(lead['Otp Verified At']) < OTP_VISIT_FRESH_MS
-    if (otpFresh) {
-      if (!visitPhone || lead['Otp Phone'] !== visitPhone) return err('The phone number was changed after the OTP was verified. Verify the OTP again for the new number.')
-    } else if (!lead['Otp Override Reason']) {
-      return err('Customer OTP is required: ask the customer for the code sent to their phone, or record why it could not be done.')
-    }
-    let folderId = lead['Document Folder ID']
-    let customerPhotoUrl = lead['Customer Photo URL']
-    let housePhotoUrl = lead['House Photo URL']
-    let landmarkPhotoUrl = lead['Landmark Photo URL']
-    let chequePhotoUrl = lead['Cheque Photo URL']
-    let aadhaarFrontUrl = lead['Aadhaar Front URL']
-    let aadhaarBackUrl = lead['Aadhaar Back URL']
-    let passbookPhotoUrl = lead['Passbook Photo URL']
+    const otpError = visitOtpBlock({ otpVerifiedAt: lead['Otp Verified At'], otpPhone: lead['Otp Phone'], overrideReason: lead['Otp Override Reason'], phone: normalizeIndianMobile(body.phone || lead['Phone']) })
+    if (otpError) return err(otpError)
 
     // Bank details are what the loan money is paid into: a verified lead must have a valid account and name; anything typed must be valid.
     // The IFSC code is optional here and any value is accepted (owner, 2026-11-20): staff correct it before the bank file, which still checks it.
-    {
-      const acc = body.accountNumber || lead['Account Number'] || '', ifsc = body.ifscCode || lead['IFSC Code'] || '', holder = body.accountHolder || lead['Account Holder'] || ''
-      const provided = !!(body.accountNumber || body.accountHolder)
-      if (body.recommendationStatus === 'Verified' || provided) {
-        const issues = bankIssues({ ifsc, account: acc, name: holder }, { checkIfsc: false })
-        if (issues.length) return err(`Bank details: ${issues.join('. ')}`)
-      }
-    }
+    const bankError = visitBankBlock(body, lead)
+    if (bankError) return err(bankError)
 
-    // If folder doesn't exist yet (lead submitted without photos), create it now
-    if (!folderId) {
-      const g = await getRowById('Guarantors', lead['Guarantor ID'])
-      const guarantorCode = g?.['Code'] || 'NGF'
-      folderId = await getLeadDocFolder(guarantorCode, lead['Customer Name'], leadId)
-      await updateById('Leads', leadId, { 'Document Folder ID': folderId, 'Updated At': nowIso() })
-      invalidateCache('Leads')
-    }
-
-    // Upload photos with error handling
-    if (body.customerPhoto || body.housePhoto || body.landmarkPhoto || body.chequePhoto || body.aadhaarFront || body.aadhaarBack || body.passbookPhoto) {
-    try { checkUploadRate(session.userId) } catch (e) { return err(e instanceof Error ? e.message : 'Too many uploads') }
-    }
-    try {
-      if (body.customerPhoto) customerPhotoUrl = await uploadLeadPhoto(folderId, 'customer', toPayload(body.customerPhoto, 'customer_lead.jpg'), docLabel(lead['Customer Name'], leadId))
-      if (body.housePhoto) housePhotoUrl = await uploadLeadPhoto(folderId, 'house', toPayload(body.housePhoto, 'house_lead.jpg'), docLabel(lead['Customer Name'], leadId))
-      if (body.landmarkPhoto) landmarkPhotoUrl = await uploadLeadPhoto(folderId, 'landmark', toPayload(body.landmarkPhoto, 'landmark_lead.jpg'), docLabel(lead['Customer Name'], leadId))
-      if (body.chequePhoto) chequePhotoUrl = await uploadLeadPhoto(folderId, 'cheque', toPayload(body.chequePhoto, 'cheque_lead.jpg'), docLabel(lead['Customer Name'], leadId))
-      if (body.passbookPhoto) passbookPhotoUrl = await uploadLeadPhoto(folderId, 'passbook', toPayload(body.passbookPhoto, 'passbook_lead.jpg'), docLabel(lead['Customer Name'], leadId))
-      if (body.aadhaarFront) aadhaarFrontUrl = await uploadLeadPhoto(folderId, 'aadhaar_front', toPayload(body.aadhaarFront, 'aadhaar_front_lead.jpg'), docLabel(lead['Customer Name'], leadId))
-      if (body.aadhaarBack) aadhaarBackUrl = await uploadLeadPhoto(folderId, 'aadhaar_back', toPayload(body.aadhaarBack, 'aadhaar_back_lead.jpg'), docLabel(lead['Customer Name'], leadId))
-    } catch (uploadError) {
-      reportError('submitVerification: Photo upload failed', uploadError)
-      return err(`Photo upload failed: ${uploadError instanceof Error ? uploadError.message : 'Unknown error'}`)
-    }
+    const folderId = await ensureDocFolder(lead, leadId)
+    const photos = await uploadVisitPhotos(session.userId, lead, leadId, folderId, body, 'submitVerification')
+    if (photos instanceof NextResponse) return photos
 
     const notes = JSON.stringify({ riskNotes: body.riskNotes || '', gpsCoordinates: body.gpsCoordinates || '', mapsLink: body.mapsLink || '' })
     try {
@@ -202,28 +241,8 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
         'Recommendation Status': body.recommendationStatus || '',
         'Risk Level': body.riskLevel || lead['Risk Level'],
         'Status': 'Verification Submitted',
-        'Customer Name': body.customerName || lead['Customer Name'],
-        'Phone': body.phone || lead['Phone'],
-        'Aadhaar No': body.aadhaarNo || lead['Aadhaar No'],
-        'Address': body.address || lead['Address'],
-        'Place': body.place || lead['Place'],
-        'House Name': body.houseName || lead['House Name'],
-        'Landmark': body.landmark || lead['Landmark'],
-        'Nominee Name': body.nomineeName || lead['Nominee Name'],
-        'Nominee Phone': body.nomineePhone || lead['Nominee Phone'],
-        'Occupation': body.occupation || lead['Occupation'],
-        'PAN No': body.panNo || lead['PAN No'],
-        'Cheque Number': body.chequeNumber || lead['Cheque Number'],
-        'Account Number': body.accountNumber ? normAccount(body.accountNumber) : lead['Account Number'],
-        'IFSC Code': body.ifscCode ? normIfsc(body.ifscCode) : lead['IFSC Code'],
-        'Account Holder': body.accountHolder ? normName(body.accountHolder) : lead['Account Holder'],
-        'Passbook Photo URL': passbookPhotoUrl,
-        'Customer Photo URL': customerPhotoUrl,
-        'House Photo URL': housePhotoUrl,
-        'Landmark Photo URL': landmarkPhotoUrl,
-        'Cheque Photo URL': chequePhotoUrl,
-        'Aadhaar Front URL': aadhaarFrontUrl,
-        'Aadhaar Back URL': aadhaarBackUrl,
+        ...visitFields(body, lead),
+        ...photos,
         'Updated At': nowIso(),
       })
       invalidateCache('Leads')
@@ -232,6 +251,130 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
       return ok({ success: true })
     } catch (dbError) {
       reportError('submitVerification: DB update failed', dbError)
+      return err(`Database update failed: ${dbError instanceof Error ? dbError.message : 'Unknown error'}`)
+    }
+  }
+
+  // Partial verification: the customer was not at home. The agent saves the house photo, the landmark photo and the home location
+  // (and anything else typed); no customer OTP. The lead becomes "Partially Verified": the visit counts as done on the agent's route,
+  // and the office completes the rest when the customer comes in (action completeVerification).
+  if (action === 'submitPartialVerification') {
+    const validation = partialVerificationSchema.safeParse(rawBody)
+    if (!validation.success) {
+      const errors = validation.error.issues.map(e => `${e.path.join('.')}: ${e.message}`).join('; ')
+      return err(errors, 400)
+    }
+    const body = validation.data
+
+    const session = await requireRole(req, ['NGF AGENT'])
+    const lead = await getRowById('Leads', leadId)
+    if (!lead) return err('Lead not found')
+    const myAgent = (await selectRows('Agents', qb => qb.eq('user_id', session.userId).limit(1))).rows[0]
+    const blocked = agentVisitBlock({ status: lead['Status'], assignedAgentId: lead['Assigned Agent ID'], myAgentId: myAgent?.['Agent ID'] })
+    if (blocked) return err(blocked.error, blocked.status)
+    if (lead['Loan Product'] === 'RENEWAL') return err('A renewal has no field verification')
+    const missing = partialMissing({
+      housePhoto: !!(body.housePhoto || lead['House Photo URL']), landmarkPhoto: !!(body.landmarkPhoto || lead['Landmark Photo URL']),
+      gpsCoordinates: body.gpsCoordinates, mapsLink: body.mapsLink,
+    })
+    if (missing.length) return err(`For a partial verification add the ${missing.join(', ')}.`)
+    if (body.phone && !normalizeIndianMobile(body.phone)) return err('Phone must be a valid 10-digit mobile number')
+    // bank details are optional here, but anything typed must be valid (IFSC optional, as in the full form)
+    if (body.accountNumber || body.accountHolder) {
+      const bankError = visitBankBlock(body, lead)
+      if (bankError) return err(bankError)
+    }
+
+    const folderId = await ensureDocFolder(lead, leadId)
+    const photos = await uploadVisitPhotos(session.userId, lead, leadId, folderId, body, 'submitPartialVerification')
+    if (photos instanceof NextResponse) return photos
+
+    const notes = JSON.stringify({ riskNotes: body.riskNotes || '', gpsCoordinates: body.gpsCoordinates || '', mapsLink: body.mapsLink || '' })
+    try {
+      await updateById('Leads', leadId, {
+        'Verification Notes': notes,
+        ...(body.recommendationStatus ? { 'Recommendation Status': body.recommendationStatus } : {}),
+        'Risk Level': body.riskLevel || lead['Risk Level'],
+        'Status': PARTIAL_STATUS,
+        'Partial Verified At': nowIso(),
+        'Partial Verified By': session.userId,
+        // the customer was not there: the office confirms the customer's OTP when they come in (an earlier code or override does not carry over)
+        'Otp Verified At': null, 'Otp Phone': null, 'Otp Override Reason': null, 'Otp Override By': null,
+        ...visitFields(body, lead),
+        ...photos,
+        'Updated At': nowIso(),
+      })
+      invalidateCache('Leads')
+      await createAuditLogger(req, session).log('LEAD_PARTIALLY_VERIFIED', 'Lead', leadId, { agent: myAgent?.['Agent ID'] || '' })
+      await notifyRole('Admin', 'Partially verified', `${lead['Customer Name']}: customer not at home. ${session.name} saved the house, landmark and location. Complete the verification when the customer comes to the office.`, 'Lead', leadId)
+      try { await notifyBranchOfLead(lead['Guarantor ID'], 'Partially verified', `${lead['Customer Name']}: customer was not at home. House, landmark and location saved by the agent. Complete the verification in the office (Leads > Partially verified).`, leadId) } catch (e) { reportError('Branch alert failed', e) }
+      return ok({ success: true })
+    } catch (dbError) {
+      reportError('submitPartialVerification: DB update failed', dbError)
+      return err(`Database update failed: ${dbError instanceof Error ? dbError.message : 'Unknown error'}`)
+    }
+  }
+
+  // The office completes a partial verification when the customer comes in: the same rules as the agent's full submit (risk level,
+  // recommendation, customer OTP or override, bank details), the agent's house / landmark photos and location are kept as they are.
+  // Admin, or Staff with the leads edit permission for leads of their own branch (same as the edit form). The lead becomes
+  // "Verification Submitted" and the normal approval follows.
+  if (action === 'completeVerification') {
+    const validation = submitVerificationSchema.safeParse(rawBody)
+    if (!validation.success) {
+      const errors = validation.error.issues.map(e => `${e.path.join('.')}: ${e.message}`).join('; ')
+      return err(errors, 400)
+    }
+    // the agent's house / landmark photos and location are read-only in the office
+    const { housePhoto: _h, landmarkPhoto: _l, gpsCoordinates: _g, mapsLink: _m, ...body } = validation.data
+    void _h; void _l; void _g; void _m
+
+    const session = await requireFeature(req, leadKeys('leadsEdit'))
+    const lead = await getRowById('Leads', leadId)
+    if (!lead) return err('Lead not found')
+    if (!(await staffMaySee(session, lead))) return err('This lead belongs to another branch', 403)
+    const blocked = officeCompleteBlock({ status: lead['Status'], loanProduct: lead['Loan Product'] })
+    if (blocked) return err(blocked)
+    const otpError = visitOtpBlock({ otpVerifiedAt: lead['Otp Verified At'], otpPhone: lead['Otp Phone'], overrideReason: lead['Otp Override Reason'], phone: normalizeIndianMobile(body.phone || lead['Phone']) })
+    if (otpError) return err(otpError)
+    const bankError = visitBankBlock(body, lead)
+    if (bankError) return err(bankError)
+
+    const folderId = await ensureDocFolder(lead, leadId)
+    const photos = await uploadVisitPhotos(session.userId, lead, leadId, folderId, body, 'completeVerification')
+    if (photos instanceof NextResponse) return photos
+
+    const agentNotes = parseVisitNotes(lead['Verification Notes'])
+    const notes = JSON.stringify({ riskNotes: body.riskNotes || '', gpsCoordinates: agentNotes.gpsCoordinates, mapsLink: agentNotes.mapsLink })
+    let claimed = false
+    try {
+      // only while it is still Partially Verified: two staff pressing at once cannot both complete it
+      const { data: claim, error: claimError } = await getSupabase().from('leads')
+        .update({ status: 'Verification Submitted', office_completed_by: session.userId, office_completed_at: nowIso() })
+        .eq('lead_id', leadId).eq('status', PARTIAL_STATUS).select('lead_id')
+      if (claimError) throw new Error(claimError.message)
+      if (!claim || claim.length === 0) return err('This lead is no longer waiting for the office to complete its verification')
+      claimed = true
+      await updateById('Leads', leadId, {
+        'Verification Notes': notes,
+        'Verification Submitted Date': nowIso().slice(0, 10),
+        'Recommendation Status': body.recommendationStatus || '',
+        'Risk Level': body.riskLevel || lead['Risk Level'],
+        ...visitFields(body, lead),
+        ...photos,
+        'Updated At': nowIso(),
+      })
+      invalidateCache('Leads')
+      await createAuditLogger(req, session).log('LEAD_VERIFICATION_COMPLETED_IN_OFFICE', 'Lead', leadId, { otp: lead['Otp Override Reason'] ? 'override' : 'verified' })
+      await notifyRole('Admin', 'Verification Submitted', `Verification for ${lead['Customer Name']} completed in the office by ${session.name}`, 'Lead', leadId)
+      try { await notifyBranchOfLead(lead['Guarantor ID'], 'Verification submitted', `${lead['Customer Name']}: verification completed in the office${lead['Otp Override Reason'] ? ' (OTP overridden: ' + lead['Otp Override Reason'] + ')' : ' (customer OTP confirmed)'}. Review and approve.`, leadId) } catch (e) { reportError('Branch alert failed', e) }
+      return ok({ success: true })
+    } catch (dbError) {
+      if (claimed) {   // the details were not saved: put the lead back so the office can try again
+        try { await getSupabase().from('leads').update({ status: PARTIAL_STATUS, office_completed_by: null, office_completed_at: null }).eq('lead_id', leadId) } catch { /* reported below */ }
+        invalidateCache('Leads')
+      }
+      reportError('completeVerification: DB update failed', dbError)
       return err(`Database update failed: ${dbError instanceof Error ? dbError.message : 'Unknown error'}`)
     }
   }
@@ -286,7 +429,8 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
       const g = await getRowById('Guarantors', lead['Guarantor ID'])
       if (g) await notifyUser(g['User ID'], 'Guarantor', 'Lead Rejected', `${lead['Customer Name']} has been rejected.`, 'Lead', leadId)
     } else if (decision === 'Request Reverification') {
-      if (lead['Loan Product'] === 'RENEWAL' || !['Verification Submitted', 'Approved'].includes(lead['Status']) || lead['Disbursed At']) return err('Re-verification is only possible for a new lead that is verified or approved and not yet disbursed')
+      // (a partially verified lead can also be sent back to an agent, e.g. when the customer will be at home after all)
+      if (lead['Loan Product'] === 'RENEWAL' || !['Verification Submitted', 'Approved', PARTIAL_STATUS].includes(lead['Status']) || lead['Disbursed At']) return err('Re-verification is only possible for a new lead that is verified or approved and not yet disbursed')
       // A new visit needs a fresh customer OTP
       await updateById('Leads', leadId, { 'Status': 'Agent Assigned', 'Admin Final Decision': notes || '', 'Otp Verified At': null, 'Otp Phone': null, 'Otp Override Reason': null, 'Otp Override By': null, 'Updated At': nowIso() })
       invalidateCache('Leads')

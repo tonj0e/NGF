@@ -8,13 +8,16 @@ import { createAuditLogger } from '@/lib/audit'
 import { normalizeIndianMobile, maskMobile } from '@/lib/phone'
 import { issueCustomerOtp, verifyCustomerOtp, recordSendResult, otpStatus, dailyCap, CUSTOMER_OTP_TTL_MS, CUSTOMER_OTP_COOLDOWN_MS, type OtpPurpose, type DenyReason } from '@/lib/customerOtp'
 import { sendCustomerOtp } from '@/lib/sms'
-import { getBranchAccess, branchOfGuarantor, canApproveIn, canOverrideIn, clientIp } from '@/lib/branchAccess'
+import { getBranchAccess, branchOfGuarantor, canApproveIn, canOverrideIn, canSeeBranch, clientIp } from '@/lib/branchAccess'
+import { needFeature } from '@/lib/access'
+import { lead as leadKeys } from '@/lib/features'
+import { PARTIAL_STATUS } from '@/lib/partialVerification'
 import { customerForRenewalLead } from '@/lib/renewalRules'
 import { isProductionEnv } from '@/lib/devOnly'
 import type { Session } from '@/types'
 
 // Customer OTP endpoint.
-//  purpose lead_verification: the field agent at the customer's house (new customer).
+//  purpose lead_verification: the field agent at the customer's house (new customer), or the office completing a partial verification.
 //  purpose renewal_approval:  branch staff on the phone with the customer (renewal).
 // Actions: request (send code), verify (check code), override (SMS failed / no signal: needs a written reason).
 
@@ -29,6 +32,14 @@ async function load(session: Session, purpose: OtpPurpose, leadId: string): Prom
   const branchId = await branchOfGuarantor(lead['Guarantor ID'])
 
   if (purpose === 'lead_verification') {
+    // A partially verified lead (customer was not at home) is completed in the office: Admin, or Staff with the leads edit
+    // permission for leads of their own branch. Overriding a failed OTP there needs the branch manager / assistant manager (or Admin).
+    if ((session.role === 'Admin' || session.role === 'Staff') && lead['Status'] === PARTIAL_STATUS) {
+      await needFeature(session, leadKeys('leadsEdit'))
+      const access = await getBranchAccess(session)
+      if (!canSeeBranch(access, branchId)) return { error: 'This lead belongs to another branch', status: 403 }
+      return { lead, phone: null, branchId, canOverride: canOverrideIn(access, branchId), customerName: lead['Customer Name'] }
+    }
     if (session.role !== 'NGF AGENT') return { error: 'Only the assigned field agent can verify a new customer', status: 403 }
     const agent = (await selectRows('Agents', qb => qb.eq('user_id', session.userId).limit(1))).rows[0]
     if (!agent || lead['Assigned Agent ID'] !== agent['Agent ID']) return { error: 'No permission', status: 403 }

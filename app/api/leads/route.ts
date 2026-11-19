@@ -30,7 +30,7 @@ async function badgeCounts(scope: Scope, agentId: string, returnedIsNew: boolean
     })
     const t = data as Record<string, unknown> | null
     if (!error && t && typeof t === 'object') {
-      return ['new', 'history', 'renewal', 'approved', 'stage_new', 'stage_assigned', 'stage_completed'].map(k => Number(t[k]) || 0)
+      return ['new', 'history', 'renewal', 'approved', 'stage_new', 'stage_assigned', 'stage_completed', 'stage_partial'].map(k => Number(t[k]) || 0)
     }
     badgeFnOffUntil = Date.now() + 10 * 60_000
   }
@@ -132,12 +132,14 @@ export const GET = apiHandler(async (req: NextRequest) => {
     t === 'new' ? qb.not('status', 'in', NOT_NEW).neq('loan_product', 'RENEWAL')
     : t === 'history' ? qb.in('status', ['Converted', 'Rejected', 'Returned']).neq('loan_product', 'RENEWAL')
     : t === 'renewal' ? qb.eq('loan_product', 'RENEWAL') : qb
-  // New Leads is split in three: not yet assigned, with an agent, and verified (waiting for the decision)
-  const STAGE_ASSIGNED = ['Agent Assigned', 'Verification In Progress'], STAGE_DONE = ['Verification Submitted', 'Approved']
+  // New Leads is split in four: not yet assigned, with an agent, partially verified (customer was not at home: the office
+  // completes it) and verified (waiting for the decision)
+  const STAGE_ASSIGNED = ['Agent Assigned', 'Verification In Progress'], STAGE_DONE = ['Verification Submitted', 'Approved'], STAGE_PARTIAL = ['Partially Verified']
   const inStage = (qb: any, s: string) =>
     s === 'assigned' ? qb.in('status', STAGE_ASSIGNED)
     : s === 'completed' ? qb.in('status', STAGE_DONE)
-    : s === 'new' ? qb.not('status', 'in', `(${['Converted', 'Rejected', 'Returned', ...STAGE_ASSIGNED, ...STAGE_DONE].join(',')})`) : qb
+    : s === 'partial' ? qb.in('status', STAGE_PARTIAL)
+    : s === 'new' ? qb.not('status', 'in', `(${['Converted', 'Rejected', 'Returned', ...STAGE_ASSIGNED, ...STAGE_DONE, ...STAGE_PARTIAL].join(',')})`) : qb
   const stage = tab === 'new' ? (searchParams.get('stage') || '') : ''
   const filters = (qb: any) => {
     let q = inTab(scoped(qb), tab)
@@ -172,7 +174,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
       countRows('Leads', qb => inTab(scoped(qb), 'new')), countRows('Leads', qb => inTab(scoped(qb), 'history')),
       countRows('Leads', qb => inTab(scoped(qb), 'renewal')), countRows('Leads', qb => scoped(qb).eq('status', 'Approved')),
       countRows('Leads', qb => inStage(inTab(scoped(qb), 'new'), 'new')), countRows('Leads', qb => inStage(inTab(scoped(qb), 'new'), 'assigned')),
-      countRows('Leads', qb => inStage(inTab(scoped(qb), 'new'), 'completed')),
+      countRows('Leads', qb => inStage(inTab(scoped(qb), 'new'), 'completed')), countRows('Leads', qb => inStage(inTab(scoped(qb), 'new'), 'partial')),
     ])) : null,
   ])
 
@@ -204,6 +206,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
       otpVerifiedAt: l['Otp Verified At'] || null, otpOverrideReason: l['Otp Override Reason'] || '',
       approvedAt: l['Approved At'] || null, disbursedAt: l['Disbursed At'] || null,
       returnReason: l['Return Reason'] || '', returnedAt: l['Returned At'] || null,
+      partialVerifiedAt: l['Partial Verified At'] || null, officeCompletedAt: l['Office Completed At'] || null,
     }
   })
 
@@ -215,7 +218,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
   return ok({
     rows: enriched,
     pagination: { page: r.page, pageSize: r.pageSize, total: r.total, totalPages: Math.ceil(r.total / r.pageSize) },
-    counts: counts ? { new: counts[0], history: counts[1], renewal: counts[2], approved: counts[3], stageNew: counts[4], stageAssigned: counts[5], stageCompleted: counts[6] } : null,
+    counts: counts ? { new: counts[0], history: counts[1], renewal: counts[2], approved: counts[3], stageNew: counts[4], stageAssigned: counts[5], stageCompleted: counts[6], stagePartial: counts[7] } : null,
     branches: visibleBranches,
   })
 })
@@ -272,7 +275,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
   const digits = (v: string) => String(v || '').replace(/\D/g, '')
   if (body.loanProduct !== 'RENEWAL' && digits(body.aadhaarNo || '').length === 12) {
     const sameAadhaarLeads = await selectAll('Leads', qb => qb.ilike('aadhaar_no', `%${digits(body.aadhaarNo || '').split('').join('%')}%`))
-    const open = sameAadhaarLeads.find(l => l['Loan Product'] !== 'RENEWAL' && digits(l['Aadhaar No']) === digits(body.aadhaarNo || '') && ['Pending', 'Agent Assigned', 'Verification Submitted', 'Approved'].includes(l['Status']))
+    const open = sameAadhaarLeads.find(l => l['Loan Product'] !== 'RENEWAL' && digits(l['Aadhaar No']) === digits(body.aadhaarNo || '') && ['Pending', 'Agent Assigned', 'Partially Verified', 'Verification Submitted', 'Approved'].includes(l['Status']))
     if (open) return err(`A lead for this Aadhaar is already in progress (${open['Customer Name']}, ${open['Status']}). Do not submit it twice.`)
   }
   // An existing customer (same Aadhaar, or same name + phone) must never become a silent, hidden lead: tell the person now and alert Admin

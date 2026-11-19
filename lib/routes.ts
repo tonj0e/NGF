@@ -19,7 +19,9 @@ const PLANNER_ROLES = ['manager', 'assistant_manager', 'accountant']
 const CALL_OUTCOMES = ['Reached', 'Not reachable', 'Call back later', 'Not answered']
 const REASONS = ['Not answering', 'No check', 'Not at home']
 const STOP_STATUSES = ['On the way', 'Reached', 'Absent']
-const DONE_LEAD_STATUSES = new Set(['Verification Submitted', 'Approved', 'Rejected', 'Converted'])
+// a finished visit: route stop done, its km counted, off the agent's pending list. 'Partially Verified' = the agent visited, the customer
+// was not at home, house / landmark / location saved; the office completes the rest, so the agent does not come back.
+const DONE_LEAD_STATUSES = new Set(['Verification Submitted', 'Partially Verified', 'Approved', 'Rejected', 'Converted'])
 
 export class RouteError extends Error {}
 
@@ -320,7 +322,7 @@ export async function board(session: Session, q: { branchId?: string; date?: str
 
   const sb = getSupabase()
   const [leadsRes, branches, guarantors, agentsRes, gbMap, plansRes, wpsRes] = await Promise.all([
-    sb.from('leads').select(LEAD_COLS).in('status', ['Pending', 'Under Review', 'Agent Assigned', 'Verification In Progress', 'Verification Submitted']),
+    sb.from('leads').select(LEAD_COLS).in('status', ['Pending', 'Under Review', 'Agent Assigned', 'Verification In Progress', 'Verification Submitted', 'Partially Verified']),
     readTable('Branches'), readTable('Guarantors'),
     sb.from('agents').select('agent_id, user_id, name, phone, status, branch_id, latitude, longitude, location_updated_at'),
     guarantorBranchMap(),
@@ -338,7 +340,7 @@ export async function board(session: Session, q: { branchId?: string; date?: str
   const leads = ((leadsRes.data || []) as LeadRow[]).filter(inScope)
 
   const toPlan = leads
-    .filter(l => (l.status === 'Pending' || l.status === 'Under Review') ? !l.assigned_agent_id || !l.visit_date : (!l.visit_date && l.status !== 'Verification Submitted'))
+    .filter(l => (l.status === 'Pending' || l.status === 'Under Review') ? !l.assigned_agent_id || !l.visit_date : (!l.visit_date && l.status !== 'Verification Submitted' && l.status !== 'Partially Verified'))
     .sort((x, y) => String(x.submitted_date || '').localeCompare(String(y.submitted_date || '')))
     .map(toStop)
 
@@ -380,7 +382,7 @@ export async function agentDay(session: Session, q: { agentId?: string; branchId
   const [agentRes, leadsRes, wpsRes, planRes, gbMap] = await Promise.all([
     sb.from('agents').select('agent_id, name, status, branch_id').eq('agent_id', agentId).maybeSingle(),
     sb.from('leads').select(LEAD_COLS).eq('assigned_agent_id', agentId).eq('visit_date', date)
-      .in('status', ['Pending', 'Under Review', 'Agent Assigned', 'Verification In Progress', 'Verification Submitted']),
+      .in('status', ['Pending', 'Under Review', 'Agent Assigned', 'Verification In Progress', 'Verification Submitted', 'Partially Verified']),
     sb.from('route_waypoints').select('*').eq('agent_id', agentId).eq('plan_date', date),
     sb.from('route_plans').select('*').eq('agent_id', agentId).eq('plan_date', date).maybeSingle(),
     session.role === 'Admin' && !q.branchId ? Promise.resolve(new Map<string, string>()) : guarantorBranchMap(),

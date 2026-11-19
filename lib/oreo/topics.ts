@@ -71,12 +71,12 @@ async function leadsFlow(kind: 'leads' | 'verification' | 'approval'): Promise<T
   const today = getTodayIST(), since = startUtc(addDaysIST(today, -30))
   const [gm, leads, agents, trips] = await Promise.all([
     guarantorMap(),
-    sb().from('leads').select('lead_id, customer_name, place, guarantor_id, status, assigned_agent_id, submitted_date, verification_submitted_date, updated_at').in('status', ['Pending', 'Agent Assigned', 'Verification In Progress', 'Verification Submitted', 'Returned']).order('submitted_date', { ascending: false }).limit(300),
+    sb().from('leads').select('lead_id, customer_name, place, guarantor_id, status, assigned_agent_id, submitted_date, verification_submitted_date, updated_at').in('status', ['Pending', 'Agent Assigned', 'Verification In Progress', 'Partially Verified', 'Verification Submitted', 'Returned']).order('submitted_date', { ascending: false }).limit(300),
     sb().from('agents').select('agent_id, name, agent_type, status').eq('status', 'Active'),
     sb().from('agent_trips').select('agent_id').gte('trip_date', addDaysIST(today, -6)).limit(2000),
   ])
   const L = leads.data || [], by = (s: string[]) => L.filter(l => s.includes(l.status as string))
-  const pend = by(['Pending']), prog = by(['Agent Assigned', 'Verification In Progress']), subm = by(['Verification Submitted']), ret = by(['Returned'])
+  const pend = by(['Pending']), prog = by(['Agent Assigned', 'Verification In Progress', 'Partially Verified']), subm = by(['Verification Submitted']), ret = by(['Returned'])   // partially verified counts as still in progress (the office completes it)
   const gname = (id: string) => gm.get(id)?.name || 'Guarantor'
   const days = (d?: string | null) => d ? Math.max(0, Math.round((Date.now() - new Date(d).getTime()) / 86400000)) : 0
   if (kind === 'leads') {
