@@ -100,6 +100,17 @@ body {
   .shadow-panel, .glass-panel { background-color: #ffffff; -webkit-backdrop-filter: none; backdrop-filter: none; }
 }
 
+/* A row of tabs or chips that scrolls sideways on a phone: it fades at the right edge so it is clear there is more. */
+@media (width < 40rem) {
+  .scroll-row {
+    -webkit-mask-image: linear-gradient(to right, #000 90%, transparent);
+    mask-image: linear-gradient(to right, #000 90%, transparent);
+    padding-right: 2.5rem;
+    scrollbar-width: none;
+  }
+  .scroll-row::-webkit-scrollbar { display: none; }
+}
+
 input:not([type="file"]):not([type="password"]):not([type="checkbox"]):not([data-no-upper]),
 textarea:not([data-no-upper]) {
   text-transform: uppercase;
@@ -212,6 +223,48 @@ html.ngf-dark {
   --color-emerald-700: color-mix(in srgb, var(--color-emerald-500) 55%, white);
   --color-emerald-800: color-mix(in srgb, var(--color-emerald-500) 42%, white);
   --color-emerald-900: color-mix(in srgb, var(--color-emerald-500) 30%, white);
+  --color-cyan-50: color-mix(in srgb, var(--color-cyan-500) 14%, #0b1220);
+  --color-cyan-100: color-mix(in srgb, var(--color-cyan-500) 22%, #0b1220);
+  --color-cyan-200: color-mix(in srgb, var(--color-cyan-500) 32%, #0b1220);
+  --color-cyan-300: color-mix(in srgb, var(--color-cyan-500) 45%, #0b1220);
+  --color-cyan-600: color-mix(in srgb, var(--color-cyan-500) 70%, white);
+  --color-cyan-700: color-mix(in srgb, var(--color-cyan-500) 55%, white);
+  --color-cyan-800: color-mix(in srgb, var(--color-cyan-500) 42%, white);
+  --color-cyan-900: color-mix(in srgb, var(--color-cyan-500) 30%, white);
+  --color-violet-50: color-mix(in srgb, var(--color-violet-500) 14%, #0b1220);
+  --color-violet-100: color-mix(in srgb, var(--color-violet-500) 22%, #0b1220);
+  --color-violet-200: color-mix(in srgb, var(--color-violet-500) 32%, #0b1220);
+  --color-violet-300: color-mix(in srgb, var(--color-violet-500) 45%, #0b1220);
+  --color-violet-600: color-mix(in srgb, var(--color-violet-500) 70%, white);
+  --color-violet-700: color-mix(in srgb, var(--color-violet-500) 55%, white);
+  --color-violet-800: color-mix(in srgb, var(--color-violet-500) 42%, white);
+  --color-violet-900: color-mix(in srgb, var(--color-violet-500) 30%, white);
+  --color-rose-50: color-mix(in srgb, var(--color-rose-500) 14%, #0b1220);
+  --color-rose-100: color-mix(in srgb, var(--color-rose-500) 22%, #0b1220);
+  --color-rose-200: color-mix(in srgb, var(--color-rose-500) 32%, #0b1220);
+  --color-rose-300: color-mix(in srgb, var(--color-rose-500) 45%, #0b1220);
+  --color-rose-600: color-mix(in srgb, var(--color-rose-500) 70%, white);
+  --color-rose-700: color-mix(in srgb, var(--color-rose-500) 55%, white);
+  --color-rose-800: color-mix(in srgb, var(--color-rose-500) 42%, white);
+  --color-rose-900: color-mix(in srgb, var(--color-rose-500) 30%, white);
+  --color-lime-50: color-mix(in srgb, var(--color-lime-500) 14%, #0b1220);
+  --color-lime-100: color-mix(in srgb, var(--color-lime-500) 22%, #0b1220);
+  --color-lime-200: color-mix(in srgb, var(--color-lime-500) 32%, #0b1220);
+  --color-lime-300: color-mix(in srgb, var(--color-lime-500) 45%, #0b1220);
+  --color-lime-600: color-mix(in srgb, var(--color-lime-500) 70%, white);
+  --color-lime-700: color-mix(in srgb, var(--color-lime-500) 55%, white);
+  --color-lime-800: color-mix(in srgb, var(--color-lime-500) 42%, white);
+  --color-lime-900: color-mix(in srgb, var(--color-lime-500) 30%, white);
+  --color-slate-50: #0e1524;
+  --color-slate-100: #141d30;
+  --color-slate-200: #1f2a42;
+  --color-slate-300: #2d3a57;
+  --color-slate-400: #6b7a93;
+  --color-slate-500: #8a97ad;
+  --color-slate-600: #a9b4c6;
+  --color-slate-700: #c3ccda;
+  --color-slate-800: #dbe1ec;
+  --color-slate-900: #eef1f7;
   --color-gray-50: #0e1524;
   --color-gray-100: #141d30;
   --color-gray-200: #1f2a42;

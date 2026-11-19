@@ -77,15 +77,15 @@ export default function OreoPage({ session, active = true }: { session: Session;
       </div>
       {error && <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px] xl:h-[calc(100vh-11rem)] xl:min-h-[640px]">
-        <div className="min-h-0 xl:h-full"><OreoMap data={data} onOpen={go} onAsk={setPrefill} active={active && view === 'oreo'} activity={activity} loadTopic={loadTopic} /></div>
-        <div className="order-first min-h-0 xl:order-none xl:h-full">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_420px] xl:h-[calc(100vh-11rem)] xl:min-h-[640px]">
+        <div className="min-h-0 min-w-0 xl:h-full"><OreoMap data={data} onOpen={go} onAsk={setPrefill} active={active && view === 'oreo'} activity={activity} loadTopic={loadTopic} /></div>
+        <div className="order-first min-h-0 min-w-0 xl:order-none xl:h-full">
           <OreoChat session={session} usdInr={rate} prefill={prefill} onPrefillUsed={() => setPrefill('')} onChanged={load} active={active} onActivity={onActivity} />
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div className="rounded-[1.75rem] border border-white/70 bg-white p-4 shadow-panel sm:p-5">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="min-w-0 rounded-[1.75rem] border border-white/70 bg-white p-4 shadow-panel sm:p-5">
           <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-soft">Needs you{total ? ` · ${total}` : ''}</p>
           {!data ? null : total === 0 ? <p className="rounded-xl bg-emerald-50 px-3 py-3 text-sm text-emerald-800">All calm. Nothing is waiting for you right now.</p> : (
             <div className="space-y-2">
@@ -94,19 +94,19 @@ export default function OreoPage({ session, active = true }: { session: Session;
                   <p className="flex items-center gap-1.5 text-sm font-semibold"><span className={`h-2 w-2 rounded-full ${DOT[n.level]}`} />{n.title}</p>
                   <p className="text-xs text-soft">{n.detail}</p>
                   <div className="mt-1.5 flex gap-1.5">
-                    {n.ask && <button onClick={() => setPrefill(n.ask)} className="rounded-lg bg-ink px-2.5 py-1 text-[11px] font-semibold text-white">Ask Oreo</button>}
-                    <button onClick={() => go(n.page)} className="rounded-lg border border-line bg-white px-2.5 py-1 text-[11px] font-semibold">Open</button>
+                    {n.ask && <button onClick={() => setPrefill(n.ask)} className="min-h-10 rounded-lg bg-ink px-2.5 py-1 text-[11px] font-semibold text-white sm:min-h-0">Ask Oreo</button>}
+                    <button onClick={() => go(n.page)} className="min-h-10 rounded-lg border border-line bg-white px-2.5 py-1 text-[11px] font-semibold sm:min-h-0">Open</button>
                   </div>
                 </div>
               ))}
             </div>
           )}
         </div>
-        <div className="rounded-[1.75rem] border border-white/70 bg-white p-4 shadow-panel sm:p-5">
+        <div className="min-w-0 rounded-[1.75rem] border border-white/70 bg-white p-4 shadow-panel sm:p-5">
           <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-soft">Oreo&apos;s work</p>
           <p className="text-lg font-semibold leading-snug">{data ? <>{data.oreo.questions} question{data.oreo.questions === 1 ? '' : 's'} asked, {data.oreo.actions} action{data.oreo.actions === 1 ? '' : 's'} done.</> : '…'}</p>
           <div className="mt-3 grid grid-cols-3 gap-1.5">
-            {RANGES.map(r => <button key={r.key} onClick={() => setRange(r.key)} className={`rounded-xl px-2 py-1.5 text-xs font-semibold ${range === r.key ? 'bg-ink text-white' : 'bg-mist text-soft hover:text-ink'}`}>{r.label}</button>)}
+            {RANGES.map(r => <button key={r.key} onClick={() => setRange(r.key)} className={`min-h-10 rounded-xl px-2 py-1.5 text-xs font-semibold sm:min-h-0 ${range === r.key ? 'bg-ink text-white' : 'bg-mist text-soft hover:text-ink'}`}>{r.label}</button>)}
           </div>
           {data && (
             <div className="mt-4 space-y-2 text-sm">

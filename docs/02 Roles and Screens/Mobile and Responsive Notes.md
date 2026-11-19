@@ -44,6 +44,20 @@ File `components/charts/RecollectionGauge.tsx`, used once in `Dashboard.tsx:492`
 - Value is clamped to 0-100. The number under the hub uses the status colour.
 - SVG scales with `w-full max-w-[270px]`, so it fits narrow phones. Below it a 2-column box shows Collected (green) and Pending (red).
 
+## Phone layout fixes from the 2026-11-19 UI review
+From [[2026-11-19 UI Review]] (branch perf4/aarav). Layout only, same data and wording.
+- **Side-scrolling tab rows** use the class `scroll-row` (`app/globals.css`): below 640 px the row fades at the right edge, has 2.5rem end padding and no scrollbar. Used by Payments tabs and the Collection tab row (one row on phone, wraps from `sm` up as before).
+- **Payments:** the chat no longer shows its own "Payment history" button when the Payment history tab is in the tab row (the guarantor's one-screen chat keeps it).
+- **Oreo:** both grids have `grid-cols-1` plus `min-w-0` items, so the chat card fits a phone.
+- **Dev page:** the 14 tabs wrap (`flex-wrap`).
+- **Payout Requests:** each table has a minimum width inside its `overflow-x-auto` and dates/amounts do not wrap, so a phone scrolls the table sideways.
+- **Guarantors:** the search box takes its own row on phone (`basis-full`, `sm:basis-0`).
+- **Reports Summary:** KPI cards are 2 per row on phone with smaller padding and text.
+- **Home Saturday card:** squares are 16 px on phone (28 px from `sm`).
+- **Tap targets (phone, under `sm`):** at least 40 px for the install card close, Mark read, Collection call button, Oreo Ask/Open/range buttons, Visit Routes day arrows and stop action rows (`max-sm:*:min-h-10`).
+- **Install card:** while it shows, `PwaClient` sets `--pwa-space` and AppShell adds that much empty space at the end of the page, so the card no longer covers the last rows.
+- **Polish:** the collapsed sidebar "NGF" fits; the subtitle says "Agent portal" (not "NGF AGENT portal"); Dashboard money cards and the payment diagram's other-mode icon use the rupee icon; Trip Details total lines up left when it drops under the week picker on phone.
+
 ## Rules and gotchas
 - Changing a threshold means editing both the `BANDS` array and the `isGreen`/`isOrange` tests; they are separate (`:22-23,40-44`).
 - Colours are hard-coded hex; dark mode (`ngf-dark`) does not recolour the SVG.

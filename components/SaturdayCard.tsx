@@ -40,8 +40,8 @@ export default function SaturdayCard({ session }: { session: Session }) {
           <button onClick={() => go('collection')} className="min-h-11 rounded-xl bg-ink px-4 text-sm font-bold text-white">Open collection</button>
         </div>
         {total > 0 && total <= 72 ? (
-          <div className="mt-5 flex flex-wrap gap-1.5" role="img" aria-label={`${paidN} of ${total} payments recorded`}>
-            {Array.from({ length: total }, (_, i) => <span key={i} className={`h-7 w-7 rounded-lg border ${i < paidN ? 'border-brand bg-brand' : 'border-brand/30 bg-white'}`} />)}
+          <div className="mt-5 flex flex-wrap gap-1 sm:gap-1.5" role="img" aria-label={`${paidN} of ${total} payments recorded`}>
+            {Array.from({ length: total }, (_, i) => <span key={i} className={`h-4 w-4 rounded-[5px] border sm:h-7 sm:w-7 sm:rounded-lg ${i < paidN ? 'border-brand bg-brand' : 'border-brand/30 bg-white'}`} />)}
           </div>
         ) : total > 0 ? (
           <div className="mt-5 h-3 overflow-hidden rounded-full bg-black/5" role="img" aria-label={`${paidN} of ${total} payments recorded`}><div className="h-full rounded-full bg-brand" style={{ width: `${(paidN / total) * 100}%` }} /></div>

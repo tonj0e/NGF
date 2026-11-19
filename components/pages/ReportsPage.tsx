@@ -247,11 +247,11 @@ export default function ReportsPage({ session }: { session: Session }) {
     return (
       <div className="space-y-5">
         {tabBar}
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-3">
           {cards.map(c => (
-            <div key={c.label} className="rounded-[1.5rem] border border-white/70 bg-white p-5 shadow-panel">
+            <div key={c.label} className="min-w-0 rounded-[1.5rem] border border-white/70 bg-white p-3.5 shadow-panel sm:p-5">
               <p className="text-xs text-soft">{c.label}</p>
-              <p className="mt-2 text-2xl font-semibold">{c.value}</p>
+              <p className="mt-2 break-words text-lg font-semibold sm:text-2xl">{c.value}</p>
               {c.sub && <p className="mt-1 text-xs text-soft">{c.sub}</p>}
             </div>
           ))}

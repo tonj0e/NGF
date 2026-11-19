@@ -35,13 +35,13 @@ export default function NotificationsPage({ session }: { session: Session }) {
       {notifs.map(n => (
         <div key={n.notificationId} className={`rounded-[1.6rem] border bg-white p-5 shadow-panel ${n.isRead === 'true' ? 'border-white/70 opacity-60' : 'border-ink/20'}`}>
           <div className="flex items-start justify-between gap-3">
-            <div>
+            <div className="min-w-0">
               <p className="font-semibold">{n.title}</p>
               <p className="mt-1 text-sm text-soft">{n.message}</p>
               <p className="mt-2 text-xs text-soft">{n.createdAt && !isNaN(new Date(n.createdAt).getTime()) ? new Date(n.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}</p>
             </div>
             {n.isRead !== 'true' && (
-              <button onClick={() => markRead(n.notificationId)} className="shrink-0 rounded-xl bg-mist px-3 py-1.5 text-xs font-semibold">Mark read</button>
+              <button onClick={() => markRead(n.notificationId)} className="min-h-10 shrink-0 rounded-xl bg-mist px-3 py-1.5 text-xs font-semibold sm:min-h-0">Mark read</button>
             )}
           </div>
         </div>

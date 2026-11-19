@@ -530,7 +530,7 @@ export default function GuarantorPage({ session }: { session: Session }) {
       {/* Header row: search + action buttons */}
       <div className="flex flex-wrap items-center gap-2">
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search guarantor name or code…"
-          data-no-upper className="flex-1 min-w-0 max-w-sm rounded-2xl border border-line bg-white px-4 py-2.5 text-sm outline-none focus:border-ink" />
+          data-no-upper className="grow shrink basis-full sm:basis-0 min-w-0 max-w-sm rounded-2xl border border-line bg-white px-4 py-2.5 text-sm outline-none focus:border-ink" />
         <button onClick={() => setShowScanner(true)}
           className="rounded-2xl bg-ink px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#2d2d4e] transition shrink-0">
           Scan QR

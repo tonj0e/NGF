@@ -100,9 +100,9 @@ export default function VisitRoutesPage({ session }: { session: Session }) {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-1" title="Visit day">
-            <button className="rounded-xl border border-line bg-white px-2.5 py-1.5 text-sm" onClick={() => setDate(shift(date, -1))}>‹</button>
+            <button className="min-h-10 min-w-10 rounded-xl border border-line bg-white px-2.5 py-1.5 text-sm sm:min-h-0 sm:min-w-0" onClick={() => setDate(shift(date, -1))}>‹</button>
             <input type="date" value={date} onChange={e => e.target.value && setDate(e.target.value)} className="rounded-xl border border-line bg-white px-2.5 py-1.5 text-sm font-medium text-ink" />
-            <button className="rounded-xl border border-line bg-white px-2.5 py-1.5 text-sm" onClick={() => setDate(shift(date, 1))}>›</button>
+            <button className="min-h-10 min-w-10 rounded-xl border border-line bg-white px-2.5 py-1.5 text-sm sm:min-h-0 sm:min-w-0" onClick={() => setDate(shift(date, 1))}>›</button>
           </div>
           {board && board.branches.length > 1 && (
             <select value={branchId} onChange={e => setBranchId(e.target.value)} className="rounded-xl border border-line bg-white px-2.5 py-1.5 text-sm font-medium text-ink">
@@ -565,7 +565,7 @@ function RouteCard({ r, board, date, busy, session, act, startOpen }: {
               </div>
             </div>
             {s.done && s.visitStatus === 'Absent' && (
-              <div className="mt-2 flex flex-wrap items-center gap-2 pl-9 text-xs">
+              <div className="mt-2 flex flex-wrap items-center gap-2 pl-9 text-xs max-sm:*:min-h-10">
                 <button disabled={busy === `reopen${s.leadId}`} onClick={() => act(`reopen${s.leadId}`, { action: 'reopen', leadId: s.leadId }, 'Back on the route as to visit')} className="rounded-lg bg-ink px-2.5 py-1 font-semibold text-white disabled:opacity-40">Redo this visit</button>
                 <select defaultValue="" onChange={e => { const v = e.target.value; e.target.value = ''; if (v) act(`mv${s.leadId}`, { action: 'assign', leadId: s.leadId, agentId: v, date }, 'Given to the agent') }} className="rounded-lg border border-line bg-white px-2 py-1 font-semibold text-soft">
                   <option value="">Give to agent…</option>
@@ -575,14 +575,14 @@ function RouteCard({ r, board, date, busy, session, act, startOpen }: {
               </div>
             )}
             {s.kind === 'waypoint' && (
-              <div className="mt-2 flex flex-wrap items-center gap-2 pl-9 text-xs">
+              <div className="mt-2 flex flex-wrap items-center gap-2 pl-9 text-xs max-sm:*:min-h-10">
                 <a href={`https://www.google.com/maps?q=${s.visitLat},${s.visitLng}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-semibold text-blue-700"><Navigation className="h-3 w-3" />Map</a>
                 {s.phone && <a href={`tel:${s.phone}`} className="inline-flex items-center gap-1 font-semibold text-green-700"><Phone className="h-3 w-3" />{s.phone}</a>}
                 <button onClick={() => act(`wpx${s.leadId}`, { action: 'removeWaypoint', waypointId: s.leadId }, 'Subroute removed')} className="ml-auto inline-flex items-center gap-1 font-semibold text-red-600"><X className="h-3 w-3" />Remove</button>
               </div>
             )}
             {s.kind !== 'waypoint' && !s.done && (
-              <div className="mt-2 flex flex-wrap items-center gap-2 pl-9 text-xs">
+              <div className="mt-2 flex flex-wrap items-center gap-2 pl-9 text-xs max-sm:*:min-h-10">
                 <button onClick={() => act(`pin${s.leadId}`, { action: 'pin', leadId: s.leadId, pin: s.pin === 'first' ? '' : 'first' }, s.pin === 'first' ? 'Unpinned' : 'Pinned first')} className={`rounded-lg border px-2 py-1 font-semibold ${s.pin === 'first' ? 'border-violet-300 bg-violet-100 text-violet-700' : 'border-line text-soft'}`}>Must be first</button>
                 <button onClick={() => act(`pin${s.leadId}`, { action: 'pin', leadId: s.leadId, pin: s.pin === 'last' ? '' : 'last' }, s.pin === 'last' ? 'Unpinned' : 'Pinned last')} className={`rounded-lg border px-2 py-1 font-semibold ${s.pin === 'last' ? 'border-violet-300 bg-violet-100 text-violet-700' : 'border-line text-soft'}`}>Must be last</button>
                 <select defaultValue="" onChange={e => { const v = e.target.value; e.target.value = ''; if (v) act(`mv${s.leadId}`, { action: 'assign', leadId: s.leadId, agentId: v, date }, 'Moved') }} className="rounded-lg border border-line bg-white px-2 py-1 font-semibold text-soft">
