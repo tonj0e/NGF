@@ -28,3 +28,6 @@ Not tested in the real bank portal or in Microsoft Excel itself (read back with 
 
 ## Delete (test files)
 Bank files list has a red **Delete** on every file that has no customer marked disbursed (`deleteBatch`): it erases the file and its lines, freeing the file number and reference numbers (next file number = highest of the day + 1). Added for testing; it is audited (BANK_FILE_DELETED). Never use it on a file that went to the bank. Consider restricting it to Admin once real payments start.
+
+## IFSC at verification (2026-11-20)
+Owner: the agent verification must not block on the IFSC code. At `submitVerification` the IFSC is optional and any value is accepted (`bankIssues(..., { checkIfsc: false })`); account number and name rules are unchanged. The full IFSC check (4 letters, 0, 6 letters/digits) still applies when staff save bank details (`saveDetails`, Disburse queue) and when the bank file is built, so a wrong code is corrected by staff before payout.

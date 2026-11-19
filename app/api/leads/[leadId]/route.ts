@@ -157,12 +157,13 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
     let aadhaarBackUrl = lead['Aadhaar Back URL']
     let passbookPhotoUrl = lead['Passbook Photo URL']
 
-    // Bank details are what the loan money is paid into: a verified lead must have a valid account, IFSC and name; anything typed must be valid
+    // Bank details are what the loan money is paid into: a verified lead must have a valid account and name; anything typed must be valid.
+    // The IFSC code is optional here and any value is accepted (owner, 2026-11-20): staff correct it before the bank file, which still checks it.
     {
       const acc = body.accountNumber || lead['Account Number'] || '', ifsc = body.ifscCode || lead['IFSC Code'] || '', holder = body.accountHolder || lead['Account Holder'] || ''
-      const provided = !!(body.accountNumber || body.ifscCode || body.accountHolder)
+      const provided = !!(body.accountNumber || body.accountHolder)
       if (body.recommendationStatus === 'Verified' || provided) {
-        const issues = bankIssues({ ifsc, account: acc, name: holder })
+        const issues = bankIssues({ ifsc, account: acc, name: holder }, { checkIfsc: false })
         if (issues.length) return err(`Bank details: ${issues.join('. ')}`)
       }
     }

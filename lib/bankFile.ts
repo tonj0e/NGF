@@ -21,11 +21,13 @@ export const normAccount = (v: string) => String(v || '').replace(/[\s-]+/g, '')
 export const normName = (v: string) => String(v || '').replace(/\s+/g, ' ').trim()
 export const bankMode = (ifsc: string): 'S' | 'N' => normIfsc(ifsc).startsWith('SIBL') ? 'S' : 'N'
 
-/** What is wrong with a customer's bank details (empty list = ready). */
-export function bankIssues(d: { ifsc?: string; account?: string; name?: string }): string[] {
+/** What is wrong with a customer's bank details (empty list = ready).
+ *  checkIfsc false: the IFSC code is neither required nor format-checked (agent verification: the owner wants any value
+ *  accepted there; staff correct it before the bank file, where the full check still applies). */
+export function bankIssues(d: { ifsc?: string; account?: string; name?: string }, opts: { checkIfsc?: boolean } = {}): string[] {
   const out: string[] = []
   const ifsc = normIfsc(d.ifsc || ''), acc = normAccount(d.account || ''), name = normName(d.name || '')
-  if (!ifsc) out.push('IFSC code missing'); else if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc)) out.push('IFSC code is not valid (4 letters, a zero, then 6 letters or digits)')
+  if (opts.checkIfsc !== false) { if (!ifsc) out.push('IFSC code missing'); else if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc)) out.push('IFSC code is not valid (4 letters, a zero, then 6 letters or digits)') }
   if (!acc) out.push('Account number missing'); else if (!/^\d{9,18}$/.test(acc)) out.push('Account number must be 9 to 18 digits only')
   if (!name) out.push('Name in the bank account missing'); else if (!/^[A-Za-z0-9 .&'/-]+$/.test(name)) out.push('Name in the bank has a character the bank may reject')
   return out
