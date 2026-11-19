@@ -4,7 +4,7 @@ import { checkUploadRate } from '@/lib/uploadRate'
 import { needFeature } from '@/lib/access'
 import { lead } from '@/lib/features'
 import { readTable, appendRow, findRecord, makeId, nowIso, countRows, selectRows, selectAll, getRowById, getSupabase } from '@/lib/supabase-db'
-import { pageQuery, byIds, cleanSearch, scopeOf, withScope, type Scope } from '@/lib/db'
+import { pageQuery, byIds, cleanSearch, scopeOf, withScope, type Scope, type PageOpts } from '@/lib/db'
 import { getLeadDocFolder, uploadLeadPhoto, docLabel } from '@/lib/drive'
 import { notifyRole, notifyUser } from '@/lib/notifications'
 import { validateBody, createLeadSchema } from '@/lib/validation'
@@ -35,6 +35,55 @@ async function badgeCounts(scope: Scope, agentId: string, returnedIsNew: boolean
     badgeFnOffUntil = Date.now() + 10 * 60_000
   }
   return fallback()
+}
+
+// The page rows come with their guarantor and agent names (embedded through the foreign keys) and the same-Aadhaar
+// count (computed column lead_same_aadhaar_count, migration 20261119170000) in the same database call. Until that
+// function exists (or the embeds fail), the plain page read and the three follow-up reads run as before;
+// the one-call form is then not tried again for 10 minutes.
+const LEAD_PAGE_COLUMNS = '*,x_guarantor:guarantors!leads_guarantor_id_fkey(name),x_agent:agents!leads_assigned_agent_id_fkey(name),x_same_aadhaar:lead_same_aadhaar_count'
+let pageFnOffUntil = 0
+type LeadRow = Record<string, string>
+async function leadsPage(opts: PageOpts) {
+  if (Date.now() >= pageFnOffUntil) {
+    try {
+      const r = await pageQuery('Leads', { ...opts, columns: LEAD_PAGE_COLUMNS })
+      const extra = new Map<string, { g: string; a: string; n: number }>()
+      const rows = r.rows.map(l => {
+        const { 'X Guarantor': g, 'X Agent': a, 'X Same Aadhaar': n, ...rest } = l as LeadRow & Record<'X Guarantor' | 'X Agent', { name: string | null } | null>
+        extra.set(rest['Lead ID'], { g: g?.name || '', a: a?.name || '', n: Number(n) || 0 })
+        return rest
+      })
+      return {
+        ...r, rows,
+        guarantorName: (l: LeadRow) => extra.get(l['Lead ID'])?.g || '',
+        agentName: (l: LeadRow) => extra.get(l['Lead ID'])?.a || '',
+        sameAadhaar: (l: LeadRow) => extra.get(l['Lead ID'])?.n || 0,
+      }
+    } catch (e) {
+      // only a missing function / relationship turns the one-call form off; any other failure (e.g. a page past the end)
+      // is the same error the plain read would give, so it is passed on unchanged
+      if (!/lead_same_aadhaar_count|relationship|schema cache|x_guarantor|x_agent/i.test(e instanceof Error ? e.message : String(e))) throw e
+      pageFnOffUntil = Date.now() + 10 * 60_000
+    }
+  }
+  const r = await pageQuery('Leads', opts)
+  // names and the same-Aadhaar check need the page rows; only the columns used here are read
+  const [guarantors, agents, sameAadhaar] = await Promise.all([
+    byIds('Guarantors', 'guarantor_id', r.rows.map(l => l['Guarantor ID']), 'guarantor_id,name'),
+    byIds('Agents', 'agent_id', r.rows.map(l => l['Assigned Agent ID']), 'agent_id,name'),
+    byIds('Leads', 'aadhaar_no', r.rows.map(l => l['Aadhaar No']), 'aadhaar_no'),
+  ])
+  const gById = new Map(guarantors.map(g => [g['Guarantor ID'], g]))
+  const aById = new Map(agents.map(a => [a['Agent ID'], a]))
+  const aadhaarCount = new Map<string, number>()
+  for (const x of sameAadhaar) aadhaarCount.set(x['Aadhaar No'], (aadhaarCount.get(x['Aadhaar No']) || 0) + 1)
+  return {
+    ...r,
+    guarantorName: (l: LeadRow) => gById.get(l['Guarantor ID'])?.['Name'] || '',
+    agentName: (l: LeadRow) => aById.get(l['Assigned Agent ID'])?.['Name'] || '',
+    sameAadhaar: (l: LeadRow) => aadhaarCount.get(l['Aadhaar No']) || 0,
+  }
 }
 
 // GET /api/leads
@@ -115,7 +164,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
   // The tab counts do not depend on the page rows, so they are counted while the page loads (one call, or none with counts=0)
   const withCounts = searchParams.get('counts') !== '0'
   const [r, counts] = await Promise.all([
-    pageQuery('Leads', {
+    leadsPage({
       filters, order: [{ column: 'submitted_date', ascending: false }, { column: 'lead_id', ascending: false }],
       page: searchParams.get('page') || 1, pageSize: searchParams.get('pageSize') || 20,
     }),
@@ -127,25 +176,13 @@ export const GET = apiHandler(async (req: NextRequest) => {
     ])) : null,
   ])
 
-  // names and the same-Aadhaar check need the page rows; only the columns used here are read
-  const [guarantors, agents, sameAadhaar] = await Promise.all([
-    byIds('Guarantors', 'guarantor_id', r.rows.map(l => l['Guarantor ID']), 'guarantor_id,name'),
-    byIds('Agents', 'agent_id', r.rows.map(l => l['Assigned Agent ID']), 'agent_id,name'),
-    byIds('Leads', 'aadhaar_no', r.rows.map(l => l['Aadhaar No']), 'aadhaar_no'),
-  ])
-  const gById = new Map(guarantors.map(g => [g['Guarantor ID'], g]))
-  const aById = new Map(agents.map(a => [a['Agent ID'], a]))
-  const aadhaarCount = new Map<string, number>()
-  for (const x of sameAadhaar) aadhaarCount.set(x['Aadhaar No'], (aadhaarCount.get(x['Aadhaar No']) || 0) + 1)
-
+  // names and the same-Aadhaar count came with the page (or from the follow-up reads when the one-call form is off)
   const enriched = r.rows.map(l => {
-    const guarantor = gById.get(l['Guarantor ID'])
-    const agent = aById.get(l['Assigned Agent ID'])
     const branchId = branchOf.get(l['Guarantor ID']) || ''
-    const existing = l['Aadhaar No'] ? (aadhaarCount.get(l['Aadhaar No']) || 0) - 1 : 0   // other leads with the same Aadhaar
+    const existing = l['Aadhaar No'] ? r.sameAadhaar(l) - 1 : 0   // other leads with the same Aadhaar
     return {
       leadId: l['Lead ID'], submittedDate: l['Submitted Date'],
-      guarantorId: l['Guarantor ID'], guarantorName: guarantor?.['Name'] || '',
+      guarantorId: l['Guarantor ID'], guarantorName: r.guarantorName(l),
       branchId, branchName: branches.find(b => b['Branch ID'] === branchId)?.['Name'] || '',
       customerName: l['Customer Name'], phone: l['Phone'],
       aadhaarNo: l['Aadhaar No'], address: l['Address'],
@@ -155,7 +192,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
       accountNumber: l['Account Number'] || '', ifscCode: l['IFSC Code'] || '', accountHolder: l['Account Holder'] || '', passbookPhotoUrl: l['Passbook Photo URL'] || '', payNumber: l['Pay Number'] || '',
       pinnedLocation: l['Pinned Location'], loanProduct: l['Loan Product'],
       riskLevel: l['Risk Level'], status: l['Status'],
-      assignedAgentId: l['Assigned Agent ID'], assignedAgentName: agent?.['Name'] || '',
+      assignedAgentId: l['Assigned Agent ID'], assignedAgentName: r.agentName(l),
       verificationStatus: l['Verification Status'], verificationNotes: l['Verification Notes'],
       verificationSubmittedDate: l['Verification Submitted Date'] || null,
       adminFinalDecision: l['Admin Final Decision'], recommendationStatus: l['Recommendation Status'],

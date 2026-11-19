@@ -13,6 +13,7 @@ export interface PageOpts {
   order?: { column: string; ascending?: boolean }[]   // the last one should be unique (the id) so pages never overlap
   page?: unknown
   pageSize?: unknown
+  columns?: string   // PostgREST select (default every column)
 }
 
 export async function pageQuery(table: TableName, opts: PageOpts = {}): Promise<{ rows: Record<string, string>[]; total: number; page: number; pageSize: number; totalPages: number }> {
@@ -23,7 +24,7 @@ export async function pageQuery(table: TableName, opts: PageOpts = {}): Promise<
     if (text) q = q.or(opts.search!.columns.map(c => `${c}.ilike.%${text}%`).join(','))
     for (const o of opts.order || []) q = q.order(o.column, { ascending: o.ascending !== false })
     return q.range(from, to)
-  }, { count: true })
+  }, { count: true, columns: opts.columns })
   return { rows, total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) }
 }
 
