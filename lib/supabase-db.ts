@@ -370,6 +370,19 @@ export async function updateById(table: TableName, pkValue: string, data: Record
   invalidateCache(table)
 }
 
+/** Like updateById, but only while the row still matches `when` (snake_case column -> value), in ONE update.
+ *  Returns how many rows changed (0 = the row no longer matched, nothing was written). */
+export async function updateByIdWhen(table: TableName, pkValue: string, when: Record<string, string>, data: Record<string, string | null>): Promise<number> {
+  const snakeData = toSnakeCase(data)
+  delete snakeData.__row_index
+  let q = getSupabase().from(TABLE_MAP[table]).update(snakeData).eq(getPrimaryKeyColumn(table), pkValue)
+  for (const [col, val] of Object.entries(when)) q = q.eq(col, val)
+  const { data: rows, error } = await q.select(getPrimaryKeyColumn(table))
+  if (error) throw new Error(`Failed to update ${table}: ${error.message}`)
+  invalidateCache(table)
+  return rows?.length || 0
+}
+
 export async function clearTable(table: TableName): Promise<void> {
   const supabase = getSupabase()
   const dbTable = TABLE_MAP[table]

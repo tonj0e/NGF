@@ -4,7 +4,7 @@ import { apiHandler, requireRole, ok, err, getSession } from '@/lib/api'
 import { checkUploadRate } from '@/lib/uploadRate'
 import { requireFeature } from '@/lib/access'
 import { lead as leadKeys } from '@/lib/features'
-import { readTable, selectRows, selectAll, countRows, getRowById, updateById, appendRow, deleteRow, findRecord, makeId, nowIso, formatDateYmd, addDays, deleteById, invalidateCache, getSupabase } from '@/lib/supabase-db'
+import { readTable, selectRows, selectAll, countRows, getRowById, updateById, updateByIdWhen, appendRow, deleteRow, findRecord, makeId, nowIso, formatDateYmd, addDays, deleteById, invalidateCache, getSupabase } from '@/lib/supabase-db'
 import { uploadLeadPhoto, listFolderFiles, driveUrl, getLeadDocFolder, docLabel, renameLeadDocs } from '@/lib/drive'
 import { notifyUser, notifyRole } from '@/lib/notifications'
 import { validateBody, submitVerificationSchema, partialVerificationSchema, adminReviewSchema, assignAgentSchema, updateLeadSchema, tripSchema } from '@/lib/validation'
@@ -14,12 +14,12 @@ import { bankIssues, normAccount, normIfsc, normName } from '@/lib/bankFile'
 import { csrfProtection } from '@/lib/csrf'
 import { createAuditLogger } from '@/lib/audit'
 import { firstPaymentSaturdayIST } from '@/lib/dateUtils'
-import { getBranchAccess, branchOfGuarantor, canApproveIn, canSeeBranch } from '@/lib/branchAccess'
+import { getBranchAccess, branchOfGuarantor, canApproveIn, canOverrideIn, canSeeBranch } from '@/lib/branchAccess'
 import { checkRenewalEligibility, customerForRenewalLead } from '@/lib/renewalRules'
-import { normalizeIndianMobile } from '@/lib/phone'
+import { normalizeIndianMobile, maskMobile } from '@/lib/phone'
 import { notifyBranchOfLead } from '@/lib/routes'
 import { reportError } from '@/lib/monitor'
-import { PARTIAL_STATUS, agentVisitBlock, officeCompleteBlock, partialMissing, visitOtpBlock, parseVisitNotes } from '@/lib/partialVerification'
+import { PARTIAL_STATUS, PARTIAL_LOCKED_MSG, changedDetails, agentVisitBlock, officeCompleteBlock, partialMissing, visitOtpBlock, parseVisitNotes } from '@/lib/partialVerification'
 
 const OTP_FRESH_MS = 60 * 60 * 1000          // a renewal OTP stays valid for approval for 1 hour
 // (an agent's visit OTP stays valid for submitting for 12 hours: visitOtpBlock in lib/partialVerification.ts)
@@ -194,6 +194,8 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
     const agent = await getRowById('Agents', body.agentId)
     if (!agent) return err('Agent not found')
     if (!(await staffMaySee(session, lead))) return err('This lead belongs to another branch', 403)
+    // the agent already visited a partially verified lead (its km are counted): no second agent for now (PM decision 2026-11-20, owner to confirm)
+    if (lead['Status'] === PARTIAL_STATUS) return err(PARTIAL_LOCKED_MSG)
     if (['Approved', 'Converted', 'Rejected', 'Returned'].includes(lead['Status']) || lead['Loan Product'] === 'RENEWAL') return err('This lead cannot be assigned to an agent in its current state')
     await updateById('Leads', leadId, {
       'Assigned Agent ID': body.agentId,
@@ -289,9 +291,14 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
     const photos = await uploadVisitPhotos(session.userId, lead, leadId, folderId, body, 'submitPartialVerification')
     if (photos instanceof NextResponse) return photos
 
-    const notes = JSON.stringify({ riskNotes: body.riskNotes || '', gpsCoordinates: body.gpsCoordinates || '', mapsLink: body.mapsLink || '' })
+    // what the agent changed without the customer there: shown to the office as "check this" when completing
+    const agentChanged = changedDetails(
+      { phone: body.phone ? normalizeIndianMobile(body.phone) : '', account: body.accountNumber ? normAccount(body.accountNumber) : '', ifsc: body.ifscCode ? normIfsc(body.ifscCode) : '', holder: body.accountHolder ? normName(body.accountHolder) : '' },
+      { phone: normalizeIndianMobile(lead['Phone']), account: normAccount(lead['Account Number'] || ''), ifsc: normIfsc(lead['IFSC Code'] || ''), holder: normName(lead['Account Holder'] || '') })
+    const notes = JSON.stringify({ riskNotes: body.riskNotes || '', gpsCoordinates: body.gpsCoordinates || '', mapsLink: body.mapsLink || '', ...(agentChanged.length ? { agentChanged } : {}) })
     try {
-      await updateById('Leads', leadId, {
+      // only while it is still waiting for this agent's visit (a full submit, a reassignment or a second press cannot be overwritten)
+      const changed = await updateByIdWhen('Leads', leadId, { status: 'Agent Assigned', assigned_agent_id: myAgent!['Agent ID'] }, {
         'Verification Notes': notes,
         ...(body.recommendationStatus ? { 'Recommendation Status': body.recommendationStatus } : {}),
         'Risk Level': body.riskLevel || lead['Risk Level'],
@@ -304,15 +311,16 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
         ...photos,
         'Updated At': nowIso(),
       })
-      invalidateCache('Leads')
-      await createAuditLogger(req, session).log('LEAD_PARTIALLY_VERIFIED', 'Lead', leadId, { agent: myAgent?.['Agent ID'] || '' })
-      await notifyRole('Admin', 'Partially verified', `${lead['Customer Name']}: customer not at home. ${session.name} saved the house, landmark and location. Complete the verification when the customer comes to the office.`, 'Lead', leadId)
-      try { await notifyBranchOfLead(lead['Guarantor ID'], 'Partially verified', `${lead['Customer Name']}: customer was not at home. House, landmark and location saved by the agent. Complete the verification in the office (Leads > Partially verified).`, leadId) } catch (e) { reportError('Branch alert failed', e) }
-      return ok({ success: true })
+      if (!changed) return err('This lead is not waiting for verification')
     } catch (dbError) {
       reportError('submitPartialVerification: DB update failed', dbError)
       return err(`Database update failed: ${dbError instanceof Error ? dbError.message : 'Unknown error'}`)
     }
+    // saved: the audit line and the alerts are best effort (a failure here never undoes the visit)
+    try { await createAuditLogger(req, session).log('LEAD_PARTIALLY_VERIFIED', 'Lead', leadId, { agent: myAgent!['Agent ID'] || '' }) } catch (e) { reportError('Audit failed', e) }
+    try { await notifyRole('Admin', 'Partially verified', `${lead['Customer Name']}: customer not at home. ${session.name} saved the house, landmark and location. Complete the verification when the customer comes to the office.`, 'Lead', leadId) } catch (e) { reportError('Admin alert failed', e) }
+    try { await notifyBranchOfLead(lead['Guarantor ID'], 'Partially verified', `${lead['Customer Name']}: customer was not at home. House, landmark and location saved by the agent. Complete the verification in the office (Leads > Partially verified).`, leadId) } catch (e) { reportError('Branch alert failed', e) }
+    return ok({ success: true })
   }
 
   // The office completes a partial verification when the customer comes in: the same rules as the agent's full submit (risk level,
@@ -335,7 +343,17 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
     if (!(await staffMaySee(session, lead))) return err('This lead belongs to another branch', 403)
     const blocked = officeCompleteBlock({ status: lead['Status'], loanProduct: lead['Loan Product'] })
     if (blocked) return err(blocked)
-    const otpError = visitOtpBlock({ otpVerifiedAt: lead['Otp Verified At'], otpPhone: lead['Otp Phone'], overrideReason: lead['Otp Override Reason'], phone: normalizeIndianMobile(body.phone || lead['Phone']) })
+    // The OTP in the office goes to the lead's STORED phone (the OTP route ignores a typed number there). Changing the phone here
+    // needs the branch manager / assistant manager or Admin, and is audited.
+    const storedPhone = normalizeIndianMobile(lead['Phone'])
+    const newPhone = body.phone ? normalizeIndianMobile(body.phone) : storedPhone
+    if (body.phone && !newPhone) return err('Phone must be a valid 10-digit mobile number')
+    const phoneChanged = newPhone !== storedPhone
+    if (phoneChanged) {
+      const access = await getBranchAccess(session)
+      if (!canOverrideIn(access, await branchOfGuarantor(lead['Guarantor ID']))) return err('Only the branch manager, assistant manager or Admin can change the phone number while completing a verification. Leave the phone as it is, or ask them.', 403)
+    }
+    const otpError = visitOtpBlock({ otpVerifiedAt: lead['Otp Verified At'], otpPhone: lead['Otp Phone'], overrideReason: lead['Otp Override Reason'], phone: storedPhone })
     if (otpError) return err(otpError)
     const bankError = visitBankBlock(body, lead)
     if (bankError) return err(bankError)
@@ -345,17 +363,13 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
     if (photos instanceof NextResponse) return photos
 
     const agentNotes = parseVisitNotes(lead['Verification Notes'])
-    const notes = JSON.stringify({ riskNotes: body.riskNotes || '', gpsCoordinates: agentNotes.gpsCoordinates, mapsLink: agentNotes.mapsLink })
-    let claimed = false
+    const notes = JSON.stringify({ riskNotes: body.riskNotes || '', gpsCoordinates: agentNotes.gpsCoordinates, mapsLink: agentNotes.mapsLink, ...(agentNotes.agentChanged.length ? { agentChanged: agentNotes.agentChanged } : {}) })
     try {
-      // only while it is still Partially Verified: two staff pressing at once cannot both complete it
-      const { data: claim, error: claimError } = await getSupabase().from('leads')
-        .update({ status: 'Verification Submitted', office_completed_by: session.userId, office_completed_at: nowIso() })
-        .eq('lead_id', leadId).eq('status', PARTIAL_STATUS).select('lead_id')
-      if (claimError) throw new Error(claimError.message)
-      if (!claim || claim.length === 0) return err('This lead is no longer waiting for the office to complete its verification')
-      claimed = true
-      await updateById('Leads', leadId, {
+      // ONE update, only while it is still Partially Verified: two staff pressing at once cannot both complete it, and nothing half-saved is left
+      const changed = await updateByIdWhen('Leads', leadId, { status: PARTIAL_STATUS }, {
+        'Status': 'Verification Submitted',
+        'Office Completed By': session.userId,
+        'Office Completed At': nowIso(),
         'Verification Notes': notes,
         'Verification Submitted Date': nowIso().slice(0, 10),
         'Recommendation Status': body.recommendationStatus || '',
@@ -364,19 +378,20 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
         ...photos,
         'Updated At': nowIso(),
       })
-      invalidateCache('Leads')
-      await createAuditLogger(req, session).log('LEAD_VERIFICATION_COMPLETED_IN_OFFICE', 'Lead', leadId, { otp: lead['Otp Override Reason'] ? 'override' : 'verified' })
-      await notifyRole('Admin', 'Verification Submitted', `Verification for ${lead['Customer Name']} completed in the office by ${session.name}`, 'Lead', leadId)
-      try { await notifyBranchOfLead(lead['Guarantor ID'], 'Verification submitted', `${lead['Customer Name']}: verification completed in the office${lead['Otp Override Reason'] ? ' (OTP overridden: ' + lead['Otp Override Reason'] + ')' : ' (customer OTP confirmed)'}. Review and approve.`, leadId) } catch (e) { reportError('Branch alert failed', e) }
-      return ok({ success: true })
+      if (!changed) return err('This lead is no longer waiting for the office to complete its verification')
     } catch (dbError) {
-      if (claimed) {   // the details were not saved: put the lead back so the office can try again
-        try { await getSupabase().from('leads').update({ status: PARTIAL_STATUS, office_completed_by: null, office_completed_at: null }).eq('lead_id', leadId) } catch { /* reported below */ }
-        invalidateCache('Leads')
-      }
       reportError('completeVerification: DB update failed', dbError)
       return err(`Database update failed: ${dbError instanceof Error ? dbError.message : 'Unknown error'}`)
     }
+    // saved: the audit lines and the alerts are best effort (a failure here never undoes the completion)
+    const audit = createAuditLogger(req, session)
+    if (phoneChanged) {
+      try { await audit.log('LEAD_PHONE_CHANGED_IN_OFFICE', 'Lead', leadId, { from: maskMobile(storedPhone), to: maskMobile(newPhone) }) } catch (e) { reportError('Audit failed', e) }
+    }
+    try { await audit.log('LEAD_VERIFICATION_COMPLETED_IN_OFFICE', 'Lead', leadId, { otp: lead['Otp Override Reason'] ? 'override' : 'verified', phoneChanged }) } catch (e) { reportError('Audit failed', e) }
+    try { await notifyRole('Admin', 'Verification Submitted', `Verification for ${lead['Customer Name']} completed in the office by ${session.name}`, 'Lead', leadId) } catch (e) { reportError('Admin alert failed', e) }
+    try { await notifyBranchOfLead(lead['Guarantor ID'], 'Verification submitted', `${lead['Customer Name']}: verification completed in the office${lead['Otp Override Reason'] ? ' (OTP overridden: ' + lead['Otp Override Reason'] + ')' : ' (customer OTP confirmed)'}. Review and approve.`, leadId) } catch (e) { reportError('Branch alert failed', e) }
+    return ok({ success: true })
   }
 
   if (action === 'adminReview') {
@@ -429,10 +444,13 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
       const g = await getRowById('Guarantors', lead['Guarantor ID'])
       if (g) await notifyUser(g['User ID'], 'Guarantor', 'Lead Rejected', `${lead['Customer Name']} has been rejected.`, 'Lead', leadId)
     } else if (decision === 'Request Reverification') {
-      // (a partially verified lead can also be sent back to an agent, e.g. when the customer will be at home after all)
-      if (lead['Loan Product'] === 'RENEWAL' || !['Verification Submitted', 'Approved', PARTIAL_STATUS].includes(lead['Status']) || lead['Disbursed At']) return err('Re-verification is only possible for a new lead that is verified or approved and not yet disbursed')
-      // A new visit needs a fresh customer OTP
-      await updateById('Leads', leadId, { 'Status': 'Agent Assigned', 'Admin Final Decision': notes || '', 'Otp Verified At': null, 'Otp Phone': null, 'Otp Override Reason': null, 'Otp Override By': null, 'Updated At': nowIso() })
+      // the agent already visited a partially verified lead: no second visit for now (PM decision 2026-11-20, owner to confirm)
+      if (lead['Status'] === PARTIAL_STATUS) return err(PARTIAL_LOCKED_MSG)
+      if (lead['Loan Product'] === 'RENEWAL' || !['Verification Submitted', 'Approved'].includes(lead['Status']) || lead['Disbursed At']) return err('Re-verification is only possible for a new lead that is verified or approved and not yet disbursed')
+      // A new visit needs a fresh customer OTP; an earlier partial visit / office completion no longer applies
+      await updateById('Leads', leadId, { 'Status': 'Agent Assigned', 'Admin Final Decision': notes || '', 'Otp Verified At': null, 'Otp Phone': null, 'Otp Override Reason': null, 'Otp Override By': null,
+        ...(lead['Partial Verified At'] || lead['Office Completed At'] ? { 'Partial Verified At': null, 'Partial Verified By': null, 'Office Completed At': null, 'Office Completed By': null } : {}),
+        'Updated At': nowIso() })
       invalidateCache('Leads')
     }
     return ok({ success: true })

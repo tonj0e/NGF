@@ -4,7 +4,7 @@ const MAX_BYTES = 1 * 1024 * 1024 // 1 MB
 
 export async function compressImage(file: File): Promise<File> {
   if (file.size <= MAX_BYTES) return file
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const img = new Image()
     const url = URL.createObjectURL(file)
     img.onload = () => {
@@ -39,15 +39,18 @@ export async function compressImage(file: File): Promise<File> {
       const compressed = new File([u8], file.name.replace(/\.[^.]+$/, '.jpg'), { type: mime })
       resolve(compressed)
     }
+    // a file the browser cannot open as a picture: fail instead of waiting for ever (the form then shows the error)
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error(`"${file.name}" could not be read as a picture. Take or choose the photo again.`)) }
     img.src = url
   })
 }
 
 export async function fileToPayload(file: File) {
   const processed = await compressImage(file)
-  return new Promise<string>((resolve) => {
+  return new Promise<string>((resolve, reject) => {
     const r = new FileReader()
     r.onload = () => resolve(r.result as string)
+    r.onerror = () => reject(new Error(`"${file.name}" could not be read. Take or choose the photo again.`))
     r.readAsDataURL(processed)
   })
 }

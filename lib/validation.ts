@@ -85,7 +85,7 @@ export const submitVerificationSchema = z.object({
   riskLevel: z.enum(['Low', 'Medium', 'High']),
   riskNotes: z.string().optional(),
   gpsCoordinates: z.string().optional(),
-  mapsLink: z.string().url().optional().or(z.literal('')),
+  mapsLink: z.string().url().regex(/^https?:\/\//i, 'must be an http(s) link').optional().or(z.literal('')),   // shown as a link: no javascript:/data: links
   customerName: z.string().min(1),
   phone: z.string().min(10),
   aadhaarNo: z.string().length(12).optional().or(z.literal('')),

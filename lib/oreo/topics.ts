@@ -76,7 +76,8 @@ async function leadsFlow(kind: 'leads' | 'verification' | 'approval'): Promise<T
     sb().from('agent_trips').select('agent_id').gte('trip_date', addDaysIST(today, -6)).limit(2000),
   ])
   const L = leads.data || [], by = (s: string[]) => L.filter(l => s.includes(l.status as string))
-  const pend = by(['Pending']), prog = by(['Agent Assigned', 'Verification In Progress', 'Partially Verified']), subm = by(['Verification Submitted']), ret = by(['Returned'])   // partially verified counts as still in progress (the office completes it)
+  const pend = by(['Pending']), prog = by(['Agent Assigned', 'Verification In Progress']), subm = by(['Verification Submitted']), ret = by(['Returned'])
+  const part = by(['Partially Verified'])   // the agent visited, the customer was not at home: waiting for the office, not the agents
   const gname = (id: string) => gm.get(id)?.name || 'Guarantor'
   const days = (d?: string | null) => d ? Math.max(0, Math.round((Date.now() - new Date(d).getTime()) / 86400000)) : 0
   if (kind === 'leads') {
@@ -84,16 +85,16 @@ async function leadsFlow(kind: 'leads' | 'verification' | 'approval'): Promise<T
     const mx = Math.max(1, L.length)
     return { key: 'leads', title: 'Leads', line: `${L.length} open leads from ${per.length} guarantors`, page: 'leads', columns: [
       { title: 'Guarantors sending leads', nodes: per.map(p => node(`g-${p.id}`, gname(p.id), p.n, 'open leads', 'calm', p.n / mx)) },
-      { title: 'Where the leads are', nodes: [node('pend', 'New', pend.length, 'not yet assigned to an agent', pend.length ? 'info' : 'calm', pend.length / mx), node('prog', 'Being verified', prog.length, 'an agent is checking them', 'calm', prog.length / mx), node('subm', 'Waiting for you', subm.length, 'verification done', subm.length ? 'attention' : 'calm', subm.length / mx), node('ret', 'Returned', ret.length, 'back to the guarantor to fix', ret.length ? 'info' : 'calm', ret.length / mx)] },
+      { title: 'Where the leads are', nodes: [node('pend', 'New', pend.length, 'not yet assigned to an agent', pend.length ? 'info' : 'calm', pend.length / mx), node('prog', 'Being verified', prog.length, 'an agent is checking them', 'calm', prog.length / mx), node('part', 'Office to complete', part.length, 'customer was not at home; finish when they come in', part.length ? 'attention' : 'calm', part.length / mx), node('subm', 'Waiting for you', subm.length, 'verification done', subm.length ? 'attention' : 'calm', subm.length / mx), node('ret', 'Returned', ret.length, 'back to the guarantor to fix', ret.length ? 'info' : 'calm', ret.length / mx)] },
       { title: 'Field agents', nodes: (agents.data || []).map(a => node(`a-${a.agent_id}`, a.name, L.filter(l => l.assigned_agent_id === a.agent_id).length, `${a.agent_type || 'Agent'} · ${(trips.data || []).filter(t => t.agent_id === a.agent_id).length} trips this week`, 'calm', 0)) },
-    ], links: [...per.flatMap(p => [[`g-${p.id}`, 'pend'] as [string, string]]), ['pend', 'prog'], ['prog', 'subm'], ['ret', 'pend'], ...(agents.data || []).map(a => [`a-${a.agent_id}`, 'prog'] as [string, string])] }
+    ], links: [...per.flatMap(p => [[`g-${p.id}`, 'pend'] as [string, string]]), ['pend', 'prog'], ['prog', 'subm'], ['prog', 'part'], ['part', 'subm'], ['ret', 'pend'], ...(agents.data || []).map(a => [`a-${a.agent_id}`, 'prog'] as [string, string])] }
   }
   if (kind === 'verification') {
     const mx = Math.max(1, prog.length)
     return { key: 'verification', title: 'Verification', line: `${prog.length} being checked, ${subm.length} submitted`, page: 'routes', columns: [
       { title: 'Field agents', nodes: (agents.data || []).map(a => node(`a-${a.agent_id}`, a.name, prog.filter(l => l.assigned_agent_id === a.agent_id).length, `${a.agent_type || 'Agent'} · ${(trips.data || []).filter(t => t.agent_id === a.agent_id).length} trips this week`, 'calm', prog.filter(l => l.assigned_agent_id === a.agent_id).length / mx)) },
       { title: 'Leads being verified', nodes: prog.slice(0, 6).map(l => node(`l-${l.lead_id}`, l.customer_name as string, `${days(l.submitted_date as string)}d`, `${l.place || 'no place'} · ${gname(l.guarantor_id as string)}`, days(l.submitted_date as string) > 7 ? 'attention' : 'calm', 0)) },
-      { title: 'Result', nodes: [node('subm', 'Submitted', subm.length, 'waiting for your decision', subm.length ? 'attention' : 'calm', subm.length / Math.max(1, subm.length + prog.length)), node('rest', 'Still in progress', prog.length, 'with the agents', 'info', prog.length / Math.max(1, subm.length + prog.length))] },
+      { title: 'Result', nodes: [node('subm', 'Submitted', subm.length, 'waiting for your decision', subm.length ? 'attention' : 'calm', subm.length / Math.max(1, subm.length + prog.length)), node('part', 'Office to complete', part.length, 'customer was not at home', part.length ? 'attention' : 'calm', part.length / Math.max(1, subm.length + prog.length + part.length)), node('rest', 'Still in progress', prog.length, 'with the agents', 'info', prog.length / Math.max(1, subm.length + prog.length))] },
     ], links: [...prog.slice(0, 6).flatMap(l => { const r: [string, string][] = [[`l-${l.lead_id}`, 'rest']]; if (l.assigned_agent_id) r.push([`a-${l.assigned_agent_id}`, `l-${l.lead_id}`]); return r }), ['rest', 'subm']] }
   }
   const [dec] = await Promise.all([sb().from('leads').select('status').in('status', ['Approved', 'Rejected', 'Returned', 'Converted']).gte('updated_at', since).limit(2000)])

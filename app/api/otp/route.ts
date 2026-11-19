@@ -24,7 +24,8 @@ import type { Session } from '@/types'
 const PURPOSES: OtpPurpose[] = ['lead_verification', 'renewal_approval']
 const VERIFIED_FRESH_MS = 12 * 60 * 60 * 1000
 
-type Ctx = { lead: Record<string, string>; phone: string | null; branchId: string; canOverride: boolean; customerName: string }
+// fixedPhone: the code goes only to `phone` (renewal: the customer's registered mobile; office completing a partial verification: the lead's stored phone)
+type Ctx = { lead: Record<string, string>; phone: string | null; branchId: string; canOverride: boolean; customerName: string; fixedPhone?: boolean }
 
 async function load(session: Session, purpose: OtpPurpose, leadId: string): Promise<Ctx | { error: string; status: number }> {
   const lead = await getRowById('Leads', leadId)
@@ -38,7 +39,8 @@ async function load(session: Session, purpose: OtpPurpose, leadId: string): Prom
       await needFeature(session, leadKeys('leadsEdit'))
       const access = await getBranchAccess(session)
       if (!canSeeBranch(access, branchId)) return { error: 'This lead belongs to another branch', status: 403 }
-      return { lead, phone: null, branchId, canOverride: canOverrideIn(access, branchId), customerName: lead['Customer Name'] }
+      // the office sends to and verifies against the lead's STORED phone only (a typed number is ignored here)
+      return { lead, phone: normalizeIndianMobile(lead['Phone']), branchId, canOverride: canOverrideIn(access, branchId), customerName: lead['Customer Name'], fixedPhone: true }
     }
     if (session.role !== 'NGF AGENT') return { error: 'Only the assigned field agent can verify a new customer', status: 403 }
     const agent = (await selectRows('Agents', qb => qb.eq('user_id', session.userId).limit(1))).rows[0]
@@ -54,7 +56,7 @@ async function load(session: Session, purpose: OtpPurpose, leadId: string): Prom
   const access = await getBranchAccess(session)
   if (!canApproveIn(access, branchId)) return { error: 'This renewal belongs to another branch', status: 403 }
   const customer = await customerForRenewalLead(lead)
-  return { lead, phone: normalizeIndianMobile(customer?.['Phone']), branchId, canOverride: canOverrideIn(access, branchId), customerName: customer?.['Name'] || lead['Customer Name'] }
+  return { lead, phone: normalizeIndianMobile(customer?.['Phone']), branchId, canOverride: canOverrideIn(access, branchId), customerName: customer?.['Name'] || lead['Customer Name'], fixedPhone: true }
 }
 
 export const GET = apiHandler(async (req: NextRequest) => {
@@ -67,8 +69,8 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const st = await otpStatus(purpose, leadId)
   const l = ctx.lead
   return ok({
-    phoneMasked: maskMobile(purpose === 'renewal_approval' ? ctx.phone : (ctx.phone || l['Phone'])),
-    hasValidPhone: purpose === 'renewal_approval' ? !!ctx.phone : true,
+    phoneMasked: maskMobile(ctx.fixedPhone ? ctx.phone : (ctx.phone || l['Phone'])),
+    hasValidPhone: ctx.fixedPhone ? !!ctx.phone : true,
     canOverride: ctx.canOverride,
     verified: !!l['Otp Verified At'] && Date.now() - Date.parse(l['Otp Verified At']) < (purpose === 'renewal_approval' ? 60 * 60 * 1000 : VERIFIED_FRESH_MS),
     overrideReason: l['Otp Override Reason'] || '',
@@ -89,10 +91,11 @@ export const POST = apiHandler(async (req: NextRequest) => {
   const audit = createAuditLogger(req, session)
 
   // The number: renewals use the customer's registered mobile (staff cannot change it); the agent may correct the number at the house.
-  const phone = purpose === 'renewal_approval' ? ctx.phone : normalizeIndianMobile(body.phone || ctx.lead['Phone'])
+  // (the office completing a partial verification also uses the stored number only)
+  const phone = ctx.fixedPhone ? ctx.phone : normalizeIndianMobile(body.phone || ctx.lead['Phone'])
 
   if (action === 'request') {
-    if (!phone) return err(purpose === 'renewal_approval' ? 'This customer has no valid registered mobile number. Use the override with a reason.' : 'Enter a valid 10-digit mobile number')
+    if (!phone) return err(ctx.fixedPhone ? 'This customer has no valid registered mobile number. Use the override with a reason.' : 'Enter a valid 10-digit mobile number')
     // Already confirmed: another code would cost money for nothing
     const fresh = (ctx.lead['Otp Verified At'] && Date.now() - Date.parse(ctx.lead['Otp Verified At'])) || Infinity
     // (a new number after a verified one is allowed: the old code does not cover it)

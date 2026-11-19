@@ -101,6 +101,7 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
   const restoring = useRef(false)
   const pendingRef = useRef(false)          // the agent chose "Submit later" for this draft
   const [weakAsk, setWeakAsk] = useState(false)
+  const [draftKind, setDraftKind] = useState<'' | 'partial'>('')   // a "Submit later" draft that was a partial verification
   const [locOk, setLocOk] = useState(false)   // a home location is in the form (Locate pressed or a Maps link pasted): needed for a partial verification
   function checkLoc() {
     const f = formRef.current
@@ -148,6 +149,7 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
         setDraftSaved(d.updated)
         pendingRef.current = !!d.pending
       }
+      setDraftKind(d?.fields.submitKind === 'partial' ? 'partial' : '')
       checkLoc()
       restoring.current = false
     })
@@ -303,6 +305,9 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
       if (left.length) { showToast(`For a partial verification add the ${left.join(', ')}.`, 6000); return }
       if (!confirm('Submit a PARTIAL verification? The customer was not at home: the house, landmark and location are sent now, and the office completes the rest when the customer comes in. You will not need to come back.')) return
     }
+    // remembered in the draft (hidden box "submitKind"), so a "Submit later" draft knows it was a partial verification
+    const kindBox = f.elements.namedItem('submitKind') as HTMLInputElement | null
+    if (kindBox) kindBox.value = kind === 'partial' ? 'partial' : ''
     if (net.level === 'poor' || net.level === 'offline') { setWeakAsk(true); return }   // a red light: do not even try, offer "Submit later"
     setSubmitting(true)
     const g = (k: string) => (f.elements.namedItem(k) as HTMLInputElement)?.value || ''
@@ -329,9 +334,15 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
       panNo: g('panNo'),
       chequeNumber: g('chequeNumber'),
     }
-    for (const k of PHOTO_FIELDS.map(f => f.key)) {
-      const file = photoFiles[k]
-      if (file) payload[k] = await fileToPayload(file)
+    try {
+      for (const k of PHOTO_FIELDS.map(f => f.key)) {
+        const file = photoFiles[k]
+        if (file) payload[k] = await fileToPayload(file)
+      }
+    } catch (e) {   // a photo that cannot be read: say so and free the button
+      showToast(e instanceof Error ? e.message : 'A photo could not be read. Take it again.', 6000)
+      setSubmitting(false)
+      return
     }
     const ctrl = new AbortController()
     const timer = setTimeout(() => ctrl.abort(), 120_000)   // photos on a weak line can take a while; give up after 2 minutes
@@ -470,6 +481,7 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
                   <div className="flex gap-2">
                     <input name="mapsLink" id="mapsLink" placeholder="Paste Google Maps link here" data-no-upper className="flex-1 min-w-0 rounded-2xl border border-line bg-mist px-4 py-3 text-sm outline-none focus:border-ink focus:bg-white transition" />
                     <input name="gpsCoordinates" id="gpsCoordinates" type="hidden" />
+                    <input name="submitKind" type="hidden" />
                     <button type="button" onClick={() => {
                       const btn = document.getElementById('gpsBtn') as HTMLButtonElement
                       btn.disabled = true; btn.textContent = '...'
@@ -547,6 +559,7 @@ export default function VerificationsPage({ session, embedded = false, leadId, o
             </div>
             {/* Customer not at home: a separate, partial submit (no OTP). The office completes the rest when the customer comes in. */}
             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+              {draftKind === 'partial' && <p className="mb-2 rounded-xl bg-white px-3 py-2 text-xs font-semibold text-amber-900">Saved for later as a PARTIAL verification: press &quot;Submit partial verification&quot; below to send it.</p>}
               <p className="text-sm font-semibold text-amber-900">Customer not at home?</p>
               <p className="mt-1 text-xs text-amber-900">Take the house photo and the landmark photo and press Locate (or paste the Maps link), then submit a partial verification. No OTP is needed. The office completes the rest when the customer comes in; you do not come back.</p>
               <ul className="mt-2 space-y-0.5 text-xs">

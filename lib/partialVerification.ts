@@ -6,14 +6,21 @@
 
 export const PARTIAL_STATUS = 'Partially Verified'
 
+// Until the owner decides (2026-11-20): a partially verified lead is not sent to an agent again (no reassign, no re-verification),
+// because the visit and its km are already counted. The office completes it, or rejects it.
+export const PARTIAL_LOCKED_MSG = 'The agent already visited; complete the verification in the office'
+
 // The agent's visit OTP stays valid for submitting for 12 hours (same window for the office completion)
 export const OTP_VISIT_FRESH_MS = 12 * 60 * 60 * 1000
+
+/** A pasted location link must be a plain http(s) link (no javascript:, data: ... links are stored or shown). */
+export const MAPS_LINK_RE = /^https?:\/\/\S+$/i
 
 /** A home location is a "lat,lng" pair from the Locate button, or a pasted Google Maps link. */
 export function hasHomeLocation(gpsCoordinates?: string | null, mapsLink?: string | null): boolean {
   const gps = String(gpsCoordinates || '').trim()
   if (/^-?\d{1,2}(\.\d+)?\s*,\s*-?\d{1,3}(\.\d+)?$/.test(gps)) return true
-  return /^https?:\/\/\S+$/i.test(String(mapsLink || '').trim())
+  return MAPS_LINK_RE.test(String(mapsLink || '').trim())
 }
 
 /** What is still missing before a partial verification can be submitted (empty = ready). */
@@ -52,13 +59,26 @@ export function visitOtpBlock(p: { otpVerifiedAt?: string | null; otpPhone?: str
   return null
 }
 
-/** Reads the agent's saved notes ({riskNotes, gpsCoordinates, mapsLink} as JSON); old plain-text notes become riskNotes. */
-export function parseVisitNotes(raw?: string | null): { riskNotes: string; gpsCoordinates: string; mapsLink: string } {
-  const empty = { riskNotes: '', gpsCoordinates: '', mapsLink: '' }
+/** Reads the agent's saved notes ({riskNotes, gpsCoordinates, mapsLink, agentChanged?} as JSON); old plain-text notes become riskNotes.
+ *  agentChanged: what the agent changed during a partial visit ('phone', 'bank'), so the office can double-check it. */
+export function parseVisitNotes(raw?: string | null): { riskNotes: string; gpsCoordinates: string; mapsLink: string; agentChanged: string[] } {
+  const empty = { riskNotes: '', gpsCoordinates: '', mapsLink: '', agentChanged: [] as string[] }
   if (!raw) return empty
   try {
     const n = JSON.parse(raw)
-    if (n && typeof n === 'object') return { riskNotes: String(n.riskNotes || ''), gpsCoordinates: String(n.gpsCoordinates || ''), mapsLink: String(n.mapsLink || '') }
+    if (n && typeof n === 'object') return {
+      riskNotes: String(n.riskNotes || ''), gpsCoordinates: String(n.gpsCoordinates || ''), mapsLink: String(n.mapsLink || ''),
+      agentChanged: Array.isArray(n.agentChanged) ? n.agentChanged.map(String) : [],
+    }
   } catch { /* plain text */ }
   return { ...empty, riskNotes: String(raw) }
+}
+
+/** Which customer details a partial visit changes compared with the lead ('phone', 'bank'). Values must already be normalised
+ *  the same way on both sides; an empty typed value means "unchanged". */
+export function changedDetails(typed: { phone?: string | null; account?: string; ifsc?: string; holder?: string }, stored: { phone?: string | null; account?: string; ifsc?: string; holder?: string }): string[] {
+  const out: string[] = []
+  if (typed.phone && typed.phone !== (stored.phone || '')) out.push('phone')
+  if ((typed.account && typed.account !== (stored.account || '')) || (typed.ifsc && typed.ifsc !== (stored.ifsc || '')) || (typed.holder && typed.holder !== (stored.holder || ''))) out.push('bank')
+  return out
 }

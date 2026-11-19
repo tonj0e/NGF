@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { PARTIAL_STATUS, hasHomeLocation, partialMissing, agentVisitBlock, officeCompleteBlock, visitOtpBlock, parseVisitNotes, OTP_VISIT_FRESH_MS } from '../../lib/partialVerification.ts'
+import { PARTIAL_STATUS, PARTIAL_LOCKED_MSG, MAPS_LINK_RE, changedDetails, hasHomeLocation, partialMissing, agentVisitBlock, officeCompleteBlock, visitOtpBlock, parseVisitNotes, OTP_VISIT_FRESH_MS } from '../../lib/partialVerification.ts'
 
 assert.equal(PARTIAL_STATUS, 'Partially Verified')
 
@@ -48,8 +48,26 @@ assert.match(visitOtpBlock({ phone: '9876543210', now }) || '', /OTP is required
 
 // The agent's saved notes
 assert.deepEqual(parseVisitNotes(JSON.stringify({ riskNotes: 'gate locked', gpsCoordinates: '9.9,76.2', mapsLink: 'https://maps.google.com/?q=9.9,76.2' })),
-  { riskNotes: 'gate locked', gpsCoordinates: '9.9,76.2', mapsLink: 'https://maps.google.com/?q=9.9,76.2' })
-assert.deepEqual(parseVisitNotes(''), { riskNotes: '', gpsCoordinates: '', mapsLink: '' })
-assert.deepEqual(parseVisitNotes('old plain note'), { riskNotes: 'old plain note', gpsCoordinates: '', mapsLink: '' })
+  { riskNotes: 'gate locked', gpsCoordinates: '9.9,76.2', mapsLink: 'https://maps.google.com/?q=9.9,76.2', agentChanged: [] })
+assert.deepEqual(parseVisitNotes(JSON.stringify({ riskNotes: '', agentChanged: ['phone', 'bank'] })).agentChanged, ['phone', 'bank'])
+assert.deepEqual(parseVisitNotes(''), { riskNotes: '', gpsCoordinates: '', mapsLink: '', agentChanged: [] })
+assert.deepEqual(parseVisitNotes('old plain note'), { riskNotes: 'old plain note', gpsCoordinates: '', mapsLink: '', agentChanged: [] })
+
+// Maps links: only http(s) (no javascript: / data: links shown to the office)
+assert.equal(MAPS_LINK_RE.test('https://maps.google.com/?q=1,2'), true)
+assert.equal(MAPS_LINK_RE.test('javascript:alert(1)'), false)
+assert.equal(MAPS_LINK_RE.test('data:text/html,hi'), false)
+assert.equal(hasHomeLocation('', 'javascript:alert(1)'), false)
+
+// What the agent changed during a partial visit (shown to the office)
+const stored = { phone: '9876543210', account: '123456789', ifsc: 'SBIN0001234', holder: 'ANU' }
+assert.deepEqual(changedDetails({ phone: '', account: '', ifsc: '', holder: '' }, stored), [])
+assert.deepEqual(changedDetails({ phone: '9876543210', account: '123456789', ifsc: 'SBIN0001234', holder: 'ANU' }, stored), [])
+assert.deepEqual(changedDetails({ phone: '9123456789' }, stored), ['phone'])
+assert.deepEqual(changedDetails({ account: '999' }, stored), ['bank'])
+assert.deepEqual(changedDetails({ phone: '9123456789', holder: 'ANU K' }, stored), ['phone', 'bank'])
+assert.deepEqual(changedDetails({ account: '123' }, { phone: null }), ['bank'])   // nothing stored before: typed counts as a change
+
+assert.match(PARTIAL_LOCKED_MSG, /complete the verification in the office/)
 
 console.log('ok')

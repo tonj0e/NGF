@@ -28,7 +28,6 @@ export default function CompleteVerificationForm({ session, lead, onClose, onDon
   session: Session; lead: Lead; onClose: () => void; onDone: (message: string) => void
 }) {
   const agentNotes = parseVisitNotes(lead.verificationNotes)
-  const [phone, setPhone] = useState(lead.phone || '')
   const [otp, setOtp] = useState<OtpState>({ verified: false, overridden: false })
   const [files, setFiles] = useState<Partial<Record<OfficePhoto, File>>>({})
   const [previews, setPreviews] = useState<Partial<Record<OfficePhoto, string>>>({})
@@ -46,14 +45,17 @@ export default function CompleteVerificationForm({ session, lead, onClose, onDon
     const f = e.currentTarget
     const g = (k: string) => (f.elements.namedItem(k) as HTMLInputElement | null)?.value || ''
     setBusy(true); setError('')
-    const payload: Record<string, string> = { action: 'completeVerification' }
-    for (const k of ['recommendationStatus', 'riskLevel', 'riskNotes', 'customerName', 'phone', 'aadhaarNo', 'address', 'place', 'houseName', 'landmark',
-      'accountNumber', 'ifscCode', 'accountHolder', 'nomineeName', 'nomineePhone', 'occupation', 'panNo', 'chequeNumber']) payload[k] = g(k)
-    for (const { key } of OFFICE_PHOTOS) { const file = files[key]; if (file) payload[key] = await fileToPayload(file) }
-    const r = await apiSend(session.token, 'PATCH', `/api/leads/${lead.leadId}`, payload)
-    setBusy(false)
-    if (!r.ok) { setError(r.error || 'Could not complete the verification'); return }
-    onDone('Verification completed. It is now waiting for approval.')
+    try {   // a photo that cannot be read (or anything else) never leaves the button stuck
+      const payload: Record<string, string> = { action: 'completeVerification' }
+      for (const k of ['recommendationStatus', 'riskLevel', 'riskNotes', 'customerName', 'phone', 'aadhaarNo', 'address', 'place', 'houseName', 'landmark',
+        'accountNumber', 'ifscCode', 'accountHolder', 'nomineeName', 'nomineePhone', 'occupation', 'panNo', 'chequeNumber']) payload[k] = g(k)
+      for (const { key } of OFFICE_PHOTOS) { const file = files[key]; if (file) payload[key] = await fileToPayload(file) }
+      const r = await apiSend(session.token, 'PATCH', `/api/leads/${lead.leadId}`, payload)
+      if (!r.ok) { setError(r.error || 'Could not complete the verification'); return }
+      onDone('Verification completed. It is now waiting for approval.')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not complete the verification')
+    } finally { setBusy(false) }
   }
 
   const fields: [string, string, string | undefined][] = [
@@ -100,7 +102,10 @@ export default function CompleteVerificationForm({ session, lead, onClose, onDon
             {fields.map(([k, l, v]) => (
               <label key={k} className="block">
                 <span className={cap}>{l}</span>
-                <input name={k} defaultValue={String(v || '')} required={l.endsWith('*')} onChange={k === 'phone' ? (e => setPhone(e.target.value)) : undefined} className={box} />
+                <input name={k} defaultValue={String(v || '')} required={l.endsWith('*')} className={box} />
+                {k === 'phone' && <span className="mt-1 block text-[11px] text-soft">The OTP goes to this stored number. Changing it needs the branch manager, assistant manager or Admin.</span>}
+                {((k === 'phone' && agentNotes.agentChanged.includes('phone')) || (['accountNumber', 'ifscCode', 'accountHolder'].includes(k) && agentNotes.agentChanged.includes('bank'))) &&
+                  <span className="mt-1 block text-[11px] font-semibold text-amber-700">Changed by the agent during the partial visit: check with the customer</span>}
               </label>
             ))}
           </div>
@@ -129,8 +134,8 @@ export default function CompleteVerificationForm({ session, lead, onClose, onDon
 
         <section>
           <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-soft">Customer OTP (required)</p>
-          <p className="mb-3 text-sm text-soft">The customer is here: send the code to their phone and type what they read out.</p>
-          <OtpPanel token={session.token} leadId={lead.leadId} purpose="lead_verification" phone={phone} onChange={setOtp} />
+          <p className="mb-3 text-sm text-soft">The customer is here: send the code to the phone number stored on the lead and type what they read out.</p>
+          <OtpPanel token={session.token} leadId={lead.leadId} purpose="lead_verification" phone={lead.phone} onChange={setOtp} />
         </section>
 
         <section>
