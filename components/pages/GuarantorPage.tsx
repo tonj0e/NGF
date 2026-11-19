@@ -15,87 +15,39 @@ type Settlement = {
   'Settlement ID': string; 'Settlement Date'?: string; 'Saturday Date'?: string; 'Entity ID'?: string
   'Entity Type'?: string; 'Amount Submitted'?: string | number; Status?: string; Notes?: string
 }
-type Cycle = { cycleStart: string; settlementDue: string; scheduledSaturday: string; daysLeft: number; isOverdue: boolean; cycleLoans: Loan[]; totalCommission: number; loanCount: number }
 type QrPayload = { t: string; uid?: string; gn?: string; amt: number; pid?: string; pf?: string; pt?: string; rid?: string; typ?: string; rd?: string }
 
-function getMonday(dateStr: string): string {
-  const d = new Date(dateStr)
-  const day = d.getDay()
-  const diff = day === 0 ? -6 : 1 - day
-  d.setDate(d.getDate() + diff)
-  return d.toISOString().slice(0, 10)
+// One guarantor's row of the commission tracker (GET /api/commissions/payout?all=1&tracker=1). It is worked out on the
+// server by buildOverview (lib/commissionCycles.ts), the same cycles, amounts and payout dates as the Payout Requests page
+// and the guarantor's own Commissions page: 5 whole weeks Monday to Sunday from the guarantor's Commission Start, each
+// loan counted in the week it was disbursed, paid the next working day after the cycle ends.
+type CycleWeek = { start: string; end: string; loans: number; amount: number }
+type CommissionRow = {
+  guarantorId: string; startMonday: string | null; earned: number; paid: number; pending: number; available: number
+  cycleStart: string; cycleEnd: string; cycleLoans: number; cycleAmount: number; nextPayoutDate: string | null
+  readyStart: string; readyEnd: string; readyLoans: number; readyAmount: number; readyPayoutDate: string
+  weeks: CycleWeek[]; today: string
+}
+// The cycle the page talks about: the oldest ended cycle not yet paid or requested (ready), else the one running today.
+type Cycle = {
+  cycleStart: string; cycleEnd: string; payoutDate: string; daysLeft: number; isOverdue: boolean; weeks: CycleWeek[]
+  totalCommission: number; loanCount: number
+  earned: number; paid: number; due: number; since: string   // since the guarantor's commission start; due = earned - paid
 }
 
-function addDays(dateStr: string, days: number): string {
-  const d = new Date(dateStr)
-  d.setDate(d.getDate() + days)
-  return d.toISOString().slice(0, 10)
-}
+const dayDiff = (from: string, to: string) => Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400000)
 
-function daysBetween(from: string, to: string): number {
-  return Math.floor((new Date(to).getTime() - new Date(from).getTime()) / 86400000)
-}
-
-// Commission cycle: 35 days, settlement on Saturday (Day 35)
-// Next cycle starts Monday after scheduled Saturday
-// If settled early (before Saturday) → still wait until Monday
-// If settled late (delayed/held) → next cycle starts day after actual settlement
-// Loans starting during cycle window (cycleStart to settlementDue) are included
-function calcCycle(gLoans: Loan[], gSettlements: Settlement[]): Cycle | null {
-  const activeLoans = gLoans.filter(l => l.status === 'Active' && l.startDate) as (Loan & { startDate: string })[]
-  if (!activeLoans.length) return null
-
-  const sortedSettlements = [...gSettlements]
-    .filter(s => s['Settlement Date'])
-    .sort((a, b) => (a['Settlement Date'] || '').localeCompare(b['Settlement Date'] || ''))
-  const lastSettlement = sortedSettlements.length
-    ? sortedSettlements[sortedSettlements.length - 1]
-    : null
-
-  const sortedLoans = [...activeLoans].sort((a, b) => a.startDate.localeCompare(b.startDate))
-
-  // Determine this cycle's start and scheduled settlement Saturday
-  let cycleStart: string
-  let scheduledSaturday: string
-
-  if (lastSettlement) {
-    const lastSettlementDate = lastSettlement['Settlement Date'] as string
-    const lastSaturday = lastSettlement['Saturday Date'] || lastSettlementDate
-
-    // Check if last settlement was delayed (after its scheduled Saturday)
-    const wasDelayed = lastSettlementDate > lastSaturday
-
-    if (wasDelayed) {
-      // Delayed: next cycle starts day after actual settlement
-      cycleStart = addDays(lastSettlementDate, 1)
-    } else {
-      // On-time or early: next cycle starts Monday after scheduled Saturday
-      cycleStart = addDays(lastSaturday, 2) // Saturday + 2 = Monday
-    }
-  } else {
-    // First cycle: starts on Monday of earliest active loan
-    cycleStart = getMonday(sortedLoans[0].startDate)
-  }
-
-  // Scheduled settlement Saturday = Day 35 of cycle (cycleStart + 34 days)
-  scheduledSaturday = addDays(cycleStart, 34)
-  const settlementDue = scheduledSaturday // due on Saturday
-
-  // Include loans active AND started on or before settlement Saturday
-  const cycleLoans = activeLoans.filter(l => l.startDate <= settlementDue)
-
-  const today = new Date().toISOString().slice(0, 10)
-  const daysLeft = daysBetween(today, settlementDue)
-
+function cycleOf(c: CommissionRow | undefined): Cycle | null {
+  if (!c) return null
+  const ready = !!c.readyStart
+  const payoutDate = (ready ? c.readyPayoutDate : c.nextPayoutDate) || ''
+  if (!payoutDate) return null
+  const daysLeft = dayDiff(c.today, payoutDate)
   return {
-    cycleStart,
-    settlementDue,
-    scheduledSaturday,
-    daysLeft,
-    isOverdue: daysLeft < 0,
-    cycleLoans,
-    totalCommission: cycleLoans.reduce((s, l) => s + Number(l.guarantorCommission || 0), 0),
-    loanCount: cycleLoans.length,
+    cycleStart: ready ? c.readyStart : c.cycleStart, cycleEnd: ready ? c.readyEnd : c.cycleEnd, payoutDate,
+    daysLeft, isOverdue: daysLeft < 0, weeks: c.weeks || [],
+    totalCommission: ready ? c.readyAmount : c.cycleAmount, loanCount: ready ? c.readyLoans : c.cycleLoans,
+    earned: c.earned, paid: c.paid, due: Math.round((c.earned - c.paid) * 100) / 100, since: c.startMonday || '',
   }
 }
 
@@ -106,6 +58,8 @@ export default function GuarantorPage({ session }: { session: Session }) {
   const [guarantors, setGuarantors] = useState<Guarantor[]>([])
   const [loans, setLoans] = useState<Loan[]>([])
   const [settlements, setSettlements] = useState<Settlement[]>([])
+  // commission cycles per guarantor id, from the commission system (same scope as Payout Requests)
+  const [commissions, setCommissions] = useState<Map<string, CommissionRow>>(new Map())
   // Opened guarantor only: their loans with full details, and the id/name/phone list of customers (loaded on open)
   // (kept with the guarantor and the loans list they were read for, so a stale answer is never shown)
   const [detail, setDetail] = useState<{ guarantorId: string; from: Loan[]; rows: Loan[] } | null>(null)
@@ -133,12 +87,14 @@ export default function GuarantorPage({ session }: { session: Session }) {
       fetch('/api/staff', { headers: { Authorization: `Bearer ${session.token}` } }).then(r => r.json()),
       fetch('/api/loans?filter=all&light=1', { headers: { Authorization: `Bearer ${session.token}` } }).then(r => r.json()),
       fetch('/api/settlements', { headers: { Authorization: `Bearer ${session.token}` } }).then(r => r.json()),
-    ]).then(([sR, lR, stR]) => {
-      const bad = [sR, lR, stR].find(r => r && r.success === false)
+      fetch('/api/commissions/payout?all=1&tracker=1', { headers: { Authorization: `Bearer ${session.token}` } }).then(r => r.json()),
+    ]).then(([sR, lR, stR, cR]) => {
+      const bad = [sR, lR, stR, cR].find(r => r && r.success === false)
       if (bad) showToast(bad.error || 'Some data failed to load')
       setGuarantors(sR.data?.guarantors || [])
       setLoans(lR.data?.loans || [])
       setSettlements(stR.data?.settlements || [])
+      setCommissions(new Map(((cR.data?.commissions || []) as CommissionRow[]).map(c => [c.guarantorId, c])))
     }).catch(() => showToast('Could not load guarantor data. Check your connection.')).finally(() => { loadedOnce.current = true; setLoading(false) })
   }
 
@@ -184,11 +140,13 @@ export default function GuarantorPage({ session }: { session: Session }) {
     const detailsLoading = !detailLoans || customers === null
     const gSettlements = settlements.filter(s => s['Entity ID'] === g.guarantorId && s['Entity Type'] === 'GuarantorCommission')
     const gCustomers = (customers || []).filter(c => !!gLoans.find(l => l.customerId === c.customerId))
-    const totalEarned = gLoans.reduce((s, l) => s + Number(l.guarantorCommission || 0), 0)
-    const totalPaid = gSettlements.reduce((s, s2) => s + Number(s2['Amount Submitted'] || 0), 0)
-    const balance = totalEarned - totalPaid
+    // earned / paid / due and the cycle come from the commission system, as on Payout Requests and the Commissions page
+    const cycle = cycleOf(commissions.get(g.guarantorId))
+    const totalEarned = cycle?.earned || 0
+    const totalPaid = cycle?.paid || 0
+    const balance = cycle?.due || 0
+    const sinceNote = cycle?.since ? <p className="text-[10px] text-soft">since {formatDateIN(cycle.since)}</p> : null
     const activeLoans = gLoans.filter(l => l.status === 'Active').length
-    const cycle = calcCycle(gLoans, gSettlements)
 
     const TABS: { key: DetailTab; label: string }[] = [
       { key: 'overview',   label: 'Overview' },
@@ -237,7 +195,7 @@ export default function GuarantorPage({ session }: { session: Session }) {
                     {cycle.isOverdue ? '⚠ Commission Settlement Overdue' : '📅 Commission Settlement Due'}
                   </p>
                   <p className="text-xs text-soft">
-                    Due: {formatDateIN(cycle.settlementDue)} · Cycle from: {formatDateIN(cycle.cycleStart)} · {cycle.loanCount} active loan(s) · Commission: {currency(cycle.totalCommission)}
+                    Due: {formatDateIN(cycle.payoutDate)} · Cycle: {formatDateIN(cycle.cycleStart)} to {formatDateIN(cycle.cycleEnd)} · {cycle.loanCount} loan(s) · Commission: {currency(cycle.totalCommission)}
                   </p>
                 </div>
                 <span className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-bold ${cycle.isOverdue ? 'bg-red-200 text-red-800' : 'bg-amber-200 text-amber-800'}`}>
@@ -254,6 +212,7 @@ export default function GuarantorPage({ session }: { session: Session }) {
               <div className="rounded-[1.5rem] border border-green-200 bg-green-50 p-4 shadow-panel text-center">
                 <p className="text-xs text-green-700 font-medium">Commission Earned</p>
                 <p className="mt-1 text-xl font-bold text-green-800">{currency(totalEarned)}</p>
+                {sinceNote}
               </div>
               <div className="rounded-[1.5rem] border border-blue-200 bg-blue-50 p-4 shadow-panel text-center">
                 <p className="text-xs text-blue-700 font-medium">Commission Paid</p>
@@ -301,7 +260,6 @@ export default function GuarantorPage({ session }: { session: Session }) {
 
         {/* ── COMMISSION SETTLEMENT ── */}
         {detailTab === 'settlement' && (() => {
-          const cycle = calcCycle(gLoans, gSettlements)
           return (
             <div className="space-y-4">
               {cycle ? (
@@ -320,24 +278,24 @@ export default function GuarantorPage({ session }: { session: Session }) {
                       <p className="font-semibold">{formatDateIN(cycle.cycleStart)}</p>
                     </div>
                     <div>
-                      <p className="text-soft">Settlement Due (Day 35)</p>
-                      <p className={`font-semibold ${cycle.isOverdue ? 'text-red-700' : 'text-amber-800'}`}>{formatDateIN(cycle.settlementDue)}</p>
+                      <p className="text-soft">Payout Date</p>
+                      <p className={`font-semibold ${cycle.isOverdue ? 'text-red-700' : 'text-amber-800'}`}>{formatDateIN(cycle.payoutDate)}</p>
                     </div>
                     <div>
-                      <p className="text-soft">Active Loans</p>
+                      <p className="text-soft">Loans This Cycle</p>
                       <p className="font-semibold">{cycle.loanCount}</p>
                     </div>
                   </div>
                   <div>
-                    <p className="text-xs text-soft mb-2">Commission breakdown for active loans:</p>
+                    <p className="text-xs text-soft mb-2">Commission by week (cycle {formatDateIN(cycle.cycleStart)} to {formatDateIN(cycle.cycleEnd)}; each loan counts in the week it was disbursed):</p>
                     <div className="space-y-1">
-                      {cycle.cycleLoans.map(l => (
-                        <div key={l.loanId} className="flex items-center justify-between rounded-xl bg-white/70 px-3 py-2 text-xs">
+                      {cycle.weeks.map((w, i) => (
+                        <div key={w.start} className="flex items-center justify-between rounded-xl bg-white/70 px-3 py-2 text-xs">
                           <div className="flex items-center gap-2">
-                            <span className="font-medium">{l.customerName}</span>
-                            <span className="font-mono text-soft">{l.loanId}</span>
+                            <span className="font-medium">Week {i + 1}</span>
+                            <span className="text-soft">{formatDateIN(w.start)} to {formatDateIN(w.end)} · {w.loans} loan(s)</span>
                           </div>
-                          <span className="font-bold text-green-700">+{currency(Number(l.guarantorCommission || 0))}</span>
+                          <span className="font-bold text-green-700">+{currency(w.amount)}</span>
                         </div>
                       ))}
                     </div>
@@ -349,7 +307,7 @@ export default function GuarantorPage({ session }: { session: Session }) {
                 </div>
               ) : (
                 <div className="rounded-[1.75rem] border border-line bg-panel p-5 text-sm text-soft">
-                  No active loans — no commission cycle to settle.
+                  No commission cycle yet: it starts with the guarantor's commission start or first loan.
                 </div>
               )}
 
@@ -412,6 +370,7 @@ export default function GuarantorPage({ session }: { session: Session }) {
               <div className="rounded-[1.5rem] border border-green-200 bg-green-50 p-4 shadow-panel text-center">
                 <p className="text-xs text-green-700">Total Earned</p>
                 <p className="mt-1 text-xl font-bold text-green-800">{currency(totalEarned)}</p>
+                {sinceNote}
               </div>
               <div className="rounded-[1.5rem] border border-blue-200 bg-blue-50 p-4 shadow-panel text-center">
                 <p className="text-xs text-blue-700">Commission Paid</p>
@@ -518,8 +477,8 @@ export default function GuarantorPage({ session }: { session: Session }) {
             </div>
             <CommissionPaymentForm
               guarantor={manualPayoutGuarantor}
-              cycle={calcCycle(loans.filter(l => l.guarantorCode === manualPayoutGuarantor.code || l.guarantorName === manualPayoutGuarantor.name), settlements.filter(s => s['Entity ID'] === manualPayoutGuarantor.guarantorId))}
-              balance={(() => { const gl = loans.filter(l => l.guarantorCode === manualPayoutGuarantor.code || l.guarantorName === manualPayoutGuarantor.name); const gs = settlements.filter(s => s['Entity ID'] === manualPayoutGuarantor.guarantorId); return gl.reduce((s,l) => s+Number(l.guarantorCommission||0),0) - gs.reduce((s,s2) => s+Number(s2['Amount Submitted']||0),0) })()}
+              cycle={cycleOf(commissions.get(manualPayoutGuarantor.guarantorId))}
+              balance={cycleOf(commissions.get(manualPayoutGuarantor.guarantorId))?.due || 0}
               session={session}
               onDone={() => { setManualPayoutGuarantor(null); load(); showToast('Payout recorded.') }}
             />
@@ -553,12 +512,11 @@ export default function GuarantorPage({ session }: { session: Session }) {
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {filtered.map(g => {
           const gLoans = loans.filter(l => l.guarantorCode === g.code || l.guarantorName === g.name)
-          const gSettlements = settlements.filter(s => s['Entity ID'] === g.guarantorId && s['Entity Type'] === 'GuarantorCommission')
-          const earned = gLoans.reduce((s, l) => s + Number(l.guarantorCommission || 0), 0)
-          const paid = gSettlements.reduce((s, s2) => s + Number(s2['Amount Submitted'] || 0), 0)
-          const balance = earned - paid
+          // cycle, earned and due from the commission system (the same numbers as Payout Requests and the Commissions page)
+          const gCycle = cycleOf(commissions.get(g.guarantorId))
+          const earned = gCycle?.earned || 0
+          const balance = gCycle?.due || 0
           const activeLoans = gLoans.filter(l => l.status === 'Active').length
-          const gCycle = calcCycle(gLoans, gSettlements)
           return (
             <div key={g.guarantorId} className={`rounded-[1.75rem] border bg-white p-5 shadow-panel space-y-4 ${gCycle?.isOverdue ? 'border-red-300' : 'border-white/70'}`}>
               <div className="flex items-start justify-between gap-2">
@@ -571,7 +529,7 @@ export default function GuarantorPage({ session }: { session: Session }) {
               </div>
               {gCycle && (
                 <div className={`rounded-xl px-3 py-2 text-xs flex items-center justify-between ${gCycle.isOverdue ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`}>
-                  <span>{gCycle.isOverdue ? '⚠ Commission overdue' : '📅 Commission due'}: {formatDateIN(gCycle.settlementDue)}</span>
+                  <span>{gCycle.isOverdue ? '⚠ Commission overdue' : '📅 Commission due'}: {formatDateIN(gCycle.payoutDate)}</span>
                   <span className="font-bold">{gCycle.isOverdue ? `${Math.abs(gCycle.daysLeft)}d late` : `${gCycle.daysLeft}d left`}</span>
                 </div>
               )}

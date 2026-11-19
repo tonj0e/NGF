@@ -4,6 +4,8 @@
 //   Guarantor (list)     : 1 step   [access check + own row + guarantors + loans + payouts], all at once
 //   Admin ?all=1         : 1 step   [guarantors + loans + payouts], all at once
 //   Staff ?all=1         : 2 steps  [permission + branch scope] -> [scoped guarantors + loans + payouts]
+//   ?all=1&tracker=1     : the same reads, answering only commissions[] (the Guarantors page). A Staff user needs the
+//                          Guarantors or the Payout Requests feature for it; the branch scope is the same.
 // The money is worked out by buildOverview exactly as before; only the reads changed (same rows, same order per guarantor).
 import type { Session } from '@/types'
 import { needFeature } from './access'
@@ -37,7 +39,7 @@ const fail = (error: string, status: number): PayoutView => ({ ok: false, error,
 const ownGuarantor = async (userId: string) =>
   (await selectRows('Guarantors', qb => qb.eq('user_id', userId).limit(1))).rows[0] as Row | undefined
 
-export async function payoutView(session: Session, opts: { showAll: boolean; summary: boolean }): Promise<PayoutView> {
+export async function payoutView(session: Session, opts: { showAll: boolean; summary: boolean; tracker?: boolean }): Promise<PayoutView> {
   const { showAll } = opts
   if (!showAll && session.role !== 'Guarantor') return fail('Guarantors only', 403)
   if (showAll && session.role !== 'Admin' && session.role !== 'Staff') return fail('Admins/Staff only', 403)
@@ -78,7 +80,8 @@ export async function payoutView(session: Session, opts: { showAll: boolean; sum
     mine = allPayouts
   } else if (session.role === 'Staff') {
     // Staff see only guarantors (and their requests) in their own branches
-    const [, sc] = await Promise.all([needFeature(session, ['payoutRequests']), scopeOf(session)])
+    // the Guarantors page reads only the tracker, so the Guarantors feature is enough for it
+    const [, sc] = await Promise.all([needFeature(session, opts.tracker ? ['guarantors', 'payoutRequests'] : ['payoutRequests']), scopeOf(session)])
     const ids = sc.kind === 'guarantors' ? sc.ids : []
     ;[gRows, allLoans, mine] = ids.length
       ? await Promise.all([byIds('Guarantors', 'guarantor_id', ids, G_COLS), byIds('Loans', 'guarantor_id', ids, LOAN_COLS), byIds('PayoutRequests', 'guarantor_id', ids)])
@@ -109,8 +112,11 @@ export async function payoutView(session: Session, opts: { showAll: boolean; sum
       nextPayoutDate: o.ready?.payoutDate || cur?.payoutDate || null,
       readyStart: o.ready?.start || '', readyAmount: o.ready?.amount || 0, readyPayoutDate: o.ready?.payoutDate || '',
       pendingPayoutId: pending?.['Payout ID'] || '',
+      // the Guarantors page shows the weeks of the cycle it is about (the ready one, else the running one) and today's date
+      ...(opts.tracker ? { readyEnd: o.ready?.end || '', readyLoans: o.ready?.loans || 0, weeks: (o.ready || cur)?.weeks || [], today: o.today } : {}),
     }
   }).filter(c => c.startMonday).sort((a, b) => b.available - a.available || b.earned - a.earned)
+  if (opts.tracker) return { ok: true, data: { commissions } }
 
   const payouts = [...mine]
     .sort((a, b) => b['Requested At'].localeCompare(a['Requested At']))

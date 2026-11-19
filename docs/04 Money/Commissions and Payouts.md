@@ -2,7 +2,7 @@
 title: Commissions and Payouts
 section: Money
 status: current
-last_verified: 2026-10-19
+last_verified: 2026-11-19
 tags: [ngf, money, commissions, payouts]
 ---
 # Commissions and Payouts
@@ -16,7 +16,7 @@ tags: [ngf, money, commissions, payouts]
 | Table | `PayoutRequests`: id `PYOUT<ms><4 random digits>`, Amount, Status, Requested At, Processed At, Notes |
 | Statuses | `Pending`, `Paid`, `Rejected` |
 | Guarantor page | `components/pages/CommissionsPage.tsx` |
-| Admin pages | `PayoutRequestsPage.tsx` (approve/reject), `GuarantorPage.tsx` (QR scanner, manual payout) |
+| Admin pages | `PayoutRequestsPage.tsx` (approve/reject), `GuarantorPage.tsx` (QR scanner, manual payout; cycle and amounts from `?all=1&tracker=1`) |
 
 ## How it works
 1. Cycles (`lib/commissions.ts`, IST dates): loans sorted by `Start Date`. First loan's start opens a cycle ending `start + 35 days`; loans starting before that end join it; the next loan starts a new cycle. A cycle is **past** when `end <= today (IST)`.
@@ -43,6 +43,9 @@ tags: [ngf, money, commissions, payouts]
 - `POST /api/commissions/payout {action:'payNow', guarantorId, amount, mode, reference}` (Admin, or Staff with `payoutRequests`, own branch only): pays unlocked commission at once (amount <= available, no Pending request open), writes a Paid payout and the cash-book line.
 - `GET /api/commissions/payout?all=1` also returns `commissions[]` per guarantor in scope (earned, unlocked, locked, paid, aheadPaid, pending, available, nextPayoutDate); the Payout Requests page shows it as the tracker.
 - Speed (2026-11-19): the GET work lives in `lib/commissionPayouts.ts` (`payoutView`). All reads for one answer start together: guarantor `?summary=1` is one database step (access check, own guarantor row, and own loans and payouts found through a join on `guarantors.user_id`, then cut to that guarantor id); the guarantor list and Admin `?all=1` are one step; Staff `?all=1` is two (permission + branch scope, then guarantors, loans, payouts). Loans read only `guarantor_id, created_at, guarantor_commission`; guarantors only `guarantor_id, name, code, commission_start`. No cache: a payout or a new loan shows at once. Old vs new JSON checked identical for both guarantors, Admin and Staff (scratch script, read-only). Note: the guarantor's plain `GET` (no `summary`) still returns `commissions[]` for every guarantor, which the Commissions page ignores; left as it was (scope unchanged), flagged for the security plan.
+- Guarantors page (2026-11-19): `GuarantorPage.tsx` no longer works out its own cycle. The old browser maths (`calcCycle`: 35 days from the Monday of the first *active* loan, due on a Saturday, restarted after the last `GuarantorCommission` cash-book line; earned = every loan ever, due = earned - cash-book lines) is gone. The page reads `GET /api/commissions/payout?all=1&tracker=1` (`payoutView` with `tracker`): the same `commissions[]` rows as Payout Requests (built by `buildOverview`, same branch scope), answered without the payout list, plus `readyEnd`, `readyLoans`, `weeks` (of the ready cycle, else the running one) and `today`. A Staff user needs the `guarantors` or the `payoutRequests` feature for it (plain `?all=1` still needs `payoutRequests`). Cards and the detail view show: due date = `readyPayoutDate || nextPayoutDate` (the Payout date column), days left to it (late only when a ready cycle's payout date has passed), Earned = `earned` and Paid = `paid` since the commission start, Due = `earned - paid`; the Commission Settlement tab shows that cycle's five weeks; the Record Payout form defaults to that cycle's amount. The Payment History list and the Commission Credits loan ledger still list the cash-book lines and every loan.
+  - Why Admin and Staff disagreed: the old maths used `GET /api/settlements` with no entity id, which answers an empty list for Staff. Admin saw REVATHY's 13 Nov cash-book line (cycle restarted, due 18 Dec, ₹7,000 - ₹7,000 = ₹0 due); Staff saw none (cycle from 26 Oct, due 29 Nov, ₹7,000 due). BINDHU has no cash-book line, so both roles saw 29 Nov. Now both roles get the same tracker rows: for both guarantors cycle 16 Nov to 20 Dec, payout Monday 21 Dec, earned/paid/due ₹0 (no loans since 16 Nov), equal to the guarantor's own Commissions page (read-only check, Admin and both Staff users with the Guarantors feature; no live Staff user has `payoutRequests`).
+  - Still open (commission rules unchanged): a manual "Record Commission Payment" from this page writes a cash-book line that `buildOverview` does not count (the tracker's `aheadPaid` is always 0), so it does not lower Due here or on Payout Requests.
 - Staff need the `payoutRequests` feature to see Payout Requests. It is in the built-in manager and accountant defaults, but a saved `role_defaults` setting overrides the built-ins, so on a live database the Admin ticks it under NGF Branches (role defaults).
 - Manual cash-book payments are not blocked before the 35 days end; the tracker shows them as "early".
 

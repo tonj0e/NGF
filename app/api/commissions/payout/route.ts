@@ -24,12 +24,13 @@ async function recordCommissionSettlement(gid: string, name: string, amount: num
   invalidateCache('Settlements')
 }
 
-// Reads only: the guarantor's own commission (?summary=1), their request list, or the Payout Requests page (?all=1).
+// Reads only: the guarantor's own commission (?summary=1), their request list, the Payout Requests page (?all=1),
+// or only the per-guarantor cycle tracker for the Guarantors page (?all=1&tracker=1).
 // The work lives in lib/commissionPayouts.ts, which reads everything it needs in as few database steps as possible.
 export const GET = apiHandler(async (req: NextRequest) => {
   const session = await getSession(req)
   const { searchParams } = new URL(req.url)
-  const r = await payoutView(session, { showAll: searchParams.get('all') === '1', summary: searchParams.get('summary') === '1' })
+  const r = await payoutView(session, { showAll: searchParams.get('all') === '1', summary: searchParams.get('summary') === '1', tracker: searchParams.get('tracker') === '1' })
   return r.ok ? ok(r.data) : err(r.error, r.status)
 })
 
