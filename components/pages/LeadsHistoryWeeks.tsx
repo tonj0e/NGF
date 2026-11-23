@@ -20,7 +20,9 @@ export default function LeadsHistoryWeeks({ session, search, branch, weekStart =
   const [weeksBack, setWeeksBack] = useState(12)
   const [perDay, setPerDay] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
-  const [openWeeks, setOpenWeeks] = useState<Set<string>>(new Set([weekStart || mondayOf(today)]))   // this week (or the chosen one) starts open
+  // the chosen week starts open; with all weeks, the newest week that has leads opens once the counts arrive
+  const [openWeeks, setOpenWeeks] = useState<Set<string>>(new Set(weekStart ? [weekStart] : []))
+  const autoOpened = useRef(!!weekStart)
   const [openDays, setOpenDays] = useState<Set<string>>(new Set())
   const [dayLeads, setDayLeads] = useState<Record<string, Lead[] | 'loading'>>({})
   const seq = useRef(0)
@@ -34,7 +36,13 @@ export default function LeadsHistoryWeeks({ session, search, branch, weekStart =
     const res = await fetch(`/api/leads?tab=history&days=1&weeks=${weeksBack}&${query}`, { headers })
     const json = await res.json().catch(() => null)
     if (my !== seq.current || !json?.success) return
-    setPerDay(json.data.perDay || {}); setLoading(false)
+    const pd: Record<string, number> = json.data.perDay || {}
+    setPerDay(pd); setLoading(false)
+    if (!autoOpened.current) {
+      autoOpened.current = true
+      const newest = Object.keys(pd).filter(d => pd[d] > 0).sort().pop()
+      if (newest) setOpenWeeks(s => s.size ? s : new Set([mondayOf(newest)]))
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weeksBack, search, branch, weekStart, session.token])
 
@@ -58,15 +66,15 @@ export default function LeadsHistoryWeeks({ session, search, branch, weekStart =
   // week (Monday) -> its days, newest first
   const weekMap = new Map<string, string[]>()
   for (const d of Object.keys(perDay)) { const w = mondayOf(d); weekMap.set(w, [...(weekMap.get(w) || []), d]) }
-  const thisMonday = mondayOf(today)
-  const pinned = weekStart || thisMonday
-  if (!weekMap.has(pinned)) weekMap.set(pinned, [])   // this week (or the chosen week) is always shown, even when empty
+  // a chosen week is always shown, even when empty; with all weeks only weeks that have leads are listed
+  if (weekStart && !weekMap.has(weekStart)) weekMap.set(weekStart, [])
   const weeks = Array.from(weekMap.keys()).filter(w => !weekStart || w === weekStart).sort().reverse()
 
   if (loading) return <p className="p-8 text-center text-sm text-soft">Loading…</p>
 
   return (
     <div className="space-y-3">
+      {!weeks.length && <div className="overflow-hidden rounded-[1.5rem] border border-white/70 bg-white p-8 text-center text-sm text-soft shadow-panel">No leads in History in the last {weeksBack} weeks.</div>}
       {weeks.map(w => {
         const days = weekMap.get(w)!
         const total = days.reduce((n, d) => n + perDay[d], 0)

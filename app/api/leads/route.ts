@@ -17,7 +17,7 @@ import { checkRenewalEligibility, customerForRenewalLead, isPermanentlyBlockedAa
 import { getTodayIST, addDaysIST } from '@/lib/dateUtils'
 import { reportError } from '@/lib/monitor'
 import { normalizeIndianMobile } from '@/lib/phone'
-import { parseWeekStart, addDays as addWeekDays, mondayOf } from '@/lib/leadWeeks'
+import { parseWeekStart, parseView, viewOf, stageOf, pageWeekTotals, lastLeadDay, addDays as addWeekDays, LEAD_ASSIGNED_STATUSES, LEAD_DONE_STATUSES, LEAD_PARTIAL_STATUSES } from '@/lib/leadWeeks'
 
 // Tab badge counts in one database call (function lead_badge_counts, migration 20261119120000). Until that function
 // exists the seven head counts run as before; after a failed call the function is not tried again for 10 minutes.
@@ -93,11 +93,12 @@ async function leadsPage(opts: PageOpts) {
 //   &counts=0   leave out the tab badge counts (the agent's Verifications list does not show them)
 //   &weekStart=YYYY-MM-DD   only leads submitted that week: Monday (a later day is moved back to its Monday) to Sunday,
 //               India dates (submitted_date >= Monday and < next Monday). Same scope and permissions as without it.
-//   &view=pending|done|returned   (tab=new) the guarantor's In Progress parts: not completed / completed / returned
-// Besides the rows: `weekTotals` (leads per week for the weeks on this page, so a week header shows its full count even
-// when the week runs over two pages), `viewCounts` (tab=new: the three parts, for the chosen week or all weeks) and,
-// with a week chosen, `weekStageCounts` (the office's four New-leads parts for that week). The tab badges (`counts`)
-// always stay for the whole scope (all weeks).
+//   &view=pending|done|returned   (tab=new, guarantor) the In Progress parts: not completed / completed / returned
+//   &weekTotals=1   also return `weekTotals` (leads per week for the weeks on this page, so a week header shows its full
+//               count when the week runs over two pages). Only the Leads page asks; other callers get the same answer as before.
+// A guarantor's tab=new answer has `viewCounts` (the three parts, for the chosen week or all weeks); the office's, with a
+// week chosen, `weekStageCounts` (the four New-leads parts for that week). The tab badges (`counts`) always stay for
+// the whole scope (all weeks).
 // Filtering, searching, counting and paging happen in the database; only the rows on the page are enriched.
 // `counts` (new / history / renewal / approved / stages) feeds the tab badges for the caller's whole scope.
 export const GET = apiHandler(async (req: NextRequest) => {
@@ -114,7 +115,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const text = cleanSearch(searchParams.get('q'))
   const dayParam = /^\d{4}-\d{2}-\d{2}$/.test(searchParams.get('day') || '') ? searchParams.get('day')! : ''   // one submitted day (History, by week and day)
   const weekStart = parseWeekStart(searchParams.get('weekStart'))   // one Monday-to-Sunday week ('' = all weeks)
-  const view = tab === 'new' ? (searchParams.get('view') || '') : ''
+  const view = tab === 'new' && session.role === 'Guarantor' ? parseView(searchParams.get('view')) : ''
 
   // the small branch tables load at the same time as the scope, not after it
   const branchesP = Promise.all([readTable('Branches'), readTable('GuarantorBranches')])
@@ -144,20 +145,19 @@ export const GET = apiHandler(async (req: NextRequest) => {
     : t === 'renewal' ? qb.eq('loan_product', 'RENEWAL') : qb
   // New Leads is split in four: not yet assigned, with an agent, partially verified (customer was not at home: the office
   // completes it) and verified (waiting for the decision)
-  const STAGE_ASSIGNED = ['Agent Assigned', 'Verification In Progress'], STAGE_DONE = ['Verification Submitted', 'Approved'], STAGE_PARTIAL = ['Partially Verified']
+  const STAGE_ASSIGNED = LEAD_ASSIGNED_STATUSES, STAGE_DONE = LEAD_DONE_STATUSES, STAGE_PARTIAL = LEAD_PARTIAL_STATUSES
   const inStage = (qb: any, s: string) =>
     s === 'assigned' ? qb.in('status', STAGE_ASSIGNED)
     : s === 'completed' ? qb.in('status', STAGE_DONE)
     : s === 'partial' ? qb.in('status', STAGE_PARTIAL)
     : s === 'new' ? qb.not('status', 'in', `(${['Converted', 'Rejected', 'Returned', ...STAGE_ASSIGNED, ...STAGE_DONE, ...STAGE_PARTIAL].join(',')})`) : qb
   const stage = tab === 'new' ? (searchParams.get('stage') || '') : ''
-  // the guarantor's In Progress parts (statuses as the screen has always split them)
-  const VIEW_DONE = ['Verification Submitted', 'Approved']
+  // the guarantor's In Progress parts (statuses as the screen has always split them; viewOf in lib/leadWeeks is the same split)
   type QB = Parameters<typeof inTab>[0]
   const inView = (qb: QB, v: string) =>
-    v === 'done' ? qb.in('status', VIEW_DONE)
+    v === 'done' ? qb.in('status', STAGE_DONE)
     : v === 'returned' ? qb.eq('status', 'Returned')
-    : v === 'pending' ? qb.not('status', 'in', `(${[...VIEW_DONE, 'Returned'].join(',')})`) : qb
+    : v === 'pending' ? qb.not('status', 'in', `(${[...STAGE_DONE, 'Returned'].join(',')})`) : qb
   const inWeek = (qb: QB, monday: string) => qb.gte('submitted_date', monday).lt('submitted_date', addWeekDays(monday, 7))
   // every filter of the request; `withView: false` leaves out the In Progress part (for the part counts)
   const filtersOf = (withView: boolean) => (qb: QB) => {
@@ -175,7 +175,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
   }
   const filters = filtersOf(true)
 
-  // History by week: how many leads were submitted on each day of the last N weeks (the screen groups them Monday to Friday)
+  // History by week: how many leads were submitted on each day of the last N weeks (the screen groups them Monday to Sunday)
   if (searchParams.get('days') === '1') {
     const weeks = Math.min(Math.max(Number(searchParams.get('weeks')) || 12, 1), 104)
     const since = weekStart || addDaysIST(getTodayIST(), -7 * weeks)   // a chosen week may be older than the last N weeks
@@ -187,13 +187,15 @@ export const GET = apiHandler(async (req: NextRequest) => {
 
   // The tab counts do not depend on the page rows, so they are counted while the page loads (one call, or none with counts=0)
   const withCounts = searchParams.get('counts') !== '0'
-  // In Progress parts: the leads of the tab (without the part filter) read as status + date only. A guarantor's list is
-  // small; the office's New list is the in-progress leads only. The same read gives the week totals of the chosen part.
-  const viewP = tab === 'new' && withCounts && (isG || view)
+  const wantWeekTotals = searchParams.get('weekTotals') === '1'
+  // Guarantor In Progress parts: their own in-progress leads (without the part filter) read as status + date only, a short
+  // list. The same read gives the week totals of the chosen part.
+  const viewP = tab === 'new' && withCounts && isG
     ? selectAll('Leads', filtersOf(false), 'lead_id,status,submitted_date') : null
-  // the office's four New-leads parts for the chosen week (scope + week only, like the all-weeks badges)
+  // the office's four New-leads parts for the chosen week (scope + week only, like the all-weeks badges): one narrow read
+  // of that week's in-progress statuses, split in code
   const weekStageP = tab === 'new' && withCounts && weekStart && !isG
-    ? Promise.all(['new', 'assigned', 'completed', 'partial'].map(sg => countRows('Leads', qb => inWeek(inStage(inTab(scoped(qb), 'new'), sg), weekStart)))) : null
+    ? selectAll('Leads', qb => inWeek(inTab(scoped(qb), 'new'), weekStart), 'lead_id,status') : null
   const [r, counts, viewRows, weekStage] = await Promise.all([
     leadsPage({
       filters, order: [{ column: 'submitted_date', ascending: false }, { column: 'lead_id', ascending: false }],
@@ -208,20 +210,31 @@ export const GET = apiHandler(async (req: NextRequest) => {
     viewP, weekStageP,
   ])
 
-  const statusView = (s: string) => VIEW_DONE.includes(s) ? 'done' : s === 'Returned' ? 'returned' : 'pending'
   const viewCounts = viewRows ? { pending: 0, done: 0, returned: 0 } : null
-  if (viewRows && viewCounts) for (const l of viewRows) viewCounts[statusView(l['Status'])]++
+  if (viewRows && viewCounts) for (const l of viewRows) viewCounts[viewOf(l['Status'])]++
+  const weekStageCounts = weekStage ? { stageNew: 0, stageAssigned: 0, stageCompleted: 0, stagePartial: 0 } : null
+  if (weekStage && weekStageCounts) for (const l of weekStage) {
+    const sg = stageOf(l['Status'])
+    if (sg) weekStageCounts[sg === 'new' ? 'stageNew' : sg === 'assigned' ? 'stageAssigned' : sg === 'completed' ? 'stageCompleted' : 'stagePartial']++
+  }
 
-  // Week headers: how many leads each week on this page has in the whole list. Free when the whole list is on this page
-  // or the part's rows were read above (they carry every other filter); otherwise one count per week shown (usually one or two).
-  const pageWeeks = Array.from(new Set(r.rows.map(l => mondayOf(String(l['Submitted Date'] || ''))).filter(Boolean)))
-  const weekTotals: Record<string, number> = {}
-  const tally = (list: Record<string, string>[]) => { for (const l of list) { const m = mondayOf(String(l['Submitted Date'] || '')); if (m && pageWeeks.includes(m)) weekTotals[m] = (weekTotals[m] || 0) + 1 } }
-  if (r.total <= r.rows.length && r.page <= 1) tally(r.rows)
-  else if (viewRows) tally(view ? viewRows.filter(l => statusView(l['Status']) === view) : viewRows)
-  else {
-    const n = await Promise.all(pageWeeks.map(m => countRows('Leads', qb => inWeek(filters(qb), m))))
-    pageWeeks.forEach((m, i) => { weekTotals[m] = n[i] })
+  // Week headers (only when asked): how many leads each week on this page has in the whole list. With a week chosen it
+  // is the list total; a guarantor's comes from the part read above (it carries every other filter); otherwise the rows
+  // on the page, plus one count for each edge week that can run over pages (none when the list fits on one page).
+  let weekTotals: Record<string, number> | undefined
+  if (wantWeekTotals) {
+    const totalPages = Math.ceil(r.total / r.pageSize)
+    const dates = r.rows.map(l => String(l['Submitted Date'] || ''))
+    const { totals, edges } = pageWeekTotals(dates, r.page, totalPages)
+    if (weekStart) weekTotals = { [weekStart]: r.total }
+    else if (viewRows) {
+      const all = pageWeekTotals((view ? viewRows.filter(l => viewOf(l['Status']) === view) : viewRows).map(l => String(l['Submitted Date'] || '')), 1, 1).totals
+      weekTotals = Object.fromEntries(Object.keys(totals).map(m => [m, all[m] ?? totals[m]]))
+    } else {
+      weekTotals = totals
+      const n = await Promise.all(edges.map(m => countRows('Leads', qb => inWeek(filters(qb), m))))
+      edges.forEach((m, i) => { weekTotals![m] = n[i] })
+    }
   }
 
   // names and the same-Aadhaar count came with the page (or from the follow-up reads when the one-call form is off)
@@ -266,8 +279,9 @@ export const GET = apiHandler(async (req: NextRequest) => {
     pagination: { page: r.page, pageSize: r.pageSize, total: r.total, totalPages: Math.ceil(r.total / r.pageSize) },
     counts: counts ? { new: counts[0], history: counts[1], renewal: counts[2], approved: counts[3], stageNew: counts[4], stageAssigned: counts[5], stageCompleted: counts[6], stagePartial: counts[7] } : null,
     branches: visibleBranches,
-    weekStart, weekTotals, viewCounts,
-    weekStageCounts: weekStage ? { stageNew: weekStage[0], stageAssigned: weekStage[1], stageCompleted: weekStage[2], stagePartial: weekStage[3] } : null,
+    ...(wantWeekTotals ? { weekStart, weekTotals } : {}),
+    ...(viewCounts ? { viewCounts } : {}),
+    ...(weekStageCounts ? { weekStageCounts } : {}),
   })
 })
 
@@ -358,9 +372,10 @@ export const POST = apiHandler(async (req: NextRequest) => {
     altPhone = m
   }
   const leadId = makeId('LEAD')
-  // the day the lead is filed under: today by default, or a day of the coming two weeks (a lead taken late in the week goes on next week)
+  // the day the lead is filed under: today by default, or a day up to the end (Sunday) of next week (a lead taken late in
+  // the week goes on next week). The Leads week picker lists next week as its newest week, so every lead can be found by week.
   const today = getTodayIST()
-  if (body.submittedDate && (body.submittedDate > addDaysIST(today, 14) || body.submittedDate < addDaysIST(today, -90))) return err('Choose today or a day in the next two weeks.')
+  if (body.submittedDate && (body.submittedDate > lastLeadDay(today) || body.submittedDate < addDaysIST(today, -90))) return err('Choose today or a day up to the end of next week.')
   const leadDate = body.submittedDate || today
 
   if (body.customerPhoto || body.aadhaarFront || body.aadhaarBack || body.landmarkPhoto || body.housePhoto || body.chequePhoto) {

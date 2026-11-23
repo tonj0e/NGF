@@ -63,7 +63,7 @@ From [[2026-11-19 UI Review]] (branch perf4/aarav). Layout only, same data and w
 - Colours are hard-coded hex; dark mode (`ngf-dark`) does not recolour the SVG.
 - Mobile header has no page title, so deep screens rely on the page's own heading.
 - Reduced-motion is provided by `ReducedMotionProvider`, but the gauge spring runs regardless.
-- Leads lists by week (2026-11-23): the week picker is a full-width row on phones (‹ drop-down ›, 40 px buttons) and 20 rem wide on desktop; week headers are sticky cards (`bg-white/95` + blur, dark-mode remapped); "n on this page" moves under the week on phones.
+- Leads lists by week (2026-11-23): office filters on phones are two rows (search + ⋯ menu with Apply loan product / Delete leads; branch + week drop-down), the arrows show from `sm`; guarantor/agent week picker is a full-width row with 40 px arrows. Part buttons (guarantor three, office four) stack the count under the label on phones with a 3.75 rem minimum height so they are even. Week headers are sticky cards at `-top-4` (cancels the scroller's `py-4`), `bg-white/95` + blur, dark-mode remapped; "n on this page" moves under the week on phones.
 
 ## Related
 - [[Roles and Screens Brain]], [[Screens Map]], [[Request Flow]], [[Repayments and Collections]]

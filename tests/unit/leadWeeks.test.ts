@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { todayIST, addDays, mondayOf, parseWeekStart, weekRange, weekLabel, dayLabel, recentWeeks, groupByWeek } from '../../lib/leadWeeks.ts'
+import { todayIST, addDays, mondayOf, parseWeekStart, weekRange, weekLabel, dayLabel, recentWeeks, groupByWeek, parseView, viewOf, stageOf, pageWeekTotals, lastLeadDay } from '../../lib/leadWeeks.ts'
 
 // Weeks run Monday..Sunday in India time. 2026-11-23 is a Monday, 2026-11-29 a Sunday.
 
@@ -43,9 +43,11 @@ assert.equal(weekRange('2025-12-29', true), '29 Dec 2025 – 4 Jan 2026')
 const today = '2026-11-25'   // Wednesday
 assert.equal(weekLabel('2026-11-23', today), 'This week · 23–29 Nov')
 assert.equal(weekLabel('2026-11-16', today), 'Last week · 16–22 Nov')
-assert.equal(weekLabel('2026-11-09', today), '9–15 Nov 2026')
+assert.equal(weekLabel('2026-11-09', today), '9–15 Nov')                    // no year within the current year
+assert.equal(weekLabel('2025-12-15', today), '15–21 Dec 2025')
+assert.equal(weekLabel('2025-12-29', today), '29 Dec 2025 – 4 Jan 2026')   // runs into another year: both years
 assert.equal(weekLabel('2026-11-30', today), 'Next week · 30 Nov – 6 Dec')  // a lead may be filed on next week's day
-assert.equal(weekLabel('2026-12-07', today), '7–13 Dec 2026')
+assert.equal(weekLabel('2026-12-07', today), '7–13 Dec')
 assert.equal(weekLabel('', today), 'No date')
 // on a Sunday, the week is still the one that started on Monday; on Monday a new week starts
 assert.equal(weekLabel('2026-11-23', '2026-11-29'), 'This week · 23–29 Nov')
@@ -77,7 +79,50 @@ const rows = [
 const g = groupByWeek(rows, r => r.d, today)
 assert.deepEqual(g.map(x => x.monday), ['2026-11-23', '2026-11-16', '2026-11-09', ''])
 assert.deepEqual(g.map(x => x.rows.map(r => r.id).join('')), ['ab', 'cd', 'e', 'f'])
-assert.deepEqual(g.map(x => x.label), ['This week · 23–29 Nov', 'Last week · 16–22 Nov', '9–15 Nov 2026', 'No date'])
+assert.deepEqual(g.map(x => x.label), ['This week · 23–29 Nov', 'Last week · 16–22 Nov', '9–15 Nov', 'No date'])
 assert.deepEqual(groupByWeek([], (r: { d: string }) => r.d, today), [])
+
+// parseView: only the three parts
+assert.equal(parseView('pending'), 'pending')
+assert.equal(parseView('returned'), 'returned')
+assert.equal(parseView('PENDING'), '')
+assert.equal(parseView('x'), '')
+assert.equal(parseView(null), '')
+
+// viewOf: the guarantor's In Progress parts
+assert.equal(viewOf('Pending'), 'pending')
+assert.equal(viewOf('Agent Assigned'), 'pending')
+assert.equal(viewOf('Partially Verified'), 'pending')
+assert.equal(viewOf('Verification Submitted'), 'done')
+assert.equal(viewOf('Approved'), 'done')
+assert.equal(viewOf('Returned'), 'returned')
+
+// stageOf: the office's four New-leads parts
+assert.equal(stageOf('Pending'), 'new')
+assert.equal(stageOf('Under Review'), 'new')
+assert.equal(stageOf('Agent Assigned'), 'assigned')
+assert.equal(stageOf('Verification In Progress'), 'assigned')
+assert.equal(stageOf('Partially Verified'), 'partial')
+assert.equal(stageOf('Verification Submitted'), 'completed')
+assert.equal(stageOf('Approved'), 'completed')
+assert.equal(stageOf('Returned'), '')
+assert.equal(stageOf('Converted'), '')
+assert.equal(stageOf('Rejected'), '')
+
+// pageWeekTotals: counts of the page's rows per week; only edge weeks that can run over pages need a count
+{
+  const dates = ['2026-11-29', '2026-11-24', '2026-11-20', '2026-11-16', '2026-11-12']   // weeks 23 Nov, 16 Nov, 9 Nov
+  assert.deepEqual(pageWeekTotals(dates, 1, 1), { totals: { '2026-11-23': 2, '2026-11-16': 2, '2026-11-09': 1 }, edges: [] })
+  assert.deepEqual(pageWeekTotals(dates, 1, 3).edges, ['2026-11-09'])                     // later page: last week
+  assert.deepEqual(pageWeekTotals(dates, 2, 3).edges, ['2026-11-23', '2026-11-09'])       // middle page: first and last
+  assert.deepEqual(pageWeekTotals(dates, 3, 3).edges, ['2026-11-23'])                     // last page: first week
+  assert.deepEqual(pageWeekTotals(['2026-11-24', '2026-11-23'], 2, 3).edges, ['2026-11-23'])   // one week: counted once
+  assert.deepEqual(pageWeekTotals(['', 'bad'], 2, 3), { totals: {}, edges: [] })
+}
+
+// lastLeadDay: the Sunday of next week
+assert.equal(lastLeadDay('2026-11-23'), '2026-12-06')   // Monday
+assert.equal(lastLeadDay('2026-11-29'), '2026-12-06')   // Sunday
+assert.equal(lastLeadDay('2026-12-28'), '2027-01-10')   // across the year
 
 console.log('ok')

@@ -53,14 +53,16 @@ export function weekRange(monday: string, withYear = false): string {
 }
 
 // "This week · 23–29 Nov", "Last week · 16–22 Nov", "Next week · 30 Nov – 6 Dec" (a guarantor may file a lead on next
-// week's day), or any other week with its year: "9–15 Nov 2026"
+// week's day), or any other week: "9–15 Nov", with the year only when the week is not all in the current year
+// ("15–21 Dec 2025", "29 Dec 2025 – 4 Jan 2026")
 export function weekLabel(monday: string, today: string): string {
   if (!monday) return 'No date'
   const cur = mondayOf(today)
   if (monday === cur) return `This week · ${weekRange(monday)}`
   if (monday === addDays(cur, 7)) return `Next week · ${weekRange(monday)}`
   if (monday === addDays(cur, -7)) return `Last week · ${weekRange(monday)}`
-  return weekRange(monday, true)
+  const y = today.slice(0, 4)
+  return weekRange(monday, monday.slice(0, 4) !== y || addDays(monday, 6).slice(0, 4) !== y)
 }
 
 // "Mon 17 Nov" (the year is added when it is not the current year: "Mon 29 Dec 2025")
@@ -93,3 +95,52 @@ export function groupByWeek<T>(rows: T[], dateOf: (r: T) => string, today: strin
   }
   return groups
 }
+
+// ─── Lead statuses by part (shared by GET /api/leads and the Leads page) ───
+
+// The agent has finished the verification (it waits for the office): the guarantor's "Completed", the office's "Completed leads"
+export const LEAD_DONE_STATUSES = ['Verification Submitted', 'Approved']
+// with an agent: the office's "Assigned leads"
+export const LEAD_ASSIGNED_STATUSES = ['Agent Assigned', 'Verification In Progress']
+// the customer was not at home: the office's "Partially verified"
+export const LEAD_PARTIAL_STATUSES = ['Partially Verified']
+
+export type LeadView = 'pending' | 'done' | 'returned'
+export const LEAD_VIEWS: LeadView[] = ['pending', 'done', 'returned']
+// a view query value, or '' when it is not one of the three
+export const parseView = (v: string | null | undefined): LeadView | '' => (LEAD_VIEWS as string[]).includes(v || '') ? v as LeadView : ''
+
+// The guarantor's In Progress part of a lead that is in progress: Not completed / Completed / Returned
+export function viewOf(status: string): LeadView {
+  return LEAD_DONE_STATUSES.includes(status) ? 'done' : status === 'Returned' ? 'returned' : 'pending'
+}
+
+export type LeadStage = 'new' | 'assigned' | 'partial' | 'completed'
+// The office's New-leads part of an in-progress lead ('' for Returned, Converted and Rejected, which are in no part)
+export function stageOf(status: string): LeadStage | '' {
+  if (['Returned', 'Converted', 'Rejected'].includes(status)) return ''
+  return LEAD_ASSIGNED_STATUSES.includes(status) ? 'assigned' : LEAD_DONE_STATUSES.includes(status) ? 'completed'
+    : LEAD_PARTIAL_STATUSES.includes(status) ? 'partial' : 'new'
+}
+
+// Week totals for the week headers of one page of a list sorted newest first. Weeks in the middle of the page are
+// complete on it; only the first week (when there is an earlier page) and the last week (when there is a later page)
+// can run over pages, so only those need counting (`edges`). `totals` holds the counts of the rows on this page.
+export function pageWeekTotals(dates: string[], page: number, totalPages: number): { totals: Record<string, number>; edges: string[] } {
+  const totals: Record<string, number> = {}
+  const order: string[] = []
+  for (const d of dates) {
+    const m = mondayOf(d || '')
+    if (!m) continue
+    if (!(m in totals)) { totals[m] = 0; order.push(m) }
+    totals[m]++
+  }
+  const edges: string[] = []
+  if (order.length && page > 1) edges.push(order[0])
+  if (order.length && page < totalPages && !edges.includes(order[order.length - 1])) edges.push(order[order.length - 1])
+  return { totals, edges }
+}
+
+// The latest day a lead can be filed under: the Sunday of next week (the Submit Lead page offers weekdays up to next
+// week's Friday; the server allows the whole of next week)
+export const lastLeadDay = (today: string) => addDays(mondayOf(today), 13)

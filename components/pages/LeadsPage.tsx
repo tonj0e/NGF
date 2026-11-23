@@ -8,15 +8,16 @@ import { apiSend } from '@/lib/clientApi'
 import SubmitLeadPage from './SubmitLeadPage'
 import RenewalModal from './RenewalModal'
 import LeadsHistoryWeeks from './LeadsHistoryWeeks'
-import { LeadWeekPicker, LeadWeekGroups } from './LeadWeeks'
-import { todayIST, dayLabel, weekLabel } from '@/lib/leadWeeks'
+import { LeadWeekPicker, LeadWeekGroups, LeadListSkeleton } from './LeadWeeks'
+import { todayIST, dayLabel, weekLabel, LEAD_DONE_STATUSES, LEAD_VIEWS, type LeadView, type LeadStage } from '@/lib/leadWeeks'
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu'
 import RenewalApproveModal from './RenewalApproveModal'
 import DisburseQueue from './DisburseQueue'
 import CompleteVerificationForm from './CompleteVerificationForm'
 import { buildLeadNoteData, buildPromissoryHtml, PROMISSORY_TEMPLATE_KEY, DEFAULT_PROMISSORY_BODY } from '@/lib/promissoryNote'
 
 // a lead is "completed" for the guarantor once the agent has submitted the verification (it then waits for the admin)
-const DONE_STATUSES = ['Verification Submitted', 'Approved']
+const DONE_STATUSES = LEAD_DONE_STATUSES
 // the agent visited but the customer was not at home: the office completes the verification when the customer comes in
 const PARTIAL = 'Partially Verified'
 
@@ -63,7 +64,9 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
   const [loading, setLoading] = useState(true)
   const loadedOnce = useRef(false)
   const [tab, setTab] = useState<LeadTab>(isCollectionAgent ? 'history' : 'new')
-  const [progressView, setProgressView] = useState<'pending' | 'done' | 'returned'>('pending')   // guarantor In Progress: Not completed / Completed / Returned
+  const [progressView, setProgressView] = useState<LeadView>('pending')   // guarantor In Progress: Not completed / Completed / Returned
+  // until the user taps a part, a part with no leads gives way to the first part that has some (see loadLeads)
+  const partPicked = useRef(false)
   const [showSubmit, setShowSubmit] = useState(false)
   const [showRenewal, setShowRenewal] = useState(false)
   const [approving, setApproving] = useState<Lead | null>(null)
@@ -86,7 +89,7 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
   const [totalLeads, setTotalLeads] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
   const [counts, setCounts] = useState({ new: 0, history: 0, renewal: 0, approved: 0, stageNew: 0, stageAssigned: 0, stageCompleted: 0, stagePartial: 0 })
-  const [stage, setStage] = useState<'new' | 'assigned' | 'partial' | 'completed'>('new')
+  const [stage, setStage] = useState<LeadStage>('new')
   const [branchList, setBranchList] = useState<{ branchId: string; name: string }[]>([])
   const [search, setSearch] = useState('')
   // Week filter (Monday to Sunday, India time; '' = all weeks). The server filters by it; the list is grouped by week either way.
@@ -95,6 +98,8 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
   const [viewCounts, setViewCounts] = useState<{ pending: number; done: number; returned: number } | null>(null)   // guarantor In Progress parts
   type StageCounts = { stageNew: number; stageAssigned: number; stageCompleted: number; stagePartial: number }
   const [weekStageCounts, setWeekStageCounts] = useState<StageCounts | null>(null)   // office New-leads parts for the chosen week
+  // the query the list on screen belongs to: while it differs from the current one the list shows as loading
+  const [loadedKey, setLoadedKey] = useState('')
   const LEADS_PAGE = 20
 
   function showToast(m: string) { setToast(m); setTimeout(() => setToast(''), 3000) }
@@ -147,18 +152,40 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
   }
 
   // the current tab, page, search and branch, read at call time so the 15-second refresh never uses stale values
-  const queryRef = useRef({ tab: 'new', page: 1, q: '', branch: '', stage: '', week: '', view: session.role === 'Guarantor' ? 'pending' : '' })
+  type ListQuery = { tab: string; page: number; q: string; branch: string; stage: string; week: string; view: string }
+  const queryOf = (): ListQuery => ({ tab, page, q: search, branch: branchFilter, stage: isManager && tab === 'new' ? stage : '', week: weekFilter, view: session.role === 'Guarantor' && tab === 'new' ? progressView : '' })
+  const listKey = (x: ListQuery, withSearch = true) => [x.tab, x.page, withSearch ? x.q.trim() : '', x.branch, x.stage, x.week, x.view].join('|')
+  const queryRef = useRef<ListQuery>({ tab: isCollectionAgent ? 'history' : 'new', page: 1, q: '', branch: '', stage: isManager ? 'new' : '', week: '', view: session.role === 'Guarantor' ? 'pending' : '' })
   const loadSeq = useRef(0)
   async function loadLeads() {
     const seq = ++loadSeq.current
     const { tab: t, page: p, q, branch, stage: sg, week, view } = queryRef.current
-    const url = `/api/leads?tab=${t === 'disbursements' ? 'new' : t}&page=${p}&pageSize=${LEADS_PAGE}&q=${encodeURIComponent(q.trim())}&branch=${encodeURIComponent(branch)}${sg ? `&stage=${sg}` : ''}${week && t !== 'disbursements' ? `&weekStart=${week}` : ''}${view && t === 'new' ? `&view=${view}` : ''}`
+    const key = listKey(queryRef.current)
+    const url = `/api/leads?tab=${t === 'disbursements' ? 'new' : t}&page=${p}&pageSize=${LEADS_PAGE}&q=${encodeURIComponent(q.trim())}&branch=${encodeURIComponent(branch)}${sg ? `&stage=${sg}` : ''}${week && t !== 'disbursements' ? `&weekStart=${week}` : ''}${view && t === 'new' ? `&view=${view}` : ''}&weekTotals=1`
     const res = await fetch(url, { headers: { Authorization: `Bearer ${session.token}` } })
     const json = await res.json()
     if (seq !== loadSeq.current || !json.success) return   // a newer request replaced this one
-    setLeads(json.data.rows); setTotalLeads(json.data.pagination.total); setTotalPages(json.data.pagination.totalPages)
-    setCounts(json.data.counts); setBranchList(json.data.branches || [])
-    setWeekTotals(json.data.weekTotals || {}); setViewCounts(json.data.viewCounts || null); setWeekStageCounts(json.data.weekStageCounts || null)
+    const d = json.data
+    setLeads(d.rows); setTotalLeads(d.pagination.total); setTotalPages(d.pagination.totalPages)
+    setCounts(d.counts); setBranchList(d.branches || [])
+    setWeekTotals(d.weekTotals || {}); setViewCounts(d.viewCounts || null); setWeekStageCounts(d.weekStageCounts || null)
+    setLoadedKey(key)
+    // Opening on an empty part while another part has leads looks like "nothing here": until the user taps a part,
+    // move to the first part that has leads (the guarantor's three parts, the office's four New-leads parts)
+    if (t === 'new' && !partPicked.current) {
+      if (view && d.viewCounts) {
+        const vc = d.viewCounts as Record<LeadView, number>
+        const first = LEAD_VIEWS.find(k => vc[k] > 0)
+        if (!vc[view as LeadView] && first) setProgressView(first)
+      } else if (sg) {
+        const c = (week ? d.weekStageCounts : d.counts) as StageCounts | null
+        if (c) {
+          const n: Record<LeadStage, number> = { new: c.stageNew, assigned: c.stageAssigned, partial: c.stagePartial ?? 0, completed: c.stageCompleted }
+          const first = (['new', 'assigned', 'partial', 'completed'] as const).find(k => n[k] > 0)
+          if (!n[sg as LeadStage] && first) setStage(first)
+        }
+      }
+    }
   }
 
   // The agent and product lists are needed only inside the pop-ups: load them once, in the background, not on every refresh
@@ -189,7 +216,7 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
   // a new tab, search or branch starts again at page 1; the search is sent after a short pause
   useEffect(() => { setPage(1) }, [tab, search, branchFilter, stage, weekFilter, progressView])
   useEffect(() => {
-    queryRef.current = { tab, page, q: search, branch: branchFilter, stage: isManager && tab === 'new' ? stage : '', week: weekFilter, view: session.role === 'Guarantor' && tab === 'new' ? progressView : '' }
+    queryRef.current = queryOf()
     if (!loadedOnce.current) return   // the first load is done above
     const t = setTimeout(() => { loadLeads() }, search ? 300 : 0)
     return () => clearTimeout(t)
@@ -539,6 +566,13 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
   const today = todayIST()
   // the four New-leads parts: all weeks, or the chosen week
   const stageCounts = weekFilter && weekStageCounts ? weekStageCounts : counts
+  // While a new tab / part / week / page / filter loads, the list shows a skeleton (a new search only dims it) and no
+  // empty message; the part counts show "…" until the chosen week's counts arrive.
+  const cur = queryOf()
+  const loadedParts = loadedKey.split('|')   // tab|page|search|branch|stage|week|view
+  const listLoading = loadedKey !== listKey(cur)
+  const listSkeleton = listLoading && loadedParts.map((x, i) => i === 2 ? '' : x).join('|') !== listKey(cur, false)
+  const partCountsStale = (loadedParts[5] ?? '') !== weekFilter
   const weekPicker = <LeadWeekPicker value={weekFilter} onChange={setWeekFilter} today={today} />
   const weekNote = weekFilter
     ? <p className="px-1 text-xs text-soft">Showing leads submitted <span className="font-semibold text-ink">{weekLabel(weekFilter, today)}</span>. {tab === 'history' ? 'The History total' : 'Tab totals'} at the top count all weeks. <button onClick={() => setWeekFilter('')} className="font-semibold text-ink underline">Show all weeks</button></p>
@@ -579,6 +613,9 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
                 )}
                 {l.status === 'Returned' && (
                   <p className="mt-1.5 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900"><span className="font-bold">Returned by the office:</span> {l.returnReason || 'No reason written.'}</p>
+                )}
+                {l.status === 'Returned' && tab === 'history' && session.role === 'Guarantor' && (
+                  <span className="mt-1.5 mr-1.5 inline-block rounded-lg bg-red-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-700">Returned · also under In Progress › Returned</span>
                 )}
                 {l.loanProduct !== 'RENEWAL' && l.status === 'Verification Submitted' && (l.otpVerifiedAt
                   ? <span className="mt-1.5 mr-1.5 inline-block rounded-lg bg-green-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-green-700">Customer OTP verified</span>
@@ -705,19 +742,35 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
         )}
       </div>
       {isManager && tab !== 'disbursements' && (
-        <div className="grid grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap sm:gap-3 [&>input]:col-span-2 sm:[&>input]:w-72">
+        // Phone: search + ⋯ (Apply loan product, Delete) on the first row, branch + week on the second. Desktop: one row.
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
+          <div className="flex gap-2 sm:contents">
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name, phone, Aadhaar…" data-no-upper
-            className="w-full rounded-2xl border border-line bg-white px-4 py-2.5 text-sm outline-none focus:border-ink" />
-          <select value={branchFilter} onChange={e => setBranchFilter(e.target.value)}
-            className="rounded-2xl border border-line bg-white px-4 py-2.5 text-sm font-medium">
+            className="min-w-0 flex-1 rounded-2xl border border-line bg-white px-4 py-2.5 text-sm outline-none focus:border-ink sm:w-72 sm:flex-none" />
+          {(can('leadsEdit') || can('leadsDelete')) && !pickMode && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button aria-label="More actions" className="h-11 w-11 shrink-0 rounded-2xl border border-line bg-white text-lg font-bold leading-none text-soft sm:hidden">⋯</button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52">
+                {can('leadsEdit') && <DropdownMenuItem onSelect={() => { setProductMode(true); setSelected(new Set()); setBulkProduct(products[0]?.key || '') }}>Apply loan product</DropdownMenuItem>}
+                {can('leadsDelete') && <DropdownMenuItem onSelect={() => { setDeleteMode(true); setSelected(new Set()) }} className="text-red-600">Delete leads</DropdownMenuItem>}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+          </div>
+          <div className="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-2 sm:contents">
+          <select value={branchFilter} onChange={e => setBranchFilter(e.target.value)} aria-label="Branch"
+            className="h-10 min-w-0 rounded-2xl border border-line bg-white px-3 text-sm font-medium sm:px-4">
             <option value="">All branches</option>
             {branchOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
             <option value="none">No branch</option>
           </select>
-          <div className="col-span-2 sm:w-80">{weekPicker}</div>
+          <div className="min-w-0 sm:w-80"><LeadWeekPicker value={weekFilter} onChange={setWeekFilter} today={today} compact /></div>
+          </div>
           {can('leadsEdit') && !pickMode && (
             <button onClick={() => { setProductMode(true); setSelected(new Set()); setBulkProduct(products[0]?.key || '') }}
-              className="rounded-2xl border border-line px-4 py-2.5 text-sm font-semibold">
+              className="hidden rounded-2xl border border-line px-4 py-2.5 text-sm font-semibold sm:block">
               Apply loan product
             </button>
           )}
@@ -733,12 +786,12 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
           )}
           {can('leadsDelete') && !deleteMode && !productMode && (
             <button onClick={() => { setDeleteMode(true); setSelected(new Set()) }}
-              className="rounded-2xl border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-600">
+              className="hidden rounded-2xl border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-600 sm:block">
               Delete
             </button>
           )}
           {deleteMode && (
-            <span>
+            <span className="inline-flex flex-wrap items-center gap-2">
               <span className="text-sm text-soft">{selected.size} selected</span>
               <button onClick={deleteSelected} disabled={!selected.size}
                 className="rounded-2xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-40">
@@ -760,10 +813,10 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
              ['assigned', 'Assigned leads', stageCounts.stageAssigned, 'bg-blue-100 text-blue-700'],
              ['partial', 'Partially verified', stageCounts.stagePartial ?? 0, 'bg-orange-100 text-orange-700'],
              ['completed', 'Completed leads', stageCounts.stageCompleted, 'bg-green-100 text-green-700']] as const).map(([key, title, n, pill]) => (
-            <button key={key} onClick={() => setStage(key)}
-              className={`flex flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-xl px-2 py-2.5 text-[13px] font-semibold transition sm:text-sm ${stage === key ? 'bg-ink text-white' : 'text-soft'}`}>
+            <button key={key} onClick={() => { partPicked.current = true; setStage(key) }}
+              className={`flex min-h-[3.75rem] flex-col items-center justify-center gap-1 rounded-xl px-2 py-2 text-center text-[13px] font-semibold leading-tight transition sm:min-h-0 sm:flex-row sm:gap-2 sm:py-2.5 sm:text-sm ${stage === key ? 'bg-ink text-white' : 'text-soft'}`}>
               {title}
-              <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${stage === key ? 'bg-white/20 text-white' : pill}`}>{n}</span>
+              <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${stage === key ? 'bg-white/20 text-white' : pill}`}>{weekFilter && partCountsStale ? '…' : n}</span>
             </button>
           ))}
         </div>
@@ -772,8 +825,7 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
         <LeadsHistoryWeeks key={weekFilter} session={session} search={search} branch={branchFilter} weekStart={weekFilter} version={counts.history} renderLead={renderLead} />
       ) : (
       <>
-        {visibleLeads.length === 0 && !(session.role === 'Guarantor' && tab === 'new') && <p className="p-8 text-center text-sm text-soft">{tab === 'new' ? (isManager ? (stage === 'assigned' ? 'No assigned leads' : stage === 'partial' ? 'No partially verified leads' : stage === 'completed' ? 'No completed leads' : 'No new leads') : 'No new leads') : (weekFilter ? 'No renewal requests' : 'No renewal requests yet')}{weekFilter ? ' in this week.' : '.'}</p>}
-        <div className="px-5 pb-4"><Pager page={page} totalPages={totalPages} total={totalLeads} noun="leads" pageSize={LEADS_PAGE} onPage={setPage} /></div>
+        {totalPages > 1 && <div className="px-5 pb-4"><Pager page={page} totalPages={totalPages} total={totalLeads} noun="leads" pageSize={LEADS_PAGE} onPage={setPage} /></div>}
         {session.role === 'Guarantor' && tab === 'new' ? (
           // Guarantor: three parts side by side. "Not completed" = waiting for the agent; "Completed" = the agent has finished
           // the verification; "Returned" = sent back by the office. The server filters and counts each part (for the chosen
@@ -783,23 +835,28 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
               {([['pending', 'Not completed', viewCounts?.pending ?? visibleLeads.filter(l => !DONE_STATUSES.includes(l.status) && l.status !== 'Returned').length, 'bg-amber-100 text-amber-700'],
                  ['done', 'Completed', viewCounts?.done ?? visibleLeads.filter(l => DONE_STATUSES.includes(l.status)).length, 'bg-green-100 text-green-700'],
                  ['returned', 'Returned', viewCounts?.returned ?? visibleLeads.filter(l => l.status === 'Returned').length, 'bg-red-100 text-red-700']] as const).map(([key, title, n, pill]) => (
-                <button key={key} onClick={() => setProgressView(key)}
-                  className={`flex flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-xl px-2 py-2.5 text-[13px] font-semibold transition sm:text-sm ${progressView === key ? 'bg-ink text-white' : 'text-soft'}`}>
+                <button key={key} onClick={() => { partPicked.current = true; setProgressView(key) }}
+                  className={`flex min-h-[3.75rem] flex-col items-center justify-center gap-1 rounded-xl px-1.5 py-2 text-center text-[13px] font-semibold leading-tight transition sm:min-h-0 sm:flex-row sm:gap-2 sm:px-2 sm:py-2.5 sm:text-sm ${progressView === key ? 'bg-ink text-white' : 'text-soft'}`}>
                   {title}
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${progressView === key ? 'bg-white/20 text-white' : pill}`}>{n}</span>
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${progressView === key ? 'bg-white/20 text-white' : pill}`}>{partCountsStale || !viewCounts ? '…' : n}</span>
                 </button>
               ))}
             </div>
             {(() => {
               const rows = visibleLeads.filter(l => progressView === 'returned' ? l.status === 'Returned' : progressView === 'done' ? DONE_STATUSES.includes(l.status) : !DONE_STATUSES.includes(l.status) && l.status !== 'Returned')
-              return (
+              return listSkeleton ? <LeadListSkeleton /> : (
+                <div className={listLoading ? 'opacity-60 transition-opacity' : ''}>
                 <LeadWeekGroups rows={rows} totals={weekTotals} today={today} renderLead={renderLead}
                   empty={<p className="p-6 text-center text-sm text-soft">{progressView === 'done' ? 'Nothing completed' : progressView === 'returned' ? 'No returned customers' : 'Nothing waiting for the agent'}{weekFilter ? ' in this week.' : progressView === 'done' ? ' yet.' : '.'}</p>} />
+                </div>
               )
             })()}
           </div>
-        ) : (
-          <LeadWeekGroups rows={visibleLeads} totals={weekTotals} today={today} renderLead={renderLead} />
+        ) : listSkeleton ? <LeadListSkeleton /> : (
+          <div className={listLoading ? 'opacity-60 transition-opacity' : ''}>
+            <LeadWeekGroups rows={visibleLeads} totals={weekTotals} today={today} renderLead={renderLead}
+              empty={<p className="p-8 text-center text-sm text-soft">{tab === 'new' ? (isManager ? (stage === 'assigned' ? 'No assigned leads' : stage === 'partial' ? 'No partially verified leads' : stage === 'completed' ? 'No completed leads' : 'No new leads') : 'No new leads') : (weekFilter ? 'No renewal requests' : 'No renewal requests yet')}{weekFilter ? ' in this week.' : '.'}</p>} />
+          </div>
         )}
   </>
   )}
