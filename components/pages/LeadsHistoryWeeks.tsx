@@ -2,37 +2,32 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { Session, Lead } from '@/types'
+import { todayIST, mondayOf, addDays as plusDays, weekLabel } from '@/lib/leadWeeks'
 
-// Leads History grouped by week (Monday to Friday) and then by day. A week opens to its days, a day opens to its leads.
+// Leads History grouped by week (Monday to Sunday, India time; labels from lib/leadWeeks, the same as the other Leads
+// lists) and then by day. A week opens to its days, a day opens to its leads.
 // Only the day counts are loaded first; the leads of a day are fetched when that day is opened.
+// `weekStart` (the Leads page's week filter): only that week is shown, already open (the page remounts this list,
+// keyed by the week, so a newly chosen week starts open).
 
-const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-const parse = (iso: string) => new Date(iso + 'T00:00:00')
-const mondayOf = (iso: string) => { const d = parse(iso); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return ymd(d) }
-const plusDays = (iso: string, n: number) => { const d = parse(iso); d.setDate(d.getDate() + n); return ymd(d) }
-const monthShort = (d: Date) => d.toLocaleString('en-IN', { month: 'short' })
+// "Monday, 17 Nov" (the date is a calendar date, so it is read as UTC: the browser's time zone does not move it)
+const dayLabel = (iso: string) => new Date(iso + 'T00:00:00Z').toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short', timeZone: 'UTC' })
 
-// "Oct 26 – 30" (or "Oct 28 – Nov 1" when the week crosses a month)
-function weekLabel(monday: string) {
-  const a = parse(monday), b = parse(plusDays(monday, 4))
-  return a.getMonth() === b.getMonth() ? `${monthShort(a)} ${a.getDate()} – ${b.getDate()}` : `${monthShort(a)} ${a.getDate()} – ${monthShort(b)} ${b.getDate()}`
-}
-const dayLabel = (iso: string) => parse(iso).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' })
-
-export default function LeadsHistoryWeeks({ session, search, branch, version, renderLead }: {
-  session: Session; search: string; branch: string; version: number; renderLead: (l: Lead, i: number) => React.ReactNode
+export default function LeadsHistoryWeeks({ session, search, branch, weekStart = '', version, renderLead }: {
+  session: Session; search: string; branch: string; weekStart?: string; version: number; renderLead: (l: Lead, i: number) => React.ReactNode
 }) {
+  const today = todayIST()
   const [weeksBack, setWeeksBack] = useState(12)
   const [perDay, setPerDay] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
-  const [openWeeks, setOpenWeeks] = useState<Set<string>>(new Set([mondayOf(ymd(new Date()))]))   // this week starts open
+  const [openWeeks, setOpenWeeks] = useState<Set<string>>(new Set([weekStart || mondayOf(today)]))   // this week (or the chosen one) starts open
   const [openDays, setOpenDays] = useState<Set<string>>(new Set())
   const [dayLeads, setDayLeads] = useState<Record<string, Lead[] | 'loading'>>({})
   const seq = useRef(0)
   const first = useRef(true)
 
   const headers = { Authorization: `Bearer ${session.token}` }
-  const query = `q=${encodeURIComponent(search.trim())}&branch=${encodeURIComponent(branch)}`
+  const query = `q=${encodeURIComponent(search.trim())}&branch=${encodeURIComponent(branch)}${weekStart ? `&weekStart=${weekStart}` : ''}`
 
   const loadDays = useCallback(async () => {
     const my = ++seq.current
@@ -41,7 +36,7 @@ export default function LeadsHistoryWeeks({ session, search, branch, version, re
     if (my !== seq.current || !json?.success) return
     setPerDay(json.data.perDay || {}); setLoading(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [weeksBack, search, branch, session.token])
+  }, [weeksBack, search, branch, weekStart, session.token])
 
   async function loadDay(day: string) {
     setDayLeads(p => ({ ...p, [day]: 'loading' }))
@@ -56,16 +51,17 @@ export default function LeadsHistoryWeeks({ session, search, branch, version, re
     first.current = false
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [weeksBack, search, branch, version])
+  }, [weeksBack, search, branch, weekStart, version])
 
   const toggle = (set: Set<string>, key: string) => { const n = new Set(set); n.has(key) ? n.delete(key) : n.add(key); return n }
 
   // week (Monday) -> its days, newest first
   const weekMap = new Map<string, string[]>()
   for (const d of Object.keys(perDay)) { const w = mondayOf(d); weekMap.set(w, [...(weekMap.get(w) || []), d]) }
-  const thisMonday = mondayOf(ymd(new Date()))
-  if (!weekMap.has(thisMonday)) weekMap.set(thisMonday, [])   // this week is always shown, even before any lead is finished
-  const weeks = Array.from(weekMap.keys()).sort().reverse()
+  const thisMonday = mondayOf(today)
+  const pinned = weekStart || thisMonday
+  if (!weekMap.has(pinned)) weekMap.set(pinned, [])   // this week (or the chosen week) is always shown, even when empty
+  const weeks = Array.from(weekMap.keys()).filter(w => !weekStart || w === weekStart).sort().reverse()
 
   if (loading) return <p className="p-8 text-center text-sm text-soft">Loading…</p>
 
@@ -81,8 +77,8 @@ export default function LeadsHistoryWeeks({ session, search, branch, version, re
           <div key={w} className="overflow-hidden rounded-[1.5rem] border border-white/70 bg-white shadow-panel">
             <button onClick={() => setOpenWeeks(toggle(openWeeks, w))} className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left">
               <span>
-                <span className="block text-sm font-semibold">{weekLabel(w)} {parse(w).getFullYear()}</span>
-                <span className="text-xs text-soft">{w === thisMonday ? 'This week · ' : ''}{total} lead{total === 1 ? '' : 's'}</span>
+                <span className="block text-sm font-semibold">{weekLabel(w, today)}</span>
+                <span className="text-xs text-soft">{total} lead{total === 1 ? '' : 's'}</span>
               </span>
               <ChevronDown size={18} className={`shrink-0 text-soft transition ${open ? 'rotate-180' : ''}`} />
             </button>
@@ -113,7 +109,7 @@ export default function LeadsHistoryWeeks({ session, search, branch, version, re
           </div>
         )
       })}
-      <button onClick={() => setWeeksBack(w => w + 12)} className="w-full rounded-2xl border border-line bg-white px-4 py-3 text-sm font-semibold text-soft">Show older weeks</button>
+      {!weekStart && <button onClick={() => setWeeksBack(w => w + 12)} className="w-full rounded-2xl border border-line bg-white px-4 py-3 text-sm font-semibold text-soft">Show older weeks</button>}
     </div>
   )
 }

@@ -8,6 +8,8 @@ import { apiSend } from '@/lib/clientApi'
 import SubmitLeadPage from './SubmitLeadPage'
 import RenewalModal from './RenewalModal'
 import LeadsHistoryWeeks from './LeadsHistoryWeeks'
+import { LeadWeekPicker, LeadWeekGroups } from './LeadWeeks'
+import { todayIST, dayLabel, weekLabel } from '@/lib/leadWeeks'
 import RenewalApproveModal from './RenewalApproveModal'
 import DisburseQueue from './DisburseQueue'
 import CompleteVerificationForm from './CompleteVerificationForm'
@@ -87,6 +89,12 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
   const [stage, setStage] = useState<'new' | 'assigned' | 'partial' | 'completed'>('new')
   const [branchList, setBranchList] = useState<{ branchId: string; name: string }[]>([])
   const [search, setSearch] = useState('')
+  // Week filter (Monday to Sunday, India time; '' = all weeks). The server filters by it; the list is grouped by week either way.
+  const [weekFilter, setWeekFilter] = useState('')
+  const [weekTotals, setWeekTotals] = useState<Record<string, number>>({})   // leads per week (whole list) for the week headers
+  const [viewCounts, setViewCounts] = useState<{ pending: number; done: number; returned: number } | null>(null)   // guarantor In Progress parts
+  type StageCounts = { stageNew: number; stageAssigned: number; stageCompleted: number; stagePartial: number }
+  const [weekStageCounts, setWeekStageCounts] = useState<StageCounts | null>(null)   // office New-leads parts for the chosen week
   const LEADS_PAGE = 20
 
   function showToast(m: string) { setToast(m); setTimeout(() => setToast(''), 3000) }
@@ -139,17 +147,18 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
   }
 
   // the current tab, page, search and branch, read at call time so the 15-second refresh never uses stale values
-  const queryRef = useRef({ tab: 'new', page: 1, q: '', branch: '', stage: '' })
+  const queryRef = useRef({ tab: 'new', page: 1, q: '', branch: '', stage: '', week: '', view: session.role === 'Guarantor' ? 'pending' : '' })
   const loadSeq = useRef(0)
   async function loadLeads() {
     const seq = ++loadSeq.current
-    const { tab: t, page: p, q, branch, stage: sg } = queryRef.current
-    const url = `/api/leads?tab=${t === 'disbursements' ? 'new' : t}&page=${p}&pageSize=${LEADS_PAGE}&q=${encodeURIComponent(q.trim())}&branch=${encodeURIComponent(branch)}${sg ? `&stage=${sg}` : ''}`
+    const { tab: t, page: p, q, branch, stage: sg, week, view } = queryRef.current
+    const url = `/api/leads?tab=${t === 'disbursements' ? 'new' : t}&page=${p}&pageSize=${LEADS_PAGE}&q=${encodeURIComponent(q.trim())}&branch=${encodeURIComponent(branch)}${sg ? `&stage=${sg}` : ''}${week && t !== 'disbursements' ? `&weekStart=${week}` : ''}${view && t === 'new' ? `&view=${view}` : ''}`
     const res = await fetch(url, { headers: { Authorization: `Bearer ${session.token}` } })
     const json = await res.json()
     if (seq !== loadSeq.current || !json.success) return   // a newer request replaced this one
     setLeads(json.data.rows); setTotalLeads(json.data.pagination.total); setTotalPages(json.data.pagination.totalPages)
     setCounts(json.data.counts); setBranchList(json.data.branches || [])
+    setWeekTotals(json.data.weekTotals || {}); setViewCounts(json.data.viewCounts || null); setWeekStageCounts(json.data.weekStageCounts || null)
   }
 
   // The agent and product lists are needed only inside the pop-ups: load them once, in the background, not on every refresh
@@ -178,14 +187,14 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
   useEffect(() => { load(true) }, [])
 
   // a new tab, search or branch starts again at page 1; the search is sent after a short pause
-  useEffect(() => { setPage(1) }, [tab, search, branchFilter, stage])
+  useEffect(() => { setPage(1) }, [tab, search, branchFilter, stage, weekFilter, progressView])
   useEffect(() => {
-    queryRef.current = { tab, page, q: search, branch: branchFilter, stage: isManager && tab === 'new' ? stage : '' }
+    queryRef.current = { tab, page, q: search, branch: branchFilter, stage: isManager && tab === 'new' ? stage : '', week: weekFilter, view: session.role === 'Guarantor' && tab === 'new' ? progressView : '' }
     if (!loadedOnce.current) return   // the first load is done above
     const t = setTimeout(() => { loadLeads() }, search ? 300 : 0)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, page, search, branchFilter, stage])
+  }, [tab, page, search, branchFilter, stage, weekFilter, progressView])
 
   // Memoize idle state to avoid dependency array churn
   const isIdle = useMemo(() => !(
@@ -527,6 +536,13 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
   const newLeads = { length: counts.new }, historyLeads = { length: counts.history }, renewalLeads = { length: counts.renewal }
   const branchOptions: [string, string][] = branchList.map(b => [b.branchId, b.name])
   const visibleLeads = leads
+  const today = todayIST()
+  // the four New-leads parts: all weeks, or the chosen week
+  const stageCounts = weekFilter && weekStageCounts ? weekStageCounts : counts
+  const weekPicker = <LeadWeekPicker value={weekFilter} onChange={setWeekFilter} today={today} />
+  const weekNote = weekFilter
+    ? <p className="px-1 text-xs text-soft">Showing leads submitted <span className="font-semibold text-ink">{weekLabel(weekFilter, today)}</span>. {tab === 'history' ? 'The History total' : 'Tab totals'} at the top count all weeks. <button onClick={() => setWeekFilter('')} className="font-semibold text-ink underline">Show all weeks</button></p>
+    : null
 
   const renderLead = (l: Lead, i: number) => (
               <div key={l.leadId || i}
@@ -545,7 +561,9 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
                   <StatusPill status={l.status} />
                   {isManager && <span className="rounded-lg bg-sky-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-sky-700">{l.branchName || 'No branch'}</span>}
                 </div>
-                <p className="mt-0.5 text-xs text-soft">{l.phone}</p>
+                <p className="mt-0.5 text-xs text-soft">
+                  {l.submittedDate && <span>Submitted <span className="font-medium text-ink">{dayLabel(l.submittedDate, today)}</span>{l.phone ? ' · ' : ''}</span>}{l.phone}
+                </p>
                 <div className="mt-1 flex flex-wrap gap-2 text-xs text-soft">
                   {l.guarantorName && <span>Guarantor: <span className="font-medium text-ink">{l.guarantorName}</span></span>}
                   {session.role !== 'Guarantor' && l.assignedAgentName && <span>Agent: <span className="font-medium text-ink">{l.assignedAgentName}</span></span>}
@@ -696,6 +714,7 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
             {branchOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
             <option value="none">No branch</option>
           </select>
+          <div className="col-span-2 sm:w-80">{weekPicker}</div>
           {can('leadsEdit') && !pickMode && (
             <button onClick={() => { setProductMode(true); setSelected(new Set()); setBulkProduct(products[0]?.key || '') }}
               className="rounded-2xl border border-line px-4 py-2.5 text-sm font-semibold">
@@ -733,12 +752,14 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
           )}
         </div>
       )}
+      {!isManager && tab !== 'disbursements' && <div className="sm:max-w-sm">{weekPicker}</div>}
+      {tab !== 'disbursements' && weekNote}
       {isManager && tab === 'new' && (
         <div className="grid grid-cols-2 gap-2 rounded-2xl bg-white p-1.5 shadow-panel sm:grid-cols-4">
-          {([['new', 'New leads', counts.stageNew, 'bg-amber-100 text-amber-700'],
-             ['assigned', 'Assigned leads', counts.stageAssigned, 'bg-blue-100 text-blue-700'],
-             ['partial', 'Partially verified', counts.stagePartial ?? 0, 'bg-orange-100 text-orange-700'],
-             ['completed', 'Completed leads', counts.stageCompleted, 'bg-green-100 text-green-700']] as const).map(([key, title, n, pill]) => (
+          {([['new', 'New leads', stageCounts.stageNew, 'bg-amber-100 text-amber-700'],
+             ['assigned', 'Assigned leads', stageCounts.stageAssigned, 'bg-blue-100 text-blue-700'],
+             ['partial', 'Partially verified', stageCounts.stagePartial ?? 0, 'bg-orange-100 text-orange-700'],
+             ['completed', 'Completed leads', stageCounts.stageCompleted, 'bg-green-100 text-green-700']] as const).map(([key, title, n, pill]) => (
             <button key={key} onClick={() => setStage(key)}
               className={`flex flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-xl px-2 py-2.5 text-[13px] font-semibold transition sm:text-sm ${stage === key ? 'bg-ink text-white' : 'text-soft'}`}>
               {title}
@@ -748,18 +769,20 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
         </div>
       )}
       {tab === 'disbursements' ? <DisbursementsView session={session} /> : tab === 'history' ? (
-        <LeadsHistoryWeeks session={session} search={search} branch={branchFilter} version={counts.history} renderLead={renderLead} />
+        <LeadsHistoryWeeks key={weekFilter} session={session} search={search} branch={branchFilter} weekStart={weekFilter} version={counts.history} renderLead={renderLead} />
       ) : (
       <>
-        {visibleLeads.length === 0 && !(session.role === 'Guarantor' && tab === 'new') && <p className="p-8 text-center text-sm text-soft">{tab === 'new' ? (isManager ? (stage === 'assigned' ? 'No assigned leads.' : stage === 'partial' ? 'No partially verified leads.' : stage === 'completed' ? 'No completed leads.' : 'No new leads.') : 'No new leads.') : 'No renewal requests yet.'}</p>}
+        {visibleLeads.length === 0 && !(session.role === 'Guarantor' && tab === 'new') && <p className="p-8 text-center text-sm text-soft">{tab === 'new' ? (isManager ? (stage === 'assigned' ? 'No assigned leads' : stage === 'partial' ? 'No partially verified leads' : stage === 'completed' ? 'No completed leads' : 'No new leads') : 'No new leads') : (weekFilter ? 'No renewal requests' : 'No renewal requests yet')}{weekFilter ? ' in this week.' : '.'}</p>}
         <div className="px-5 pb-4"><Pager page={page} totalPages={totalPages} total={totalLeads} noun="leads" pageSize={LEADS_PAGE} onPage={setPage} /></div>
         {session.role === 'Guarantor' && tab === 'new' ? (
-          // Guarantor: two tabs side by side. "Not completed" = waiting for the agent; "Completed" = the agent has finished the verification
+          // Guarantor: three parts side by side. "Not completed" = waiting for the agent; "Completed" = the agent has finished
+          // the verification; "Returned" = sent back by the office. The server filters and counts each part (for the chosen
+          // week or all weeks), so the counts are the whole part, not just this page.
           <div className="space-y-3">
             <div className="grid grid-cols-3 gap-2 rounded-2xl bg-white p-1.5 shadow-panel">
-              {([['pending', 'Not completed', visibleLeads.filter(l => !DONE_STATUSES.includes(l.status) && l.status !== 'Returned').length, 'bg-amber-100 text-amber-700'],
-                 ['done', 'Completed', visibleLeads.filter(l => DONE_STATUSES.includes(l.status)).length, 'bg-green-100 text-green-700'],
-                 ['returned', 'Returned', visibleLeads.filter(l => l.status === 'Returned').length, 'bg-red-100 text-red-700']] as const).map(([key, title, n, pill]) => (
+              {([['pending', 'Not completed', viewCounts?.pending ?? visibleLeads.filter(l => !DONE_STATUSES.includes(l.status) && l.status !== 'Returned').length, 'bg-amber-100 text-amber-700'],
+                 ['done', 'Completed', viewCounts?.done ?? visibleLeads.filter(l => DONE_STATUSES.includes(l.status)).length, 'bg-green-100 text-green-700'],
+                 ['returned', 'Returned', viewCounts?.returned ?? visibleLeads.filter(l => l.status === 'Returned').length, 'bg-red-100 text-red-700']] as const).map(([key, title, n, pill]) => (
                 <button key={key} onClick={() => setProgressView(key)}
                   className={`flex flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-xl px-2 py-2.5 text-[13px] font-semibold transition sm:text-sm ${progressView === key ? 'bg-ink text-white' : 'text-soft'}`}>
                   {title}
@@ -770,20 +793,13 @@ export default function LeadsPage({ session, perms }: { session: Session; perms?
             {(() => {
               const rows = visibleLeads.filter(l => progressView === 'returned' ? l.status === 'Returned' : progressView === 'done' ? DONE_STATUSES.includes(l.status) : !DONE_STATUSES.includes(l.status) && l.status !== 'Returned')
               return (
-                <div className="overflow-hidden rounded-[1.75rem] border border-white/70 bg-white shadow-panel divide-y divide-black/5">
-                  {rows.length === 0
-                    ? <p className="p-6 text-center text-sm text-soft">{progressView === 'done' ? 'Nothing completed yet.' : progressView === 'returned' ? 'No returned customers.' : 'Nothing waiting for the agent.'}</p>
-                    : rows.map(renderLead)}
-                </div>
+                <LeadWeekGroups rows={rows} totals={weekTotals} today={today} renderLead={renderLead}
+                  empty={<p className="p-6 text-center text-sm text-soft">{progressView === 'done' ? 'Nothing completed' : progressView === 'returned' ? 'No returned customers' : 'Nothing waiting for the agent'}{weekFilter ? ' in this week.' : progressView === 'done' ? ' yet.' : '.'}</p>} />
               )
             })()}
           </div>
         ) : (
-        <div className="overflow-hidden rounded-[1.75rem] border border-white/70 bg-white shadow-panel divide-y divide-black/5">
-          <div className="overflow-x-auto">
-            {visibleLeads.map(renderLead)}
-      </div>
-    </div>
+          <LeadWeekGroups rows={visibleLeads} totals={weekTotals} today={today} renderLead={renderLead} />
         )}
   </>
   )}
