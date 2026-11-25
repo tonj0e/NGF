@@ -19,7 +19,7 @@ import { checkRenewalEligibility, customerForRenewalLead } from '@/lib/renewalRu
 import { normalizeIndianMobile, maskMobile } from '@/lib/phone'
 import { notifyBranchOfLead } from '@/lib/routes'
 import { reportError } from '@/lib/monitor'
-import { PARTIAL_STATUS, PARTIAL_LOCKED_MSG, changedDetails, agentVisitBlock, officeCompleteBlock, partialMissing, visitOtpBlock, parseVisitNotes } from '@/lib/partialVerification'
+import { PARTIAL_STATUS, PARTIAL_LOCKED_MSG, changedDetails, agentVisitBlock, officeCompleteBlock, partialMissing, visitOtpBlock, parseVisitNotes, MAPS_LINK_RE } from '@/lib/partialVerification'
 
 const OTP_FRESH_MS = 60 * 60 * 1000          // a renewal OTP stays valid for approval for 1 hour
 // (an agent's visit OTP stays valid for submitting for 12 hours: visitOtpBlock in lib/partialVerification.ts)
@@ -280,11 +280,14 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: any) => {
       gpsCoordinates: body.gpsCoordinates, mapsLink: body.mapsLink,
     })
     if (missing.length) return err(`For a partial verification add the ${missing.join(', ')}.`)
-    if (body.phone && !normalizeIndianMobile(body.phone)) return err('Phone must be a valid 10-digit mobile number')
-    // bank details are optional here, but anything typed must be valid (IFSC optional, as in the full form)
-    if (body.accountNumber || body.accountHolder) {
-      const bankError = visitBankBlock(body, lead)
-      if (bankError) return err(bankError)
+    // Only the house, landmark and location are required (owner, 2026-11-25). Anything else typed is saved only when it is
+    // valid; an invalid value is dropped (the lead keeps what it had) and the office corrects it when completing.
+    if (body.phone && !normalizeIndianMobile(body.phone)) body.phone = ''
+    if (body.aadhaarNo && !/^\d{12}$/.test(body.aadhaarNo.replace(/\s/g, ''))) body.aadhaarNo = ''
+    else if (body.aadhaarNo) body.aadhaarNo = body.aadhaarNo.replace(/\s/g, '')
+    if (body.mapsLink && !MAPS_LINK_RE.test(body.mapsLink.trim())) body.mapsLink = ''
+    if ((body.accountNumber || body.accountHolder || body.ifscCode) && visitBankBlock({ ...body, recommendationStatus: '' }, lead)) {
+      body.accountNumber = ''; body.accountHolder = ''; body.ifscCode = ''
     }
 
     const folderId = await ensureDocFolder(lead, leadId)

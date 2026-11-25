@@ -116,7 +116,11 @@ export const partialVerificationSchema = submitVerificationSchema.extend({
   recommendationStatus: z.enum(['Verified', 'Suspicious', 'Rejected Recommendation']).optional().or(z.literal('')),
   riskLevel: z.enum(['Low', 'Medium', 'High']).optional().or(z.literal('')),
   customerName: z.string().optional(),
-  phone: z.string().min(10).optional().or(z.literal('')),
+  // only the house photo, landmark photo and location are required (owner, 2026-11-25): other typed details never block it;
+  // an invalid phone / Aadhaar / bank value is simply not saved (see submitPartialVerification)
+  phone: z.string().optional(),
+  aadhaarNo: z.string().optional(),
+  mapsLink: z.string().optional(),
 })
 
 export const adminReviewSchema = z.object({
